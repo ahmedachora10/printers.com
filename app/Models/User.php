@@ -8,13 +8,16 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laratrust\Contracts\LaratrustUser;
 use Laratrust\Traits\HasRolesAndPermissions;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
-class User extends Authenticatable implements LaratrustUser
+class User extends Authenticatable implements LaratrustUser, HasMedia
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory,
         Notifiable,
-        HasRolesAndPermissions;
+        HasRolesAndPermissions,
+        InteractsWithMedia;
 
     /**
      * The attributes that are mass assignable.
