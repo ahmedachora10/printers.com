@@ -1,0 +1,15 @@
+{
+    "agents": [
+        "claude_code"
+    ],
+    "packages": [
+        "spatie/laravel-medialibrary"
+    ],
+    "skills": [
+        "laravel-best-practices",
+        "pest-testing",
+        "inertia-react-development",
+        "tailwindcss-development",
+        "medialibrary-development"
+    ]
+}
