@@ -6,7 +6,7 @@ trigger: always_on
 
 ## Identity
 
-- **Product:** مركز النعائس للطباعة — Internal Management System
+- **Product:** مركز الناسخ للطباعة — Internal Management System
 - **Business:** Multi-branch print center, Saudi Arabia
 - **Language:** Arabic (RTL primary). All UI strings in `lang/ar/*.php`. `dir="rtl"` on `<html>`.
 - **Currency:** SAR — `1,234.50 ر.س`. Always `DECIMAL(12,2)`, **never float**.
