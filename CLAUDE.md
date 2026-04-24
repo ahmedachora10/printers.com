@@ -1,6 +1,6 @@
 # Alnaasik Print Center — Agent Context
 
-مركز النعائس للطباعة — Internal Management System for a multi-branch Saudi print center.
+مركز الناسخ للطباعة — Internal Management System for a multi-branch Saudi print center.
 
 ---
 
@@ -8,7 +8,7 @@
 
 | Key | Value |
 |---|---|
-| **Product** | مركز النعائس للطباعة — Internal Management System |
+| **Product** | مركز الناسخ للطباعة — Internal Management System |
 | **Business** | Multi-branch print center, Saudi Arabia |
 | **Primary language** | Arabic (RTL). `dir="rtl"` on `<html>`. All UI text in `lang/ar/*.php` |
 | **Currency** | SAR — formatted `1,234.50 ر.س`. Always `DECIMAL(12,2)`, never float |
