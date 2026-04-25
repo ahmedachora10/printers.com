@@ -6,11 +6,17 @@ import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
 import { BookOpen, Folder, LayoutGrid } from 'lucide-react';
 import AppLogo from './app-logo';
+import cities from '@/routes/cities';
 
 const mainNavItems: NavItem[] = [
     {
         title: 'Dashboard',
         url: '/dashboard',
+        icon: LayoutGrid,
+    },
+    {
+        title: 'المدن',
+        url: cities.index().url,
         icon: LayoutGrid,
     },
 ];
