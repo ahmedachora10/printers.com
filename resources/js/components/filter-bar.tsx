@@ -95,7 +95,7 @@ export function FilterBar({
                         )}
 
 
-                        {actions && <Separator orientation="vertical" className="h-5" />}
+                        {actions && searchValue.trim().length > 0 && <Separator orientation="vertical" className="h-5" />}
 
                         {activeFilterChips.map((f) => {
                             const option = f.options.find((o) => o.value === filterValues[f.key]);
