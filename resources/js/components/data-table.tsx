@@ -3,8 +3,10 @@ import { useState, useMemo } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, Inbox, Search } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
@@ -160,10 +162,10 @@ export function DataTable<T extends object>({
     const colSpan = columns.length + (selectable ? 1 : 0);
 
     return (
-        <div className={cn('flex flex-col overflow-hidden rounded-lg border border-border bg-card', className)}>
+        <Card className={cn('flex flex-col overflow-hidden rounded-md', className)}>
             {/* ── Toolbar ───────────────────────────────────────────────────── */}
             {hasToolbar && (
-                <div className="flex items-center justify-between gap-3 border-b border-border bg-card px-4 py-3">
+                <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/30 px-5 py-3.5">
                     <div className="flex items-center gap-2">{toolbarStart}</div>
                     <div className="flex items-center gap-2">
                         {searchable && (
@@ -173,7 +175,7 @@ export function DataTable<T extends object>({
                                     value={search}
                                     onChange={(e) => handleSearch(e.target.value)}
                                     placeholder={searchPlaceholder}
-                                    className="h-9 w-56 ps-9 text-sm"
+                                    className="h-9 w-64 ps-9 text-sm"
                                 />
                             </div>
                         )}
@@ -184,7 +186,7 @@ export function DataTable<T extends object>({
 
             {/* ── Table ─────────────────────────────────────────────────────── */}
             <Table>
-                <TableHeader className="bg-muted/60">
+                <TableHeader className="bg-muted/50">
                     <TableRow className="border-b border-border hover:bg-transparent">
                         {selectable && (
                             <TableHead className="w-10 px-4">
@@ -200,7 +202,7 @@ export function DataTable<T extends object>({
                                 key={col.key}
                                 onClick={col.sortable ? () => handleSort(col.key) : undefined}
                                 className={cn(
-                                    'text-start text-[13px] font-semibold text-foreground/80 whitespace-nowrap',
+                                    'text-start text-[13px] font-semibold text-muted-foreground whitespace-nowrap px-4',
                                     col.sortable && 'group cursor-pointer select-none',
                                     col.headerClassName,
                                 )}
@@ -221,12 +223,12 @@ export function DataTable<T extends object>({
                             <TableRow key={i} className="hover:bg-transparent">
                                 {selectable && (
                                     <TableCell className="w-10 px-4">
-                                        <div className="size-4 animate-pulse rounded bg-muted" />
+                                        <Skeleton className="size-4" />
                                     </TableCell>
                                 )}
                                 {columns.map((col) => (
                                     <TableCell key={col.key} className={col.className}>
-                                        <div className="h-4 w-3/4 animate-pulse rounded bg-muted" />
+                                        <Skeleton className="h-4 w-3/4" />
                                     </TableCell>
                                 ))}
                             </TableRow>
@@ -253,8 +255,8 @@ export function DataTable<T extends object>({
                                     key={key}
                                     data-state={selected ? 'selected' : undefined}
                                     className={cn(
-                                        'border-b border-border/60 transition-colors',
-                                        selected && 'bg-primary/5 hover:bg-primary/8',
+                                        'border-b border-border/50 transition-colors hover:bg-muted/30',
+                                        selected && 'bg-primary/5 hover:bg-primary/[0.08]',
                                     )}
                                 >
                                     {selectable && (
@@ -267,7 +269,7 @@ export function DataTable<T extends object>({
                                         </TableCell>
                                     )}
                                     {columns.map((col) => (
-                                        <TableCell key={col.key} className={cn('py-3 text-sm', col.className)}>
+                                        <TableCell key={col.key} className={cn('px-4 py-3.5 text-sm', col.className)}>
                                             {col.cell
                                                 ? col.cell(row, idx)
                                                 : String((row as Record<string, unknown>)[col.key] ?? '')}
@@ -280,56 +282,59 @@ export function DataTable<T extends object>({
                 </TableBody>
             </Table>
 
-            {/* ── Pagination ────────────────────────────────────────────────── */}
-            {totalPages > 1 && (
-                <div className="flex items-center justify-between border-t border-border bg-card px-4 py-3">
+            {/* ── Footer: item range + pagination ─────────────────────────── */}
+            {sorted.length > 0 && (
+                <div className="flex items-center justify-between border-t border-border bg-muted/20 px-5 py-3">
                     <span className="text-[13px] text-muted-foreground">
-                        {sorted.length} نتيجة &mdash; الصفحة {page} من {totalPages}
+                        عرض {(page - 1) * defaultPageSize + 1}-{Math.min(page * defaultPageSize, sorted.length)} من أصل {sorted.length}
                     </span>
-                    <div className="flex items-center gap-1">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setPage((p) => Math.max(1, p - 1))}
-                            disabled={page === 1}
-                            className="h-8 w-8 p-0"
-                            aria-label="الصفحة السابقة"
-                        >
-                            <ChevronRight className="size-4" />
-                        </Button>
 
-                        {pageNumbers.map((p, i) =>
-                            p === '...' ? (
-                                <span key={`ellipsis-${i}`} className="w-8 text-center text-[13px] text-muted-foreground">
-                                    &hellip;
-                                </span>
-                            ) : (
-                                <Button
-                                    key={p}
-                                    variant={page === p ? 'default' : 'ghost'}
-                                    size="sm"
-                                    onClick={() => setPage(p as number)}
-                                    className={cn(
-                                        'h-8 w-8 p-0 text-[13px]',
-                                        page === p && 'bg-primary text-primary-foreground hover:bg-primary/90',
-                                    )}
-                                >
-                                    {p}
-                                </Button>
-                            ),
-                        )}
+                    {totalPages > 1 && (
+                        <div className="flex items-center gap-1">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                                disabled={page === 1}
+                                className="h-8 w-8 p-0"
+                                aria-label="الصفحة السابقة"
+                            >
+                                <ChevronRight className="size-4" />
+                            </Button>
 
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                            disabled={page === totalPages}
-                            className="h-8 w-8 p-0"
-                            aria-label="الصفحة التالية"
-                        >
-                            <ChevronLeft className="size-4" />
-                        </Button>
-                    </div>
+                            {pageNumbers.map((p, i) =>
+                                p === '...' ? (
+                                    <span key={`ellipsis-${i}`} className="w-8 text-center text-[13px] text-muted-foreground">
+                                        &hellip;
+                                    </span>
+                                ) : (
+                                    <Button
+                                        key={p}
+                                        variant={page === p ? 'default' : 'ghost'}
+                                        size="sm"
+                                        onClick={() => setPage(p as number)}
+                                        className={cn(
+                                            'h-8 w-8 p-0 text-[13px]',
+                                            page === p && 'bg-primary text-primary-foreground hover:bg-primary/90',
+                                        )}
+                                    >
+                                        {p}
+                                    </Button>
+                                ),
+                            )}
+
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                                disabled={page === totalPages}
+                                className="h-8 w-8 p-0"
+                                aria-label="الصفحة التالية"
+                            >
+                                <ChevronLeft className="size-4" />
+                            </Button>
+                        </div>
+                    )}
                 </div>
             )}
 
@@ -337,6 +342,6 @@ export function DataTable<T extends object>({
             {caption && (
                 <p className="border-t border-border px-4 py-2 text-[12px] text-muted-foreground">{caption}</p>
             )}
-        </div>
+        </Card>
     );
 }
