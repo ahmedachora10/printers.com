@@ -13,19 +13,30 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use Illuminate\Http\Request;
 
 class CityController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         Gate::authorize('viewAny', City::class);
 
         $cities = City::query()
+            ->when($request->input('search'), function ($query) use ($request) {
+                $query->where('name', 'like', '%' . $request->input('search') . '%');
+            })
+            ->when($request->filled('status'), function ($query) use ($request) {
+                $query->where('is_active', $request->input('status'));
+            })
             ->orderBy('name')
-            ->paginate(20);
+            ->paginate(8);
 
         return Inertia::render('cities/index', [
             'cities' => CityResource::collection($cities),
+            'filters' => [
+                'search' => $request->input('search'),
+                'status' => $request->input('status'),
+            ],
         ]);
     }
 

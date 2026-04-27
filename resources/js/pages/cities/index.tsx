@@ -1,6 +1,7 @@
-import { destroy, toggleStatus } from '@/actions/App/Http/Controllers/CityController';
+import { destroy, index, toggleStatus } from '@/actions/App/Http/Controllers/CityController';
 import CityFormModal from '@/components/cities/city-form-modal';
 import { DataTable, type ColumnDef } from '@/components/data-table';
+import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -15,17 +16,21 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type City, type PaginatedCity } from '@/types/city';
 import { router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Download, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'المدن', href: '/cities' },
 ];
 
 interface Props {
     cities: PaginatedCity;
+    filters: {
+        search?: string;
+        status?: string;
+    };
 }
 
-export default function CitiesIndex({ cities }: Props) {
+export default function CitiesIndex({ cities, filters }: Props) {
     const [formOpen, setFormOpen] = useState(false);
     const [editingCity, setEditingCity] = useState<City | null>(null);
     const [deletingCity, setDeletingCity] = useState<City | null>(null);
@@ -63,17 +68,19 @@ export default function CitiesIndex({ cities }: Props) {
                 key: 'isActive',
                 header: 'الحالة',
                 cell: (city) => (
-                    <Button onClick={() => handleToggleStatus(city)} className="cursor-pointer">
+                    <button onClick={() => handleToggleStatus(city)} className="cursor-pointer">
                         {city.isActive ? (
-                            <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
-                                نشطة
+                            <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
+                                <span className="inline-block size-1.5 rounded-full bg-green-500" />
+                                نشط
                             </Badge>
                         ) : (
-                            <Badge variant="outline" className="border-border bg-muted text-muted-foreground">
-                                معطلة
+                            <Badge variant="outline" className="gap-1.5 border-border bg-muted/60 text-muted-foreground">
+                                <span className="inline-block size-1.5 rounded-full bg-muted-foreground/50" />
+                                غير نشط
                             </Badge>
                         )}
-                    </Button>
+                    </button>
                 ),
             },
             {
@@ -100,6 +107,42 @@ export default function CitiesIndex({ cities }: Props) {
         [],
     );
 
+
+    const [search, setSearch] = useState(filters.search ?? '');
+    const [filterValues, setFilterValues] = useState<Record<string, string>>({
+        status: filters.status ?? '',
+    });
+    const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+
+    const handleSearchChange = (value: string) => {
+        setSearch(value);
+        if (searchTimeout.current) clearTimeout(searchTimeout.current);
+        searchTimeout.current = setTimeout(() => {
+            router.get(
+                index.url(),
+                { ...(value && { search: value }), ...(filterValues.status && { status: filterValues.status }) },
+                { preserveState: true, replace: true },
+            );
+        }, 400);
+    };
+
+    const handleFilterChange = (key: string, val: string) => {
+        const next = { ...filterValues, [key]: val };
+        setFilterValues(next);
+        router.get(
+            index.url(),
+            { ...(search && { search }), ...(next.status && { status: next.status }) },
+            { preserveState: true, replace: true },
+        );
+    };
+
+    const handleClearAll = () => {
+        setSearch('');
+        setFilterValues({ status: '' });
+        if (searchTimeout.current) clearTimeout(searchTimeout.current);
+        router.get(index.url(), {}, { preserveState: true, replace: true });
+    };
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
@@ -107,19 +150,39 @@ export default function CitiesIndex({ cities }: Props) {
                     <h1 className="text-2xl font-bold">إدارة المدن</h1>
                 </div>
 
+                <div className="mb-6">
+                    <FilterBar
+                        searchable
+                        searchPlaceholder="بحث في المدن..."
+                        searchValue={search}
+                        onSearchChange={handleSearchChange}
+                        filters={[
+                            {
+                                key: 'status',
+                                placeholder: 'الحالة',
+                                options: [
+                                    { value: '1', label: 'نشط' },
+                                    { value: '0', label: 'غير نشط' },
+                                ],
+                            },
+                        ]}
+                        filterValues={filterValues}
+                        onFilterChange={handleFilterChange}
+                        onClearAll={handleClearAll}
+                        actions={
+                            <>
+                                <Button variant="outline" size="sm"><Download className="size-4" /> تصدير</Button>
+                                <Button size="sm" onClick={openCreate}><Plus className="size-4" /> إضافة مدينة</Button>
+                            </>
+                        }
+                    />
+                </div>
+
                 <DataTable
                     columns={columns}
                     data={cities.data}
                     keyExtractor={(city) => city.id}
-                    searchable
-                    searchPlaceholder="بحث في المدن..."
                     defaultPageSize={20}
-                    toolbarEnd={
-                        <Button onClick={openCreate} size="sm">
-                            <Plus className="me-2 h-4 w-4" />
-                            إضافة مدينة
-                        </Button>
-                    }
                 />
             </div>
 

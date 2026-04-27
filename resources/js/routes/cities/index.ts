@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 /**
 * @see \App\Http\Controllers\CityController::index
- * @see app/Http/Controllers/CityController.php:19
+ * @see app/Http/Controllers/CityController.php:20
  * @route '/cities'
  */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\CityController::index
- * @see app/Http/Controllers/CityController.php:19
+ * @see app/Http/Controllers/CityController.php:20
  * @route '/cities'
  */
 index.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\CityController::index
- * @see app/Http/Controllers/CityController.php:19
+ * @see app/Http/Controllers/CityController.php:20
  * @route '/cities'
  */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\CityController::index
- * @see app/Http/Controllers/CityController.php:19
+ * @see app/Http/Controllers/CityController.php:20
  * @route '/cities'
  */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,7 +44,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\CityController::index
- * @see app/Http/Controllers/CityController.php:19
+ * @see app/Http/Controllers/CityController.php:20
  * @route '/cities'
  */
     const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -54,7 +54,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\CityController::index
- * @see app/Http/Controllers/CityController.php:19
+ * @see app/Http/Controllers/CityController.php:20
  * @route '/cities'
  */
         indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -63,7 +63,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\CityController::index
- * @see app/Http/Controllers/CityController.php:19
+ * @see app/Http/Controllers/CityController.php:20
  * @route '/cities'
  */
         indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -79,7 +79,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     index.form = indexForm
 /**
 * @see \App\Http\Controllers\CityController::create
- * @see app/Http/Controllers/CityController.php:32
+ * @see app/Http/Controllers/CityController.php:43
  * @route '/cities/create'
  */
 export const create = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -94,7 +94,7 @@ create.definition = {
 
 /**
 * @see \App\Http\Controllers\CityController::create
- * @see app/Http/Controllers/CityController.php:32
+ * @see app/Http/Controllers/CityController.php:43
  * @route '/cities/create'
  */
 create.url = (options?: RouteQueryOptions) => {
@@ -103,7 +103,7 @@ create.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\CityController::create
- * @see app/Http/Controllers/CityController.php:32
+ * @see app/Http/Controllers/CityController.php:43
  * @route '/cities/create'
  */
 create.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -112,7 +112,7 @@ create.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\CityController::create
- * @see app/Http/Controllers/CityController.php:32
+ * @see app/Http/Controllers/CityController.php:43
  * @route '/cities/create'
  */
 create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -122,7 +122,7 @@ create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\CityController::create
- * @see app/Http/Controllers/CityController.php:32
+ * @see app/Http/Controllers/CityController.php:43
  * @route '/cities/create'
  */
     const createForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -132,7 +132,7 @@ create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\CityController::create
- * @see app/Http/Controllers/CityController.php:32
+ * @see app/Http/Controllers/CityController.php:43
  * @route '/cities/create'
  */
         createForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -141,7 +141,7 @@ create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\CityController::create
- * @see app/Http/Controllers/CityController.php:32
+ * @see app/Http/Controllers/CityController.php:43
  * @route '/cities/create'
  */
         createForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -157,7 +157,7 @@ create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     create.form = createForm
 /**
 * @see \App\Http\Controllers\CityController::store
- * @see app/Http/Controllers/CityController.php:39
+ * @see app/Http/Controllers/CityController.php:50
  * @route '/cities'
  */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -172,7 +172,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\CityController::store
- * @see app/Http/Controllers/CityController.php:39
+ * @see app/Http/Controllers/CityController.php:50
  * @route '/cities'
  */
 store.url = (options?: RouteQueryOptions) => {
@@ -181,7 +181,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\CityController::store
- * @see app/Http/Controllers/CityController.php:39
+ * @see app/Http/Controllers/CityController.php:50
  * @route '/cities'
  */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -191,7 +191,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
     /**
 * @see \App\Http\Controllers\CityController::store
- * @see app/Http/Controllers/CityController.php:39
+ * @see app/Http/Controllers/CityController.php:50
  * @route '/cities'
  */
     const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -201,7 +201,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
             /**
 * @see \App\Http\Controllers\CityController::store
- * @see app/Http/Controllers/CityController.php:39
+ * @see app/Http/Controllers/CityController.php:50
  * @route '/cities'
  */
         storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -309,7 +309,7 @@ show.head = (args: { city: string | number } | [city: string | number ] | string
     show.form = showForm
 /**
 * @see \App\Http\Controllers\CityController::edit
- * @see app/Http/Controllers/CityController.php:48
+ * @see app/Http/Controllers/CityController.php:59
  * @route '/cities/{city}/edit'
  */
 export const edit = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -324,7 +324,7 @@ edit.definition = {
 
 /**
 * @see \App\Http\Controllers\CityController::edit
- * @see app/Http/Controllers/CityController.php:48
+ * @see app/Http/Controllers/CityController.php:59
  * @route '/cities/{city}/edit'
  */
 edit.url = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -357,7 +357,7 @@ edit.url = (args: { city: number | { id: number } } | [city: number | { id: numb
 
 /**
 * @see \App\Http\Controllers\CityController::edit
- * @see app/Http/Controllers/CityController.php:48
+ * @see app/Http/Controllers/CityController.php:59
  * @route '/cities/{city}/edit'
  */
 edit.get = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -366,7 +366,7 @@ edit.get = (args: { city: number | { id: number } } | [city: number | { id: numb
 })
 /**
 * @see \App\Http\Controllers\CityController::edit
- * @see app/Http/Controllers/CityController.php:48
+ * @see app/Http/Controllers/CityController.php:59
  * @route '/cities/{city}/edit'
  */
 edit.head = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -376,7 +376,7 @@ edit.head = (args: { city: number | { id: number } } | [city: number | { id: num
 
     /**
 * @see \App\Http\Controllers\CityController::edit
- * @see app/Http/Controllers/CityController.php:48
+ * @see app/Http/Controllers/CityController.php:59
  * @route '/cities/{city}/edit'
  */
     const editForm = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -386,7 +386,7 @@ edit.head = (args: { city: number | { id: number } } | [city: number | { id: num
 
             /**
 * @see \App\Http\Controllers\CityController::edit
- * @see app/Http/Controllers/CityController.php:48
+ * @see app/Http/Controllers/CityController.php:59
  * @route '/cities/{city}/edit'
  */
         editForm.get = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -395,7 +395,7 @@ edit.head = (args: { city: number | { id: number } } | [city: number | { id: num
         })
             /**
 * @see \App\Http\Controllers\CityController::edit
- * @see app/Http/Controllers/CityController.php:48
+ * @see app/Http/Controllers/CityController.php:59
  * @route '/cities/{city}/edit'
  */
         editForm.head = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -411,7 +411,7 @@ edit.head = (args: { city: number | { id: number } } | [city: number | { id: num
     edit.form = editForm
 /**
 * @see \App\Http\Controllers\CityController::update
- * @see app/Http/Controllers/CityController.php:57
+ * @see app/Http/Controllers/CityController.php:68
  * @route '/cities/{city}'
  */
 export const update = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -426,7 +426,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\CityController::update
- * @see app/Http/Controllers/CityController.php:57
+ * @see app/Http/Controllers/CityController.php:68
  * @route '/cities/{city}'
  */
 update.url = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -459,7 +459,7 @@ update.url = (args: { city: number | { id: number } } | [city: number | { id: nu
 
 /**
 * @see \App\Http\Controllers\CityController::update
- * @see app/Http/Controllers/CityController.php:57
+ * @see app/Http/Controllers/CityController.php:68
  * @route '/cities/{city}'
  */
 update.put = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -468,7 +468,7 @@ update.put = (args: { city: number | { id: number } } | [city: number | { id: nu
 })
 /**
 * @see \App\Http\Controllers\CityController::update
- * @see app/Http/Controllers/CityController.php:57
+ * @see app/Http/Controllers/CityController.php:68
  * @route '/cities/{city}'
  */
 update.patch = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -478,7 +478,7 @@ update.patch = (args: { city: number | { id: number } } | [city: number | { id: 
 
     /**
 * @see \App\Http\Controllers\CityController::update
- * @see app/Http/Controllers/CityController.php:57
+ * @see app/Http/Controllers/CityController.php:68
  * @route '/cities/{city}'
  */
     const updateForm = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -493,7 +493,7 @@ update.patch = (args: { city: number | { id: number } } | [city: number | { id: 
 
             /**
 * @see \App\Http\Controllers\CityController::update
- * @see app/Http/Controllers/CityController.php:57
+ * @see app/Http/Controllers/CityController.php:68
  * @route '/cities/{city}'
  */
         updateForm.put = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -507,7 +507,7 @@ update.patch = (args: { city: number | { id: number } } | [city: number | { id: 
         })
             /**
 * @see \App\Http\Controllers\CityController::update
- * @see app/Http/Controllers/CityController.php:57
+ * @see app/Http/Controllers/CityController.php:68
  * @route '/cities/{city}'
  */
         updateForm.patch = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -523,7 +523,7 @@ update.patch = (args: { city: number | { id: number } } | [city: number | { id: 
     update.form = updateForm
 /**
 * @see \App\Http\Controllers\CityController::destroy
- * @see app/Http/Controllers/CityController.php:66
+ * @see app/Http/Controllers/CityController.php:77
  * @route '/cities/{city}'
  */
 export const destroy = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -538,7 +538,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\CityController::destroy
- * @see app/Http/Controllers/CityController.php:66
+ * @see app/Http/Controllers/CityController.php:77
  * @route '/cities/{city}'
  */
 destroy.url = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -571,7 +571,7 @@ destroy.url = (args: { city: number | { id: number } } | [city: number | { id: n
 
 /**
 * @see \App\Http\Controllers\CityController::destroy
- * @see app/Http/Controllers/CityController.php:66
+ * @see app/Http/Controllers/CityController.php:77
  * @route '/cities/{city}'
  */
 destroy.delete = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -581,7 +581,7 @@ destroy.delete = (args: { city: number | { id: number } } | [city: number | { id
 
     /**
 * @see \App\Http\Controllers\CityController::destroy
- * @see app/Http/Controllers/CityController.php:66
+ * @see app/Http/Controllers/CityController.php:77
  * @route '/cities/{city}'
  */
     const destroyForm = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -596,7 +596,7 @@ destroy.delete = (args: { city: number | { id: number } } | [city: number | { id
 
             /**
 * @see \App\Http\Controllers\CityController::destroy
- * @see app/Http/Controllers/CityController.php:66
+ * @see app/Http/Controllers/CityController.php:77
  * @route '/cities/{city}'
  */
         destroyForm.delete = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -612,7 +612,7 @@ destroy.delete = (args: { city: number | { id: number } } | [city: number | { id
     destroy.form = destroyForm
 /**
 * @see \App\Http\Controllers\CityController::toggleStatus
- * @see app/Http/Controllers/CityController.php:75
+ * @see app/Http/Controllers/CityController.php:86
  * @route '/cities/{city}/toggle-status'
  */
 export const toggleStatus = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -627,7 +627,7 @@ toggleStatus.definition = {
 
 /**
 * @see \App\Http\Controllers\CityController::toggleStatus
- * @see app/Http/Controllers/CityController.php:75
+ * @see app/Http/Controllers/CityController.php:86
  * @route '/cities/{city}/toggle-status'
  */
 toggleStatus.url = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -660,7 +660,7 @@ toggleStatus.url = (args: { city: number | { id: number } } | [city: number | { 
 
 /**
 * @see \App\Http\Controllers\CityController::toggleStatus
- * @see app/Http/Controllers/CityController.php:75
+ * @see app/Http/Controllers/CityController.php:86
  * @route '/cities/{city}/toggle-status'
  */
 toggleStatus.patch = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -670,7 +670,7 @@ toggleStatus.patch = (args: { city: number | { id: number } } | [city: number | 
 
     /**
 * @see \App\Http\Controllers\CityController::toggleStatus
- * @see app/Http/Controllers/CityController.php:75
+ * @see app/Http/Controllers/CityController.php:86
  * @route '/cities/{city}/toggle-status'
  */
     const toggleStatusForm = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -685,7 +685,7 @@ toggleStatus.patch = (args: { city: number | { id: number } } | [city: number | 
 
             /**
 * @see \App\Http\Controllers\CityController::toggleStatus
- * @see app/Http/Controllers/CityController.php:75
+ * @see app/Http/Controllers/CityController.php:86
  * @route '/cities/{city}/toggle-status'
  */
         toggleStatusForm.patch = (args: { city: number | { id: number } } | [city: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

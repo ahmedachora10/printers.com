@@ -1,11 +1,10 @@
 import * as React from 'react';
 import { useState, useMemo } from 'react';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, Inbox, Search } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, Inbox } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
@@ -26,11 +25,7 @@ export interface DataTableProps<T extends object> {
     data: T[];
     keyExtractor: (row: T) => string | number;
     selectable?: boolean;
-    searchable?: boolean;
-    searchPlaceholder?: string;
     defaultPageSize?: number;
-    toolbarStart?: React.ReactNode;
-    toolbarEnd?: React.ReactNode;
     emptyState?: React.ReactNode;
     loading?: boolean;
     onSelectionChange?: (selectedKeys: Array<string | number>, selectedRows: T[]) => void;
@@ -65,11 +60,7 @@ export function DataTable<T extends object>({
     data,
     keyExtractor,
     selectable = false,
-    searchable = false,
-    searchPlaceholder = 'بحث...',
     defaultPageSize = 10,
-    toolbarStart,
-    toolbarEnd,
     emptyState,
     loading = false,
     onSelectionChange,
@@ -77,31 +68,19 @@ export function DataTable<T extends object>({
     className,
 }: DataTableProps<T>) {
     const [sort, setSort] = useState<SortState | null>(null);
-    const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
     const [selectedKeys, setSelectedKeys] = useState<Set<string | number>>(new Set());
 
-    // ── Filter ────────────────────────────────────────────────────────────────
-    const filtered = useMemo(() => {
-        if (!search.trim()) return data;
-        const q = search.toLowerCase();
-        return data.filter((row) =>
-            Object.values(row as Record<string, unknown>).some((v) =>
-                String(v ?? '').toLowerCase().includes(q),
-            ),
-        );
-    }, [data, search]);
-
     // ── Sort ──────────────────────────────────────────────────────────────────
     const sorted = useMemo(() => {
-        if (!sort) return filtered;
-        return [...filtered].sort((a, b) => {
+        if (!sort) return data;
+        return [...data].sort((a, b) => {
             const av = String((a as Record<string, unknown>)[sort.key] ?? '');
             const bv = String((b as Record<string, unknown>)[sort.key] ?? '');
             const cmp = av < bv ? -1 : av > bv ? 1 : 0;
             return sort.direction === 'asc' ? cmp : -cmp;
         });
-    }, [filtered, sort]);
+    }, [data, sort]);
 
     // ── Paginate ──────────────────────────────────────────────────────────────
     const totalPages = Math.max(1, Math.ceil(sorted.length / defaultPageSize));
@@ -116,11 +95,6 @@ export function DataTable<T extends object>({
             if (prev?.key === key) return prev.direction === 'asc' ? { key, direction: 'desc' } : null;
             return { key, direction: 'asc' };
         });
-        setPage(1);
-    };
-
-    const handleSearch = (v: string) => {
-        setSearch(v);
         setPage(1);
     };
 
@@ -158,32 +132,10 @@ export function DataTable<T extends object>({
         }, []);
     }, [totalPages, page]);
 
-    const hasToolbar = searchable || toolbarStart !== undefined || toolbarEnd !== undefined;
     const colSpan = columns.length + (selectable ? 1 : 0);
 
     return (
         <Card className={cn('flex flex-col overflow-hidden rounded-md', className)}>
-            {/* ── Toolbar ───────────────────────────────────────────────────── */}
-            {hasToolbar && (
-                <div className="flex items-center justify-between gap-3 border-b border-border bg-muted/30 px-5 py-3.5">
-                    <div className="flex items-center gap-2">{toolbarStart}</div>
-                    <div className="flex items-center gap-2">
-                        {searchable && (
-                            <div className="relative">
-                                <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                                <Input
-                                    value={search}
-                                    onChange={(e) => handleSearch(e.target.value)}
-                                    placeholder={searchPlaceholder}
-                                    className="h-9 w-64 ps-9 text-sm"
-                                />
-                            </div>
-                        )}
-                        {toolbarEnd}
-                    </div>
-                </div>
-            )}
-
             {/* ── Table ─────────────────────────────────────────────────────── */}
             <Table>
                 <TableHeader className="bg-muted/50">
