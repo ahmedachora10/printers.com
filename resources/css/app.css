@@ -70,6 +70,7 @@
   color utility to any element that depends on these defaults.
 */
 @layer base {
+
     *,
     ::after,
     ::before,
@@ -81,7 +82,7 @@
 
 :root {
     /* ─── Shadcn/ui Tokens ──────────────────────────────────────────── */
-    --background: #fbf8ff;
+    --background: #fff;
     --foreground: #1a1b22;
     --card: #ffffff;
     --card-foreground: #1a1b22;
@@ -106,7 +107,7 @@
     --chart-3: #3755c3;
     --chart-4: #872d00;
     --chart-5: #ffa583;
-    --sidebar-background: #f4f2fc;
+    --sidebar-background: #fff;
     --sidebar-foreground: #1a1b22;
     --sidebar-primary: #1e40af;
     --sidebar-primary-foreground: #ffffff;
