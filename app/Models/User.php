@@ -4,6 +4,8 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laratrust\Contracts\LaratrustUser;
@@ -16,6 +18,7 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory,
         Notifiable,
+        SoftDeletes,
         HasRolesAndPermissions,
         InteractsWithMedia;
 
@@ -25,9 +28,17 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
      * @var list<string>
      */
     protected $fillable = [
+        'username',
         'name',
         'email',
         'password',
+        'phone',
+        'branch_id',
+        'salary',
+        'base_commission_pct',
+        'referral_commission_pct',
+        'joined_date',
+        'is_active',
     ];
 
     /**
@@ -49,7 +60,15 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
     {
         return [
             'email_verified_at' => 'datetime',
+            'joined_date' => 'date',
             'password' => 'hashed',
+            'is_active' => 'boolean',
         ];
+    }
+
+    /** @return BelongsTo<\App\Models\Branch, self> */
+    public function branch(): BelongsTo
+    {
+        return $this->belongsTo(Branch::class);
     }
 }

@@ -8,6 +8,7 @@ use Illuminate\Database\Seeder;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\CitySeeder;
 use Database\Seeders\UserSeeder;
+use Database\Seeders\BranchSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -25,6 +26,7 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             RolesAndPermissionsSeeder::class,
+            BranchSeeder::class,
             UserSeeder::class,
             CitySeeder::class,
         ]);

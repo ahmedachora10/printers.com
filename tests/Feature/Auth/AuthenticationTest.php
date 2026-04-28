@@ -1,41 +1,98 @@
 <?php
 
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 
-test('login screen can be rendered', function () {
-    $response = $this->get('/login');
+describe('Authentication', function () {
+    test('login page renders successfully', function () {
+        $this->get('/login')->assertStatus(200);
+    });
 
-    $response->assertStatus(200);
-});
+    test('user can login with username and password', function () {
+        $user = User::factory()->create();
 
-test('users can authenticate using the login screen', function () {
-    $user = User::factory()->create();
+        $response = $this->post('/login', [
+            'username' => $user->username,
+            'password' => 'password',
+        ]);
 
-    $response = $this->post('/login', [
-        'email' => $user->email,
-        'password' => 'password',
-    ]);
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('dashboard', absolute: false));
+    });
 
-    $this->assertAuthenticated();
-    $response->assertRedirect(route('dashboard', absolute: false));
-});
+    test('login fails with wrong password and returns generic arabic error', function () {
+        $user = User::factory()->create();
 
-test('users can not authenticate with invalid password', function () {
-    $user = User::factory()->create();
+        $response = $this->post('/login', [
+            'username' => $user->username,
+            'password' => 'wrong-password',
+        ]);
 
-    $this->post('/login', [
-        'email' => $user->email,
-        'password' => 'wrong-password',
-    ]);
+        $this->assertGuest();
+        $response->assertSessionHasErrors(['username' => 'بيانات الدخول غير صحيحة']);
+    });
 
-    $this->assertGuest();
-});
+    test('login fails with unknown username and returns generic arabic error (no enumeration)', function () {
+        $response = $this->post('/login', [
+            'username' => 'nonexistent_user',
+            'password' => 'password',
+        ]);
 
-test('users can logout', function () {
-    $user = User::factory()->create();
+        $this->assertGuest();
+        $response->assertSessionHasErrors(['username' => 'بيانات الدخول غير صحيحة']);
+    });
 
-    $response = $this->actingAs($user)->post('/logout');
+    test('email field is not accepted as login credential', function () {
+        $user = User::factory()->create();
 
-    $this->assertGuest();
-    $response->assertRedirect('/');
+        $this->post('/login', [
+            'email' => $user->email,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+    });
+
+    test('super-admin is redirected to dashboard after login', function () {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $user = User::factory()->create();
+        $user->addRole('super-admin');
+
+        $response = $this->post('/login', [
+            'username' => $user->username,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('dashboard', absolute: false));
+    });
+
+    test('agent is redirected to dashboard after login', function () {
+        $this->seed(RolesAndPermissionsSeeder::class);
+        $user = User::factory()->create();
+        $user->addRole('agent');
+
+        $response = $this->post('/login', [
+            'username' => $user->username,
+            'password' => 'password',
+        ]);
+
+        $this->assertAuthenticated();
+        $response->assertRedirect(route('dashboard', absolute: false));
+    });
+
+    test('logout invalidates server session and redirects to home', function () {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->post('/logout');
+
+        $this->assertGuest();
+        $response->assertRedirect('/');
+    });
+
+    test('authenticated user cannot access login page', function () {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/login')->assertRedirect('/dashboard');
+    });
 });
