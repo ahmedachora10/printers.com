@@ -2,8 +2,12 @@
 
 namespace App\Providers;
 
+use App\Models\Branch;
 use App\Models\City;
+use App\Models\Customer;
+use App\Policies\BranchPolicy;
 use App\Policies\CityPolicy;
+use App\Policies\CustomerPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\SQLiteConnection;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -44,6 +48,8 @@ class AppServiceProvider extends ServiceProvider
     private function configureGates(): void
     {
         Gate::policy(City::class, CityPolicy::class);
+        Gate::policy(Branch::class, BranchPolicy::class);
+        Gate::policy(Customer::class, CustomerPolicy::class);
     }
 
     protected function configureDefaults(): void

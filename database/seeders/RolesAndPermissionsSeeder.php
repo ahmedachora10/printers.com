@@ -79,7 +79,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 ],
             ],
 
-            'branch-manager' => [
+            'branch-admin' => [
                 'display_name' => 'مدير فرع',
                 'description'  => 'صلاحيات كاملة داخل الفرع',
                 'permissions'  => [

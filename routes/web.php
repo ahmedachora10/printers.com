@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\BranchController;
 use App\Http\Controllers\CityController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -17,6 +18,10 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('cities', CityController::class);
         Route::patch('cities/{city}/toggle-status', [CityController::class, 'toggleStatus'])
             ->name('cities.toggle-status');
+
+        Route::resource('branches', BranchController::class);
+        Route::patch('branches/{branch}/toggle-status', [BranchController::class, 'toggleStatus'])
+            ->name('branches.toggle-status');
     });
 });
 

@@ -1,0 +1,42 @@
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+
+class Branch extends Model implements HasMedia
+{
+    use HasFactory, SoftDeletes, InteractsWithMedia;
+
+    protected $fillable = [
+        'name',
+        'city_id',
+        'phone',
+        'address',
+        'business_type',
+        'commercial_reg_no',
+        'tax_number',
+        'vat_rate_override',
+        'is_active',
+    ];
+
+    protected $casts = [
+        'vat_rate_override' => 'decimal:2',
+        'is_active'         => 'boolean',
+    ];
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('logo')->singleFile();
+    }
+
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<City, self> */
+    public function city(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(City::class);
+    }
+}

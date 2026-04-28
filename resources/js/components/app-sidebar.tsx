@@ -4,20 +4,27 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, LayoutGrid } from 'lucide-react';
+import { BookOpen, Folder, GitBranch, LayoutGrid } from 'lucide-react';
 import AppLogo from './app-logo';
 import cities from '@/routes/cities';
+import branches from '@/routes/branches';
+import { dashboard } from '@/routes';
 
 const mainNavItems: NavItem[] = [
     {
-        title: 'Dashboard',
-        url: '/dashboard',
+        title: 'لوحة التحكم',
+        url: dashboard().url,
         icon: LayoutGrid,
     },
     {
         title: 'المدن',
         url: cities.index().url,
         icon: LayoutGrid,
+    },
+    {
+        title: 'الفروع',
+        url: branches.index().url,
+        icon: GitBranch,
     },
 ];
 
@@ -60,3 +67,4 @@ export function AppSidebar() {
         </Sidebar>
     );
 }
+
