@@ -1,10 +1,17 @@
 import { type City } from './city';
 
+export interface BranchAdmin {
+    id: number;
+    name: string;
+}
+
 export interface Branch {
     id: number;
     name: string;
     cityId: number;
     city?: City;
+    ownerId: number | null;
+    owner?: BranchAdmin | null;
     phone: string | null;
     address: string | null;
     businessType: string | null;

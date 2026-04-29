@@ -12,6 +12,7 @@ use Laratrust\Contracts\LaratrustUser;
 use Laratrust\Traits\HasRolesAndPermissions;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class User extends Authenticatable implements LaratrustUser, HasMedia
 {
@@ -66,9 +67,15 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
         ];
     }
 
-    /** @return BelongsTo<\App\Models\Branch, self> */
+    /** @return BelongsTo<Branch, self> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /** @return HasOne<Branch, self> */
+    public function branchManager(): HasOne
+    {
+        return $this->hasOne(Branch::class, 'owner_id');
     }
 }

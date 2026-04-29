@@ -15,6 +15,11 @@ class BranchResource extends JsonResource
             'name'             => $this->name,
             'cityId'           => $this->city_id,
             'city'             => new CityResource($this->whenLoaded('city')),
+            'ownerId'          => $this->owner_id,
+            'owner'            => $this->whenLoaded('owner', fn () => [
+                'id'   => $this->owner->id,
+                'name' => $this->owner->name,
+            ]),
             'phone'            => $this->phone,
             'address'          => $this->address,
             'businessType'     => $this->business_type,

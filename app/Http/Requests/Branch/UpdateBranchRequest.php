@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\Branch;
 
+use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateBranchRequest extends FormRequest
 {
@@ -22,6 +24,16 @@ class UpdateBranchRequest extends FormRequest
             'commercial_reg_no' => ['nullable', 'string', 'max:100'],
             'tax_number'        => ['nullable', 'string', 'max:100'],
             'vat_rate_override' => ['sometimes', 'numeric', 'min:0', 'max:100'],
+            'owner_id'          => [
+                'nullable',
+                'exists:users,id',
+                Rule::unique('branches', 'owner_id')->ignore($this->route('branch')),
+                function (string $attribute, mixed $value, \Closure $fail) {
+                    if ($value && ! User::find($value)?->hasRole('branch-admin')) {
+                        $fail('يجب أن يكون المالك مديراً للفرع (branch-admin).');
+                    }
+                },
+            ],
             'is_active'         => ['boolean'],
             'logo'              => ['nullable', 'image', 'max:2048'],
         ];

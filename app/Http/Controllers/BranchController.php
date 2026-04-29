@@ -11,6 +11,7 @@ use App\Http\Resources\Branch\BranchResource;
 use App\Http\Resources\City\CityResource;
 use App\Models\Branch;
 use App\Models\City;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -24,18 +25,23 @@ class BranchController extends Controller
         Gate::authorize('viewAny', Branch::class);
 
         $branches = Branch::query()
-            ->with('city')
+            ->with(['city', 'owner'])
             ->when($request->input('search'), fn ($q) => $q->where('name', 'like', '%' . $request->input('search') . '%'))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', $request->input('status')))
             ->latest()
             ->paginate(15);
 
         return Inertia::render('branches/index', [
-            'branches' => BranchResource::collection($branches),
-            'cities'   => CityResource::collection(
+            'branches'     => BranchResource::collection($branches),
+            'cities'       => CityResource::collection(
                 City::query()->where('is_active', true)->orderBy('name')->get()
             ),
-            'filters'  => [
+            'branchAdmins' => User::query()
+                ->whereHas('roles', fn ($q) => $q->where('name', 'branch-admin'))
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get(['id', 'name']),
+            'filters'      => [
                 'search' => $request->input('search'),
                 'status' => $request->input('status'),
             ],

@@ -151,6 +151,54 @@ describe('Branch Management', function () {
         ])->assertForbidden();
     });
 
+    // ── OWNER ───────────────────────────────────────────────────────
+
+    it('assigns a branch-admin as owner when creating a branch', function () {
+        $branchAdmin = User::factory()->create();
+        $branchAdmin->addRole('branch-admin');
+
+        $this->post(route('branches.store'), [
+            'name'              => 'فرع الرياض',
+            'city_id'           => $this->city->id,
+            'vat_rate_override' => 15.00,
+            'owner_id'          => $branchAdmin->id,
+        ])->assertRedirect(route('branches.index'));
+
+        $this->assertDatabaseHas('branches', [
+            'name'     => 'فرع الرياض',
+            'owner_id' => $branchAdmin->id,
+        ]);
+    });
+
+    it('rejects a non-branch-admin user as owner', function () {
+        $employee = User::factory()->create();
+        $employee->addRole('employee');
+
+        $this->post(route('branches.store'), [
+            'name'              => 'فرع جدة',
+            'city_id'           => $this->city->id,
+            'vat_rate_override' => 15.00,
+            'owner_id'          => $employee->id,
+        ])->assertSessionHasErrors(['owner_id']);
+    });
+
+    it('rejects an owner already owning another branch', function () {
+        $branchAdmin = User::factory()->create();
+        $branchAdmin->addRole('branch-admin');
+
+        Branch::factory()->create([
+            'city_id'  => $this->city->id,
+            'owner_id' => $branchAdmin->id,
+        ]);
+
+        $this->post(route('branches.store'), [
+            'name'              => 'فرع مكة',
+            'city_id'           => $this->city->id,
+            'vat_rate_override' => 15.00,
+            'owner_id'          => $branchAdmin->id,
+        ])->assertSessionHasErrors(['owner_id']);
+    });
+
     it('prevents accountant from updating branches', function () {
         $accountant = User::factory()->create();
         $accountant->addRole('accountant');

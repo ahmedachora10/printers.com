@@ -18,7 +18,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { type Branch } from '@/types/branch';
+import { type Branch, type BranchAdmin } from '@/types/branch';
 import { type City } from '@/types/city';
 import { router, useForm } from '@inertiajs/react';
 
@@ -27,9 +27,10 @@ interface Props {
     onOpenChange: (open: boolean) => void;
     branch?: Branch;
     cities: City[];
+    branchAdmins: BranchAdmin[];
 }
 
-export default function BranchFormModal({ open, onOpenChange, branch, cities }: Props) {
+export default function BranchFormModal({ open, onOpenChange, branch, cities, branchAdmins }: Props) {
     const isEdit = !!branch;
 
     const { data, setData, post, put, processing, errors, reset } = useForm<{
@@ -40,6 +41,7 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities }: 
         business_type: string;
         commercial_reg_no: string;
         tax_number: string;
+        owner_id: string;
         vat_rate_override: number;
         is_active: boolean;
         logo: File | null;
@@ -51,6 +53,7 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities }: 
         business_type: branch?.businessType ?? '',
         commercial_reg_no: branch?.commercialRegNo ?? '',
         tax_number: branch?.taxNumber ?? '',
+        owner_id: branch?.ownerId ? String(branch.ownerId) : '',
         vat_rate_override: branch?.vatRateOverride ?? 15,
         is_active: branch?.isActive ?? true,
         logo: null,
@@ -206,6 +209,28 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities }: 
                             dir="ltr"
                         />
                         {errors.vat_rate_override && <p className="text-sm text-destructive">{errors.vat_rate_override}</p>}
+                    </div>
+
+                    {/* Owner */}
+                    <div className="space-y-1">
+                        <Label htmlFor="b-owner">مالك الفرع</Label>
+                        <Select
+                            value={data.owner_id}
+                            onValueChange={(val) => setData('owner_id', val === '_none' ? '' : val)}
+                        >
+                            <SelectTrigger id="b-owner">
+                                <SelectValue placeholder="بدون مالك" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="_none">بدون مالك</SelectItem>
+                                {branchAdmins.map((admin) => (
+                                    <SelectItem key={admin.id} value={String(admin.id)}>
+                                        {admin.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {errors.owner_id && <p className="text-sm text-destructive">{errors.owner_id}</p>}
                     </div>
 
                     {/* Is Active */}

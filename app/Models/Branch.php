@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
@@ -15,6 +17,7 @@ class Branch extends Model implements HasMedia
     protected $fillable = [
         'name',
         'city_id',
+        'owner_id',
         'phone',
         'address',
         'business_type',
@@ -34,9 +37,20 @@ class Branch extends Model implements HasMedia
         $this->addMediaCollection('logo')->singleFile();
     }
 
-    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<City, self> */
-    public function city(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    /** @return BelongsTo<City, self> */
+    public function city(): BelongsTo
     {
         return $this->belongsTo(City::class);
+    }
+
+    /** @return BelongsTo<User, self> */
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    public function employees() : HasMany
+    {
+        return $this->hasMany(User::class, 'branch_id');
     }
 }

@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { type Branch, type PaginatedBranch } from '@/types/branch';
+import { type Branch, type BranchAdmin, type PaginatedBranch } from '@/types/branch';
 import { type City } from '@/types/city';
 import { router } from '@inertiajs/react';
 import { Pencil, Plus, Trash2 } from 'lucide-react';
@@ -27,13 +27,14 @@ const breadcrumbs: BreadcrumbItem[] = [
 interface Props {
     branches: PaginatedBranch;
     cities: City[];
+    branchAdmins: BranchAdmin[];
     filters: {
         search?: string;
         status?: string;
     };
 }
 
-export default function BranchesIndex({ branches, cities, filters }: Props) {
+export default function BranchesIndex({ branches, cities, branchAdmins, filters }: Props) {
     const [formOpen, setFormOpen] = useState(false);
     const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
     const [deletingBranch, setDeletingBranch] = useState<Branch | null>(null);
@@ -237,6 +238,7 @@ export default function BranchesIndex({ branches, cities, filters }: Props) {
                 onOpenChange={setFormOpen}
                 branch={editingBranch ?? undefined}
                 cities={cities}
+                branchAdmins={branchAdmins}
             />
         </AppLayout>
     );
