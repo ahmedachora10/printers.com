@@ -3,11 +3,12 @@ import { NavMain } from '@/components/nav-main';
 import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
-import { Link } from '@inertiajs/react';
+import { Link, usePage } from '@inertiajs/react';
 import { BookOpen, Folder, GitBranch, LayoutGrid, ServerIcon } from 'lucide-react';
 import AppLogo from './app-logo';
 import cities from '@/routes/cities';
 import branches from '@/routes/branches';
+import branchServicesRoute from '@/routes/branch-services';
 import { dashboard } from '@/routes';
 import serviceTemplates from '@/routes/service-templates';
 
@@ -26,6 +27,8 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
+    const { auth } = usePage<{ auth: { role?: { value: string } } }>().props;
+    const isSuperAdmin = auth?.role === 'super-admin';
 
 
     const mainNavItems: NavItem[] = [
@@ -46,7 +49,9 @@ export function AppSidebar() {
         },
         {
             title: 'الخدمات',
-            url: serviceTemplates.index().url,
+            url: isSuperAdmin
+                ? serviceTemplates.index().url
+                : branchServicesRoute.index().url,
             icon: ServerIcon,
         },
     ];

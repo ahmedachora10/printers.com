@@ -36,14 +36,6 @@ describe('Branch Management', function () {
         $this->get(route('branches.index'))->assertForbidden();
     });
 
-    // ── CREATE ─────────────────────────────────────────────────────
-
-    it('renders the create page with cities', function () {
-        $this->get(route('branches.create'))
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('branches/create')->has('cities'));
-    });
-
     // ── STORE ──────────────────────────────────────────────────────
 
     it('creates a branch with valid data', function () {

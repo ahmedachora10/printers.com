@@ -17,7 +17,7 @@ class BranchPolicy
 
     public function view(User $user, Branch $branch): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin() || ($user->roleName->isBranchAdmin() && $user->id === $branch->owner_id);
     }
 
     public function create(User $user): bool
@@ -27,7 +27,7 @@ class BranchPolicy
 
     public function update(User $user, Branch $branch): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin() || ($user->roleName->isBranchAdmin() && $user->id === $branch->owner_id);
     }
 
     public function delete(User $user, Branch $branch): bool

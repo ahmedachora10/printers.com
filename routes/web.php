@@ -21,7 +21,8 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('cities/{city}/toggle-status', [CityController::class, 'toggleStatus'])
             ->name('cities.toggle-status');
 
-        Route::resource('branches', BranchController::class);
+        Route::resource('branches', BranchController::class)
+            ->except(['create', 'edit']);
         Route::patch('branches/{branch}/toggle-status', [BranchController::class, 'toggleStatus'])
             ->name('branches.toggle-status');
 
@@ -29,8 +30,11 @@ Route::middleware(['auth'])->group(function () {
             ->except(['create', 'edit']);
     });
 
-    Route::resource('branch-services', BranchServiceController::class)
-        ->only(['store', 'update', 'destroy']);
+    Route::middleware('role:branch-admin')->group(function () {
+        Route::resource('branch-services', BranchServiceController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+    });
+
 });
 
 require __DIR__.'/settings.php';

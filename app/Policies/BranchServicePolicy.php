@@ -12,29 +12,29 @@ class BranchServicePolicy
 
     public function viewAny(User $user): bool
     {
-        return $user->hasRole('super-admin') || $user->hasRole('branch-admin');
+        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
     }
 
     public function view(User $user, BranchService $branchService): bool
     {
-        return $user->hasRole('super-admin')
-            || ($user->hasRole('branch-admin') && $user->branch_id === $branchService->branch_id);
+        return $user->roleName->isSuperAdmin()
+            || ($user->roleName->isBranchAdmin() && $user->id === $branchService->branch->owner_id);
     }
 
     public function create(User $user): bool
     {
-        return $user->hasRole('super-admin') || $user->hasRole('branch-admin');
+        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
     }
 
     public function update(User $user, BranchService $branchService): bool
     {
-        return $user->hasRole('super-admin')
-            || ($user->hasRole('branch-admin') && $user->branch_id === $branchService->branch_id);
+        return $user->roleName->isSuperAdmin()
+            || ($user->roleName->isBranchAdmin() && $user->id === $branchService->branch->owner_id);
     }
 
     public function delete(User $user, BranchService $branchService): bool
     {
-        return $user->hasRole('super-admin')
-            || ($user->hasRole('branch-admin') && $user->branch_id === $branchService->branch_id);
+        return $user->roleName->isSuperAdmin()
+            || ($user->roleName->isBranchAdmin() && $user->id === $branchService->branch->owner_id);
     }
 }

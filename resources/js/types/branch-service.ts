@@ -3,6 +3,7 @@ export interface BranchService {
     branchId: number;
     branchName: string | null;
     serviceTemplateId: number;
+    serviceTemplateName: string | null;
     baseCommissionPct: number;
     maxDiscountPct: number;
     isTahazir: boolean;
