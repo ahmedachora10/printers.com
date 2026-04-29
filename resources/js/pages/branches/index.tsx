@@ -78,6 +78,11 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
                 ),
             },
             {
+                key: 'owner',
+                header: 'المالك',
+                cell: (branch) => <span className="text-muted-foreground">{branch.owner?.name ?? '—'}</span>,
+            },
+            {
                 key: 'city',
                 header: 'المدينة',
                 cell: (branch) => <span className="text-muted-foreground">{branch.city?.name ?? '—'}</span>,
