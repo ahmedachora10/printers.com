@@ -4,11 +4,12 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link } from '@inertiajs/react';
-import { BookOpen, Folder, GitBranch, LayoutGrid } from 'lucide-react';
+import { BookOpen, Folder, GitBranch, LayoutGrid, ServerIcon } from 'lucide-react';
 import AppLogo from './app-logo';
 import cities from '@/routes/cities';
 import branches from '@/routes/branches';
 import { dashboard } from '@/routes';
+import serviceTemplates from '@/routes/service-templates';
 
 const mainNavItems: NavItem[] = [
     {
@@ -25,6 +26,11 @@ const mainNavItems: NavItem[] = [
         title: 'الفروع',
         url: branches.index().url,
         icon: GitBranch,
+    },
+    {
+        title: 'الخدمات',
+        url: serviceTemplates.index().url,
+        icon: ServerIcon,
     },
 ];
 

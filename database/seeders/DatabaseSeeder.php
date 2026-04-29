@@ -9,6 +9,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Database\Seeders\CitySeeder;
 use Database\Seeders\UserSeeder;
 use Database\Seeders\BranchSeeder;
+use Database\Seeders\ServiceTemplateSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -29,6 +30,7 @@ class DatabaseSeeder extends Seeder
             BranchSeeder::class,
             UserSeeder::class,
             CitySeeder::class,
+            ServiceTemplateSeeder::class,
         ]);
     }
 }

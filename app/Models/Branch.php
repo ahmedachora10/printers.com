@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\MediaLibrary\HasMedia;
@@ -49,8 +50,17 @@ class Branch extends Model implements HasMedia
         return $this->belongsTo(User::class, 'owner_id');
     }
 
-    public function employees() : HasMany
+    public function employees(): HasMany
     {
         return $this->hasMany(User::class, 'branch_id');
+    }
+
+    /** @return BelongsToMany<ServiceTemplate, self> */
+    public function serviceTemplates(): BelongsToMany
+    {
+        return $this->belongsToMany(ServiceTemplate::class, 'branch_services')
+            ->using(BranchService::class)
+            ->withPivot(['id', 'base_commission_pct', 'max_discount_pct', 'is_tahazir', 'is_active'])
+            ->withTimestamps();
     }
 }
