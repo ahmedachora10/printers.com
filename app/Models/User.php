@@ -13,6 +13,9 @@ use Laratrust\Traits\HasRolesAndPermissions;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Support\Facades\Cache;
+use App\Enums\Roles;
 
 class User extends Authenticatable implements LaratrustUser, HasMedia
 {
@@ -77,5 +80,12 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
     public function branchManager(): HasOne
     {
         return $this->hasOne(Branch::class, 'owner_id');
+    }
+
+    public function roleName(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => Cache::remember('user_role_' . $this->id, now()->addDay(), fn () => Roles::tryFrom($this->roles->first()?->name)),
+        );
     }
 }

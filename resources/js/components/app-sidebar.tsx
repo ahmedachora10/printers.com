@@ -11,28 +11,6 @@ import branches from '@/routes/branches';
 import { dashboard } from '@/routes';
 import serviceTemplates from '@/routes/service-templates';
 
-const mainNavItems: NavItem[] = [
-    {
-        title: 'لوحة التحكم',
-        url: dashboard().url,
-        icon: LayoutGrid,
-    },
-    {
-        title: 'المدن',
-        url: cities.index().url,
-        icon: LayoutGrid,
-    },
-    {
-        title: 'الفروع',
-        url: branches.index().url,
-        icon: GitBranch,
-    },
-    {
-        title: 'الخدمات',
-        url: serviceTemplates.index().url,
-        icon: ServerIcon,
-    },
-];
 
 const footerNavItems: NavItem[] = [
     {
@@ -48,6 +26,31 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
+
+
+    const mainNavItems: NavItem[] = [
+        {
+            title: 'لوحة التحكم',
+            url: dashboard().url,
+            icon: LayoutGrid,
+        },
+        {
+            title: 'المدن',
+            url: cities.index().url,
+            icon: LayoutGrid,
+        },
+        {
+            title: 'الفروع',
+            url: branches.index().url,
+            icon: GitBranch,
+        },
+        {
+            title: 'الخدمات',
+            url: serviceTemplates.index().url,
+            icon: ServerIcon,
+        },
+    ];
+
     return (
         <Sidebar collapsible="icon" variant="inset" side="right">
             <SidebarHeader>

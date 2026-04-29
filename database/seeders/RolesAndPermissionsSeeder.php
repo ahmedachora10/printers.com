@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\Permission;
 use App\Models\Role;
+use App\Enums\Roles;
 use Illuminate\Database\Seeder;
 
 class RolesAndPermissionsSeeder extends Seeder
@@ -50,7 +51,7 @@ class RolesAndPermissionsSeeder extends Seeder
     private function createRoles(): void
     {
         $roles = [
-            'super-admin' => [
+            Roles::SUPER_ADMIN->value => [
                 'display_name' => 'مدير عام',
                 'description'  => 'صلاحيات كاملة على جميع الفروع',
                 'permissions'  => [
@@ -79,7 +80,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 ],
             ],
 
-            'branch-admin' => [
+            Roles::BRANCH_ADMIN->value => [
                 'display_name' => 'مدير فرع',
                 'description'  => 'صلاحيات كاملة داخل الفرع',
                 'permissions'  => [
@@ -105,7 +106,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 ],
             ],
 
-            'accountant' => [
+            Roles::ACCOUNTANT->value => [
                 'display_name' => 'محاسب',
                 'description'  => 'فواتير المنتجات، المرتجعات، المصروفات، التقارير',
                 'permissions'  => [
@@ -119,7 +120,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 ],
             ],
 
-            'employee' => [
+            Roles::EMPLOYEE->value => [
                 'display_name' => 'موظف',
                 'description'  => 'فواتير الخدمات، العمولة الشخصية، الحوافز',
                 'permissions'  => [
@@ -130,7 +131,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 ],
             ],
 
-            'agent' => [
+            Roles::AGENT->value => [
                 'display_name' => 'وكيل',
                 'description'  => 'بوابة القراءة فقط للوكلاء',
                 'permissions'  => [
