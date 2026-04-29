@@ -607,4 +607,4 @@ php artisan db:seed --class={Resource}Seeder
 php artisan test --filter={Resource}
 ```
 
-6. **Next steps:** Create Inertia page components at `resources/js/pages/{resource}/index.tsx`, `create.tsx`, `edit.tsx`.
+6. **Next steps:** Create Inertia page components at `resources/js/pages/{resource}/index.tsx`, `{resource}-form-modal.tsx`.
