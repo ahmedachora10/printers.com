@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type City } from '@/types/city';
 import { useForm } from '@inertiajs/react';
+import InputError from '../input-error';
 
 interface Props {
     open: boolean;
@@ -60,9 +61,7 @@ export default function CityFormModal({ open, onOpenChange, city }: Props) {
                             placeholder="أدخل اسم المدينة"
                             autoFocus
                         />
-                        {errors.name && (
-                            <p className="text-sm text-red-600">{errors.name}</p>
-                        )}
+                        <InputError message={errors.name} />
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -92,8 +91,8 @@ export default function CityFormModal({ open, onOpenChange, city }: Props) {
                         {processing
                             ? 'جاري الحفظ...'
                             : isEdit
-                              ? 'حفظ التعديلات'
-                              : 'إضافة'}
+                                ? 'حفظ التعديلات'
+                                : 'إضافة'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

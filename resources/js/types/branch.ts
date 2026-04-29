@@ -24,6 +24,21 @@ export interface Branch {
     updatedAt: string;
 }
 
+export interface BranchFormData {
+    name: string;
+    city_id: string;
+    phone: string;
+    address: string;
+    business_type: string;
+    commercial_reg_no: string;
+    tax_number: string;
+    owner_id: string;
+    vat_rate_override: number;
+    is_active: boolean;
+    logo: File | null;
+    [key: string]: string | number | boolean | File | null;
+}
+
 export interface PaginatedBranch {
     data: Branch[];
     links: Record<string, string | null>;

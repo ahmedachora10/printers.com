@@ -38,4 +38,12 @@ class UpdateBranchRequest extends FormRequest
             'logo'              => ['nullable', 'image', 'max:2048'],
         ];
     }
+
+    
+    public function messages(): array
+    {
+        return [
+            'owner_id.unique' => 'هذا المستخدم مسجل كمالك لفرع آخر.',
+        ];
+    }
 }

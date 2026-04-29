@@ -18,9 +18,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { type Branch, type BranchAdmin } from '@/types/branch';
+import { type Branch, type BranchAdmin, type BranchFormData } from '@/types/branch';
 import { type City } from '@/types/city';
 import { router, useForm } from '@inertiajs/react';
+import InputError from '../input-error';
 
 interface Props {
     open: boolean;
@@ -33,19 +34,7 @@ interface Props {
 export default function BranchFormModal({ open, onOpenChange, branch, cities, branchAdmins }: Props) {
     const isEdit = !!branch;
 
-    const { data, setData, post, put, processing, errors, reset } = useForm<{
-        name: string;
-        city_id: string;
-        phone: string;
-        address: string;
-        business_type: string;
-        commercial_reg_no: string;
-        tax_number: string;
-        owner_id: string;
-        vat_rate_override: number;
-        is_active: boolean;
-        logo: File | null;
-    }>({
+    const { data, setData, post, processing, errors, reset, setError, clearErrors } = useForm<BranchFormData>({
         name: branch?.name ?? '',
         city_id: branch ? String(branch.cityId) : '',
         phone: branch?.phone ?? '',
@@ -69,7 +58,11 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
         };
 
         if (isEdit) {
-            router.post(update.url(branch), { ...data, _method: 'put' }, options);
+            router.post(update.url(branch), { ...data, _method: 'put' }, {
+                ...options,
+                onError: (errs) => Object.entries(errs).forEach(([k, v]) => setError(k as keyof BranchFormData, v)),
+                onSuccess: () => { clearErrors(); onOpenChange(false); reset(); },
+            });
         } else {
             post(store.url(), options);
         }
@@ -99,6 +92,47 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
                         />
                     </div>
 
+                    {/* Owner & City */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <Label htmlFor="b-owner">مالك الفرع</Label>
+                            <Select
+                                value={data.owner_id}
+                                onValueChange={(val) => setData('owner_id', val === '_none' ? '' : val)}
+                            >
+                                <SelectTrigger id="b-owner">
+                                    <SelectValue placeholder="بدون مالك" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="_none">بدون مالك</SelectItem>
+                                    {branchAdmins.map((admin) => (
+                                        <SelectItem key={admin.id} value={String(admin.id)}>
+                                            {admin.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <InputError message={errors.owner_id} />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="b-city">المدينة <span className="text-destructive">*</span></Label>
+                            <Select value={data.city_id} onValueChange={(val) => setData('city_id', val)}>
+                                <SelectTrigger id="b-city">
+                                    <SelectValue placeholder="اختر المدينة" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {cities.map((city) => (
+                                        <SelectItem key={city.id} value={String(city.id)}>
+                                            {city.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <InputError message={errors.city_id} />
+                        </div>
+                    </div>
+
                     {/* Name */}
                     <div className="space-y-1">
                         <Label htmlFor="b-name">اسم الفرع <span className="text-destructive">*</span></Label>
@@ -109,25 +143,7 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
                             placeholder="أدخل اسم الفرع"
                             autoFocus
                         />
-                        {errors.name && <p className="text-sm text-destructive">{errors.name}</p>}
-                    </div>
-
-                    {/* City */}
-                    <div className="space-y-1">
-                        <Label htmlFor="b-city">المدينة <span className="text-destructive">*</span></Label>
-                        <Select value={data.city_id} onValueChange={(val) => setData('city_id', val)}>
-                            <SelectTrigger id="b-city">
-                                <SelectValue placeholder="اختر المدينة" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {cities.map((city) => (
-                                    <SelectItem key={city.id} value={String(city.id)}>
-                                        {city.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        {errors.city_id && <p className="text-sm text-destructive">{errors.city_id}</p>}
+                        <InputError message={errors.name} />
                     </div>
 
                     {/* Phone + Business Type */}
@@ -141,7 +157,7 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
                                 placeholder="05XXXXXXXX"
                                 dir="ltr"
                             />
-                            {errors.phone && <p className="text-sm text-destructive">{errors.phone}</p>}
+                            <InputError message={errors.phone} />
                         </div>
 
                         <div className="space-y-1">
@@ -152,7 +168,7 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
                                 onChange={(e) => setData('business_type', e.target.value)}
                                 placeholder="طباعة، تصميم، ..."
                             />
-                            {errors.business_type && <p className="text-sm text-destructive">{errors.business_type}</p>}
+                            <InputError message={errors.business_type} />
                         </div>
                     </div>
 
@@ -165,7 +181,7 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
                             onChange={(e) => setData('address', e.target.value)}
                             placeholder="أدخل العنوان"
                         />
-                        {errors.address && <p className="text-sm text-destructive">{errors.address}</p>}
+                        <InputError message={errors.address} />
                     </div>
 
                     {/* Commercial Reg No + Tax Number */}
@@ -179,7 +195,7 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
                                 placeholder="رقم السجل التجاري"
                                 dir="ltr"
                             />
-                            {errors.commercial_reg_no && <p className="text-sm text-destructive">{errors.commercial_reg_no}</p>}
+                            <InputError message={errors.commercial_reg_no} />
                         </div>
 
                         <div className="space-y-1">
@@ -191,7 +207,7 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
                                 placeholder="الرقم الضريبي"
                                 dir="ltr"
                             />
-                            {errors.tax_number && <p className="text-sm text-destructive">{errors.tax_number}</p>}
+                            <InputError message={errors.tax_number} />
                         </div>
                     </div>
 
@@ -208,29 +224,7 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
                             onChange={(e) => setData('vat_rate_override', parseFloat(e.target.value) || 0)}
                             dir="ltr"
                         />
-                        {errors.vat_rate_override && <p className="text-sm text-destructive">{errors.vat_rate_override}</p>}
-                    </div>
-
-                    {/* Owner */}
-                    <div className="space-y-1">
-                        <Label htmlFor="b-owner">مالك الفرع</Label>
-                        <Select
-                            value={data.owner_id}
-                            onValueChange={(val) => setData('owner_id', val === '_none' ? '' : val)}
-                        >
-                            <SelectTrigger id="b-owner">
-                                <SelectValue placeholder="بدون مالك" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="_none">بدون مالك</SelectItem>
-                                {branchAdmins.map((admin) => (
-                                    <SelectItem key={admin.id} value={String(admin.id)}>
-                                        {admin.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        {errors.owner_id && <p className="text-sm text-destructive">{errors.owner_id}</p>}
+                        <InputError message={errors.vat_rate_override} />
                     </div>
 
                     {/* Is Active */}
