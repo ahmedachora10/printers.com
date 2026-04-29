@@ -22,26 +22,26 @@ class ServiceTemplatePolicy
 
     public function create(User $user): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin();
     }
 
     public function update(User $user, ServiceTemplate $serviceTemplate): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin();
     }
 
     public function delete(User $user, ServiceTemplate $serviceTemplate): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin();
     }
 
     public function restore(User $user, ServiceTemplate $serviceTemplate): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin();
     }
 
     public function forceDelete(User $user, ServiceTemplate $serviceTemplate): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin();
     }
 }

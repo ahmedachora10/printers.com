@@ -12,7 +12,7 @@ class BranchPolicy
 
     public function viewAny(User $user): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin();
     }
 
     public function view(User $user, Branch $branch): bool
@@ -22,7 +22,7 @@ class BranchPolicy
 
     public function create(User $user): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin();
     }
 
     public function update(User $user, Branch $branch): bool
@@ -32,16 +32,16 @@ class BranchPolicy
 
     public function delete(User $user, Branch $branch): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin();
     }
 
     public function restore(User $user, Branch $branch): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin();
     }
 
     public function forceDelete(User $user, Branch $branch): bool
     {
-        return $user->hasRole('super-admin');
+        return $user->roleName->isSuperAdmin();
     }
 }
