@@ -30,7 +30,7 @@ Route::middleware(['auth'])->group(function () {
             ->except(['create', 'edit']);
     });
 
-    Route::middleware('role:branch-admin')->group(function () {
+    Route::middleware('role:branch-admin|super-admin')->group(function () {
         Route::resource('branch-services', BranchServiceController::class)
             ->only(['index', 'store', 'update', 'destroy']);
     });

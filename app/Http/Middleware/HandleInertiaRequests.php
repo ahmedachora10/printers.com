@@ -2,9 +2,11 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\Roles;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
+
 
 class HandleInertiaRequests extends Middleware
 {
@@ -45,9 +47,54 @@ class HandleInertiaRequests extends Middleware
             'auth' => [
                 'user' => $request->user(),
                 'role' => $request->user()?->roleName,
+                'sidebarItems' => $this->getSidebarItems($request),
             ],
             'success' => $request->session()->get('success'),
             'error' => $request->session()->get('error'),
         ]);
+    }
+
+    // sidebar items for each role
+    private function getSidebarItems(Request $request): array
+    {
+
+        $userRole = $request->user()?->roleName;
+
+        if(!$userRole) {
+            return [];
+        }
+
+        $items = [
+            [
+                'title' => 'لوحة التحكم',
+                'url' => route('dashboard'),
+                'icon' => 'LayoutGrid',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
+                'title' => 'المدن',
+                'url' => route('cities.index'),
+                'icon' => 'LayoutGrid',
+                'role' => [Roles::SUPER_ADMIN],
+            ],
+            [
+                'title' => 'الفروع',
+                'url' => route('branches.index'),
+                'icon' => 'GitBranch',
+                'role' => [Roles::SUPER_ADMIN],
+            ],
+            [
+                'title' => 'الخدمات',
+                'url' => $userRole->isSuperAdmin() ? route('service-templates.index') : route('branch-services.index'),
+                'icon' => 'ServerIcon',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+        ];
+        
+        // return array_values(array_filter($items, fn($item) => in_array($request->user()?->roleName, $item['role'])));
+        return array_values(array_map(
+            fn($item) => array_diff_key($item, ['role' => null]),
+            array_filter($items, fn($item) => in_array($userRole, $item['role']))
+        ));
     }
 }

@@ -4,7 +4,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { BookOpen, Folder, GitBranch, LayoutGrid, ServerIcon } from 'lucide-react';
+import { BookOpen, Folder, GitBranch, LayoutGrid, LucideIcon, ServerIcon } from 'lucide-react';
 import AppLogo from './app-logo';
 import cities from '@/routes/cities';
 import branches from '@/routes/branches';
@@ -27,34 +27,20 @@ const footerNavItems: NavItem[] = [
 ];
 
 export function AppSidebar() {
-    const { auth } = usePage<{ auth: { role?: { value: string } } }>().props;
-    const isSuperAdmin = auth?.role === 'super-admin';
+    const { auth } = usePage<{ auth: { sidebarItems?: Array<Omit<NavItem, 'icon'> & { icon: string }> } }>().props;
 
+    const ICON_MAP: Record<string, LucideIcon> = {
+        LayoutGrid,
+        GitBranch,
+        ServerIcon,
+    };
 
-    const mainNavItems: NavItem[] = [
-        {
-            title: 'لوحة التحكم',
-            url: dashboard().url,
-            icon: LayoutGrid,
-        },
-        {
-            title: 'المدن',
-            url: cities.index().url,
-            icon: LayoutGrid,
-        },
-        {
-            title: 'الفروع',
-            url: branches.index().url,
-            icon: GitBranch,
-        },
-        {
-            title: 'الخدمات',
-            url: isSuperAdmin
-                ? serviceTemplates.index().url
-                : branchServicesRoute.index().url,
-            icon: ServerIcon,
-        },
-    ];
+    const mainNavItems = (auth.sidebarItems ?? []).map((item) => ({
+        ...item,
+        icon: ICON_MAP[item.icon as string] ?? LayoutGrid,
+    }));
+
+    // const mainNavItems: NavItem[] = auth.sidebarItems || [];
 
     return (
         <Sidebar collapsible="icon" variant="inset" side="right">
