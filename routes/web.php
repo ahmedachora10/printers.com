@@ -3,6 +3,7 @@
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchServiceController;
 use App\Http\Controllers\CityController;
+use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ServiceTemplateController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -32,6 +33,12 @@ Route::middleware(['auth'])->group(function () {
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {
         Route::resource('branch-services', BranchServiceController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+
+        Route::patch('product-categories/{productCategory}/toggle-status', [ProductCategoryController::class, 'toggleStatus'])
+            ->name('product-categories.toggle-status');
+        Route::resource('product-categories', ProductCategoryController::class)
+            ->parameters(['product-categories' => 'productCategory'])
             ->only(['index', 'store', 'update', 'destroy']);
     });
 

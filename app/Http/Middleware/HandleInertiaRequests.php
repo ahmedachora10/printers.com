@@ -89,6 +89,12 @@ class HandleInertiaRequests extends Middleware
                 'icon' => 'ServerIcon',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
+            [
+                'title' => 'فئات المنتجات',
+                'url' => route('product-categories.index'),
+                'icon' => 'FolderKanban',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
         ];
         
         // return array_values(array_filter($items, fn($item) => in_array($request->user()?->roleName, $item['role'])));

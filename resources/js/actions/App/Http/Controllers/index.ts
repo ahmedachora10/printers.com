@@ -2,6 +2,7 @@ import CityController from './CityController'
 import BranchController from './BranchController'
 import ServiceTemplateController from './ServiceTemplateController'
 import BranchServiceController from './BranchServiceController'
+import ProductCategoryController from './ProductCategoryController'
 import Settings from './Settings'
 import Auth from './Auth'
 const Controllers = {
@@ -9,6 +10,7 @@ const Controllers = {
 BranchController: Object.assign(BranchController, BranchController),
 ServiceTemplateController: Object.assign(ServiceTemplateController, ServiceTemplateController),
 BranchServiceController: Object.assign(BranchServiceController, BranchServiceController),
+ProductCategoryController: Object.assign(ProductCategoryController, ProductCategoryController),
 Settings: Object.assign(Settings, Settings),
 Auth: Object.assign(Auth, Auth),
 }
