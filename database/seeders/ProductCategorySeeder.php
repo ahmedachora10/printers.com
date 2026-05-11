@@ -9,6 +9,16 @@ class ProductCategorySeeder extends Seeder
 {
     public function run(): void
     {
-        ProductCategory::factory()->count(10)->create();
+        $categories = [
+            'قرطاسية',
+            'أحبار',
+            'مستلزمات طباعة',
+        ];
+
+        foreach ($categories as $category) {
+            ProductCategory::factory()->create([
+                'name' => $category,
+            ]);
+        }
     }
 }
