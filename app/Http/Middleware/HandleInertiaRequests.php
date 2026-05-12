@@ -95,6 +95,12 @@ class HandleInertiaRequests extends Middleware
                 'icon' => 'FolderKanban',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
+            [
+                'title' => 'الكوبونات',
+                'url' => route('coupons.index'),
+                'icon' => 'Ticket',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ]
         ];
         
         // return array_values(array_filter($items, fn($item) => in_array($request->user()?->roleName, $item['role'])));

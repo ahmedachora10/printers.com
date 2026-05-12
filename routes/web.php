@@ -3,6 +3,7 @@
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchServiceController;
 use App\Http\Controllers\CityController;
+use App\Http\Controllers\CouponController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ServiceTemplateController;
 use Illuminate\Support\Facades\Route;
@@ -40,7 +41,15 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('product-categories', ProductCategoryController::class)
             ->parameters(['product-categories' => 'productCategory'])
             ->only(['index', 'store', 'update', 'destroy']);
+
+        Route::patch('coupons/{coupon}/toggle-status', [CouponController::class, 'toggleStatus'])
+            ->name('coupons.toggle-status');
+        Route::resource('coupons', CouponController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
     });
+
+    Route::get('coupons/validate', [CouponController::class, 'validateCoupon'])
+        ->name('coupons.validate');
 
 });
 

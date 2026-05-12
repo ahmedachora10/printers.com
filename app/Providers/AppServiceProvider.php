@@ -5,12 +5,14 @@ namespace App\Providers;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\City;
+use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\ProductCategory;
 use App\Models\ServiceTemplate;
 use App\Policies\BranchPolicy;
 use App\Policies\BranchServicePolicy;
 use App\Policies\CityPolicy;
+use App\Policies\CouponPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\ProductCategoryPolicy;
 use App\Policies\ServiceTemplatePolicy;
@@ -59,6 +61,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ServiceTemplate::class, ServiceTemplatePolicy::class);
         Gate::policy(BranchService::class, BranchServicePolicy::class);
         Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
+        Gate::policy(Coupon::class, CouponPolicy::class);
     }
 
     protected function configureDefaults(): void
