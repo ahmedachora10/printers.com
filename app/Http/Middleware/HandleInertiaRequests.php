@@ -100,6 +100,12 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('coupons.index'),
                 'icon' => 'Ticket',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
+                'title' => 'العملاء',
+                'url' => route('customers.index'),
+                'icon' => 'User',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ]
         ];
         

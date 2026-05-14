@@ -12,9 +12,9 @@ describe('Coupon Management', function () {
         $this->withoutVite();
         $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
 
-        $this->branch = Branch::factory()->create();
-
-        $this->branchAdmin = User::factory()->create(['branch_id' => $this->branch->id]);
+        $this->branchAdmin = User::factory()->create();
+        $this->branch = Branch::factory()->create(['owner_id' => $this->branchAdmin->id]);
+        $this->branchAdmin->update(['branch_id' => $this->branch->id]);
         $this->branchAdmin->addRole('branch-admin');
         $this->actingAs($this->branchAdmin);
     });

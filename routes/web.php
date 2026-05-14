@@ -4,6 +4,7 @@ use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchServiceController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\CouponController;
+use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ServiceTemplateController;
 use Illuminate\Support\Facades\Route;
@@ -30,6 +31,18 @@ Route::middleware(['auth'])->group(function () {
 
         Route::resource('service-templates', ServiceTemplateController::class)
             ->except(['create', 'edit']);
+    });
+
+    Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
+        Route::get('customers/outstanding-balance', [CustomerController::class, 'outstandingBalance'])
+            ->name('customers.outstanding-balance');
+        Route::get('customers/export', [CustomerController::class, 'export'])
+            ->name('customers.export');
+        Route::resource('customers', CustomerController::class);
+        Route::post('customers/{customer}/merge', [CustomerController::class, 'merge'])
+            ->name('customers.merge');
+        Route::patch('customers/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])
+            ->name('customers.toggle-status');
     });
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {
