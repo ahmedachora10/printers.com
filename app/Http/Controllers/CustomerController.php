@@ -25,6 +25,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Illuminate\Support\Facades\Auth;
 
 class CustomerController extends Controller
 {
@@ -105,6 +106,9 @@ class CustomerController extends Controller
         $customer->load(['branch', 'agent']);
 
         $customers = Customer::select('id', 'full_name')
+            ->when(Auth::user()->roleName->isBranchAdmin(), function ($query) {
+                return $query->where('branch_id', Auth::user()->branchManager->id);
+            })
             ->where('id', '<>', $customer->id)
             ->get();
 

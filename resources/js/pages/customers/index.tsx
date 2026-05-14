@@ -12,7 +12,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
-import { formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import { Agent, type BreadcrumbItem } from '@/types';
 import {
     type Customer,
@@ -198,10 +198,7 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
                 sortable: true,
                 cell: (item) => (
                     <span className="tabular-nums" dir="ltr">
-                        {Number(item.cumulativeSpend).toLocaleString('ar-SA', {
-                            style: 'currency',
-                            currency: 'SAR',
-                        })}
+                        {formatCurrency(item.cumulativeSpend)}
                     </span>
                 ),
             },
@@ -219,7 +216,7 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
                     const amt = stats[item.id]?.outstanding ?? 0;
                     return amt > 0 ? (
                         <span className="font-semibold tabular-nums text-destructive" dir="ltr">
-                            {amt.toLocaleString('ar-SA', { style: 'currency', currency: 'SAR' })}
+                            {formatCurrency(amt)}
                         </span>
                     ) : (
                         <span className="text-muted-foreground">—</span>
