@@ -21,17 +21,25 @@ interface Agent {
     name: string;
 }
 
+interface Branch {
+    id: number;
+    name: string;
+}
+
 interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     customer?: Customer;
     agents?: Agent[];
+    branches?: Branch[];
+    isSuperAdmin?: boolean;
 }
 
-export default function CustomerFormModal({ open, onOpenChange, customer, agents = [] }: Props) {
+export default function CustomerFormModal({ open, onOpenChange, customer, agents = [], branches = [], isSuperAdmin = false }: Props) {
     const isEdit = !!customer;
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
+        branch_id: customer?.branchId ? String(customer.branchId) : '',
         full_name: customer?.fullName ?? '',
         phone: customer?.phone ?? '',
         email: customer?.email ?? '',
@@ -71,6 +79,30 @@ export default function CustomerFormModal({ open, onOpenChange, customer, agents
 
                 <form id="customer-form" onSubmit={handleSubmit} className="space-y-4 py-2">
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        {isSuperAdmin && !isEdit && (
+                            <div className="space-y-1 sm:col-span-2">
+                                <Label htmlFor="cf-branch-id">
+                                    الفرع <span className="text-destructive">*</span>
+                                </Label>
+                                <Select
+                                    value={data.branch_id === '' ? 'none' : data.branch_id}
+                                    onValueChange={(v) => setData('branch_id', v === 'none' ? '' : v)}
+                                >
+                                    <SelectTrigger id="cf-branch-id">
+                                        <SelectValue placeholder="اختر الفرع" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {branches.map((branch) => (
+                                            <SelectItem key={branch.id} value={String(branch.id)}>
+                                                {branch.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <InputError message={errors.branch_id} />
+                            </div>
+                        )}
+
                         <div className="space-y-1">
                             <Label htmlFor="cf-full-name">
                                 الاسم الكامل <span className="text-destructive">*</span>

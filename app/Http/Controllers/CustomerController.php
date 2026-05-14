@@ -12,7 +12,8 @@ use App\Http\Requests\Customer\MergeCustomersRequest;
 use App\Http\Requests\Customer\StoreCustomerRequest;
 use App\Http\Requests\Customer\UpdateCustomerRequest;
 use App\Http\Resources\Customer\CustomerResource;
-use App\Http\Resources\UserResource;
+use App\Http\Resources\Branch\BranchResource;
+use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
@@ -64,11 +65,15 @@ class CustomerController extends Controller
 
         $agents = User::select('id', 'name')->whereRoleIs(Roles::AGENT->value)->get();
 
+        $branches = $isSuperAdmin ? Branch::select('id', 'name')->get() : [];
+
         return Inertia::render('customers/index', [
-            'items'   => CustomerResource::collection($query),
-            'stats'   => $stats,
-            'agents'  => $agents,
-            'filters' => $request->only(['search', 'tier', 'type', 'agent_id', 'has_outstanding']),
+            'items'       => CustomerResource::collection($query),
+            'stats'       => $stats,
+            'agents'      => $agents,
+            'branches'    => BranchResource::collection($branches),
+            'isSuperAdmin' => $isSuperAdmin,
+            'filters'     => $request->only(['search', 'tier', 'type', 'agent_id', 'has_outstanding']),
         ]);
     }
 

@@ -44,9 +44,9 @@ class Customer extends Model
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Agent, self> */
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, self> */
     public function agent(): BelongsTo
     {
-        return $this->belongsTo(Agent::class);
+        return $this->belongsTo(User::class, 'agent_id');
     }
 }

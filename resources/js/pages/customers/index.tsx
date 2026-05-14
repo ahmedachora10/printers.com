@@ -37,10 +37,17 @@ interface Agent {
     name: string;
 }
 
+interface Branch {
+    id: number;
+    name: string;
+}
+
 interface Props {
     items: PaginatedCustomer;
     stats: CustomerPageStats;
     agents: Agent[];
+    branches: Branch[];
+    isSuperAdmin: boolean;
     filters: {
         search?: string;
         tier?: string;
@@ -71,7 +78,7 @@ function DaysChip({ dateStr }: { dateStr: string | null }) {
     );
 }
 
-export default function CustomersIndex({ items, stats, agents, filters }: Props) {
+export default function CustomersIndex({ items, stats, agents, branches, isSuperAdmin, filters }: Props) {
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Customer | null>(null);
     const [deleting, setDeleting] = useState<Customer | null>(null);
@@ -373,6 +380,8 @@ export default function CustomersIndex({ items, stats, agents, filters }: Props)
                 onOpenChange={setFormOpen}
                 customer={editing ?? undefined}
                 agents={agents}
+                branches={branches}
+                isSuperAdmin={isSuperAdmin}
             />
         </AppLayout>
     );

@@ -20,6 +20,10 @@ class StoreCustomerRequest extends FormRequest
             : auth()->user()->branchManager->id;
 
         return [
+            'branch_id'     => [
+                auth()->user()->roleName->isSuperAdmin() ? 'required' : 'nullable',
+                'exists:branches,id',
+            ],
             'full_name'     => ['required', 'string', 'max:255'],
             'phone'         => [
                 'required',

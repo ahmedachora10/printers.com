@@ -12,7 +12,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
-import { formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatNumber } from '@/lib/utils';
+import customers from '@/routes/customers';
 import { type BreadcrumbItem } from '@/types';
 import {
     type Customer,
@@ -35,27 +36,23 @@ import {
 import { useState } from 'react';
 
 const TIER_COLORS: Record<string, string> = {
-    none:   'border-border bg-muted/60 text-muted-foreground',
+    none: 'border-border bg-muted/60 text-muted-foreground',
     bronze: 'border-amber-200 bg-amber-50 text-amber-700',
     silver: 'border-slate-200 bg-slate-100 text-slate-700',
-    gold:   'border-yellow-200 bg-yellow-50 text-yellow-700',
+    gold: 'border-yellow-200 bg-yellow-50 text-yellow-700',
 };
 
 const STATUS_COLORS: Record<string, string> = {
-    paid:      'border-green-200 bg-green-50 text-green-700',
-    due:       'border-red-200 bg-red-50 text-red-700',
+    paid: 'border-green-200 bg-green-50 text-green-700',
+    due: 'border-red-200 bg-red-50 text-red-700',
     cancelled: 'border-border bg-muted/60 text-muted-foreground',
 };
 
 const STATUS_LABELS: Record<string, string> = {
-    paid:      'مدفوع',
-    due:       'مستحق',
+    paid: 'مدفوع',
+    due: 'مستحق',
     cancelled: 'ملغي',
 };
-
-function formatSAR(amount: number) {
-    return new Intl.NumberFormat('ar-SA', { style: 'currency', currency: 'SAR' }).format(amount);
-}
 
 interface Props {
     customer: Customer;
@@ -71,8 +68,8 @@ export default function CustomerShow({
     invoiceHistory,
 }: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
-        { title: 'العملاء', href: '/customers' },
-        { title: customer.fullName, href: `/customers/${customer.id}` },
+        { title: 'العملاء', href: customers.index().url },
+        { title: customer.fullName, href: customers.show(customer.id).url },
     ];
 
     const [mergeOpen, setMergeOpen] = useState(false);
@@ -80,7 +77,7 @@ export default function CustomerShow({
 
     function handleMerge(e: React.FormEvent) {
         e.preventDefault();
-        mergeForm.post(`/customers/${customer.id}/merge`, {
+        mergeForm.post(customers.merge(customer.id).url, {
             onSuccess: () => setMergeOpen(false),
         });
     }
@@ -142,15 +139,9 @@ export default function CustomerShow({
                                 واتساب
                             </a>
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => setMergeOpen(true)}>
+                        <Button size="sm" onClick={() => setMergeOpen(true)}>
                             <ArrowLeftRight className="size-4" />
                             دمج
-                        </Button>
-                        <Button size="sm" asChild>
-                            <a href={`/customers/${customer.id}/edit`}>
-                                <Pencil className="size-4" />
-                                تعديل
-                            </a>
                         </Button>
                     </div>
                 </div>
@@ -176,26 +167,26 @@ export default function CustomerShow({
                                     <div className="rounded-lg bg-muted/40 p-4">
                                         <p className="text-sm text-muted-foreground">إجمالي الفواتير</p>
                                         <p className="mt-1 text-lg font-bold tabular-nums" dir="ltr">
-                                            {formatSAR(financialSummary.totalBilled)}
+                                            {formatCurrency(financialSummary.totalBilled)}
                                         </p>
                                     </div>
                                     <div className="rounded-lg bg-muted/40 p-4">
                                         <p className="text-sm text-muted-foreground">إجمالي المدفوع</p>
                                         <p className="mt-1 text-lg font-bold tabular-nums text-green-700" dir="ltr">
-                                            {formatSAR(financialSummary.totalPaid)}
+                                            {formatCurrency(financialSummary.totalPaid)}
                                         </p>
                                     </div>
                                     <div className="rounded-lg bg-red-50 p-4">
                                         <p className="text-sm text-muted-foreground">المديونية</p>
                                         <p className="mt-1 text-lg font-bold tabular-nums text-destructive" dir="ltr">
-                                            {formatSAR(financialSummary.totalOutstanding)}
+                                            {formatCurrency(financialSummary.totalOutstanding)}
                                         </p>
                                     </div>
                                     <div className="rounded-lg bg-muted/40 p-4">
                                         <p className="text-sm text-muted-foreground">الحد الائتماني</p>
                                         <p className="mt-1 text-lg font-bold tabular-nums" dir="ltr">
                                             {financialSummary.creditLimit !== null
-                                                ? formatSAR(financialSummary.creditLimit)
+                                                ? formatCurrency(financialSummary.creditLimit)
                                                 : <span className="text-sm text-muted-foreground">نقداً فقط</span>}
                                         </p>
                                     </div>
@@ -203,7 +194,7 @@ export default function CustomerShow({
                                         <div className="rounded-lg bg-muted/40 p-4">
                                             <p className="text-sm text-muted-foreground">الرصيد المتاح</p>
                                             <p className="mt-1 text-lg font-bold tabular-nums text-green-700" dir="ltr">
-                                                {formatSAR(financialSummary.availableCredit)}
+                                                {formatCurrency(financialSummary.availableCredit)}
                                             </p>
                                         </div>
                                     )}
@@ -217,13 +208,12 @@ export default function CustomerShow({
                                         </div>
                                         <div className="h-2.5 w-full overflow-hidden rounded-full bg-muted">
                                             <div
-                                                className={`h-full rounded-full transition-all ${
-                                                    creditUsedPct >= 90
-                                                        ? 'bg-destructive'
-                                                        : creditUsedPct >= 70
-                                                          ? 'bg-amber-500'
-                                                          : 'bg-green-500'
-                                                }`}
+                                                className={`h-full rounded-full transition-all ${creditUsedPct >= 90
+                                                    ? 'bg-destructive'
+                                                    : creditUsedPct >= 70
+                                                        ? 'bg-amber-500'
+                                                        : 'bg-green-500'
+                                                    }`}
                                                 style={{ width: `${creditUsedPct}%` }}
                                             />
                                         </div>
@@ -276,7 +266,7 @@ export default function CustomerShow({
                                                             </Badge>
                                                         </td>
                                                         <td className="py-2 tabular-nums" dir="ltr">
-                                                            {formatSAR(Number(inv.total_amount))}
+                                                            {formatCurrency(Number(inv.total_amount))}
                                                         </td>
                                                         <td className="py-2">
                                                             <Badge
@@ -335,13 +325,13 @@ export default function CustomerShow({
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm text-muted-foreground">رصيد النقاط</span>
                                     <span className="font-bold tabular-nums">
-                                        {customer.pointsBalance.toLocaleString('ar-SA')}
+                                        {formatNumber(customer.pointsBalance)}
                                     </span>
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-sm text-muted-foreground">الإنفاق التراكمي</span>
                                     <span className="font-medium tabular-nums" dir="ltr">
-                                        {formatSAR(Number(customer.cumulativeSpend))}
+                                        {formatCurrency(Number(customer.cumulativeSpend))}
                                     </span>
                                 </div>
 
@@ -376,9 +366,8 @@ export default function CustomerShow({
                                             >
                                                 <div>
                                                     <span
-                                                        className={`font-bold tabular-nums ${
-                                                            tx.points > 0 ? 'text-green-700' : 'text-destructive'
-                                                        }`}
+                                                        className={`font-bold tabular-nums ${tx.points > 0 ? 'text-green-700' : 'text-destructive'
+                                                            }`}
                                                     >
                                                         {tx.points > 0 ? '+' : ''}
                                                         {tx.points}
