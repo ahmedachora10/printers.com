@@ -104,11 +104,16 @@ class CustomerController extends Controller
 
         $customer->load(['branch', 'agent']);
 
+        $customers = Customer::select('id', 'full_name')
+            ->where('id', '<>', $customer->id)
+            ->get();
+
         return Inertia::render('customers/show', [
-            'customer'        => new CustomerResource($customer),
+            'customer'         => new CustomerResource($customer),
             'financialSummary' => $this->computeFinancialSummary($customer),
-            'loyaltyHistory'  => $this->loadLoyaltyHistory($customer),
-            'invoiceHistory'  => $this->loadInvoiceHistory($customer),
+            'loyaltyHistory'   => $this->loadLoyaltyHistory($customer),
+            'invoiceHistory'   => $this->loadInvoiceHistory($customer),
+            'customers'        => CustomerResource::collection($customers),
         ]);
     }
 

@@ -13,7 +13,7 @@ import {
 } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
 import { formatDate } from '@/lib/utils';
-import { type BreadcrumbItem } from '@/types';
+import { Agent, type BreadcrumbItem } from '@/types';
 import {
     type Customer,
     type CustomerPageStats,
@@ -31,11 +31,6 @@ const TIER_COLORS: Record<string, string> = {
     silver: 'border-slate-200 bg-slate-50 text-slate-600',
     gold: 'border-yellow-200 bg-yellow-50 text-yellow-700',
 };
-
-interface Agent {
-    id: number;
-    name: string;
-}
 
 interface Branch {
     id: number;

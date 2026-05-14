@@ -38,3 +38,8 @@ export interface User {
     updated_at: string;
     [key: string]: unknown; // This allows for additional properties...
 }
+
+export interface Agent {
+    id: number;
+    name: string;
+}   

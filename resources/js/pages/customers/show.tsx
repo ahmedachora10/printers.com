@@ -11,10 +11,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils';
-import customers from '@/routes/customers';
-import { type BreadcrumbItem } from '@/types';
+import customersRoute from '@/routes/customers';
+import { Agent, type BreadcrumbItem } from '@/types';
 import {
     type Customer,
     type CustomerFinancialSummary,
@@ -59,6 +60,7 @@ interface Props {
     financialSummary: CustomerFinancialSummary;
     loyaltyHistory: LoyaltyTransaction[];
     invoiceHistory: InvoiceHistoryItem[];
+    customers: Customer[];
 }
 
 export default function CustomerShow({
@@ -66,10 +68,11 @@ export default function CustomerShow({
     financialSummary,
     loyaltyHistory,
     invoiceHistory,
+    customers,
 }: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
-        { title: 'العملاء', href: customers.index().url },
-        { title: customer.fullName, href: customers.show(customer.id).url },
+        { title: 'العملاء', href: customersRoute.index().url },
+        { title: customer.fullName, href: customersRoute.show(customer.id).url },
     ];
 
     const [mergeOpen, setMergeOpen] = useState(false);
@@ -77,7 +80,7 @@ export default function CustomerShow({
 
     function handleMerge(e: React.FormEvent) {
         e.preventDefault();
-        mergeForm.post(customers.merge(customer.id).url, {
+        mergeForm.post(customersRoute.merge(customer.id).url, {
             onSuccess: () => setMergeOpen(false),
         });
     }
@@ -404,7 +407,21 @@ export default function CustomerShow({
                             <Label htmlFor="secondary_customer_id">
                                 معرّف العميل الثانوي (الذي سيُدمج ويُحذف)
                             </Label>
-                            <Input
+
+                            <Select>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="اختر العميل" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {customers.map((customer: Customer) => (
+                                        <SelectItem key={customer.id} value={customer.id.toString()}>
+                                            {customer.fullName}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+
+                            {/* <Input
                                 id="secondary_customer_id"
                                 type="number"
                                 min="1"
@@ -414,7 +431,7 @@ export default function CustomerShow({
                                 }
                                 placeholder="أدخل المعرّف"
                                 dir="ltr"
-                            />
+                            /> */}
                             {mergeForm.errors.secondary_customer_id && (
                                 <p className="text-sm text-destructive">
                                     {mergeForm.errors.secondary_customer_id}
