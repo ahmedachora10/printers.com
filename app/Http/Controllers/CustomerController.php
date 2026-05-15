@@ -34,7 +34,7 @@ class CustomerController extends Controller
         Gate::authorize('viewAny', Customer::class);
 
         $isSuperAdmin = auth()->user()->roleName->isSuperAdmin();
-        $branchId     = $isSuperAdmin ? null : auth()->user()->branchManager->id;
+        $branchId     = $isSuperAdmin ? null : auth()->user()->branchId;
 
         $query = Customer::query()
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $branchId))
@@ -92,7 +92,7 @@ class CustomerController extends Controller
         $isSuperAdmin = auth()->user()->roleName->isSuperAdmin();
         $branchId     = $isSuperAdmin
             ? (int) $request->input('branch_id')
-            : auth()->user()->branchManager->id;
+            : auth()->user()->branchId;
 
         $action->handle($request->validated(), $branchId);
 
@@ -105,9 +105,10 @@ class CustomerController extends Controller
 
         $customer->load(['branch', 'agent']);
 
+        
         $customers = Customer::select('id', 'full_name')
-            ->when(Auth::user()->roleName->isBranchAdmin(), function ($query) {
-                return $query->where('branch_id', Auth::user()->branchManager->id);
+            ->when(! Auth::user()->branchId, function ($query) {
+                return $query->where('branch_id', Auth::user()->branchId);
             })
             ->where('id', '<>', $customer->id)
             ->get();
@@ -171,8 +172,7 @@ class CustomerController extends Controller
     {
         Gate::authorize('viewAny', Customer::class);
 
-        $isSuperAdmin = auth()->user()->roleName->isSuperAdmin();
-        $branchId     = $isSuperAdmin ? null : auth()->user()->branchManager->id;
+        $branchId = auth()->user()->branchId;
 
         $report = $this->buildOutstandingReport($branchId);
 
@@ -185,8 +185,7 @@ class CustomerController extends Controller
     {
         Gate::authorize('viewAny', Customer::class);
 
-        $isSuperAdmin = auth()->user()->roleName->isSuperAdmin();
-        $branchId     = $isSuperAdmin ? null : auth()->user()->branchManager->id;
+        $branchId = auth()->user()->branchId;
 
         return Excel::download(new CustomersExport($branchId), 'customers.xlsx');
     }
