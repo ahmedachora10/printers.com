@@ -88,4 +88,15 @@ class User extends Authenticatable implements LaratrustUser, HasMedia
             get: fn() => Cache::remember('user_role_' . $this->id, now()->addDay(), fn () => Roles::tryFrom($this->roles->first()?->name)),
         );
     }
+
+    public function branchId(): Attribute
+    {
+        return Attribute::make(
+            get: fn() => 
+            $this->roleName->isBranchAdmin() ?
+            $this->branchManager?->id :
+            // if not branch admin, return branch_id or null
+            $this->branch_id ?? null,
+        );
+    }
 }

@@ -7,6 +7,7 @@ use App\Models\BranchService;
 use App\Models\City;
 use App\Models\Coupon;
 use App\Models\Customer;
+use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ServiceTemplate;
 use App\Policies\BranchPolicy;
@@ -15,6 +16,7 @@ use App\Policies\CityPolicy;
 use App\Policies\CouponPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\ProductCategoryPolicy;
+use App\Policies\ProductPolicy;
 use App\Policies\ServiceTemplatePolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\SQLiteConnection;
@@ -62,6 +64,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(BranchService::class, BranchServicePolicy::class);
         Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
         Gate::policy(Coupon::class, CouponPolicy::class);
+        Gate::policy(Product::class, ProductPolicy::class);
     }
 
     protected function configureDefaults(): void

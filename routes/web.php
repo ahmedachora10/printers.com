@@ -6,6 +6,7 @@ use App\Http\Controllers\CityController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ProductCategoryController;
+use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ServiceTemplateController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -59,6 +60,13 @@ Route::middleware(['auth'])->group(function () {
             ->name('coupons.toggle-status');
         Route::resource('coupons', CouponController::class)
             ->only(['index', 'store', 'update', 'destroy']);
+
+        Route::prefix('inventory')->name('inventory.')->group(function () {
+            Route::patch('products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])
+                ->name('products.toggle-status');
+            Route::resource('products', ProductController::class)
+                ->only(['index', 'store', 'update', 'destroy']);
+        });
     });
 
     Route::get('coupons/validate', [CouponController::class, 'validateCoupon'])

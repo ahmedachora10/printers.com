@@ -10,6 +10,7 @@ use Database\Seeders\CitySeeder;
 use Database\Seeders\UserSeeder;
 use Database\Seeders\BranchSeeder;
 use Database\Seeders\ServiceTemplateSeeder;
+use Database\Seeders\ProductUnitSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -31,6 +32,10 @@ class DatabaseSeeder extends Seeder
             BranchSeeder::class,
             UserSeeder::class,
             ServiceTemplateSeeder::class,
+
+            // Products
+            ProductUnitSeeder::class,
+            // ProductSeeder::class,
         ]);
     }
 }
