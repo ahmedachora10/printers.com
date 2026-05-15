@@ -18,7 +18,7 @@ class CouponPolicy
     public function view(User $user, Coupon $coupon): bool
     {
         return $user->roleName->isSuperAdmin()
-            || ($user->roleName->isBranchAdmin() && $user->branchManager->id === $coupon->branch_id);
+            || ($user->roleName->isBranchAdmin() && $user->branchId === $coupon->branch_id);
     }
 
     public function create(User $user): bool
@@ -29,13 +29,13 @@ class CouponPolicy
     public function update(User $user, Coupon $coupon): bool
     {
         return $user->roleName->isSuperAdmin()
-            || ($user->roleName->isBranchAdmin() && $user->branchManager->id === $coupon->branch_id);
+            || ($user->roleName->isBranchAdmin() && $user->branchId === $coupon->branch_id);
     }
 
     public function delete(User $user, Coupon $coupon): bool
     {
         return $user->roleName->isSuperAdmin()
-            || ($user->roleName->isBranchAdmin() && $user->branchManager->id === $coupon->branch_id);
+            || ($user->roleName->isBranchAdmin() && $user->branchId === $coupon->branch_id);
     }
 
     public function restore(User $user, Coupon $coupon): bool

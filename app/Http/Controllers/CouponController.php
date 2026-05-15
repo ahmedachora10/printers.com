@@ -23,10 +23,10 @@ class CouponController extends Controller
     {
         Gate::authorize('viewAny', Coupon::class);
 
-        $isSuperAdmin = auth()->user()->roleName->isSuperAdmin();
+        $branchId = auth()->user()->branchId;
 
         $items = Coupon::query()
-            ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', auth()->user()->branchManager->id))
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->when($request->filled('search'), fn ($q) => $q->where('code', 'like', '%' . $request->input('search') . '%'))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', (bool) $request->input('status')))
             ->latest()
@@ -38,7 +38,7 @@ class CouponController extends Controller
                 'search' => $request->input('search'),
                 'status' => $request->input('status'),
             ],
-            'branches' => $isSuperAdmin
+            'branches' => auth()->user()->roleName->isSuperAdmin()
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,
         ]);
@@ -86,7 +86,7 @@ class CouponController extends Controller
 
         $code   = strtolower($request->string('code'));
         $coupon = Coupon::query()
-            ->where('branch_id', auth()->user()->branchManager->id)
+            ->where('branch_id', auth()->user()->branchId)
             ->where('code', $code)
             ->first();
 

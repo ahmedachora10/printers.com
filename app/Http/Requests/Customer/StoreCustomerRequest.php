@@ -17,7 +17,7 @@ class StoreCustomerRequest extends FormRequest
     {
         $branchId = auth()->user()->roleName->isSuperAdmin()
             ? $this->input('branch_id')
-            : auth()->user()->branchManager->id;
+            : auth()->user()->branchId;
 
         return [
             'branch_id'     => [

@@ -24,11 +24,7 @@ class CustomerPolicy
             return true;
         }
 
-        $branchId = $user->roleName->isBranchAdmin()
-            ? $user->branchManager?->id
-            : $user->branch_id;
-
-        return $branchId === $customer->branch_id;
+        return $user->branchId === $customer->branch_id;
     }
 
     public function create(User $user): bool
@@ -45,11 +41,7 @@ class CustomerPolicy
             return true;
         }
 
-        $branchId = $user->roleName->isBranchAdmin()
-            ? $user->branchManager?->id
-            : $user->branch_id;
-
-        return $branchId === $customer->branch_id
+        return $user->branchId === $customer->branch_id
             && ($user->roleName->isBranchAdmin() || $user->roleName->isAccountant());
     }
 
@@ -59,8 +51,7 @@ class CustomerPolicy
             return true;
         }
 
-        return $user->roleName->isBranchAdmin()
-            && $user->branchManager?->id === $customer->branch_id;
+        return $user->branchId === $customer->branch_id;
     }
 
     public function merge(User $user, Customer $customer): bool
@@ -69,8 +60,7 @@ class CustomerPolicy
             return true;
         }
 
-        return $user->roleName->isBranchAdmin()
-            && $user->branchManager?->id === $customer->branch_id;
+        return $user->branchId === $customer->branch_id;
     }
 
     public function restore(User $user, Customer $customer): bool

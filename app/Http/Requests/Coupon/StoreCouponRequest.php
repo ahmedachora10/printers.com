@@ -23,13 +23,13 @@ class StoreCouponRequest extends FormRequest
         $user = Auth::user();
 
         if ($user->roleName->isBranchAdmin()) {
-            $this->merge(['branch_id' => $user->branchManager?->id]);
+            $this->merge(['branch_id' => $user->branchId]);
         }
     }
 
     public function rules(): array
     {
-        $branchId = (int) $this->input('branch_id', Auth::user()->branchManager?->id);
+        $branchId = (int) $this->input('branch_id', Auth::user()->branchId);
 
         return [
             'branch_id'      => ['required', 'exists:branches,id'],
