@@ -1,7 +1,7 @@
 import { destroy, index } from '@/actions/App/Http/Controllers/ServiceTemplateController';
 import BranchServiceManageModal from '@/components/service-templates/branch-service-manage-modal';
 import ServiceTemplateFormModal from '@/components/service-templates/service-template-form-modal';
-import { DataTable, type ColumnDef } from '@/components/data-table';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -234,7 +234,15 @@ export default function ServiceTemplatesIndex({ templates, branches, filters }: 
                     columns={columns}
                     data={templates.data}
                     keyExtractor={(t) => t.id}
-                    defaultPageSize={15}
+                />
+
+                <TablePagination
+                    currentPage={templates.meta.current_page as number}
+                    totalPages={templates.meta.last_page as number}
+                    totalItems={templates.meta.total as number}
+                    onPageChange={(page) => {
+                        router.get(index.url(), { page }, { preserveState: true, preserveScroll: true });
+                    }}
                 />
             </div>
 

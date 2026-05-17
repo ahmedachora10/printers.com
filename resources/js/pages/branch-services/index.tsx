@@ -1,7 +1,7 @@
 import { destroy } from '@/actions/App/Http/Controllers/BranchServiceController';
 import branchServicesRoute from '@/routes/branch-services';
 import BranchServiceFormModal from '@/components/branch-services/branch-service-form-modal';
-import { DataTable, type ColumnDef } from '@/components/data-table';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -37,7 +37,7 @@ interface BranchOption {
 interface PaginatedBranchService {
     data: BranchService[];
     links: unknown;
-    meta: unknown;
+    meta: Record<string, unknown>;
 }
 
 interface Props {
@@ -251,7 +251,15 @@ export default function BranchServicesIndex({
                     columns={columns}
                     data={branchServices.data}
                     keyExtractor={(s) => s.id}
-                    defaultPageSize={20}
+                />
+
+                <TablePagination
+                    currentPage={branchServices.meta.current_page as number}
+                    totalPages={branchServices.meta.last_page as number}
+                    totalItems={branchServices.meta.total as number}
+                    onPageChange={(page) => {
+                        router.get(branchServicesRoute.index().url, { page }, { preserveState: true, preserveScroll: true });
+                    }}
                 />
             </div>
 

@@ -1,5 +1,5 @@
 import CustomerFormModal from '@/components/customers/customer-form-modal';
-import { DataTable, type ColumnDef } from '@/components/data-table';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -343,7 +343,15 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
                     columns={columns}
                     data={items.data}
                     keyExtractor={(item) => item.id}
-                    defaultPageSize={20}
+                />
+
+                <TablePagination
+                    currentPage={items.meta.current_page as number}
+                    totalPages={items.meta.last_page as number}
+                    totalItems={items.meta.total as number}
+                    onPageChange={(page) => {
+                        router.get('/customers', { page }, { preserveState: true, preserveScroll: true });
+                    }}
                 />
             </div>
 

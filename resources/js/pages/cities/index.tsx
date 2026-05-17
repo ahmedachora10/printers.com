@@ -1,6 +1,6 @@
 import { destroy, index, toggleStatus } from '@/actions/App/Http/Controllers/CityController';
 import CityFormModal from '@/components/cities/city-form-modal';
-import { DataTable, type ColumnDef } from '@/components/data-table';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -182,7 +182,15 @@ export default function CitiesIndex({ cities, filters }: Props) {
                     columns={columns}
                     data={cities.data}
                     keyExtractor={(city) => city.id}
-                    defaultPageSize={20}
+                />
+
+                <TablePagination
+                    currentPage={cities.meta.current_page as number}
+                    totalPages={cities.meta.last_page as number}
+                    totalItems={cities.meta.total as number}
+                    onPageChange={(page) => {
+                        router.get(index.url(), { page }, { preserveState: true, preserveScroll: true });
+                    }}
                 />
             </div>
 

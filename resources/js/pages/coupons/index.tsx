@@ -1,6 +1,6 @@
 import { destroy, toggleStatus } from '@/actions/App/Http/Controllers/CouponController';
 import CouponFormModal from '@/components/coupons/coupon-form-modal';
-import { DataTable, type ColumnDef } from '@/components/data-table';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -221,7 +221,15 @@ export default function CouponsIndex({ items, filters, branches }: Props) {
                     columns={columns}
                     data={items.data}
                     keyExtractor={(item) => item.id}
-                    defaultPageSize={15}
+                />
+
+                <TablePagination
+                    currentPage={items.meta.current_page as number}
+                    totalPages={items.meta.last_page as number}
+                    totalItems={items.meta.total as number}
+                    onPageChange={(page) => {
+                        router.get(coupons.index().url, { page }, { preserveState: true, preserveScroll: true });
+                    }}
                 />
             </div>
 

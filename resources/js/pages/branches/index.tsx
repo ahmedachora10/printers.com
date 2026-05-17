@@ -1,6 +1,6 @@
 import { destroy, index, toggleStatus } from '@/actions/App/Http/Controllers/BranchController';
 import BranchFormModal from '@/components/branches/branch-form-modal';
-import { DataTable, type ColumnDef } from '@/components/data-table';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -213,7 +213,15 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
                     columns={columns}
                     data={branches.data}
                     keyExtractor={(branch) => branch.id}
-                    defaultPageSize={15}
+                />
+
+                <TablePagination
+                    currentPage={branches.meta.current_page as number}
+                    totalPages={branches.meta.last_page as number}
+                    totalItems={branches.meta.total as number}
+                    onPageChange={(page) => {
+                        router.get(index.url(), { page }, { preserveState: true, preserveScroll: true });
+                    }}
                 />
             </div>
 

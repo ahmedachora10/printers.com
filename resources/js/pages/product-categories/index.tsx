@@ -1,6 +1,6 @@
 import { destroy, index, toggleStatus } from '@/actions/App/Http/Controllers/ProductCategoryController';
 import ProductCategoryFormModal from '@/components/product-categories/product-category-form-modal';
-import { DataTable, type ColumnDef } from '@/components/data-table';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -181,7 +181,15 @@ export default function ProductCategoriesIndex({ items, filters }: Props) {
                     columns={columns}
                     data={items.data}
                     keyExtractor={(item) => item.id}
-                    defaultPageSize={15}
+                />
+
+                <TablePagination
+                    currentPage={items.meta.current_page as number}
+                    totalPages={items.meta.last_page as number}
+                    totalItems={items.meta.total as number}
+                    onPageChange={(page) => {
+                        router.get(index.url(), { page }, { preserveState: true, preserveScroll: true });
+                    }}
                 />
             </div>
 
