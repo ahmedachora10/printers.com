@@ -29,7 +29,7 @@ class BranchController extends Controller
             ->when($request->input('search'), fn ($q) => $q->where('name', 'like', '%' . $request->input('search') . '%'))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', $request->input('status')))
             ->latest()
-            ->paginate(15);
+            ->paginate(12);
 
         return Inertia::render('branches/index', [
             'branches'     => BranchResource::collection($branches),
