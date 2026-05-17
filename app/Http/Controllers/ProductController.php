@@ -35,7 +35,7 @@ class ProductController extends Controller
             ->when($request->filled('category_id'), fn ($q) => $q->where('category_id', (int) $request->input('category_id')))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', (bool) $request->input('status')))
             ->orderBy('name')
-            ->paginate(15);
+            ->paginate(12);
 
         $lowStockCount = Product::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
