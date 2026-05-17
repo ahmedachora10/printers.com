@@ -20,12 +20,20 @@ export interface ColumnDef<T> {
     headerClassName?: string;
 }
 
+export interface TablePaginationProps {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    pageSize?: number;
+    onPageChange: (page: number) => void;
+    className?: string;
+}
+
 export interface DataTableProps<T extends object> {
     columns: ColumnDef<T>[];
     data: T[];
     keyExtractor: (row: T) => string | number;
     selectable?: boolean;
-    defaultPageSize?: number;
     emptyState?: React.ReactNode;
     loading?: boolean;
     onSelectionChange?: (selectedKeys: Array<string | number>, selectedRows: T[]) => void;
@@ -53,6 +61,76 @@ function SortIcon({ colKey, sort }: { colKey: string; sort: SortState | null }) 
     return <ChevronsUpDown className="ms-1 size-3.5 text-muted-foreground/40 group-hover:text-muted-foreground" />;
 }
 
+// ─── TablePagination ─────────────────────────────────────────────────────────
+
+export function TablePagination({ currentPage, totalPages, totalItems, pageSize = 10, onPageChange, className }: TablePaginationProps) {
+    const pageNumbers = useMemo<(number | '...')[]>(() => {
+        const pages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(
+            (p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1,
+        );
+        return pages.reduce<(number | '...')[]>((acc, p, i, arr) => {
+            if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('...');
+            acc.push(p);
+            return acc;
+        }, []);
+    }, [totalPages, currentPage]);
+
+    return (
+        <div className={cn('flex items-center justify-between border-t border-border bg-muted/20 px-5 py-3', className)}>
+            <span className="text-[13px] text-muted-foreground">
+                عرض {(currentPage - 1) * pageSize + 1}&#x2011;{Math.min(currentPage * pageSize, totalItems)} من أصل {totalItems}
+            </span>
+
+            {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                        disabled={currentPage === 1}
+                        className="h-8 w-8 p-0"
+                        aria-label="الصفحة السابقة"
+                    >
+                        <ChevronRight className="size-4" />
+                    </Button>
+
+                    {pageNumbers.map((p, i) =>
+                        p === '...' ? (
+                            <span key={`ellipsis-${i}`} className="w-8 text-center text-[13px] text-muted-foreground">
+                                &hellip;
+                            </span>
+                        ) : (
+                            <Button
+                                key={p}
+                                variant={currentPage === p ? 'default' : 'ghost'}
+                                size="sm"
+                                onClick={() => onPageChange(p as number)}
+                                className={cn(
+                                    'h-8 w-8 p-0 text-[13px]',
+                                    currentPage === p && 'bg-primary text-primary-foreground hover:bg-primary/90',
+                                )}
+                            >
+                                {p}
+                            </Button>
+                        ),
+                    )}
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                        disabled={currentPage === totalPages}
+                        className="h-8 w-8 p-0"
+                        aria-label="الصفحة التالية"
+                    >
+                        <ChevronLeft className="size-4" />
+                    </Button>
+                </div>
+            )}
+        </div>
+    );
+}
+
 // ─── DataTable ───────────────────────────────────────────────────────────────
 
 export function DataTable<T extends object>({
@@ -60,7 +138,6 @@ export function DataTable<T extends object>({
     data,
     keyExtractor,
     selectable = false,
-    defaultPageSize = 10,
     emptyState,
     loading = false,
     onSelectionChange,
@@ -68,7 +145,6 @@ export function DataTable<T extends object>({
     className,
 }: DataTableProps<T>) {
     const [sort, setSort] = useState<SortState | null>(null);
-    const [page, setPage] = useState(1);
     const [selectedKeys, setSelectedKeys] = useState<Set<string | number>>(new Set());
 
     // ── Sort ──────────────────────────────────────────────────────────────────
@@ -82,27 +158,19 @@ export function DataTable<T extends object>({
         });
     }, [data, sort]);
 
-    // ── Paginate ──────────────────────────────────────────────────────────────
-    const totalPages = Math.max(1, Math.ceil(sorted.length / defaultPageSize));
-    const paginated = useMemo(
-        () => sorted.slice((page - 1) * defaultPageSize, page * defaultPageSize),
-        [sorted, page, defaultPageSize],
-    );
-
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleSort = (key: string) => {
         setSort((prev) => {
             if (prev?.key === key) return prev.direction === 'asc' ? { key, direction: 'desc' } : null;
             return { key, direction: 'asc' };
         });
-        setPage(1);
     };
 
-    const allPageSelected = paginated.length > 0 && paginated.every((r) => selectedKeys.has(keyExtractor(r)));
-    const somePageSelected = paginated.some((r) => selectedKeys.has(keyExtractor(r)));
+    const allPageSelected = sorted.length > 0 && sorted.every((r) => selectedKeys.has(keyExtractor(r)));
+    const somePageSelected = sorted.some((r) => selectedKeys.has(keyExtractor(r)));
 
     const toggleSelectAll = () => {
-        const pageKeys = paginated.map(keyExtractor);
+        const pageKeys = sorted.map(keyExtractor);
         const next = new Set(selectedKeys);
         if (allPageSelected) {
             pageKeys.forEach((k) => next.delete(k));
@@ -119,18 +187,6 @@ export function DataTable<T extends object>({
         setSelectedKeys(next);
         onSelectionChange?.([...next], data.filter((r) => next.has(keyExtractor(r))));
     };
-
-    // ── Pagination pages list ─────────────────────────────────────────────────
-    const pageNumbers = useMemo<(number | '...')[]>(() => {
-        const pages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(
-            (p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1,
-        );
-        return pages.reduce<(number | '...')[]>((acc, p, i, arr) => {
-            if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push('...');
-            acc.push(p);
-            return acc;
-        }, []);
-    }, [totalPages, page]);
 
     const colSpan = columns.length + (selectable ? 1 : 0);
 
@@ -185,7 +241,7 @@ export function DataTable<T extends object>({
                                 ))}
                             </TableRow>
                         ))
-                    ) : paginated.length === 0 ? (
+                    ) : sorted.length === 0 ? (
                         /* ── Empty state ────────────────────────────────────── */
                         <TableRow className="hover:bg-transparent">
                             <TableCell colSpan={colSpan} className="h-40 text-center">
@@ -199,7 +255,7 @@ export function DataTable<T extends object>({
                         </TableRow>
                     ) : (
                         /* ── Rows ───────────────────────────────────────────── */
-                        paginated.map((row, idx) => {
+                        sorted.map((row, idx) => {
                             const key = keyExtractor(row);
                             const selected = selectedKeys.has(key);
                             return (
@@ -233,62 +289,6 @@ export function DataTable<T extends object>({
                     )}
                 </TableBody>
             </Table>
-
-            {/* ── Footer: item range + pagination ─────────────────────────── */}
-            {sorted.length > 0 && (
-                <div className="flex items-center justify-between border-t border-border bg-muted/20 px-5 py-3">
-                    <span className="text-[13px] text-muted-foreground">
-                        عرض {(page - 1) * defaultPageSize + 1}-{Math.min(page * defaultPageSize, sorted.length)} من أصل {sorted.length}
-                    </span>
-
-                    {totalPages > 1 && (
-                        <div className="flex items-center gap-1">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                                disabled={page === 1}
-                                className="h-8 w-8 p-0"
-                                aria-label="الصفحة السابقة"
-                            >
-                                <ChevronRight className="size-4" />
-                            </Button>
-
-                            {pageNumbers.map((p, i) =>
-                                p === '...' ? (
-                                    <span key={`ellipsis-${i}`} className="w-8 text-center text-[13px] text-muted-foreground">
-                                        &hellip;
-                                    </span>
-                                ) : (
-                                    <Button
-                                        key={p}
-                                        variant={page === p ? 'default' : 'ghost'}
-                                        size="sm"
-                                        onClick={() => setPage(p as number)}
-                                        className={cn(
-                                            'h-8 w-8 p-0 text-[13px]',
-                                            page === p && 'bg-primary text-primary-foreground hover:bg-primary/90',
-                                        )}
-                                    >
-                                        {p}
-                                    </Button>
-                                ),
-                            )}
-
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                                disabled={page === totalPages}
-                                className="h-8 w-8 p-0"
-                                aria-label="الصفحة التالية"
-                            >
-                                <ChevronLeft className="size-4" />
-                            </Button>
-                        </div>
-                    )}
-                </div>
-            )}
 
             {/* ── Caption ───────────────────────────────────────────────────── */}
             {caption && (
