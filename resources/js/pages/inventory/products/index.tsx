@@ -1,5 +1,5 @@
 import ProductFormModal from '@/components/products/product-form-modal';
-import { DataTable, type ColumnDef } from '@/components/data-table';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,10 +18,12 @@ import { type ProductUnit } from '@/types/product-unit';
 import { router } from '@inertiajs/react';
 import { AlertTriangle, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
+import inventory from '@/routes/inventory';
+import { formatCurrency } from '@/lib/utils';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'المستودع', href: '/inventory/products' },
-    { title: 'المنتجات', href: '/inventory/products' },
+    { title: 'المستودع', href: inventory.products.index().url },
+    { title: 'المنتجات', href: inventory.products.index().url },
 ];
 
 interface Category {
@@ -41,13 +43,11 @@ interface Props {
     };
 }
 
-const formatSAR = (amount: number) =>
-    new Intl.NumberFormat('ar-SA', { style: 'currency', currency: 'SAR' }).format(amount);
 
 export default function ProductsIndex({ items, lowStockCount, categories, units, filters }: Props) {
-    const [formOpen, setFormOpen]   = useState(false);
-    const [editing, setEditing]     = useState<Product | null>(null);
-    const [deleting, setDeleting]   = useState<Product | null>(null);
+    const [formOpen, setFormOpen] = useState(false);
+    const [editing, setEditing] = useState<Product | null>(null);
+    const [deleting, setDeleting] = useState<Product | null>(null);
 
     function openCreate() {
         setEditing(null);
@@ -60,12 +60,12 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
     }
 
     function handleToggleStatus(item: Product) {
-        router.patch(`/inventory/products/${item.id}/toggle-status`, {}, { preserveScroll: true });
+        router.patch(inventory.products.toggleStatus(item.id).url, {}, { preserveScroll: true });
     }
 
     function handleDelete() {
         if (!deleting) return;
-        router.delete(`/inventory/products/${deleting.id}`, {
+        router.delete(inventory.products.destroy(deleting.id).url, {
             onFinish: () => setDeleting(null),
         });
     }
@@ -118,7 +118,7 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                 header: 'سعر التكلفة',
                 cell: (item) => (
                     <span dir="ltr" className="tabular-nums">
-                        {formatSAR(item.costPrice)}
+                        {formatCurrency(item.costPrice)}
                     </span>
                 ),
             },
@@ -127,16 +127,7 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                 header: 'سعر البيع',
                 cell: (item) => (
                     <span dir="ltr" className="tabular-nums">
-                        {formatSAR(item.sellingPrice)}
-                    </span>
-                ),
-            },
-            {
-                key: 'valuation',
-                header: 'التقييم',
-                cell: (item) => (
-                    <span dir="ltr" className="tabular-nums text-muted-foreground">
-                        {formatSAR(item.valuation)}
+                        {formatCurrency(item.sellingPrice)}
                     </span>
                 ),
             },
@@ -183,10 +174,10 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
         [],
     );
 
-    const [search, setSearch]             = useState(filters.search ?? '');
+    const [search, setSearch] = useState(filters.search ?? '');
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
         category_id: filters.category_id ?? '',
-        status:      filters.status ?? '',
+        status: filters.status ?? '',
     });
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -195,7 +186,7 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         searchTimeout.current = setTimeout(() => {
             router.get(
-                '/inventory/products',
+                inventory.products.index().url,
                 {
                     ...(value && { search: value }),
                     ...(filterValues.category_id && { category_id: filterValues.category_id }),
@@ -210,7 +201,7 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
         const next = { ...filterValues, [key]: val };
         setFilterValues(next);
         router.get(
-            '/inventory/products',
+            inventory.products.index().url,
             {
                 ...(search && { search }),
                 ...(next.category_id && { category_id: next.category_id }),
@@ -224,7 +215,7 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
         setSearch('');
         setFilterValues({ category_id: '', status: '' });
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        router.get('/inventory/products', {}, { preserveState: true, replace: true });
+        router.get(inventory.products.index().url, {}, { preserveState: true, replace: true });
     };
 
     return (
@@ -279,7 +270,15 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                     columns={columns}
                     data={items.data}
                     keyExtractor={(item) => item.id}
-                    defaultPageSize={15}
+                />
+
+                <TablePagination
+                    currentPage={items.meta.current_page as number}
+                    totalPages={items.meta.last_page as number}
+                    totalItems={items.meta.total as number}
+                    onPageChange={(page) => {
+                        router.get(inventory.products.index({ query: { page } }).url, {}, { preserveState: true, preserveScroll: true });
+                    }}
                 />
             </div>
 
