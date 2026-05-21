@@ -56,7 +56,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     store.form = storeForm
 /**
 * @see \App\Http\Controllers\PaymentMethodController::update
- * @see app/Http/Controllers/PaymentMethodController.php:28
+ * @see app/Http/Controllers/PaymentMethodController.php:25
  * @route '/payment-methods/{payment_method}'
  */
 export const update = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -71,7 +71,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\PaymentMethodController::update
- * @see app/Http/Controllers/PaymentMethodController.php:28
+ * @see app/Http/Controllers/PaymentMethodController.php:25
  * @route '/payment-methods/{payment_method}'
  */
 update.url = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -104,7 +104,7 @@ update.url = (args: { payment_method: number | { id: number } } | [payment_metho
 
 /**
 * @see \App\Http\Controllers\PaymentMethodController::update
- * @see app/Http/Controllers/PaymentMethodController.php:28
+ * @see app/Http/Controllers/PaymentMethodController.php:25
  * @route '/payment-methods/{payment_method}'
  */
 update.put = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -113,7 +113,7 @@ update.put = (args: { payment_method: number | { id: number } } | [payment_metho
 })
 /**
 * @see \App\Http\Controllers\PaymentMethodController::update
- * @see app/Http/Controllers/PaymentMethodController.php:28
+ * @see app/Http/Controllers/PaymentMethodController.php:25
  * @route '/payment-methods/{payment_method}'
  */
 update.patch = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -123,7 +123,7 @@ update.patch = (args: { payment_method: number | { id: number } } | [payment_met
 
     /**
 * @see \App\Http\Controllers\PaymentMethodController::update
- * @see app/Http/Controllers/PaymentMethodController.php:28
+ * @see app/Http/Controllers/PaymentMethodController.php:25
  * @route '/payment-methods/{payment_method}'
  */
     const updateForm = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -138,7 +138,7 @@ update.patch = (args: { payment_method: number | { id: number } } | [payment_met
 
             /**
 * @see \App\Http\Controllers\PaymentMethodController::update
- * @see app/Http/Controllers/PaymentMethodController.php:28
+ * @see app/Http/Controllers/PaymentMethodController.php:25
  * @route '/payment-methods/{payment_method}'
  */
         updateForm.put = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -152,7 +152,7 @@ update.patch = (args: { payment_method: number | { id: number } } | [payment_met
         })
             /**
 * @see \App\Http\Controllers\PaymentMethodController::update
- * @see app/Http/Controllers/PaymentMethodController.php:28
+ * @see app/Http/Controllers/PaymentMethodController.php:25
  * @route '/payment-methods/{payment_method}'
  */
         updateForm.patch = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -168,7 +168,7 @@ update.patch = (args: { payment_method: number | { id: number } } | [payment_met
     update.form = updateForm
 /**
 * @see \App\Http\Controllers\PaymentMethodController::destroy
- * @see app/Http/Controllers/PaymentMethodController.php:37
+ * @see app/Http/Controllers/PaymentMethodController.php:34
  * @route '/payment-methods/{payment_method}'
  */
 export const destroy = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -183,7 +183,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\PaymentMethodController::destroy
- * @see app/Http/Controllers/PaymentMethodController.php:37
+ * @see app/Http/Controllers/PaymentMethodController.php:34
  * @route '/payment-methods/{payment_method}'
  */
 destroy.url = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -216,7 +216,7 @@ destroy.url = (args: { payment_method: number | { id: number } } | [payment_meth
 
 /**
 * @see \App\Http\Controllers\PaymentMethodController::destroy
- * @see app/Http/Controllers/PaymentMethodController.php:37
+ * @see app/Http/Controllers/PaymentMethodController.php:34
  * @route '/payment-methods/{payment_method}'
  */
 destroy.delete = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -226,7 +226,7 @@ destroy.delete = (args: { payment_method: number | { id: number } } | [payment_m
 
     /**
 * @see \App\Http\Controllers\PaymentMethodController::destroy
- * @see app/Http/Controllers/PaymentMethodController.php:37
+ * @see app/Http/Controllers/PaymentMethodController.php:34
  * @route '/payment-methods/{payment_method}'
  */
     const destroyForm = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -241,7 +241,7 @@ destroy.delete = (args: { payment_method: number | { id: number } } | [payment_m
 
             /**
 * @see \App\Http\Controllers\PaymentMethodController::destroy
- * @see app/Http/Controllers/PaymentMethodController.php:37
+ * @see app/Http/Controllers/PaymentMethodController.php:34
  * @route '/payment-methods/{payment_method}'
  */
         destroyForm.delete = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -257,7 +257,7 @@ destroy.delete = (args: { payment_method: number | { id: number } } | [payment_m
     destroy.form = destroyForm
 /**
 * @see \App\Http\Controllers\PaymentMethodController::toggleStatus
- * @see app/Http/Controllers/PaymentMethodController.php:46
+ * @see app/Http/Controllers/PaymentMethodController.php:43
  * @route '/payment-methods/{paymentMethod}/toggle-status'
  */
 export const toggleStatus = (args: { paymentMethod: number | { id: number } } | [paymentMethod: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -272,7 +272,7 @@ toggleStatus.definition = {
 
 /**
 * @see \App\Http\Controllers\PaymentMethodController::toggleStatus
- * @see app/Http/Controllers/PaymentMethodController.php:46
+ * @see app/Http/Controllers/PaymentMethodController.php:43
  * @route '/payment-methods/{paymentMethod}/toggle-status'
  */
 toggleStatus.url = (args: { paymentMethod: number | { id: number } } | [paymentMethod: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -305,7 +305,7 @@ toggleStatus.url = (args: { paymentMethod: number | { id: number } } | [paymentM
 
 /**
 * @see \App\Http\Controllers\PaymentMethodController::toggleStatus
- * @see app/Http/Controllers/PaymentMethodController.php:46
+ * @see app/Http/Controllers/PaymentMethodController.php:43
  * @route '/payment-methods/{paymentMethod}/toggle-status'
  */
 toggleStatus.patch = (args: { paymentMethod: number | { id: number } } | [paymentMethod: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -315,7 +315,7 @@ toggleStatus.patch = (args: { paymentMethod: number | { id: number } } | [paymen
 
     /**
 * @see \App\Http\Controllers\PaymentMethodController::toggleStatus
- * @see app/Http/Controllers/PaymentMethodController.php:46
+ * @see app/Http/Controllers/PaymentMethodController.php:43
  * @route '/payment-methods/{paymentMethod}/toggle-status'
  */
     const toggleStatusForm = (args: { paymentMethod: number | { id: number } } | [paymentMethod: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -330,7 +330,7 @@ toggleStatus.patch = (args: { paymentMethod: number | { id: number } } | [paymen
 
             /**
 * @see \App\Http\Controllers\PaymentMethodController::toggleStatus
- * @see app/Http/Controllers/PaymentMethodController.php:46
+ * @see app/Http/Controllers/PaymentMethodController.php:43
  * @route '/payment-methods/{paymentMethod}/toggle-status'
  */
         toggleStatusForm.patch = (args: { paymentMethod: number | { id: number } } | [paymentMethod: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({

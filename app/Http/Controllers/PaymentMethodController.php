@@ -17,10 +17,7 @@ class PaymentMethodController extends Controller
     {
         Gate::authorize('create', PaymentMethod::class);
 
-        $action->handle([
-            ...$request->validated(),
-            'branch_id' => auth()->user()->branchId,
-        ]);
+        $action->handle($request->validated());
 
         return back()->with('success', 'تم إضافة طريقة الدفع بنجاح');
     }

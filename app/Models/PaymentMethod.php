@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -15,7 +14,6 @@ class PaymentMethod extends Model
 
     protected $fillable = [
         'name',
-        'branch_id',
         'is_active',
     ];
 
@@ -32,11 +30,5 @@ class PaymentMethod extends Model
         }
 
         return false;
-    }
-
-    /** @return BelongsTo<Branch, self> */
-    public function branch(): BelongsTo
-    {
-        return $this->belongsTo(Branch::class);
     }
 }

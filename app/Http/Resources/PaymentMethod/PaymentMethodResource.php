@@ -12,7 +12,6 @@ class PaymentMethodResource extends JsonResource
         return [
             'id'       => $this->id,
             'name'     => $this->name,
-            'branchId' => $this->branch_id,
             'isActive' => $this->is_active,
         ];
     }

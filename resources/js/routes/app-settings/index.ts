@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../wayfinder'
 /**
 * @see \App\Http\Controllers\AppSettingController::index
- * @see app/Http/Controllers/AppSettingController.php:20
+ * @see app/Http/Controllers/AppSettingController.php:22
  * @route '/app-settings'
  */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\AppSettingController::index
- * @see app/Http/Controllers/AppSettingController.php:20
+ * @see app/Http/Controllers/AppSettingController.php:22
  * @route '/app-settings'
  */
 index.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\AppSettingController::index
- * @see app/Http/Controllers/AppSettingController.php:20
+ * @see app/Http/Controllers/AppSettingController.php:22
  * @route '/app-settings'
  */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\AppSettingController::index
- * @see app/Http/Controllers/AppSettingController.php:20
+ * @see app/Http/Controllers/AppSettingController.php:22
  * @route '/app-settings'
  */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,7 +44,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
     /**
 * @see \App\Http\Controllers\AppSettingController::index
- * @see app/Http/Controllers/AppSettingController.php:20
+ * @see app/Http/Controllers/AppSettingController.php:22
  * @route '/app-settings'
  */
     const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -54,7 +54,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
             /**
 * @see \App\Http\Controllers\AppSettingController::index
- * @see app/Http/Controllers/AppSettingController.php:20
+ * @see app/Http/Controllers/AppSettingController.php:22
  * @route '/app-settings'
  */
         indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -63,7 +63,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
         })
             /**
 * @see \App\Http\Controllers\AppSettingController::index
- * @see app/Http/Controllers/AppSettingController.php:20
+ * @see app/Http/Controllers/AppSettingController.php:22
  * @route '/app-settings'
  */
         indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
@@ -79,7 +79,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     index.form = indexForm
 /**
 * @see \App\Http\Controllers\AppSettingController::updateGeneral
- * @see app/Http/Controllers/AppSettingController.php:50
+ * @see app/Http/Controllers/AppSettingController.php:51
  * @route '/app-settings/general'
  */
 export const updateGeneral = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -94,7 +94,7 @@ updateGeneral.definition = {
 
 /**
 * @see \App\Http\Controllers\AppSettingController::updateGeneral
- * @see app/Http/Controllers/AppSettingController.php:50
+ * @see app/Http/Controllers/AppSettingController.php:51
  * @route '/app-settings/general'
  */
 updateGeneral.url = (options?: RouteQueryOptions) => {
@@ -103,7 +103,7 @@ updateGeneral.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\AppSettingController::updateGeneral
- * @see app/Http/Controllers/AppSettingController.php:50
+ * @see app/Http/Controllers/AppSettingController.php:51
  * @route '/app-settings/general'
  */
 updateGeneral.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -113,7 +113,7 @@ updateGeneral.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
 
     /**
 * @see \App\Http\Controllers\AppSettingController::updateGeneral
- * @see app/Http/Controllers/AppSettingController.php:50
+ * @see app/Http/Controllers/AppSettingController.php:51
  * @route '/app-settings/general'
  */
     const updateGeneralForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -128,7 +128,7 @@ updateGeneral.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
 
             /**
 * @see \App\Http\Controllers\AppSettingController::updateGeneral
- * @see app/Http/Controllers/AppSettingController.php:50
+ * @see app/Http/Controllers/AppSettingController.php:51
  * @route '/app-settings/general'
  */
         updateGeneralForm.put = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -144,7 +144,7 @@ updateGeneral.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
     updateGeneral.form = updateGeneralForm
 /**
 * @see \App\Http\Controllers\AppSettingController::updateInventoryAlerts
- * @see app/Http/Controllers/AppSettingController.php:59
+ * @see app/Http/Controllers/AppSettingController.php:60
  * @route '/app-settings/inventory-alerts'
  */
 export const updateInventoryAlerts = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -159,7 +159,7 @@ updateInventoryAlerts.definition = {
 
 /**
 * @see \App\Http\Controllers\AppSettingController::updateInventoryAlerts
- * @see app/Http/Controllers/AppSettingController.php:59
+ * @see app/Http/Controllers/AppSettingController.php:60
  * @route '/app-settings/inventory-alerts'
  */
 updateInventoryAlerts.url = (options?: RouteQueryOptions) => {
@@ -168,7 +168,7 @@ updateInventoryAlerts.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\AppSettingController::updateInventoryAlerts
- * @see app/Http/Controllers/AppSettingController.php:59
+ * @see app/Http/Controllers/AppSettingController.php:60
  * @route '/app-settings/inventory-alerts'
  */
 updateInventoryAlerts.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -178,7 +178,7 @@ updateInventoryAlerts.put = (options?: RouteQueryOptions): RouteDefinition<'put'
 
     /**
 * @see \App\Http\Controllers\AppSettingController::updateInventoryAlerts
- * @see app/Http/Controllers/AppSettingController.php:59
+ * @see app/Http/Controllers/AppSettingController.php:60
  * @route '/app-settings/inventory-alerts'
  */
     const updateInventoryAlertsForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -193,7 +193,7 @@ updateInventoryAlerts.put = (options?: RouteQueryOptions): RouteDefinition<'put'
 
             /**
 * @see \App\Http\Controllers\AppSettingController::updateInventoryAlerts
- * @see app/Http/Controllers/AppSettingController.php:59
+ * @see app/Http/Controllers/AppSettingController.php:60
  * @route '/app-settings/inventory-alerts'
  */
         updateInventoryAlertsForm.put = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
@@ -207,10 +207,76 @@ updateInventoryAlerts.put = (options?: RouteQueryOptions): RouteDefinition<'put'
         })
     
     updateInventoryAlerts.form = updateInventoryAlertsForm
+/**
+* @see \App\Http\Controllers\AppSettingController::updatePaymentMethods
+ * @see app/Http/Controllers/AppSettingController.php:69
+ * @route '/app-settings/payment-methods'
+ */
+export const updatePaymentMethods = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
+    url: updatePaymentMethods.url(options),
+    method: 'put',
+})
+
+updatePaymentMethods.definition = {
+    methods: ["put"],
+    url: '/app-settings/payment-methods',
+} satisfies RouteDefinition<["put"]>
+
+/**
+* @see \App\Http\Controllers\AppSettingController::updatePaymentMethods
+ * @see app/Http/Controllers/AppSettingController.php:69
+ * @route '/app-settings/payment-methods'
+ */
+updatePaymentMethods.url = (options?: RouteQueryOptions) => {
+    return updatePaymentMethods.definition.url + queryParams(options)
+}
+
+/**
+* @see \App\Http\Controllers\AppSettingController::updatePaymentMethods
+ * @see app/Http/Controllers/AppSettingController.php:69
+ * @route '/app-settings/payment-methods'
+ */
+updatePaymentMethods.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
+    url: updatePaymentMethods.url(options),
+    method: 'put',
+})
+
+    /**
+* @see \App\Http\Controllers\AppSettingController::updatePaymentMethods
+ * @see app/Http/Controllers/AppSettingController.php:69
+ * @route '/app-settings/payment-methods'
+ */
+    const updatePaymentMethodsForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: updatePaymentMethods.url({
+                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                        _method: 'PUT',
+                        ...(options?.query ?? options?.mergeQuery ?? {}),
+                    }
+                }),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\AppSettingController::updatePaymentMethods
+ * @see app/Http/Controllers/AppSettingController.php:69
+ * @route '/app-settings/payment-methods'
+ */
+        updatePaymentMethodsForm.put = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: updatePaymentMethods.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'PUT',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'post',
+        })
+    
+    updatePaymentMethods.form = updatePaymentMethodsForm
 const appSettings = {
     index: Object.assign(index, index),
 updateGeneral: Object.assign(updateGeneral, updateGeneral),
 updateInventoryAlerts: Object.assign(updateInventoryAlerts, updateInventoryAlerts),
+updatePaymentMethods: Object.assign(updatePaymentMethods, updatePaymentMethods),
 }
 
 export default appSettings

@@ -2,7 +2,6 @@
 
 namespace Database\Factories;
 
-use App\Models\Branch;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -13,8 +12,7 @@ class PaymentMethodFactory extends Factory
     public function definition(): array
     {
         return [
-            'name'      => fake()->randomElement(['نقد', 'بطاقة بنكية', 'تحويل بنكي', 'مدى', 'أبل باي']),
-            'branch_id' => Branch::factory(),
+            'name'      => fake()->unique()->randomElement(['نقد', 'بطاقة بنكية', 'تحويل بنكي', 'مدى', 'أبل باي']),
             'is_active' => true,
         ];
     }

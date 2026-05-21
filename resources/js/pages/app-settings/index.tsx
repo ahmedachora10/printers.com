@@ -5,6 +5,7 @@ import {
 import {
     updateGeneral,
     updateInventoryAlerts,
+    updatePaymentMethods,
 } from '@/actions/App/Http/Controllers/AppSettingController';
 import PaymentMethodFormModal from '@/components/app-settings/payment-method-form-modal';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
@@ -28,7 +30,7 @@ import {
     type PaymentMethod,
 } from '@/types/payment-method';
 import { router, useForm } from '@inertiajs/react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { CreditCard, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 
@@ -40,6 +42,7 @@ interface Props {
     generalSettings: AppSettingsGeneralData;
     inventoryAlerts: AppSettingsInventoryData;
     paymentMethods: PaymentMethod[];
+    enabledPaymentMethodIds: number[];
     isSuperAdmin: boolean;
 }
 
@@ -47,11 +50,18 @@ export default function AppSettingsIndex({
     generalSettings,
     inventoryAlerts,
     paymentMethods,
+    enabledPaymentMethodIds,
     isSuperAdmin,
 }: Props) {
     const [pmFormOpen, setPmFormOpen] = useState(false);
     const [editing, setEditing] = useState<PaymentMethod | null>(null);
     const [deleting, setDeleting] = useState<PaymentMethod | null>(null);
+
+    const defaultEnabledIds = enabledPaymentMethodIds.length > 0
+        ? enabledPaymentMethodIds
+        : paymentMethods.filter((pm) => pm.isActive).map((pm) => pm.id);
+
+    const [branchEnabledIds, setBranchEnabledIds] = useState<number[]>(defaultEnabledIds);
 
     const generalForm = useForm({
         app_name: generalSettings.appName ?? '',
@@ -73,7 +83,7 @@ export default function AppSettingsIndex({
         setPmFormOpen(true);
     }
 
-    function handleToggle(pm: PaymentMethod) {
+    function handleAdminToggle(pm: PaymentMethod) {
         router.patch(toggleStatus.url(pm), {}, { preserveScroll: true });
     }
 
@@ -83,6 +93,14 @@ export default function AppSettingsIndex({
             preserveScroll: true,
             onFinish: () => setDeleting(null),
         });
+    }
+
+    function handleBranchToggle(pmId: number, enabled: boolean) {
+        const next = enabled
+            ? [...branchEnabledIds, pmId]
+            : branchEnabledIds.filter((id) => id !== pmId);
+        setBranchEnabledIds(next);
+        router.put(updatePaymentMethods.url(), { enabled_ids: next }, { preserveScroll: true });
     }
 
     function submitGeneral(e: React.FormEvent) {
@@ -174,63 +192,99 @@ export default function AppSettingsIndex({
 
                     {/* ── Payment Methods ──────────────────────────────── */}
                     <TabsContent value="payment-methods">
-                        <div className="rounded-lg border">
-                            <div className="flex items-center justify-between border-b p-4">
-                                <h2 className="text-lg font-semibold">طرق الدفع</h2>
-                                <Button size="sm" onClick={openCreate}>
-                                    <Plus className="size-4" /> إضافة طريقة دفع
-                                </Button>
-                            </div>
+                        {isSuperAdmin ? (
+                            /* Super-admin: full CRUD list */
+                            <div className="rounded-lg border">
+                                <div className="flex items-center justify-between border-b p-4">
+                                    <div>
+                                        <h2 className="text-lg font-semibold">طرق الدفع</h2>
+                                        <p className="text-muted-foreground text-sm">إدارة القائمة العامة لطرق الدفع المتاحة لجميع الفروع.</p>
+                                    </div>
+                                    <Button size="sm" onClick={openCreate}>
+                                        <Plus className="size-4" /> إضافة طريقة دفع
+                                    </Button>
+                                </div>
 
-                            {paymentMethods.length === 0 ? (
-                                <p className="text-muted-foreground p-6 text-center text-sm">
-                                    لا توجد طرق دفع مضافة بعد.
-                                </p>
-                            ) : (
-                                <ul className="divide-y">
-                                    {paymentMethods.map((pm) => (
-                                        <li key={pm.id} className="flex items-center justify-between px-4 py-3">
-                                            <div className="flex items-center gap-3">
-                                                <span className="font-medium">{pm.name}</span>
-                                                <button
-                                                    onClick={() => handleToggle(pm)}
-                                                    className="cursor-pointer"
-                                                >
-                                                    {pm.isActive ? (
-                                                        <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
-                                                            <span className="inline-block size-1.5 rounded-full bg-green-500" />
-                                                            نشطة
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="outline" className="gap-1.5 border-border bg-muted/60 text-muted-foreground">
-                                                            <span className="inline-block size-1.5 rounded-full bg-muted-foreground/50" />
-                                                            غير نشطة
-                                                        </Badge>
-                                                    )}
-                                                </button>
-                                            </div>
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() => openEdit(pm)}
-                                                >
-                                                    <Pencil className="h-3.5 w-3.5" />
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="text-destructive hover:text-destructive"
-                                                    onClick={() => setDeleting(pm)}
-                                                >
-                                                    <Trash2 className="h-3.5 w-3.5" />
-                                                </Button>
-                                            </div>
-                                        </li>
-                                    ))}
-                                </ul>
-                            )}
-                        </div>
+                                {paymentMethods.length === 0 ? (
+                                    <p className="text-muted-foreground p-6 text-center text-sm">
+                                        لا توجد طرق دفع مضافة بعد.
+                                    </p>
+                                ) : (
+                                    <ul className="divide-y">
+                                        {paymentMethods.map((pm) => (
+                                            <li key={pm.id} className="flex items-center justify-between px-4 py-3">
+                                                <div className="flex items-center gap-3">
+                                                    <CreditCard className="text-muted-foreground size-4" />
+                                                    <span className="font-medium">{pm.name}</span>
+                                                    <button
+                                                        onClick={() => handleAdminToggle(pm)}
+                                                        className="cursor-pointer"
+                                                    >
+                                                        {pm.isActive ? (
+                                                            <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
+                                                                <span className="inline-block size-1.5 rounded-full bg-green-500" />
+                                                                نشطة
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge variant="outline" className="gap-1.5 border-border bg-muted/60 text-muted-foreground">
+                                                                <span className="inline-block size-1.5 rounded-full bg-muted-foreground/50" />
+                                                                غير نشطة
+                                                            </Badge>
+                                                        )}
+                                                    </button>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => openEdit(pm)}
+                                                    >
+                                                        <Pencil className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="text-destructive hover:text-destructive"
+                                                        onClick={() => setDeleting(pm)}
+                                                    >
+                                                        <Trash2 className="h-3.5 w-3.5" />
+                                                    </Button>
+                                                </div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        ) : (
+                            /* Branch-admin: toggle switches to enable/disable global methods */
+                            <div className="rounded-lg border">
+                                <div className="border-b p-4">
+                                    <h2 className="text-lg font-semibold">طرق الدفع</h2>
+                                    <p className="text-muted-foreground text-sm">تفعيل أو تعطيل طرق الدفع المتاحة عند إنشاء الفواتير.</p>
+                                </div>
+
+                                {paymentMethods.length === 0 ? (
+                                    <p className="text-muted-foreground p-6 text-center text-sm">
+                                        لا توجد طرق دفع متاحة.
+                                    </p>
+                                ) : (
+                                    <ul className="divide-y">
+                                        {paymentMethods.map((pm) => (
+                                            <li key={pm.id} className="flex items-center justify-between px-4 py-4">
+                                                <div className="flex items-center gap-3">
+                                                    <CreditCard className="text-muted-foreground size-4" />
+                                                    <span className="font-medium">{pm.name}</span>
+                                                </div>
+                                                <Switch
+                                                    checked={branchEnabledIds.includes(pm.id)}
+                                                    onCheckedChange={(checked) => handleBranchToggle(pm.id, checked)}
+                                                />
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        )}
                     </TabsContent>
 
                     {/* ── Loyalty Program ──────────────────────────────── */}

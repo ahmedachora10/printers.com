@@ -34,6 +34,11 @@ Route::middleware(['auth'])->group(function () {
 
         Route::resource('service-templates', ServiceTemplateController::class)
             ->except(['create', 'edit']);
+
+        Route::resource('payment-methods', PaymentMethodController::class)
+            ->only(['store', 'update', 'destroy']);
+        Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
+            ->name('payment-methods.toggle-status');
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
@@ -52,11 +57,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('app-settings', [AppSettingController::class, 'index'])->name('app-settings.index');
         Route::put('app-settings/general', [AppSettingController::class, 'updateGeneral'])->name('app-settings.update-general');
         Route::put('app-settings/inventory-alerts', [AppSettingController::class, 'updateInventoryAlerts'])->name('app-settings.update-inventory-alerts');
-
-        Route::resource('payment-methods', PaymentMethodController::class)
-            ->only(['store', 'update', 'destroy']);
-        Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
-            ->name('payment-methods.toggle-status');
+        Route::put('app-settings/payment-methods', [AppSettingController::class, 'updatePaymentMethods'])->name('app-settings.update-payment-methods');
 
         Route::resource('branch-services', BranchServiceController::class)
             ->only(['index', 'store', 'update', 'destroy']);

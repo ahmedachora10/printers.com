@@ -17,24 +17,16 @@ class PaymentMethodPolicy
 
     public function create(User $user): bool
     {
-        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
+        return $user->roleName->isSuperAdmin();
     }
 
     public function update(User $user, PaymentMethod $paymentMethod): bool
     {
-        if ($user->roleName->isSuperAdmin()) {
-            return true;
-        }
-
-        return $user->roleName->isBranchAdmin() && $user->branchId === $paymentMethod->branch_id;
+        return $user->roleName->isSuperAdmin();
     }
 
     public function delete(User $user, PaymentMethod $paymentMethod): bool
     {
-        if ($user->roleName->isSuperAdmin()) {
-            return true;
-        }
-
-        return $user->roleName->isBranchAdmin() && $user->branchId === $paymentMethod->branch_id;
+        return $user->roleName->isSuperAdmin();
     }
 }

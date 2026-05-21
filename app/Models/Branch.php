@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -62,5 +63,19 @@ class Branch extends Model implements HasMedia
             ->using(BranchService::class)
             ->withPivot(['id', 'base_commission_pct', 'max_discount_pct', 'is_tahazir', 'is_active'])
             ->withTimestamps();
+    }
+
+    /** @return Collection<int, PaymentMethod> */
+    public function enabledPaymentMethods(): Collection
+    {
+        $ids = json_decode(Setting::get('enabled_payment_methods', $this->id, '[]'), true) ?? [];
+
+        $query = PaymentMethod::where('is_active', true);
+
+        if (! empty($ids)) {
+            $query->whereIn('id', $ids);
+        }
+
+        return $query->orderBy('name')->get();
     }
 }
