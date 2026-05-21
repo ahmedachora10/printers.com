@@ -49,13 +49,13 @@ export default function AppSettingsIndex({
     paymentMethods,
     isSuperAdmin,
 }: Props) {
-    const [pmFormOpen, setPmFormOpen]     = useState(false);
-    const [editing, setEditing]           = useState<PaymentMethod | null>(null);
-    const [deleting, setDeleting]         = useState<PaymentMethod | null>(null);
+    const [pmFormOpen, setPmFormOpen] = useState(false);
+    const [editing, setEditing] = useState<PaymentMethod | null>(null);
+    const [deleting, setDeleting] = useState<PaymentMethod | null>(null);
 
     const generalForm = useForm({
-        app_name:         generalSettings.appName ?? '',
-        default_vat_pct:  generalSettings.defaultVatPct ?? '15.00',
+        app_name: generalSettings.appName ?? '',
+        default_vat_pct: generalSettings.defaultVatPct ?? '15.00',
         vat_override_pct: generalSettings.vatOverridePct?.toString() ?? '',
     });
 
@@ -102,8 +102,8 @@ export default function AppSettingsIndex({
                     <h1 className="text-2xl font-bold">الإعدادات</h1>
                 </div>
 
-                <Tabs defaultValue="general">
-                    <TabsList className="mb-6">
+                <Tabs defaultValue="general" dir="rtl">
+                    <TabsList className="mb-6 w-full justify-start">
                         <TabsTrigger value="general">عام</TabsTrigger>
                         <TabsTrigger value="payment-methods">طرق الدفع</TabsTrigger>
                         <TabsTrigger value="loyalty">برنامج الولاء</TabsTrigger>
@@ -112,7 +112,7 @@ export default function AppSettingsIndex({
 
                     {/* ── General ─────────────────────────────────────── */}
                     <TabsContent value="general">
-                        <div className="max-w-lg rounded-lg border p-6">
+                        <div className="rounded-lg border p-6">
                             <h2 className="mb-4 text-lg font-semibold">الإعدادات العامة</h2>
                             <form onSubmit={submitGeneral} className="space-y-4">
                                 {isSuperAdmin && (
@@ -235,7 +235,7 @@ export default function AppSettingsIndex({
 
                     {/* ── Loyalty Program ──────────────────────────────── */}
                     <TabsContent value="loyalty">
-                        <div className="max-w-lg rounded-lg border p-6">
+                        <div className="rounded-lg border p-6">
                             <h2 className="mb-2 text-lg font-semibold">برنامج الولاء</h2>
                             <p className="text-muted-foreground text-sm">
                                 إعدادات برنامج الولاء متاحة في وحدة M28 — نظام الولاء.
@@ -245,7 +245,7 @@ export default function AppSettingsIndex({
 
                     {/* ── Inventory Alerts ─────────────────────────────── */}
                     <TabsContent value="inventory-alerts">
-                        <div className="max-w-lg rounded-lg border p-6">
+                        <div className="rounded-lg border p-6">
                             <h2 className="mb-4 text-lg font-semibold">تنبيهات المخزون</h2>
                             <form onSubmit={submitInventory} className="space-y-4">
                                 <div className="space-y-1">
