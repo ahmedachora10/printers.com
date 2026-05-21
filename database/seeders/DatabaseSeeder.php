@@ -11,6 +11,8 @@ use Database\Seeders\UserSeeder;
 use Database\Seeders\BranchSeeder;
 use Database\Seeders\ServiceTemplateSeeder;
 use Database\Seeders\ProductUnitSeeder;
+use Database\Seeders\SettingSeeder;
+use Database\Seeders\PaymentMethodSeeder;
 
 class DatabaseSeeder extends Seeder
 {
@@ -36,6 +38,10 @@ class DatabaseSeeder extends Seeder
             // Products
             ProductUnitSeeder::class,
             // ProductSeeder::class,
+
+            // Settings & Payment Methods
+            SettingSeeder::class,
+            PaymentMethodSeeder::class,
         ]);
     }
 }

@@ -7,17 +7,21 @@ use App\Models\BranchService;
 use App\Models\City;
 use App\Models\Coupon;
 use App\Models\Customer;
+use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ServiceTemplate;
+use App\Models\Setting;
 use App\Policies\BranchPolicy;
 use App\Policies\BranchServicePolicy;
 use App\Policies\CityPolicy;
 use App\Policies\CouponPolicy;
 use App\Policies\CustomerPolicy;
+use App\Policies\PaymentMethodPolicy;
 use App\Policies\ProductCategoryPolicy;
 use App\Policies\ProductPolicy;
 use App\Policies\ServiceTemplatePolicy;
+use App\Policies\SettingPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\SQLiteConnection;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -65,6 +69,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
         Gate::policy(Coupon::class, CouponPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
+        Gate::policy(Setting::class, SettingPolicy::class);
+        Gate::policy(PaymentMethod::class, PaymentMethodPolicy::class);
     }
 
     protected function configureDefaults(): void

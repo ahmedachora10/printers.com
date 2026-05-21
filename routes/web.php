@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Controllers\AppSettingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchServiceController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ServiceTemplateController;
@@ -47,6 +49,15 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {
+        Route::get('app-settings', [AppSettingController::class, 'index'])->name('app-settings.index');
+        Route::put('app-settings/general', [AppSettingController::class, 'updateGeneral'])->name('app-settings.update-general');
+        Route::put('app-settings/inventory-alerts', [AppSettingController::class, 'updateInventoryAlerts'])->name('app-settings.update-inventory-alerts');
+
+        Route::resource('payment-methods', PaymentMethodController::class)
+            ->only(['store', 'update', 'destroy']);
+        Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
+            ->name('payment-methods.toggle-status');
+
         Route::resource('branch-services', BranchServiceController::class)
             ->only(['index', 'store', 'update', 'destroy']);
 
