@@ -135,6 +135,20 @@ export default function ProductPos({ products, customers, paymentMethods, vatPct
         setCart((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
     }
 
+    function selectLineProduct(line: CartLine, productId: number) {
+        const p = products.find((x) => x.id === productId);
+        if (!p) return;
+        updateLine(line.key, {
+            productId: p.id,
+            name: p.name,
+            sku: p.sku,
+            unitPrice: p.sellingPrice,
+            maxStock: p.currentStock,
+            unitName: p.unitName,
+            qty: line.maxStock !== null && line.qty > p.currentStock ? Math.max(1, p.currentStock) : line.qty,
+        });
+    }
+
     function changeQty(line: CartLine, delta: number) {
         const next = line.qty + delta;
         if (next < 1) return;
@@ -192,8 +206,8 @@ export default function ProductPos({ products, customers, paymentMethods, vatPct
             toast.error('أضف منتجاً واحداً على الأقل');
             return;
         }
-        if (cart.some((l) => l.isManual && l.name.trim() === '')) {
-            toast.error('أدخل اسماً لكل سطر يدوي');
+        if (cart.some((l) => l.isManual && !l.productId)) {
+            toast.error('اختر منتجاً لكل سطر يدوي');
             return;
         }
         setSubmitting(true);
@@ -210,7 +224,7 @@ export default function ProductPos({ products, customers, paymentMethods, vatPct
                 print,
                 lines: cart.map((l) => ({
                     product_id: l.productId,
-                    name: l.isManual ? l.name.trim() : null,
+                    name: l.productId ? null : l.name.trim(),
                     qty: l.qty,
                     unit_price: l.unitPrice,
                     discount_pct: l.discountPct,
@@ -449,12 +463,21 @@ export default function ProductPos({ products, customers, paymentMethods, vatPct
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="min-w-0 flex-1">
                                                     {line.isManual ? (
-                                                        <Input
-                                                            value={line.name}
-                                                            onChange={(e) => updateLine(line.key, { name: e.target.value })}
-                                                            placeholder="اسم السطر اليدوي"
-                                                            className="h-8"
-                                                        />
+                                                        <Select
+                                                            value={line.productId ? String(line.productId) : ''}
+                                                            onValueChange={(v) => selectLineProduct(line, Number(v))}
+                                                        >
+                                                            <SelectTrigger className="h-8">
+                                                                <SelectValue placeholder="اختر منتجاً" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {products.map((p) => (
+                                                                    <SelectItem key={p.id} value={String(p.id)} disabled={p.currentStock <= 0}>
+                                                                        {p.name} — {formatCurrency(p.sellingPrice)} (متوفر: {p.currentStock})
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
                                                     ) : (
                                                         <>
                                                             <p className="truncate text-sm font-medium">{line.name}</p>
