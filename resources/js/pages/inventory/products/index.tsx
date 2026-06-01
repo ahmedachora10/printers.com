@@ -1,4 +1,5 @@
 import ProductFormModal from '@/components/products/product-form-modal';
+import StockAdjustmentModal from '@/components/products/stock-adjustment-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
@@ -15,8 +16,8 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type PaginatedProduct, type Product } from '@/types/product';
 import { type ProductUnit } from '@/types/product-unit';
-import { router } from '@inertiajs/react';
-import { AlertTriangle, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Link, router } from '@inertiajs/react';
+import { AlertTriangle, ArrowLeftRight, History, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import inventory from '@/routes/inventory';
 import { formatCurrency } from '@/lib/utils';
@@ -48,6 +49,7 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Product | null>(null);
     const [deleting, setDeleting] = useState<Product | null>(null);
+    const [adjusting, setAdjusting] = useState<Product | null>(null);
 
     function openCreate() {
         setEditing(null);
@@ -156,6 +158,14 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                 headerClassName: 'w-24',
                 cell: (item) => (
                     <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            title="تسوية المخزون"
+                            onClick={() => setAdjusting(item)}
+                        >
+                            <ArrowLeftRight className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
                             <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -223,6 +233,11 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
             <div className="p-6">
                 <div className="mb-6 flex items-center justify-between">
                     <h1 className="text-2xl font-bold">المنتجات</h1>
+                    <Button variant="outline" size="sm" asChild>
+                        <Link href={inventory.stockMovements.index().url}>
+                            <History className="size-4" /> تحركات المخزون
+                        </Link>
+                    </Button>
                 </div>
 
                 {lowStockCount > 0 && (
@@ -308,6 +323,13 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                 product={editing ?? undefined}
                 categories={categories}
                 units={units}
+            />
+
+            <StockAdjustmentModal
+                key={adjusting?.id ?? 'adjust'}
+                open={!!adjusting}
+                onOpenChange={(open) => !open && setAdjusting(null)}
+                product={adjusting ?? undefined}
             />
         </AppLayout>
     );

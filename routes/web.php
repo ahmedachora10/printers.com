@@ -11,6 +11,7 @@ use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductInvoiceController;
 use App\Http\Controllers\ServiceTemplateController;
+use App\Http\Controllers\StockMovementController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -47,6 +48,9 @@ Route::middleware(['auth'])->group(function () {
             Route::get('product', [ProductInvoiceController::class, 'create'])->name('product.create');
             Route::post('product', [ProductInvoiceController::class, 'store'])->name('product.store');
         });
+
+        Route::get('inventory/stock-movements', [StockMovementController::class, 'index'])
+            ->name('inventory.stock-movements.index');
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
@@ -86,6 +90,9 @@ Route::middleware(['auth'])->group(function () {
                 ->name('products.toggle-status');
             Route::resource('products', ProductController::class)
                 ->only(['index', 'store', 'update', 'destroy']);
+
+            Route::post('stock-movements', [StockMovementController::class, 'store'])
+                ->name('stock-movements.store');
         });
     });
 

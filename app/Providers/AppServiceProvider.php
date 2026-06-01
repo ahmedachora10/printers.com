@@ -13,6 +13,7 @@ use App\Models\ProductCategory;
 use App\Models\ProductInvoice;
 use App\Models\ServiceTemplate;
 use App\Models\Setting;
+use App\Models\StockMovement;
 use App\Policies\BranchPolicy;
 use App\Policies\BranchServicePolicy;
 use App\Policies\CityPolicy;
@@ -24,6 +25,7 @@ use App\Policies\ProductInvoicePolicy;
 use App\Policies\ProductPolicy;
 use App\Policies\ServiceTemplatePolicy;
 use App\Policies\SettingPolicy;
+use App\Policies\StockMovementPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\SQLiteConnection;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -72,6 +74,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(Coupon::class, CouponPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
         Gate::policy(ProductInvoice::class, ProductInvoicePolicy::class);
+        Gate::policy(StockMovement::class, StockMovementPolicy::class);
         Gate::policy(Setting::class, SettingPolicy::class);
         Gate::policy(PaymentMethod::class, PaymentMethodPolicy::class);
     }
