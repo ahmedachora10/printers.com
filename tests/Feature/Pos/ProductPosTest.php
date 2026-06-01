@@ -156,4 +156,100 @@ describe('Product POS', function () {
         $this->post(route('pos.product.store'), posPayload(['lines' => []]))
             ->assertSessionHasErrors('lines');
     });
+
+    it('creates a walk-in customer from name and phone', function () {
+        $this->post(route('pos.product.store'), posPayload([
+            'walkin_name' => 'زائر الناسخ',
+            'walkin_phone' => '0500000001',
+        ]));
+
+        $this->assertDatabaseHas('customers', [
+            'full_name' => 'زائر الناسخ',
+            'phone' => '0500000001',
+            'branch_id' => $this->branch->id,
+            'customer_type' => 'individual',
+        ]);
+
+        $invoice = ProductInvoice::firstOrFail();
+        expect($invoice->customer_id)->not->toBeNull();
+    });
+
+    it('reuses an existing customer with the same phone for a walk-in', function () {
+        $existing = \App\Models\Customer::factory()->create([
+            'branch_id' => $this->branch->id,
+            'phone' => '0500000002',
+        ]);
+
+        $this->post(route('pos.product.store'), posPayload([
+            'walkin_name' => 'اسم مختلف',
+            'walkin_phone' => '0500000002',
+        ]));
+
+        expect(\App\Models\Customer::where('phone', '0500000002')->count())->toBe(1);
+        expect(ProductInvoice::firstOrFail()->customer_id)->toBe($existing->id);
+    });
+
+    it('saves a manual line with no product and no stock movement', function () {
+        $this->post(route('pos.product.store'), posPayload([
+            'lines' => [
+                ['product_id' => null, 'name' => 'خدمة تغليف', 'qty' => 2, 'unit_price' => 5, 'discount_pct' => 0],
+            ],
+        ]));
+
+        $invoice = ProductInvoice::firstOrFail();
+        expect((float) $invoice->subtotal)->toBe(10.00)
+            ->and($invoice->lines)->toHaveCount(1)
+            ->and($invoice->lines->first()->product_id)->toBeNull()
+            ->and($invoice->lines->first()->product_name)->toBe('خدمة تغليف');
+
+        $this->assertDatabaseCount('stock_movements', 1); // only the opening stock seeded
+    });
+
+    it('requires a name for a manual line', function () {
+        $this->post(route('pos.product.store'), posPayload([
+            'lines' => [
+                ['product_id' => null, 'qty' => 1, 'unit_price' => 5, 'discount_pct' => 0],
+            ],
+        ]))->assertSessionHasErrors('lines.0.name');
+    });
+
+    it('applies a percentage coupon to the taxable base', function () {
+        $coupon = \App\Models\Coupon::factory()->create([
+            'branch_id' => $this->branch->id,
+            'code' => 'save10',
+            'discount_type' => 'percentage',
+            'discount_value' => 10,
+            'is_active' => true,
+            'used_count' => 0,
+        ]);
+
+        $this->post(route('pos.product.store'), posPayload(['coupon_code' => 'SAVE10']));
+
+        $invoice = ProductInvoice::firstOrFail();
+        // subtotal 30, coupon 3, taxable 27, VAT 15% = 4.05, total 31.05
+        expect((float) $invoice->subtotal)->toBe(30.00)
+            ->and((float) $invoice->coupon_discount)->toBe(3.00)
+            ->and((float) $invoice->vat_amount)->toBe(4.05)
+            ->and((float) $invoice->total_amount)->toBe(31.05)
+            ->and($invoice->coupon_id)->toBe($coupon->id);
+
+        expect($coupon->refresh()->used_count)->toBe(1);
+    });
+
+    it('rejects an invalid coupon code', function () {
+        $this->post(route('pos.product.store'), posPayload(['coupon_code' => 'NOPE']))
+            ->assertSessionHasErrors('coupon_code');
+
+        expect(ProductInvoice::count())->toBe(0);
+    });
+
+    it('redirects to the print page when print is requested', function () {
+        $this->post(route('pos.product.store'), posPayload(['print' => true]));
+
+        $invoice = ProductInvoice::firstOrFail();
+
+        $this->get(route('pos.product.print', $invoice))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('pos/product/print'));
+    });
 });
