@@ -10,6 +10,7 @@ use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductInvoiceController;
+use App\Http\Controllers\ServiceInvoiceController;
 use App\Http\Controllers\ServiceTemplateController;
 use App\Http\Controllers\StockMovementController;
 use Illuminate\Support\Facades\Route;
@@ -52,6 +53,14 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('inventory/stock-movements', [StockMovementController::class, 'index'])
             ->name('inventory.stock-movements.index');
+    });
+
+    Route::middleware('role:branch-admin|super-admin|employee')->group(function () {
+        Route::prefix('pos')->name('pos.')->group(function () {
+            Route::get('service', [ServiceInvoiceController::class, 'create'])->name('service.create');
+            Route::post('service', [ServiceInvoiceController::class, 'store'])->name('service.store');
+            Route::get('service/{invoice}/print', [ServiceInvoiceController::class, 'print'])->name('service.print');
+        });
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
