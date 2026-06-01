@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductInvoice;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -19,7 +20,7 @@ class ProductInvoiceController extends Controller
     {
         Gate::authorize('create', ProductInvoice::class);
 
-        $branchId = auth()->user()->branchId;
+        $branchId = Auth::user()->branchId;
         $branch = Branch::find($branchId);
 
         $products = Product::query()
