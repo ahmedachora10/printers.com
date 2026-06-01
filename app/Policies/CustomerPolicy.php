@@ -51,7 +51,8 @@ class CustomerPolicy
             return true;
         }
 
-        return $user->branchId === $customer->branch_id;
+        return $user->branchId === $customer->branch_id
+            && ($user->roleName->isBranchAdmin() || $user->roleName->isAccountant());
     }
 
     public function merge(User $user, Customer $customer): bool
@@ -60,7 +61,8 @@ class CustomerPolicy
             return true;
         }
 
-        return $user->branchId === $customer->branch_id;
+        return $user->branchId === $customer->branch_id
+            && ($user->roleName->isBranchAdmin() || $user->roleName->isAccountant());
     }
 
     public function restore(User $user, Customer $customer): bool

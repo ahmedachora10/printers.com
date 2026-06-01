@@ -9,6 +9,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
+use App\Http\Controllers\ProductInvoiceController;
 use App\Http\Controllers\ServiceTemplateController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -39,6 +40,13 @@ Route::middleware(['auth'])->group(function () {
             ->only(['store', 'update', 'destroy']);
         Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
             ->name('payment-methods.toggle-status');
+    });
+
+    Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
+        Route::prefix('pos')->name('pos.')->group(function () {
+            Route::get('product', [ProductInvoiceController::class, 'create'])->name('product.create');
+            Route::post('product', [ProductInvoiceController::class, 'store'])->name('product.store');
+        });
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {

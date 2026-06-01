@@ -10,6 +10,7 @@ use App\Models\Customer;
 use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\ProductInvoice;
 use App\Models\ServiceTemplate;
 use App\Models\Setting;
 use App\Policies\BranchPolicy;
@@ -19,6 +20,7 @@ use App\Policies\CouponPolicy;
 use App\Policies\CustomerPolicy;
 use App\Policies\PaymentMethodPolicy;
 use App\Policies\ProductCategoryPolicy;
+use App\Policies\ProductInvoicePolicy;
 use App\Policies\ProductPolicy;
 use App\Policies\ServiceTemplatePolicy;
 use App\Policies\SettingPolicy;
@@ -69,6 +71,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
         Gate::policy(Coupon::class, CouponPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
+        Gate::policy(ProductInvoice::class, ProductInvoicePolicy::class);
         Gate::policy(Setting::class, SettingPolicy::class);
         Gate::policy(PaymentMethod::class, PaymentMethodPolicy::class);
     }
