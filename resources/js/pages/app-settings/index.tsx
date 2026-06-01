@@ -34,6 +34,17 @@ import { CreditCard, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 
+const VALID_TABS = ['general', 'payment-methods', 'loyalty', 'inventory-alerts'] as const;
+type TabValue = (typeof VALID_TABS)[number];
+
+function getInitialTab(): TabValue {
+    if (typeof window !== 'undefined') {
+        const param = new URLSearchParams(window.location.search).get('tab') as TabValue;
+        if (VALID_TABS.includes(param)) return param;
+    }
+    return 'general';
+}
+
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'الإعدادات', href: '/app-settings' },
 ];
@@ -53,6 +64,7 @@ export default function AppSettingsIndex({
     enabledPaymentMethodIds,
     isSuperAdmin,
 }: Props) {
+    const [activeTab, setActiveTab] = useState<TabValue>(getInitialTab);
     const [pmFormOpen, setPmFormOpen] = useState(false);
     const [editing, setEditing] = useState<PaymentMethod | null>(null);
     const [deleting, setDeleting] = useState<PaymentMethod | null>(null);
@@ -108,6 +120,13 @@ export default function AppSettingsIndex({
         generalForm.put(updateGeneral.url(), { preserveScroll: true });
     }
 
+    function handleTabChange(value: string) {
+        setActiveTab(value as TabValue);
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', value);
+        window.history.replaceState({}, '', url.toString());
+    }
+
     function submitInventory(e: React.FormEvent) {
         e.preventDefault();
         inventoryForm.put(updateInventoryAlerts.url(), { preserveScroll: true });
@@ -120,7 +139,7 @@ export default function AppSettingsIndex({
                     <h1 className="text-2xl font-bold">الإعدادات</h1>
                 </div>
 
-                <Tabs defaultValue="general" dir="rtl">
+                <Tabs value={activeTab} onValueChange={handleTabChange} dir="rtl">
                     <TabsList className="mb-6 w-full justify-start">
                         <TabsTrigger value="general">عام</TabsTrigger>
                         <TabsTrigger value="payment-methods">طرق الدفع</TabsTrigger>

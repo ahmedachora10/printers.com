@@ -7,7 +7,6 @@ use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
-
 class HandleInertiaRequests extends Middleware
 {
     /**
@@ -60,7 +59,7 @@ class HandleInertiaRequests extends Middleware
 
         $userRole = $request->user()?->roleName;
 
-        if(!$userRole) {
+        if (! $userRole) {
             return [];
         }
 
@@ -102,6 +101,12 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
+                'title' => 'نقطة البيع',
+                'url' => route('pos.product.create'),
+                'icon' => 'ShoppingCart',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
                 'title' => 'العملاء',
                 'url' => route('customers.index'),
                 'icon' => 'User',
@@ -114,17 +119,23 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
+                'title' => 'تحركات المخزون',
+                'url' => route('inventory.stock-movements.index'),
+                'icon' => 'ArrowLeftRight',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
                 'title' => 'الاعدادات',
                 'url' => route('app-settings.index'),
                 'icon' => 'Settings',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
-            ]
+            ],
         ];
-        
+
         // return array_values(array_filter($items, fn($item) => in_array($request->user()?->roleName, $item['role'])));
         return array_values(array_map(
-            fn($item) => array_diff_key($item, ['role' => null]),
-            array_filter($items, fn($item) => in_array($userRole, $item['role']))
+            fn ($item) => array_diff_key($item, ['role' => null]),
+            array_filter($items, fn ($item) => in_array($userRole, $item['role']))
         ));
     }
 }

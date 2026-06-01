@@ -15,20 +15,21 @@ class StoreProductRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'sku'             => [
+            'sku' => [
                 'nullable',
                 'string',
                 'max:100',
-                Rule::unique('products', 'sku'),
+                Rule::unique('products', 'sku')
+                    ->where('branch_id', auth()->user()->branchId),
             ],
-            'name'            => ['required', 'string', 'max:255'],
-            'category_id'     => ['required', 'integer', 'exists:product_categories,id'],
-            'unit_id'         => ['required', 'integer', 'exists:product_units,id'],
-            'cost_price'      => ['required', 'numeric', 'min:0'],
-            'selling_price'   => ['required', 'numeric', 'min:0'],
+            'name' => ['required', 'string', 'max:255'],
+            'category_id' => ['required', 'integer', 'exists:product_categories,id'],
+            'unit_id' => ['required', 'integer', 'exists:product_units,id'],
+            'cost_price' => ['required', 'numeric', 'min:0'],
+            'selling_price' => ['required', 'numeric', 'min:0'],
             'min_stock_level' => ['nullable', 'integer', 'min:0'],
-            'barcode'         => ['nullable', 'string', 'max:100'],
-            'is_active'       => ['boolean'],
+            'barcode' => ['nullable', 'string', 'max:100'],
+            'is_active' => ['boolean'],
         ];
     }
 }

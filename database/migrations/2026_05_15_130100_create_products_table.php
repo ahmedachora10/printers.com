@@ -13,7 +13,7 @@ return new class extends Migration
             $table->foreignId('branch_id')->constrained()->cascadeOnDelete();
             $table->foreignId('category_id')->constrained('product_categories')->cascadeOnDelete();
             $table->foreignId('unit_id')->constrained('product_units')->cascadeOnDelete();
-            $table->string('sku', 100)->unique();
+            $table->string('sku', 100);
             $table->string('name', 255);
             $table->decimal('cost_price', 12, 2);
             $table->decimal('selling_price', 12, 2);
@@ -24,7 +24,7 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
-            $table->unique(['sku', 'branch_id', 'unit_id', 'name', 'is_active'], 'products_sku_branch_unique');
+            $table->unique(['sku', 'branch_id']);
         });
     }
 
