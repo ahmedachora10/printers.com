@@ -47,6 +47,7 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('pos')->name('pos.')->group(function () {
             Route::get('product', [ProductInvoiceController::class, 'create'])->name('product.create');
             Route::post('product', [ProductInvoiceController::class, 'store'])->name('product.store');
+            Route::get('product/{invoice}/print', [ProductInvoiceController::class, 'print'])->name('product.print');
         });
 
         Route::get('inventory/stock-movements', [StockMovementController::class, 'index'])
