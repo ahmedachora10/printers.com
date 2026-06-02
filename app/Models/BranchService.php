@@ -6,7 +6,6 @@ use Illuminate\Database\Eloquent\Attributes\Table;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 
-#[Table(name: 'branch_services', incrementing: true)]
 class BranchService extends Pivot
 {
     protected $table = 'branch_services';
