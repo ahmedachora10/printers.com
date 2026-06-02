@@ -83,6 +83,12 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN],
             ],
             [
+                'title' => 'المستخدمون',
+                'url' => route('users.index'),
+                'icon' => 'Users',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
                 'title' => 'الخدمات',
                 'url' => $userRole->isSuperAdmin() ? route('service-templates.index') : route('branch-services.index'),
                 'icon' => 'ServerIcon',

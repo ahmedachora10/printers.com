@@ -15,6 +15,7 @@ use App\Models\ServiceInvoice;
 use App\Models\ServiceTemplate;
 use App\Models\Setting;
 use App\Models\StockMovement;
+use App\Models\User;
 use App\Policies\BranchPolicy;
 use App\Policies\BranchServicePolicy;
 use App\Policies\CityPolicy;
@@ -28,6 +29,7 @@ use App\Policies\ServiceInvoicePolicy;
 use App\Policies\ServiceTemplatePolicy;
 use App\Policies\SettingPolicy;
 use App\Policies\StockMovementPolicy;
+use App\Policies\UserPolicy;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\SQLiteConnection;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -80,6 +82,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(StockMovement::class, StockMovementPolicy::class);
         Gate::policy(Setting::class, SettingPolicy::class);
         Gate::policy(PaymentMethod::class, PaymentMethodPolicy::class);
+        Gate::policy(User::class, UserPolicy::class);
     }
 
     protected function configureDefaults(): void
