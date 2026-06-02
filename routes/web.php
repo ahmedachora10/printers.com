@@ -12,6 +12,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductInvoiceController;
 use App\Http\Controllers\ServiceTemplateController;
 use App\Http\Controllers\StockMovementController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -67,6 +68,11 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {
+        Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
+            ->name('users.toggle-status');
+        Route::resource('users', UserController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+
         Route::get('app-settings', [AppSettingController::class, 'index'])->name('app-settings.index');
         Route::put('app-settings/general', [AppSettingController::class, 'updateGeneral'])->name('app-settings.update-general');
         Route::put('app-settings/inventory-alerts', [AppSettingController::class, 'updateInventoryAlerts'])->name('app-settings.update-inventory-alerts');
