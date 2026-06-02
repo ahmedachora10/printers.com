@@ -84,22 +84,28 @@ export default function ServicePos({ services, customers, paymentMethods, vatPct
     const total = useMemo(() => round2(taxableBase + vatAmount), [taxableBase, vatAmount]);
 
     function addService(s: PosService) {
-        lineSeq.current += 1;
-        setCart((prev) => [
-            ...prev,
-            {
-                key: `s-${s.id}-${lineSeq.current}`,
-                branchServiceId: s.id,
-                name: s.name,
-                unitPrice: 0,
-                qty: 1,
-                discountPct: 0,
-                maxDiscountPct: s.maxDiscountPct,
-                baseCommissionPct: s.baseCommissionPct,
-                isTahazir: s.isTahazir,
-                isManual: false,
-            },
-        ]);
+        setCart((prev) => {
+            const existing = prev.find((l) => l.branchServiceId === s.id);
+            if (existing) {
+                return prev.map((l) => (l.key === existing.key ? { ...l, qty: l.qty + 1 } : l));
+            }
+            lineSeq.current += 1;
+            return [
+                ...prev,
+                {
+                    key: `s-${s.id}-${lineSeq.current}`,
+                    branchServiceId: s.id,
+                    name: s.name,
+                    unitPrice: 0,
+                    qty: 1,
+                    discountPct: 0,
+                    maxDiscountPct: s.maxDiscountPct,
+                    baseCommissionPct: s.baseCommissionPct,
+                    isTahazir: s.isTahazir,
+                    isManual: false,
+                },
+            ];
+        });
         setSearch('');
     }
 
