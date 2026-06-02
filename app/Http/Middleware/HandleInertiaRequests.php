@@ -119,6 +119,12 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::EMPLOYEE],
             ],
             [
+                'title' => 'الفواتير',
+                'url' => route('invoices.index'),
+                'icon' => 'FileText',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
+            ],
+            [
                 'title' => 'العملاء',
                 'url' => route('customers.index'),
                 'icon' => 'User',
