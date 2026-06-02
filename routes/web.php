@@ -89,7 +89,7 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
             ->name('users.toggle-status');
         Route::resource('users', UserController::class)
-            ->only(['index', 'store', 'update', 'destroy']);
+            ->only(['index', 'show', 'store', 'update', 'destroy']);
 
         Route::get('app-settings', [AppSettingController::class, 'index'])->name('app-settings.index');
         Route::put('app-settings/general', [AppSettingController::class, 'updateGeneral'])->name('app-settings.update-general');

@@ -31,3 +31,36 @@ export interface PaginatedUser {
     links: Record<string, string | null>;
     meta: Record<string, unknown>;
 }
+
+export interface UserCommissionSummary {
+    totalEarned: number;
+    totalPaid: number;
+    pending: number;
+    tahazirEarned: number;
+    standardEarned: number;
+}
+
+export interface UserSalesSummary {
+    serviceCount: number;
+    serviceTotal: number;
+    productCount: number;
+    productTotal: number;
+}
+
+export interface UserInvoiceHistoryItem {
+    id: number;
+    type: 'service' | 'product';
+    invoice_number: string;
+    total_amount: number | string;
+    status: string;
+    created_at: string;
+}
+
+export interface UserCommissionLedgerItem {
+    id: number;
+    amount: number | string;
+    is_tahazir: boolean | number;
+    source_type: string;
+    earned_at: string;
+    paid_at: string | null;
+}

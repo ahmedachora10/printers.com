@@ -14,8 +14,8 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type BranchOption, type ManagedUser, type PaginatedUser, type RoleOption } from '@/types/user';
-import { router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Link, router } from '@inertiajs/react';
+import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import users from '@/routes/users';
 import { formatCurrency } from '@/lib/utils';
@@ -71,7 +71,9 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                 sortable: true,
                 cell: (item) => (
                     <div className="flex flex-col">
-                        <span className="font-medium">{item.name}</span>
+                        <Link href={users.show(item.id).url} className="font-medium hover:underline">
+                            {item.name}
+                        </Link>
                         <span className="font-mono text-xs text-muted-foreground" dir="ltr">@{item.username}</span>
                     </div>
                 ),
@@ -127,6 +129,11 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                 headerClassName: 'w-24',
                 cell: (item) => (
                     <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href={users.show(item.id).url}>
+                                <Eye className="h-3.5 w-3.5" />
+                            </Link>
+                        </Button>
                         <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
                             <Pencil className="h-3.5 w-3.5" />
                         </Button>
