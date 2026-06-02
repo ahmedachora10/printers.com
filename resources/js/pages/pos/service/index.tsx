@@ -1,8 +1,8 @@
+import { PosCartTable } from '@/components/pos/cart-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
@@ -12,7 +12,7 @@ import service from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type PosCustomer, type PosPaymentMethod, type PosService, type ServiceCartLine } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { FileText, Minus, Plus, Printer, Save, Search, Tag, Trash2, X } from 'lucide-react';
+import { Printer, Save, Search, Tag, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -70,10 +70,7 @@ export default function ServicePos({ services, customers, paymentMethods, vatPct
     }, [services, search]);
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
-    const commission = useMemo(
-        () => round2(cart.reduce((sum, l) => sum + (lineTotal(l) * l.baseCommissionPct) / 100, 0)),
-        [cart],
-    );
+    const commission = useMemo(() => round2(cart.reduce((sum, l) => sum + (lineTotal(l) * l.baseCommissionPct) / 100, 0)), [cart]);
     const couponDiscount = useMemo(() => {
         if (!appliedCoupon) return 0;
         const raw = appliedCoupon.type === 'percentage' ? (subtotal * appliedCoupon.value) / 100 : appliedCoupon.value;
@@ -356,7 +353,7 @@ export default function ServicePos({ services, customers, paymentMethods, vatPct
                                 <span>الإجمالي</span>
                                 <span>{formatCurrency(total)}</span>
                             </div>
-                            <div className="flex justify-between text-xs text-muted-foreground">
+                            <div className="text-muted-foreground flex justify-between text-xs">
                                 <span>عمولة الموظف (تقديري)</span>
                                 <span>{formatCurrency(commission)}</span>
                             </div>
@@ -473,117 +470,39 @@ export default function ServicePos({ services, customers, paymentMethods, vatPct
 
                     <Card className="min-h-[24rem]">
                         <CardContent className="py-4">
-                            {errors.lines && <p className="bg-destructive/10 text-destructive mb-3 rounded-md p-2 text-sm">{errors.lines}</p>}
-
-                            {cart.length === 0 ? (
-                                <div className="text-muted-foreground flex flex-col items-center gap-3 py-16 text-center">
-                                    <FileText className="size-12 opacity-40" />
-                                    <p className="text-sm">ابحث عن خدمة أو أضف سطر يدوي</p>
-                                    <Button type="button" variant="outline" size="sm" onClick={addManualLine}>
-                                        <Plus className="size-4" /> سطر يدوي
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {cart.map((line) => (
-                                        <div key={line.key} className="rounded-lg border p-3">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="min-w-0 flex-1">
-                                                    {line.isManual && !line.branchServiceId ? (
-                                                        <Select
-                                                            value={line.branchServiceId ? String(line.branchServiceId) : ''}
-                                                            onValueChange={(v) => selectLineService(line, Number(v))}
-                                                        >
-                                                            <SelectTrigger className="h-8">
-                                                                <SelectValue placeholder="اختر خدمة" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {services.map((s) => (
-                                                                    <SelectItem key={s.id} value={String(s.id)}>
-                                                                        {s.name} — عمولة {s.baseCommissionPct}%
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    ) : (
-                                                        <>
-                                                            <p className="truncate text-sm font-medium">{line.name}</p>
-                                                            <p className="text-muted-foreground text-xs">عمولة {line.baseCommissionPct}%</p>
-                                                        </>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeLine(line.key)}
-                                                    className="text-muted-foreground hover:text-destructive shrink-0"
-                                                >
-                                                    <Trash2 className="size-4" />
-                                                </button>
-                                            </div>
-
-                                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                                                {/* qty */}
-                                                <div className="flex items-center gap-1">
-                                                    <Button
-                                                        type="button"
-                                                        size="icon"
-                                                        variant="outline"
-                                                        className="size-7"
-                                                        onClick={() => changeQty(line, -1)}
-                                                    >
-                                                        <Minus className="size-3" />
-                                                    </Button>
-                                                    <span className="w-8 text-center text-sm">{line.qty}</span>
-                                                    <Button
-                                                        type="button"
-                                                        size="icon"
-                                                        variant="outline"
-                                                        className="size-7"
-                                                        onClick={() => changeQty(line, 1)}
-                                                    >
-                                                        <Plus className="size-3" />
-                                                    </Button>
-                                                </div>
-
-                                                {/* unit price */}
-                                                <div className="flex items-center gap-1">
-                                                    <Label className="text-muted-foreground text-xs">السعر</Label>
-                                                    <Input
-                                                        type="number"
-                                                        min={0}
-                                                        step="0.01"
-                                                        value={line.unitPrice}
-                                                        onChange={(e) =>
-                                                            updateLine(line.key, { unitPrice: Math.max(0, Number(e.target.value) || 0) })
-                                                        }
-                                                        className="h-7 w-24 text-center"
-                                                    />
-                                                </div>
-
-                                                {/* discount */}
-                                                <div className="flex items-center gap-1">
-                                                    <Label className="text-muted-foreground text-xs">خصم</Label>
-                                                    <Input
-                                                        type="number"
-                                                        min={0}
-                                                        max={line.maxDiscountPct > 0 ? line.maxDiscountPct : 100}
-                                                        value={line.discountPct}
-                                                        onChange={(e) => setDiscount(line, Number(e.target.value))}
-                                                        className="h-7 w-16 text-center"
-                                                    />
-                                                    <span className="text-muted-foreground text-xs">%</span>
-                                                </div>
-
-                                                <span className="text-sm font-semibold">{formatCurrency(lineTotal(line))}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-
-                                    <Button type="button" variant="outline" size="sm" className="w-full" onClick={addManualLine}>
-                                        <Plus className="size-4" /> سطر يدوي
-                                    </Button>
-                                </div>
-                            )}
+                            <PosCartTable
+                                lines={cart}
+                                itemLabel="الخدمة"
+                                emptyHint="ابحث عن خدمة أو أضف سطر يدوي"
+                                error={errors.lines}
+                                isLineSelectable={(line) => line.isManual && !line.branchServiceId}
+                                renderLineSelect={(line) => (
+                                    <Select
+                                        value={line.branchServiceId ? String(line.branchServiceId) : ''}
+                                        onValueChange={(v) => selectLineService(line, Number(v))}
+                                    >
+                                        <SelectTrigger className="h-8">
+                                            <SelectValue placeholder="اختر خدمة" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {services.map((s) => (
+                                                <SelectItem key={s.id} value={String(s.id)}>
+                                                    {s.name} — عمولة {s.baseCommissionPct}%
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                                renderLineMeta={(line) => `عمولة ${line.baseCommissionPct}%`}
+                                isPriceEditable={() => true}
+                                getMaxDiscount={(line) => (line.maxDiscountPct > 0 ? line.maxDiscountPct : 100)}
+                                getLineTotal={lineTotal}
+                                onQtyChange={changeQty}
+                                onPriceChange={(line, price) => updateLine(line.key, { unitPrice: price })}
+                                onDiscountChange={setDiscount}
+                                onRemove={removeLine}
+                                onAddManual={addManualLine}
+                            />
                         </CardContent>
                     </Card>
                 </div>

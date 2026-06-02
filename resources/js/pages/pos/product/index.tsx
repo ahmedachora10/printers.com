@@ -1,8 +1,8 @@
+import { PosCartTable } from '@/components/pos/cart-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
@@ -12,7 +12,7 @@ import product from '@/routes/pos/product';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type CartLine, type PosCustomer, type PosPaymentMethod, type PosProduct } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { FileText, Minus, Plus, Printer, Save, Search, Tag, Trash2, X } from 'lucide-react';
+import { Printer, Save, Search, Tag, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -446,125 +446,39 @@ export default function ProductPos({ products, customers, paymentMethods, vatPct
 
                     <Card className="min-h-[24rem]">
                         <CardContent className="py-4">
-                            {errors.lines && <p className="bg-destructive/10 text-destructive mb-3 rounded-md p-2 text-sm">{errors.lines}</p>}
-
-                            {cart.length === 0 ? (
-                                <div className="text-muted-foreground flex flex-col items-center gap-3 py-16 text-center">
-                                    <FileText className="size-12 opacity-40" />
-                                    <p className="text-sm">ابحث عن منتج بالـ SKU أو أضف سطر يدوي</p>
-                                    <Button type="button" variant="outline" size="sm" onClick={addManualLine}>
-                                        <Plus className="size-4" /> سطر يدوي
-                                    </Button>
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    {cart.map((line) => (
-                                        <div key={line.key} className="rounded-lg border p-3">
-                                            <div className="flex items-start justify-between gap-2">
-                                                <div className="min-w-0 flex-1">
-                                                    {line.isManual ? (
-                                                        <Select
-                                                            value={line.productId ? String(line.productId) : ''}
-                                                            onValueChange={(v) => selectLineProduct(line, Number(v))}
-                                                        >
-                                                            <SelectTrigger className="h-8">
-                                                                <SelectValue placeholder="اختر منتجاً" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {products.map((p) => (
-                                                                    <SelectItem key={p.id} value={String(p.id)} disabled={p.currentStock <= 0}>
-                                                                        {p.name} — {formatCurrency(p.sellingPrice)} (متوفر: {p.currentStock})
-                                                                    </SelectItem>
-                                                                ))}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    ) : (
-                                                        <>
-                                                            <p className="truncate text-sm font-medium">{line.name}</p>
-                                                            <p className="text-muted-foreground text-xs">{line.sku}</p>
-                                                        </>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => removeLine(line.key)}
-                                                    className="text-muted-foreground hover:text-destructive shrink-0"
-                                                >
-                                                    <Trash2 className="size-4" />
-                                                </button>
-                                            </div>
-
-                                            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-                                                {/* qty */}
-                                                <div className="flex items-center gap-1">
-                                                    <Button
-                                                        type="button"
-                                                        size="icon"
-                                                        variant="outline"
-                                                        className="size-7"
-                                                        onClick={() => changeQty(line, -1)}
-                                                    >
-                                                        <Minus className="size-3" />
-                                                    </Button>
-                                                    <span className="w-8 text-center text-sm">{line.qty}</span>
-                                                    <Button
-                                                        type="button"
-                                                        size="icon"
-                                                        variant="outline"
-                                                        className="size-7"
-                                                        onClick={() => changeQty(line, 1)}
-                                                    >
-                                                        <Plus className="size-3" />
-                                                    </Button>
-                                                </div>
-
-                                                {/* unit price */}
-                                                <div className="flex items-center gap-1">
-                                                    <Label className="text-muted-foreground text-xs">السعر</Label>
-                                                    {line.isManual ? (
-                                                        <Input
-                                                            type="number"
-                                                            min={0}
-                                                            step="0.01"
-                                                            value={line.unitPrice}
-                                                            onChange={(e) =>
-                                                                updateLine(line.key, { unitPrice: Math.max(0, Number(e.target.value) || 0) })
-                                                            }
-                                                            className="h-7 w-24 text-center"
-                                                        />
-                                                    ) : (
-                                                        <span className="text-sm">{formatCurrency(line.unitPrice)}</span>
-                                                    )}
-                                                </div>
-
-                                                {/* discount */}
-                                                <div className="flex items-center gap-1">
-                                                    <Label className="text-muted-foreground text-xs">خصم</Label>
-                                                    <Input
-                                                        type="number"
-                                                        min={0}
-                                                        max={100}
-                                                        value={line.discountPct}
-                                                        onChange={(e) =>
-                                                            updateLine(line.key, {
-                                                                discountPct: Math.min(100, Math.max(0, Number(e.target.value) || 0)),
-                                                            })
-                                                        }
-                                                        className="h-7 w-16 text-center"
-                                                    />
-                                                    <span className="text-muted-foreground text-xs">%</span>
-                                                </div>
-
-                                                <span className="text-sm font-semibold">{formatCurrency(lineTotal(line))}</span>
-                                            </div>
-                                        </div>
-                                    ))}
-
-                                    <Button type="button" variant="outline" size="sm" className="w-full" onClick={addManualLine}>
-                                        <Plus className="size-4" /> سطر يدوي
-                                    </Button>
-                                </div>
-                            )}
+                            <PosCartTable
+                                lines={cart}
+                                itemLabel="المنتج"
+                                emptyHint="ابحث عن منتج بالـ SKU أو أضف سطر يدوي"
+                                error={errors.lines}
+                                isLineSelectable={(line) => line.isManual}
+                                renderLineSelect={(line) => (
+                                    <Select
+                                        value={line.productId ? String(line.productId) : ''}
+                                        onValueChange={(v) => selectLineProduct(line, Number(v))}
+                                    >
+                                        <SelectTrigger className="h-8">
+                                            <SelectValue placeholder="اختر منتجاً" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {products.map((p) => (
+                                                <SelectItem key={p.id} value={String(p.id)} disabled={p.currentStock <= 0}>
+                                                    {p.name} — {formatCurrency(p.sellingPrice)} (متوفر: {p.currentStock})
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                                renderLineMeta={(line) => line.sku}
+                                isPriceEditable={(line) => line.isManual}
+                                getMaxDiscount={() => 100}
+                                getLineTotal={lineTotal}
+                                onQtyChange={changeQty}
+                                onPriceChange={(line, price) => updateLine(line.key, { unitPrice: price })}
+                                onDiscountChange={(line, value) => updateLine(line.key, { discountPct: Math.min(100, Math.max(0, value || 0)) })}
+                                onRemove={removeLine}
+                                onAddManual={addManualLine}
+                            />
                         </CardContent>
                     </Card>
                 </div>
