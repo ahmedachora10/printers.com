@@ -24,17 +24,26 @@ jobs:
         with:
           php-version: '8.4'
 
+      - name: Copy Environment File
+        run: cp .env.example .env
+
       - name: Create Database (Sqlite)
-        run: |
-          touch database/database.sqlite
+        run: touch database/database.sqlite
 
       - name: Install Dependencies
         run: |
           composer install -q --no-ansi --no-interaction --no-scripts --no-progress --prefer-dist
           npm install
 
+      - name: Generate Application Key
+        run: php artisan key:generate
+
       - name: Run Pint
         run: vendor/bin/pint
+
+      - name: Build Assets
+        run: npm run build
+
 
       - name: Format Frontend
         run: npm run format
