@@ -6,11 +6,6 @@ import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { ArrowLeftRight, BookOpen, Folder, GitBranch, LayoutGrid, LucideIcon, Package, ServerIcon, ShoppingCart, Users } from 'lucide-react';
 import AppLogo from './app-logo';
-import cities from '@/routes/cities';
-import branches from '@/routes/branches';
-import branchServicesRoute from '@/routes/branch-services';
-import { dashboard } from '@/routes';
-import serviceTemplates from '@/routes/service-templates';
 
 
 const footerNavItems: NavItem[] = [

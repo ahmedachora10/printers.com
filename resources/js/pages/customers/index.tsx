@@ -12,7 +12,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 import { Agent, type BreadcrumbItem } from '@/types';
 import {
     type Customer,

@@ -9,26 +9,24 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils';
 import customersRoute from '@/routes/customers';
-import { Agent, type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem } from '@/types';
 import {
     type Customer,
     type CustomerFinancialSummary,
     type InvoiceHistoryItem,
     type LoyaltyTransaction,
 } from '@/types/customer';
-import { router, useForm } from '@inertiajs/react';
+import { useForm } from '@inertiajs/react';
 import {
     ArrowLeftRight,
     Building2,
     CreditCard,
     MessageCircle,
-    Pencil,
     Phone,
     Star,
     TrendingUp,

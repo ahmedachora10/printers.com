@@ -183,7 +183,11 @@ export function DataTable<T extends object>({
 
     const toggleRow = (key: string | number) => {
         const next = new Set(selectedKeys);
-        next.has(key) ? next.delete(key) : next.add(key);
+        if (next.has(key)) {
+            next.delete(key);
+        } else {
+            next.add(key);
+        }
         setSelectedKeys(next);
         onSelectionChange?.([...next], data.filter((r) => next.has(keyExtractor(r))));
     };
