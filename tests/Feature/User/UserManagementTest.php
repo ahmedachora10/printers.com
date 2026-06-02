@@ -223,4 +223,75 @@ describe('User Management', function () {
                 'role'     => Roles::EMPLOYEE->value,
             ])->assertForbidden();
     });
+
+    // ── SHOW ───────────────────────────────────────────────────────
+
+    it('allows super-admin to view any user profile', function () {
+        $user = User::factory()->create(['branch_id' => $this->branch->id]);
+        $user->addRole(Roles::EMPLOYEE->value);
+
+        $this->get(route('users.show', $user))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('users/show')
+                ->where('user.id', $user->id)
+                ->has('commissionSummary')
+                ->has('salesSummary'));
+    });
+
+    it('allows branch-admin to view a user in their own branch', function () {
+        $user = User::factory()->create(['branch_id' => $this->branch->id]);
+        $user->addRole(Roles::EMPLOYEE->value);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('users.show', $user))
+            ->assertOk();
+    });
+
+    it('prevents branch-admin from viewing a user in another branch', function () {
+        $otherBranch = Branch::factory()->create();
+        $other = User::factory()->create(['branch_id' => $otherBranch->id]);
+        $other->addRole(Roles::EMPLOYEE->value);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('users.show', $other))
+            ->assertForbidden();
+    });
+
+    it('prevents branch-admin from viewing another branch-admin profile', function () {
+        $peer = User::factory()->create(['branch_id' => $this->branch->id]);
+        $peer->addRole(Roles::BRANCH_ADMIN->value);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('users.show', $peer))
+            ->assertForbidden();
+    });
+
+    it('aggregates the commission ledger on the profile', function () {
+        $user = User::factory()->create(['branch_id' => $this->branch->id]);
+        $user->addRole(Roles::EMPLOYEE->value);
+
+        \Illuminate\Support\Facades\DB::table('commission_ledger')->insert([
+            [
+                'user_id' => $user->id, 'branch_id' => $this->branch->id,
+                'invoice_line_id' => 1, 'invoice_line_type' => 'service',
+                'amount' => 100, 'is_tahazir' => false, 'source_type' => 'standard',
+                'earned_at' => now(), 'paid_at' => now(),
+            ],
+            [
+                'user_id' => $user->id, 'branch_id' => $this->branch->id,
+                'invoice_line_id' => 2, 'invoice_line_type' => 'service',
+                'amount' => 40, 'is_tahazir' => true, 'source_type' => 'standard',
+                'earned_at' => now(), 'paid_at' => null,
+            ],
+        ]);
+
+        $this->get(route('users.show', $user))
+            ->assertInertia(fn ($page) => $page
+                ->where('commissionSummary.totalEarned', 140)
+                ->where('commissionSummary.totalPaid', 100)
+                ->where('commissionSummary.pending', 40)
+                ->where('commissionSummary.tahazirEarned', 40)
+                ->where('commissionSummary.standardEarned', 100));
+    });
 });
