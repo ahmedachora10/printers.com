@@ -97,13 +97,47 @@ export default function ServicePos({ services, customers, paymentMethods, vatPct
                 maxDiscountPct: s.maxDiscountPct,
                 baseCommissionPct: s.baseCommissionPct,
                 isTahazir: s.isTahazir,
+                isManual: false,
             },
         ]);
         setSearch('');
     }
 
+    function addManualLine() {
+        lineSeq.current += 1;
+        setCart((prev) => [
+            ...prev,
+            {
+                key: `m-${lineSeq.current}`,
+                branchServiceId: null,
+                name: '',
+                unitPrice: 0,
+                qty: 1,
+                discountPct: 0,
+                maxDiscountPct: 0,
+                baseCommissionPct: 0,
+                isTahazir: false,
+                isManual: true,
+            },
+        ]);
+    }
+
     function updateLine(key: string, patch: Partial<ServiceCartLine>) {
         setCart((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+    }
+
+    function selectLineService(line: ServiceCartLine, branchServiceId: number) {
+        const s = services.find((x) => x.id === branchServiceId);
+        if (!s) return;
+        const cap = s.maxDiscountPct > 0 ? s.maxDiscountPct : 100;
+        updateLine(line.key, {
+            branchServiceId: s.id,
+            name: s.name,
+            maxDiscountPct: s.maxDiscountPct,
+            baseCommissionPct: s.baseCommissionPct,
+            isTahazir: s.isTahazir,
+            discountPct: Math.min(cap, line.discountPct),
+        });
     }
 
     function changeQty(line: ServiceCartLine, delta: number) {
@@ -166,6 +200,10 @@ export default function ServicePos({ services, customers, paymentMethods, vatPct
     function submit(print: boolean) {
         if (cart.length === 0) {
             toast.error('أضف خدمة واحدة على الأقل');
+            return;
+        }
+        if (cart.some((l) => l.isManual && !l.branchServiceId)) {
+            toast.error('اختر خدمة لكل سطر يدوي');
             return;
         }
         setSubmitting(true);
@@ -401,6 +439,32 @@ export default function ServicePos({ services, customers, paymentMethods, vatPct
                         )}
                     </div>
 
+                    {services.length > 0 && (
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-base">الخدمات المتاحة</CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+                                    {services.map((s) => (
+                                        <button
+                                            key={s.id}
+                                            type="button"
+                                            onClick={() => addService(s)}
+                                            className="hover:bg-accent flex flex-col items-start gap-1 rounded-lg border p-3 text-right text-sm transition"
+                                        >
+                                            <span className="line-clamp-2 font-medium">{s.name}</span>
+                                            <span className="flex w-full items-center justify-between gap-1">
+                                                <span className="text-muted-foreground text-xs">عمولة {s.baseCommissionPct}%</span>
+                                                {s.isTahazir && <Badge variant="secondary">تحضير</Badge>}
+                                            </span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
                     <Card className="min-h-[24rem]">
                         <CardContent className="py-4">
                             {errors.lines && <p className="bg-destructive/10 text-destructive mb-3 rounded-md p-2 text-sm">{errors.lines}</p>}
@@ -408,7 +472,10 @@ export default function ServicePos({ services, customers, paymentMethods, vatPct
                             {cart.length === 0 ? (
                                 <div className="text-muted-foreground flex flex-col items-center gap-3 py-16 text-center">
                                     <FileText className="size-12 opacity-40" />
-                                    <p className="text-sm">ابحث عن خدمة لإضافتها للفاتورة</p>
+                                    <p className="text-sm">ابحث عن خدمة أو أضف سطر يدوي</p>
+                                    <Button type="button" variant="outline" size="sm" onClick={addManualLine}>
+                                        <Plus className="size-4" /> سطر يدوي
+                                    </Button>
                                 </div>
                             ) : (
                                 <div className="space-y-2">
@@ -416,8 +483,28 @@ export default function ServicePos({ services, customers, paymentMethods, vatPct
                                         <div key={line.key} className="rounded-lg border p-3">
                                             <div className="flex items-start justify-between gap-2">
                                                 <div className="min-w-0 flex-1">
-                                                    <p className="truncate text-sm font-medium">{line.name}</p>
-                                                    <p className="text-muted-foreground text-xs">عمولة {line.baseCommissionPct}%</p>
+                                                    {line.isManual && !line.branchServiceId ? (
+                                                        <Select
+                                                            value={line.branchServiceId ? String(line.branchServiceId) : ''}
+                                                            onValueChange={(v) => selectLineService(line, Number(v))}
+                                                        >
+                                                            <SelectTrigger className="h-8">
+                                                                <SelectValue placeholder="اختر خدمة" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {services.map((s) => (
+                                                                    <SelectItem key={s.id} value={String(s.id)}>
+                                                                        {s.name} — عمولة {s.baseCommissionPct}%
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    ) : (
+                                                        <>
+                                                            <p className="truncate text-sm font-medium">{line.name}</p>
+                                                            <p className="text-muted-foreground text-xs">عمولة {line.baseCommissionPct}%</p>
+                                                        </>
+                                                    )}
                                                 </div>
                                                 <button
                                                     type="button"
@@ -485,6 +572,10 @@ export default function ServicePos({ services, customers, paymentMethods, vatPct
                                             </div>
                                         </div>
                                     ))}
+
+                                    <Button type="button" variant="outline" size="sm" className="w-full" onClick={addManualLine}>
+                                        <Plus className="size-4" /> سطر يدوي
+                                    </Button>
                                 </div>
                             )}
                         </CardContent>

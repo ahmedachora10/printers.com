@@ -17,7 +17,8 @@ export interface PosService {
 
 export interface ServiceCartLine {
     key: string;
-    branchServiceId: number;
+    /** null for a manual line whose service has not been picked yet */
+    branchServiceId: number | null;
     name: string;
     unitPrice: number;
     qty: number;
@@ -25,6 +26,7 @@ export interface ServiceCartLine {
     maxDiscountPct: number;
     baseCommissionPct: number;
     isTahazir: boolean;
+    isManual: boolean;
 }
 
 export interface PosCustomer {
