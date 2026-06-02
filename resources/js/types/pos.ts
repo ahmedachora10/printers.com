@@ -7,6 +7,26 @@ export interface PosProduct {
     unitName: string | null;
 }
 
+export interface PosService {
+    id: number;
+    name: string;
+    baseCommissionPct: number;
+    maxDiscountPct: number;
+    isTahazir: boolean;
+}
+
+export interface ServiceCartLine {
+    key: string;
+    branchServiceId: number;
+    name: string;
+    unitPrice: number;
+    qty: number;
+    discountPct: number;
+    maxDiscountPct: number;
+    baseCommissionPct: number;
+    isTahazir: boolean;
+}
+
 export interface PosCustomer {
     id: number;
     fullName: string;
