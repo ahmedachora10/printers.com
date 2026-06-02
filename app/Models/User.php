@@ -93,7 +93,7 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
     public function branchId(): Attribute
     {
         return Attribute::make(
-            get: fn () => $this->roleName->isBranchAdmin()
+            get: fn () => $this->roleName?->isBranchAdmin()
                 ? $this->branchManager?->id
                 // Read the raw column directly: this accessor is registered for the
                 // `branch_id` key, so `$this->branch_id` would recurse into it.
