@@ -27,7 +27,6 @@ jobs:
       - name: Create Database (Sqlite)
         run: |
           touch database/database.sqlite
-          php artisan migrate
 
       - name: Install Dependencies
         run: |
