@@ -6,6 +6,7 @@ use App\Http\Controllers\BranchServiceController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
@@ -74,6 +75,14 @@ Route::middleware(['auth'])->group(function () {
             ->name('customers.merge');
         Route::patch('customers/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])
             ->name('customers.toggle-status');
+
+        Route::prefix('invoices')->name('invoices.')->group(function () {
+            Route::get('/', [InvoiceController::class, 'index'])->name('index');
+            Route::get('{type}/{id}', [InvoiceController::class, 'show'])
+                ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('show');
+            Route::get('{type}/{id}/print', [InvoiceController::class, 'print'])
+                ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('print');
+        });
     });
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {

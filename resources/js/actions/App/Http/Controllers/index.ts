@@ -6,6 +6,7 @@ import ProductInvoiceController from './ProductInvoiceController'
 import StockMovementController from './StockMovementController'
 import ServiceInvoiceController from './ServiceInvoiceController'
 import CustomerController from './CustomerController'
+import InvoiceController from './InvoiceController'
 import UserController from './UserController'
 import AppSettingController from './AppSettingController'
 import BranchServiceController from './BranchServiceController'
@@ -23,6 +24,7 @@ ProductInvoiceController: Object.assign(ProductInvoiceController, ProductInvoice
 StockMovementController: Object.assign(StockMovementController, StockMovementController),
 ServiceInvoiceController: Object.assign(ServiceInvoiceController, ServiceInvoiceController),
 CustomerController: Object.assign(CustomerController, CustomerController),
+InvoiceController: Object.assign(InvoiceController, InvoiceController),
 UserController: Object.assign(UserController, UserController),
 AppSettingController: Object.assign(AppSettingController, AppSettingController),
 BranchServiceController: Object.assign(BranchServiceController, BranchServiceController),
