@@ -4,6 +4,7 @@ import ServiceTemplateController from './ServiceTemplateController'
 import PaymentMethodController from './PaymentMethodController'
 import ProductInvoiceController from './ProductInvoiceController'
 import StockMovementController from './StockMovementController'
+import RefundController from './RefundController'
 import ServiceInvoiceController from './ServiceInvoiceController'
 import CustomerController from './CustomerController'
 import InvoiceController from './InvoiceController'
@@ -23,6 +24,7 @@ ServiceTemplateController: Object.assign(ServiceTemplateController, ServiceTempl
 PaymentMethodController: Object.assign(PaymentMethodController, PaymentMethodController),
 ProductInvoiceController: Object.assign(ProductInvoiceController, ProductInvoiceController),
 StockMovementController: Object.assign(StockMovementController, StockMovementController),
+RefundController: Object.assign(RefundController, RefundController),
 ServiceInvoiceController: Object.assign(ServiceInvoiceController, ServiceInvoiceController),
 CustomerController: Object.assign(CustomerController, CustomerController),
 InvoiceController: Object.assign(InvoiceController, InvoiceController),
