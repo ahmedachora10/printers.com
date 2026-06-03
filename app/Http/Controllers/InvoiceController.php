@@ -68,7 +68,13 @@ class InvoiceController extends Controller
         $invoice = $this->resolveInvoice($type, $id);
         Gate::authorize('view', $invoice);
 
-        $invoice->load(['lines', 'customer:id,full_name,phone', 'paymentMethod:id,name', 'branch']);
+        $invoice->load([
+            'lines',
+            'customer:id,full_name,phone',
+            'paymentMethod:id,name',
+            'branch',
+            'refunds' => fn ($q) => $q->with('user:id,name')->latest(),
+        ]);
 
         return Inertia::render('invoices/show', [
             'invoice' => new InvoiceResource($invoice),

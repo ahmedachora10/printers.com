@@ -328,4 +328,44 @@ describe('Refunds', function () {
             ->assertOk()
             ->assertJson(['found' => false]);
     });
+
+    // ── INVOICE DETAILS PAGE ───────────────────────────────────────
+
+    it('surfaces refunds and refunded totals on the invoice details page', function () {
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin, qty: 5, unitPrice: 20); // total 115
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 50,
+            'reason' => 'استرداد جزئي',
+        ])->assertRedirect();
+
+        $this->get(route('invoices.show', ['type' => 'product', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('invoice.refundedTotal', 50)
+                ->where('invoice.refundableRemaining', 65)
+                ->where('invoice.isFullyRefunded', false)
+                ->where('invoice.canRefund', true)
+                ->has('invoice.refunds', 1)
+                ->where('invoice.refunds.0.amount', 50));
+    });
+
+    it('marks an invoice fully refunded and disables further refunds', function () {
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin, qty: 5, unitPrice: 20); // total 115
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => $invoice->total_amount,
+            'reason' => 'مرتجع كامل',
+        ])->assertRedirect();
+
+        $this->get(route('invoices.show', ['type' => 'product', 'id' => $invoice->id]))
+            ->assertInertia(fn ($page) => $page
+                ->where('invoice.isFullyRefunded', true)
+                ->where('invoice.refundableRemaining', 0)
+                ->where('invoice.canRefund', false));
+    });
 });

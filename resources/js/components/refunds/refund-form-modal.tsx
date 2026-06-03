@@ -14,17 +14,19 @@ import { formatCurrency } from '@/lib/utils';
 import { type InvoiceLookupResult } from '@/types/refund';
 import { useForm } from '@inertiajs/react';
 import { Search } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import InputError from '../input-error';
 
 interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
+    /** Pre-fill and auto-look-up a specific invoice (e.g. from the invoice details page). */
+    presetNumber?: string;
 }
 
-export default function RefundFormModal({ open, onOpenChange }: Props) {
-    const [number, setNumber] = useState('');
+export default function RefundFormModal({ open, onOpenChange, presetNumber }: Props) {
+    const [number, setNumber] = useState(presetNumber ?? '');
     const [looking, setLooking] = useState(false);
     const [invoice, setInvoice] = useState<InvoiceLookupResult | null>(null);
 
@@ -36,8 +38,16 @@ export default function RefundFormModal({ open, onOpenChange }: Props) {
         reverse_stock: false as boolean,
     });
 
-    async function handleLookup() {
-        const q = number.trim();
+    // When opened for a specific invoice, resolve it immediately.
+    useEffect(() => {
+        if (open && presetNumber && !invoice) {
+            handleLookup(presetNumber);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [open, presetNumber]);
+
+    async function handleLookup(value?: string) {
+        const q = (value ?? number).trim();
         if (!q) return;
         setLooking(true);
         try {
@@ -108,10 +118,13 @@ export default function RefundFormModal({ open, onOpenChange }: Props) {
                                 }}
                                 placeholder="INV-001-00001"
                                 dir="ltr"
+                                readOnly={!!presetNumber}
                             />
-                            <Button type="button" variant="outline" onClick={handleLookup} disabled={looking}>
-                                <Search className="size-4" />
-                            </Button>
+                            {!presetNumber && (
+                                <Button type="button" variant="outline" onClick={() => handleLookup()} disabled={looking}>
+                                    <Search className="size-4" />
+                                </Button>
+                            )}
                         </div>
                         <InputError message={errors.invoice_id} />
                     </div>
