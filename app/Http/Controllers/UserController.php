@@ -10,6 +10,7 @@ use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Http\Resources\User\UserResource;
 use App\Models\Branch;
+use App\Models\CommissionLedger;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -129,7 +130,7 @@ class UserController extends Controller
      */
     private function commissionSummary(User $user): array
     {
-        $row = DB::table('commission_ledger')
+        $row = CommissionLedger::query()
             ->where('user_id', $user->id)
             ->selectRaw(
                 'COALESCE(SUM(amount), 0) as total_earned,
@@ -222,7 +223,7 @@ class UserController extends Controller
      */
     private function recentCommissionLedger(User $user): array
     {
-        return DB::table('commission_ledger')
+        return CommissionLedger::query()
             ->where('user_id', $user->id)
             ->orderByDesc('earned_at')
             ->limit(10)
