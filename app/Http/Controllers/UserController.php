@@ -175,10 +175,6 @@ class UserController extends Controller
         ];
 
         foreach ($sources as $model => $type) {
-            if (! Schema::hasTable((new $model)->getTable())) {
-                continue;
-            }
-
             $row = $model::query()
                 ->where('user_id', $user->id)
                 ->where('status', '<>', 'cancelled')
@@ -208,10 +204,6 @@ class UserController extends Controller
         ];
 
         foreach ($sources as $model => $type) {
-            if (! Schema::hasTable((new $model)->getTable())) {
-                continue;
-            }
-
             $rows = $model::query()
                 ->where('user_id', $user->id)
                 ->orderByDesc('created_at')
