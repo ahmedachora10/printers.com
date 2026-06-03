@@ -11,11 +11,13 @@ use App\Http\Requests\User\UpdateUserRequest;
 use App\Http\Resources\User\UserResource;
 use App\Models\Branch;
 use App\Models\CommissionLedger;
+use App\Models\ProductInvoice;
+use App\Models\ServiceInvoice;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
@@ -166,14 +168,19 @@ class UserController extends Controller
             'productTotal' => 0.0,
         ];
 
-        foreach (['service_invoices' => 'service', 'product_invoices' => 'product'] as $table => $type) {
-            if (! Schema::hasTable($table)) {
+        /** @var array<class-string<Model>, string> $sources */
+        $sources = [
+            ServiceInvoice::class => 'service',
+            ProductInvoice::class => 'product',
+        ];
+
+        foreach ($sources as $model => $type) {
+            if (! Schema::hasTable((new $model)->getTable())) {
                 continue;
             }
 
-            $row = DB::table($table)
+            $row = $model::query()
                 ->where('user_id', $user->id)
-                ->whereNull('deleted_at')
                 ->where('status', '<>', 'cancelled')
                 ->selectRaw('COUNT(*) as cnt, COALESCE(SUM(total_amount), 0) as total')
                 ->first();
@@ -194,19 +201,24 @@ class UserController extends Controller
     {
         $invoices = [];
 
-        foreach (['service_invoices' => 'service', 'product_invoices' => 'product'] as $table => $type) {
-            if (! Schema::hasTable($table)) {
+        /** @var array<class-string<Model>, string> $sources */
+        $sources = [
+            ServiceInvoice::class => 'service',
+            ProductInvoice::class => 'product',
+        ];
+
+        foreach ($sources as $model => $type) {
+            if (! Schema::hasTable((new $model)->getTable())) {
                 continue;
             }
 
-            $rows = DB::table($table)
+            $rows = $model::query()
                 ->where('user_id', $user->id)
-                ->whereNull('deleted_at')
                 ->orderByDesc('created_at')
                 ->limit(10)
                 ->get(['id', 'invoice_number', 'total_amount', 'status', 'created_at'])
-                ->map(fn ($r) => array_merge((array) $r, ['type' => $type]))
-                ->toArray();
+                ->map(fn ($r) => array_merge($r->toArray(), ['type' => $type]))
+                ->all();
 
             $invoices = array_merge($invoices, $rows);
         }
