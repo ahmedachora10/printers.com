@@ -5,6 +5,7 @@ namespace App\Actions\StockMovement;
 use App\Enums\StockMovementTypeEnum;
 use App\Models\Product;
 use App\Models\StockMovement;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -32,7 +33,7 @@ class RecordStockMovementAction
             'reference_id' => $attributes['reference_id'] ?? null,
             'reference_type' => $attributes['reference_type'] ?? null,
             'notes' => $attributes['notes'] ?? null,
-            'created_by' => $attributes['created_by'] ?? auth()->id(),
+            'created_by' => $attributes['created_by'] ?? Auth::id(),
         ]));
     }
 }
