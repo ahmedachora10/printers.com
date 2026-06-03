@@ -4,6 +4,7 @@ use App\Http\Controllers\AppSettingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchServiceController;
 use App\Http\Controllers\CityController;
+use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\InvoiceController;
@@ -109,6 +110,9 @@ Route::middleware(['auth'])->group(function () {
             ->name('coupons.toggle-status');
         Route::resource('coupons', CouponController::class)
             ->only(['index', 'store', 'update', 'destroy']);
+
+        Route::get('commissions', [CommissionController::class, 'index'])->name('commissions.index');
+        Route::post('commissions/pay', [CommissionController::class, 'pay'])->name('commissions.pay');
 
         Route::prefix('inventory')->name('inventory.')->group(function () {
             Route::patch('products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])
