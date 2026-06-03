@@ -19,6 +19,15 @@ export interface InvoiceBranch {
     logoUrl: string | null;
 }
 
+export interface InvoiceRefund {
+    id: number;
+    amount: number;
+    reason: string;
+    stockReversed: boolean;
+    userName: string | null;
+    createdAt: string | null;
+}
+
 export interface Invoice {
     id: number;
     type: InvoiceType;
@@ -42,6 +51,11 @@ export interface Invoice {
     customerPhone: string | null;
     paymentMethod: string | null;
     lines: InvoiceLine[];
+    refundedTotal: number;
+    refundableRemaining: number;
+    isFullyRefunded: boolean;
+    canRefund: boolean;
+    refunds?: InvoiceRefund[];
     branch: InvoiceBranch;
 }
 

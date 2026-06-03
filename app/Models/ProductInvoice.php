@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -84,5 +85,11 @@ class ProductInvoice extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(ProductInvoiceLine::class, 'invoice_id');
+    }
+
+    /** @return MorphMany<Refund> */
+    public function refunds(): MorphMany
+    {
+        return $this->morphMany(Refund::class, 'invoice');
     }
 }

@@ -6,9 +6,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
+import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { type Invoice } from '@/types/invoice';
 import { Head } from '@inertiajs/react';
-import { Printer, ReceiptText } from 'lucide-react';
+import { Printer, ReceiptText, Undo2 } from 'lucide-react';
+import { useState } from 'react';
 
 const STATUS_COLORS: Record<string, string> = {
     paid: 'border-green-200 bg-green-50 text-green-700',
@@ -41,6 +43,8 @@ function TotalRow({ label, value, strong = false }: { label: string; value: stri
 }
 
 export default function InvoiceShow({ invoice }: Props) {
+    const [refundOpen, setRefundOpen] = useState(false);
+
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'الفواتير', href: '/invoices' },
         { title: invoice.invoiceNumber, href: `/invoices/${invoice.type}/${invoice.id}` },
@@ -63,12 +67,22 @@ export default function InvoiceShow({ invoice }: Props) {
                                 {invoice.statusLabel}
                             </Badge>
                             <Badge variant="secondary">{invoice.typeLabel}</Badge>
+                            {invoice.isFullyRefunded && (
+                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                                    مُرتجعة
+                                </Badge>
+                            )}
                         </div>
                         {invoice.createdAt && (
                             <p className="text-sm text-muted-foreground">{formatDateTime(invoice.createdAt)}</p>
                         )}
                     </div>
                     <div className="flex gap-2">
+                        {invoice.canRefund && (
+                            <Button variant="outline" onClick={() => setRefundOpen(true)}>
+                                <Undo2 className="size-4" /> إنشاء مرتجع
+                            </Button>
+                        )}
                         <Button variant="outline" asChild>
                             <a href={`${printBase}?format=thermal`} target="_blank" rel="noreferrer">
                                 <ReceiptText className="size-4" /> إيصال حراري
@@ -81,6 +95,63 @@ export default function InvoiceShow({ invoice }: Props) {
                         </Button>
                     </div>
                 </div>
+
+                {invoice.refunds && invoice.refunds.length > 0 && (
+                    <Card className="mb-6 border-amber-200 bg-amber-50/40">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+                                <span className="flex items-center gap-2 text-amber-800">
+                                    <Undo2 className="size-4" /> المرتجعات
+                                </span>
+                                <span className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm font-normal">
+                                    <span className="text-muted-foreground">
+                                        إجمالي المرتجع:{' '}
+                                        <span className="font-semibold tabular-nums text-destructive" dir="ltr">
+                                            −{formatCurrency(invoice.refundedTotal)}
+                                        </span>
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                        المتبقي القابل للإرجاع:{' '}
+                                        <span className="font-semibold tabular-nums" dir="ltr">
+                                            {formatCurrency(invoice.refundableRemaining)}
+                                        </span>
+                                    </span>
+                                </span>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="divide-y divide-amber-100">
+                                {invoice.refunds.map((refund) => (
+                                    <div
+                                        key={refund.id}
+                                        className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+                                    >
+                                        <div className="flex flex-wrap items-center gap-3">
+                                            <span className="tabular-nums text-muted-foreground" dir="ltr">
+                                                {refund.createdAt ? formatDateTime(refund.createdAt) : '—'}
+                                            </span>
+                                            <span>{refund.reason}</span>
+                                            {refund.stockReversed && (
+                                                <Badge
+                                                    variant="outline"
+                                                    className="border-green-200 bg-green-50 text-green-700"
+                                                >
+                                                    أُرجع المخزون
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <span className="font-semibold tabular-nums text-destructive" dir="ltr">
+                                                −{formatCurrency(refund.amount)}
+                                            </span>
+                                            <span className="text-muted-foreground">{refund.userName ?? '—'}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
 
                 <div className="grid gap-6 lg:grid-cols-3">
                     {/* Line items */}
@@ -172,6 +243,15 @@ export default function InvoiceShow({ invoice }: Props) {
                     </Card>
                 </div>
             </div>
+
+            {invoice.canRefund && (
+                <RefundFormModal
+                    key={refundOpen ? 'open' : 'closed'}
+                    open={refundOpen}
+                    onOpenChange={setRefundOpen}
+                    presetNumber={invoice.invoiceNumber}
+                />
+            )}
         </AppLayout>
     );
 }

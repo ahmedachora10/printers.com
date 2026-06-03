@@ -12,6 +12,7 @@ use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductInvoiceController;
+use App\Http\Controllers\RefundController;
 use App\Http\Controllers\ServiceInvoiceController;
 use App\Http\Controllers\ServiceTemplateController;
 use App\Http\Controllers\StockMovementController;
@@ -56,6 +57,10 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('inventory/stock-movements', [StockMovementController::class, 'index'])
             ->name('inventory.stock-movements.index');
+
+        Route::get('refunds/lookup', [RefundController::class, 'lookup'])->name('refunds.lookup');
+        Route::get('refunds', [RefundController::class, 'index'])->name('refunds.index');
+        Route::post('refunds', [RefundController::class, 'store'])->name('refunds.store');
     });
 
     Route::middleware('role:branch-admin|super-admin|employee')->group(function () {
