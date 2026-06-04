@@ -33,8 +33,8 @@ class CustomerController extends Controller
     {
         Gate::authorize('viewAny', Customer::class);
 
-        $isSuperAdmin = auth()->user()->roleName->isSuperAdmin();
-        $branchId     = $isSuperAdmin ? null : auth()->user()->branchId;
+        $isSuperAdmin = Auth::user()->roleName->isSuperAdmin();
+        $branchId     = $isSuperAdmin ? null : Auth::user()->branchId;
 
         $query = Customer::query()
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $branchId))
@@ -64,7 +64,7 @@ class CustomerController extends Controller
         $ids   = $query->pluck('id');
         $stats = $this->loadPageStats($ids);
 
-        $agents = User::select('id', 'name')->whereRoleIs(Roles::AGENT->value)->get();
+        $agents = User::select('id', 'name')->whereHasRole(Roles::AGENT->value)->get();
 
         $branches = $isSuperAdmin ? Branch::select('id', 'name')->get() : [];
 
@@ -89,10 +89,10 @@ class CustomerController extends Controller
     {
         Gate::authorize('create', Customer::class);
 
-        $isSuperAdmin = auth()->user()->roleName->isSuperAdmin();
+        $isSuperAdmin = Auth::user()->roleName->isSuperAdmin();
         $branchId     = $isSuperAdmin
             ? (int) $request->input('branch_id')
-            : auth()->user()->branchId;
+            : Auth::user()->branchId;
 
         $action->handle($request->validated(), $branchId);
 
@@ -105,7 +105,7 @@ class CustomerController extends Controller
 
         $customer->load(['branch', 'agent']);
 
-        
+
         $customers = Customer::select('id', 'full_name')
             ->when(! Auth::user()->branchId, function ($query) {
                 return $query->where('branch_id', Auth::user()->branchId);
@@ -172,7 +172,7 @@ class CustomerController extends Controller
     {
         Gate::authorize('viewAny', Customer::class);
 
-        $branchId = auth()->user()->branchId;
+        $branchId = Auth::user()->branchId;
 
         $report = $this->buildOutstandingReport($branchId);
 
@@ -185,7 +185,7 @@ class CustomerController extends Controller
     {
         Gate::authorize('viewAny', Customer::class);
 
-        $branchId = auth()->user()->branchId;
+        $branchId = Auth::user()->branchId;
 
         return Excel::download(new CustomersExport($branchId), 'customers.xlsx');
     }
