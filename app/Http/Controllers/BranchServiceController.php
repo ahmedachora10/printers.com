@@ -12,8 +12,8 @@ use App\Models\BranchService;
 use App\Models\ServiceTemplate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -34,7 +34,7 @@ class BranchServiceController extends Controller
 
         if ($request->filled('search')) {
             $query->whereHas('serviceTemplate', function ($q) use ($request) {
-                $q->where('name', 'like', '%' . $request->search . '%');
+                $q->where('name', 'like', '%'.$request->search.'%');
             });
         }
 
@@ -49,10 +49,10 @@ class BranchServiceController extends Controller
             ->get(['id', 'name']);
 
         return Inertia::render('branch-services/index', [
-            'branchServices'   => BranchServiceResource::collection($branchServices),
+            'branchServices' => BranchServiceResource::collection($branchServices),
             'serviceTemplates' => $serviceTemplates,
-            'userBranch'       => $userBranch ? ['id' => $userBranch->id, 'name' => $userBranch->name] : null,
-            'filters'          => $request->only(['search', 'status']),
+            'userBranch' => ['id' => $userBranch->id, 'name' => $userBranch->name],
+            'filters' => $request->only(['search', 'status']),
         ]);
     }
 

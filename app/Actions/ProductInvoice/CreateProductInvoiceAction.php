@@ -21,6 +21,7 @@ class CreateProductInvoiceAction
         private readonly RecordStockMovementAction $recordStockMovement,
     ) {}
 
+    /** @param array<string, mixed> $data */
     public function handle(array $data): ProductInvoice
     {
         $user = auth()->user();
@@ -33,7 +34,7 @@ class CreateProductInvoiceAction
 
             // Lock the branch's products that are being sold to keep stock checks
             // and the sale movements consistent under concurrent sales.
-            $productIds = collect($data['lines'])
+            $productIds = collect((array) $data['lines'])
                 ->pluck('product_id')
                 ->filter()
                 ->unique();
@@ -163,6 +164,8 @@ class CreateProductInvoiceAction
     /**
      * Resolve the customer for the invoice: an explicit customer, a walk-in
      * (found-or-created from name/phone), or none (cash customer).
+     *
+     * @param  array<string, mixed>  $data
      */
     private function resolveCustomerId(array $data, int $branchId): ?int
     {
@@ -198,6 +201,7 @@ class CreateProductInvoiceAction
     }
 
     /**
+     * @param  array<string, mixed>  $data
      * @return array{0: ?Coupon, 1: float}
      */
     private function resolveCoupon(array $data, int $branchId, float $subtotal): array

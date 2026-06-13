@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\CommissionSourceTypeEnum;
+use Database\Factories\CommissionLedgerFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class CommissionLedger extends Model
 {
+    /** @use HasFactory<CommissionLedgerFactory> */
     use HasFactory;
 
     protected $table = 'commission_ledger';
@@ -43,19 +45,19 @@ class CommissionLedger extends Model
         'paid_at' => 'datetime',
     ];
 
-    /** @return BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return MorphTo<Model, self> */
+    /** @return MorphTo<Model, $this> */
     public function invoiceLine(): MorphTo
     {
         return $this->morphTo(__FUNCTION__, 'invoice_line_type', 'invoice_line_id');

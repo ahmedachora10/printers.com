@@ -13,6 +13,7 @@ class UpdateCustomerRequest extends FormRequest
         return true;
     }
 
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         $customer = $this->route('customer');
@@ -20,8 +21,8 @@ class UpdateCustomerRequest extends FormRequest
         $branchId = $customer->branch_id;
 
         return [
-            'full_name'     => ['required', 'string', 'max:255'],
-            'phone'         => [
+            'full_name' => ['required', 'string', 'max:255'],
+            'phone' => [
                 'required',
                 'string',
                 'max:20',
@@ -30,13 +31,13 @@ class UpdateCustomerRequest extends FormRequest
                     ->ignore($customer->id)
                     ->whereNull('deleted_at'),
             ],
-            'email'         => ['nullable', 'email', 'max:255'],
+            'email' => ['nullable', 'email', 'max:255'],
             'customer_type' => ['required', Rule::enum(CustomerTypeEnum::class)],
-            'company_name'  => ['nullable', 'string', 'max:255', 'required_if:customer_type,corporate'],
-            'credit_limit'  => ['nullable', 'numeric', 'min:0'],
-            'agent_id'      => ['nullable', 'integer', 'exists:agents,id'],
-            'notes'         => ['nullable', 'string'],
-            'is_active'     => ['boolean'],
+            'company_name' => ['nullable', 'string', 'max:255', 'required_if:customer_type,corporate'],
+            'credit_limit' => ['nullable', 'numeric', 'min:0'],
+            'agent_id' => ['nullable', 'integer', 'exists:agents,id'],
+            'notes' => ['nullable', 'string'],
+            'is_active' => ['boolean'],
         ];
     }
 }

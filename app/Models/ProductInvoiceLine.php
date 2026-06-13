@@ -2,14 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProductInvoiceLine extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'invoice_id',
         'product_id',
@@ -28,13 +25,13 @@ class ProductInvoiceLine extends Model
         'subtotal' => 'decimal:2',
     ];
 
-    /** @return BelongsTo<ProductInvoice, self> */
+    /** @return BelongsTo<ProductInvoice, $this> */
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(ProductInvoice::class, 'invoice_id');
     }
 
-    /** @return BelongsTo<Product, self> */
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

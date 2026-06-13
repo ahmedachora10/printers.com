@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 class UpdateProductAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(Product $product, array $data): Product
     {
         if (isset($data['sku']) && empty($data['sku'])) {

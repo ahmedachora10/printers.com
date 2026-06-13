@@ -12,10 +12,11 @@ class StorePaymentMethodRequest extends FormRequest
         return true;
     }
 
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         return [
-            'name'      => ['required', 'string', 'max:255', Rule::unique('payment_methods', 'name')->whereNull('deleted_at')],
+            'name' => ['required', 'string', 'max:255', Rule::unique('payment_methods', 'name')->whereNull('deleted_at')],
             'is_active' => ['boolean'],
         ];
     }

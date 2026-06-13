@@ -2,11 +2,16 @@
 
 namespace App\Http\Resources\Commission;
 
+use App\Models\CommissionPayment;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin CommissionPayment
+ */
 class CommissionPaymentResource extends JsonResource
 {
+    /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
         return [
@@ -14,11 +19,11 @@ class CommissionPaymentResource extends JsonResource
             'userId' => $this->user_id,
             'userName' => $this->whenLoaded('user', fn () => $this->user->name),
             'branchId' => $this->branch_id,
-            'periodStart' => $this->period_start?->toDateString(),
-            'periodEnd' => $this->period_end?->toDateString(),
+            'periodStart' => $this->period_start->toDateString(),
+            'periodEnd' => $this->period_end->toDateString(),
             'totalAmount' => $this->total_amount,
             'paidByName' => $this->whenLoaded('paidBy', fn () => $this->paidBy->name),
-            'paidAt' => $this->paid_at?->toISOString(),
+            'paidAt' => $this->paid_at->toISOString(),
             'notes' => $this->notes,
         ];
     }

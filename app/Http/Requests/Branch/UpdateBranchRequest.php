@@ -13,18 +13,19 @@ class UpdateBranchRequest extends FormRequest
         return true;
     }
 
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         return [
-            'name'              => ['sometimes', 'string', 'max:255'],
-            'city_id'           => ['sometimes', 'exists:cities,id'],
-            'phone'             => ['nullable', 'string', 'max:20'],
-            'address'           => ['nullable', 'string'],
-            'business_type'     => ['nullable', 'string', 'max:255'],
+            'name' => ['sometimes', 'string', 'max:255'],
+            'city_id' => ['sometimes', 'exists:cities,id'],
+            'phone' => ['nullable', 'string', 'max:20'],
+            'address' => ['nullable', 'string'],
+            'business_type' => ['nullable', 'string', 'max:255'],
             'commercial_reg_no' => ['nullable', 'string', 'max:100'],
-            'tax_number'        => ['nullable', 'string', 'max:100'],
+            'tax_number' => ['nullable', 'string', 'max:100'],
             'vat_rate_override' => ['sometimes', 'numeric', 'min:0', 'max:100'],
-            'owner_id'          => [
+            'owner_id' => [
                 'nullable',
                 'exists:users,id',
                 Rule::unique('branches', 'owner_id')->ignore($this->route('branch')),
@@ -34,12 +35,11 @@ class UpdateBranchRequest extends FormRequest
                     }
                 },
             ],
-            'is_active'         => ['boolean'],
-            'logo'              => ['nullable', 'image', 'max:2048'],
+            'is_active' => ['boolean'],
+            'logo' => ['nullable', 'image', 'max:2048'],
         ];
     }
 
-    
     public function messages(): array
     {
         return [

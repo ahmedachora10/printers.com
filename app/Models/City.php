@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\CityFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class City extends Model
 {
+    /** @use HasFactory<CityFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -18,8 +21,8 @@ class City extends Model
         'is_active' => 'boolean',
     ];
 
-    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<Branch, self> */
-    public function branches(): \Illuminate\Database\Eloquent\Relations\HasMany
+    /** @return HasMany<Branch, $this> */
+    public function branches(): HasMany
     {
         return $this->hasMany(Branch::class);
     }

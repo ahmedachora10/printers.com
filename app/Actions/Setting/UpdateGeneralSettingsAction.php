@@ -9,11 +9,12 @@ use Illuminate\Support\Facades\DB;
 
 class UpdateGeneralSettingsAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(array $data, User $user): void
     {
         DB::transaction(function () use ($data, $user) {
             $isSuperAdmin = $user->roleName->isSuperAdmin();
-            $branchId     = $user->branchId;
+            $branchId = $user->branchId;
 
             if ($isSuperAdmin) {
                 if (array_key_exists('app_name', $data)) {

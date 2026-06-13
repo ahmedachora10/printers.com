@@ -7,6 +7,8 @@ use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
+use App\Models\ProductInvoice;
+use App\Models\ServiceInvoice;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -100,7 +102,7 @@ class InvoiceController extends Controller
     /**
      * Resolve {type}/{id} to the concrete invoice model, or 404.
      */
-    private function resolveInvoice(string $type, int $id)
+    private function resolveInvoice(string $type, int $id): ProductInvoice|ServiceInvoice
     {
         $enum = InvoiceTypeEnum::tryFrom($type);
         abort_if($enum === null, 404);

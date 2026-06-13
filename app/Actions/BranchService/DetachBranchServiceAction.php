@@ -9,6 +9,6 @@ class DetachBranchServiceAction
 {
     public function handle(BranchService $branchService): void
     {
-        DB::transaction(fn (): bool => $branchService->delete());
+        DB::transaction(fn () => $branchService->delete());
     }
 }

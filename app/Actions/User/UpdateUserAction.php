@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class UpdateUserAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(User $user, array $data): User
     {
         $actor = auth()->user();
@@ -28,7 +29,7 @@ class UpdateUserAction
         return DB::transaction(function () use ($user, $data, $role) {
             $user->update($data);
 
-            if ($role && $role !== $user->roles()->first()?->name) {
+            if ($role && ! $user->hasRole($role)) {
                 $user->syncRoles([$role]);
             }
 

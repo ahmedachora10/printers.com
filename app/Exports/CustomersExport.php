@@ -13,15 +13,17 @@ use Maatwebsite\Excel\Concerns\WithHeadings;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class CustomersExport implements FromCollection, WithHeadings, ShouldAutoSize, WithStyles
+class CustomersExport implements FromCollection, ShouldAutoSize, WithHeadings, WithStyles
 {
     public function __construct(private readonly ?int $branchId = null) {}
 
+    /** @return array<int, string> */
     public function headings(): array
     {
         return ['الاسم', 'الهاتف', 'النوع', 'المستوى', 'عدد الفواتير', 'إجمالي الإنفاق', 'آخر زيارة'];
     }
 
+    /** @return Collection<int, mixed> */
     public function collection(): Collection
     {
         $customers = Customer::query()
@@ -61,6 +63,7 @@ class CustomersExport implements FromCollection, WithHeadings, ShouldAutoSize, W
         });
     }
 
+    /** @return array<int, array<string, mixed>> */
     public function styles(Worksheet $sheet): array
     {
         return [
@@ -68,7 +71,10 @@ class CustomersExport implements FromCollection, WithHeadings, ShouldAutoSize, W
         ];
     }
 
-    /** @return array{array<int,int>, array<int,string|null>} */
+    /**
+     * @param  Collection<int, int>  $ids
+     * @return array{array<int,int>, array<int,string|null>}
+     */
     private function loadInvoiceStats(string $table, Collection $ids): array
     {
         if (! Schema::hasTable($table)) {

@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\CommissionPaymentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CommissionPayment extends Model
 {
+    /** @use HasFactory<CommissionPaymentFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -28,19 +30,19 @@ class CommissionPayment extends Model
         'paid_at' => 'datetime',
     ];
 
-    /** @return BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function paidBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'paid_by');

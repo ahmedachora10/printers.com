@@ -4,8 +4,10 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\Roles;
+use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -18,6 +20,12 @@ use Laratrust\Traits\HasRolesAndPermissions;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
+/**
+ * @property-read Roles|null $roleName
+ * @property-read int|null $branchId
+ * @property-read Collection<int, Role> $roles
+ * @property CarbonImmutable|null $joined_date
+ */
 class User extends Authenticatable implements HasMedia, LaratrustUser
 {
     /** @use HasFactory<UserFactory> */
@@ -71,18 +79,19 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         ];
     }
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return HasOne<Branch, self> */
+    /** @return HasOne<Branch, $this> */
     public function branchManager(): HasOne
     {
         return $this->hasOne(Branch::class, 'owner_id');
     }
 
+    /** @return Attribute<Roles|null, never> */
     public function roleName(): Attribute
     {
         return Attribute::make(
@@ -90,6 +99,7 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         );
     }
 
+    /** @return Attribute<int|null, never> */
     public function branchId(): Attribute
     {
         return Attribute::make(

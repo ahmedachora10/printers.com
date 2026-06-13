@@ -12,20 +12,21 @@ class StoreBranchServiceRequest extends FormRequest
         return true;
     }
 
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         return [
-            'service_template_id'  => ['required', 'exists:service_templates,id'],
-            'branch_id'            => [
+            'service_template_id' => ['required', 'exists:service_templates,id'],
+            'branch_id' => [
                 'required',
                 'exists:branches,id',
                 Rule::unique('branch_services', 'branch_id')
                     ->where('service_template_id', $this->input('service_template_id')),
             ],
-            'base_commission_pct'  => ['required', 'numeric', 'min:0', 'max:100'],
-            'max_discount_pct'     => ['required', 'numeric', 'min:0', 'max:100'],
-            'is_tahazir'           => ['boolean'],
-            'is_active'            => ['boolean'],
+            'base_commission_pct' => ['required', 'numeric', 'min:0', 'max:100'],
+            'max_discount_pct' => ['required', 'numeric', 'min:0', 'max:100'],
+            'is_tahazir' => ['boolean'],
+            'is_active' => ['boolean'],
         ];
     }
 

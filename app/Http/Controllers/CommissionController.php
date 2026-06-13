@@ -35,6 +35,7 @@ class CommissionController extends Controller
             ->when($branchId, fn ($q) => $q->where('commission_ledger.branch_id', $branchId))
             ->groupBy('commission_ledger.user_id', 'users.name')
             ->orderBy('users.name')
+            ->toBase()
             ->get([
                 'commission_ledger.user_id as user_id',
                 'users.name as user_name',

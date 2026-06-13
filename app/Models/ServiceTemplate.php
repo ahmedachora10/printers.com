@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\ServiceTemplateFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class ServiceTemplate extends Model
 {
+    /** @use HasFactory<ServiceTemplateFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -20,7 +22,7 @@ class ServiceTemplate extends Model
         'is_active' => 'boolean',
     ];
 
-    /** @return BelongsToMany<Branch, self> */
+    /** @return BelongsToMany<Branch, $this, BranchService, 'pivot'> */
     public function branches(): BelongsToMany
     {
         return $this->belongsToMany(Branch::class, 'branch_services')

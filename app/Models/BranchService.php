@@ -26,13 +26,13 @@ class BranchService extends Pivot
         'is_active'           => 'boolean',
     ];
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return BelongsTo<ServiceTemplate, self> */
+    /** @return BelongsTo<ServiceTemplate, $this> */
     public function serviceTemplate(): BelongsTo
     {
         return $this->belongsTo(ServiceTemplate::class);

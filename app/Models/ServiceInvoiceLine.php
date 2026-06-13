@@ -2,14 +2,11 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ServiceInvoiceLine extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'invoice_id',
         'branch_service_id',
@@ -33,13 +30,13 @@ class ServiceInvoiceLine extends Model
         'tier_applied' => 'integer',
     ];
 
-    /** @return BelongsTo<ServiceInvoice, self> */
+    /** @return BelongsTo<ServiceInvoice, $this> */
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(ServiceInvoice::class, 'invoice_id');
     }
 
-    /** @return BelongsTo<BranchService, self> */
+    /** @return BelongsTo<BranchService, $this> */
     public function branchService(): BelongsTo
     {
         return $this->belongsTo(BranchService::class);

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\CouponDiscountTypeEnum;
+use Database\Factories\CouponFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,7 +11,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Coupon extends Model
 {
+    /** @use HasFactory<CouponFactory> */
     use HasFactory;
+
     use SoftDeletes;
 
     protected $fillable = [
@@ -25,13 +28,13 @@ class Coupon extends Model
     ];
 
     protected $casts = [
-        'discount_type'  => CouponDiscountTypeEnum::class,
+        'discount_type' => CouponDiscountTypeEnum::class,
         'discount_value' => 'decimal:2',
-        'is_active'      => 'boolean',
-        'expires_at'     => 'datetime',
+        'is_active' => 'boolean',
+        'expires_at' => 'datetime',
     ];
 
-    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);

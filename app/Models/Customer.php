@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\CustomerTierEnum;
 use App\Enums\CustomerTypeEnum;
+use Database\Factories\CustomerFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +12,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Customer extends Model
 {
+    /** @use HasFactory<CustomerFactory> */
     use HasFactory;
+
     use SoftDeletes;
 
     protected $fillable = [
@@ -31,20 +34,20 @@ class Customer extends Model
     ];
 
     protected $casts = [
-        'customer_type'    => CustomerTypeEnum::class,
-        'tier'             => CustomerTierEnum::class,
-        'credit_limit'     => 'decimal:2',
+        'customer_type' => CustomerTypeEnum::class,
+        'tier' => CustomerTierEnum::class,
+        'credit_limit' => 'decimal:2',
         'cumulative_spend' => 'decimal:2',
-        'is_active'        => 'boolean',
+        'is_active' => 'boolean',
     ];
 
-    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function agent(): BelongsTo
     {
         return $this->belongsTo(User::class, 'agent_id');

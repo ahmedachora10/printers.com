@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\DB;
  */
 class RecordStockMovementAction
 {
+    /** @param array<string, mixed> $attributes */
     public function handle(
         Product $product,
         StockMovementTypeEnum $type,

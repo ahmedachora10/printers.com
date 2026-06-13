@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 
 class AttachBranchServiceAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(array $data): BranchService
     {
         return DB::transaction(function () use ($data): BranchService {
@@ -15,9 +16,9 @@ class AttachBranchServiceAction
 
             $serviceTemplate->branches()->attach($data['branch_id'], [
                 'base_commission_pct' => $data['base_commission_pct'],
-                'max_discount_pct'    => $data['max_discount_pct'],
-                'is_tahazir'          => $data['is_tahazir'] ?? false,
-                'is_active'           => $data['is_active'] ?? true,
+                'max_discount_pct' => $data['max_discount_pct'],
+                'is_tahazir' => $data['is_tahazir'] ?? false,
+                'is_active' => $data['is_active'] ?? true,
             ]);
 
             return BranchService::where('service_template_id', $data['service_template_id'])

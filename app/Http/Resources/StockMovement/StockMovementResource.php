@@ -2,11 +2,16 @@
 
 namespace App\Http\Resources\StockMovement;
 
+use App\Models\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin StockMovement
+ */
 class StockMovementResource extends JsonResource
 {
+    /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
         return [
@@ -20,7 +25,7 @@ class StockMovementResource extends JsonResource
             'unitCost' => $this->unit_cost !== null ? (float) $this->unit_cost : null,
             'notes' => $this->notes,
             'createdByName' => $this->creator?->name,
-            'createdAt' => $this->created_at?->format('d/m/Y H:i'),
+            'createdAt' => $this->created_at->format('d/m/Y H:i'),
         ];
     }
 }

@@ -60,7 +60,7 @@ class ServiceInvoiceController extends Controller
             'services' => $services,
             'customers' => $customers,
             'paymentMethods' => $paymentMethods,
-            'vatPct' => (float) ($branch?->vat_rate_override ?? 15),
+            'vatPct' => (float) ($branch->vat_rate_override ?? 15),
         ]);
     }
 

@@ -12,12 +12,13 @@ class UpdatePaymentMethodRequest extends FormRequest
         return true;
     }
 
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         $paymentMethodId = $this->route('paymentMethod')?->id;
 
         return [
-            'name'      => ['required', 'string', 'max:255', Rule::unique('payment_methods', 'name')->whereNull('deleted_at')->ignore($paymentMethodId)],
+            'name' => ['required', 'string', 'max:255', Rule::unique('payment_methods', 'name')->whereNull('deleted_at')->ignore($paymentMethodId)],
             'is_active' => ['boolean'],
         ];
     }

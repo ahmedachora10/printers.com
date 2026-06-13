@@ -11,21 +11,23 @@ use App\Exports\CustomersExport;
 use App\Http\Requests\Customer\MergeCustomersRequest;
 use App\Http\Requests\Customer\StoreCustomerRequest;
 use App\Http\Requests\Customer\UpdateCustomerRequest;
-use App\Http\Resources\Customer\CustomerResource;
 use App\Http\Resources\Branch\BranchResource;
+use App\Http\Resources\Customer\CustomerResource;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
+use stdClass;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use Illuminate\Support\Facades\Auth;
 
 class CustomerController extends Controller
 {
@@ -34,13 +36,13 @@ class CustomerController extends Controller
         Gate::authorize('viewAny', Customer::class);
 
         $isSuperAdmin = Auth::user()->roleName->isSuperAdmin();
-        $branchId     = $isSuperAdmin ? null : Auth::user()->branchId;
+        $branchId = $isSuperAdmin ? null : Auth::user()->branchId;
 
         $query = Customer::query()
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $branchId))
             ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
-                $q->where('full_name', 'like', '%' . $request->input('search') . '%')
-                    ->orWhere('phone', 'like', '%' . $request->input('search') . '%');
+                $q->where('full_name', 'like', '%'.$request->input('search').'%')
+                    ->orWhere('phone', 'like', '%'.$request->input('search').'%');
             }))
             ->when($request->filled('tier'), fn ($q) => $q->where('tier', $request->input('tier')))
             ->when($request->filled('type'), fn ($q) => $q->where('customer_type', $request->input('type')))
@@ -61,7 +63,7 @@ class CustomerController extends Controller
             ->paginate(20)
             ->withQueryString();
 
-        $ids   = $query->pluck('id');
+        $ids = $query->pluck('id');
         $stats = $this->loadPageStats($ids);
 
         $agents = User::select('id', 'name')->whereHasRole(Roles::AGENT->value)->get();
@@ -69,12 +71,12 @@ class CustomerController extends Controller
         $branches = $isSuperAdmin ? Branch::select('id', 'name')->get() : [];
 
         return Inertia::render('customers/index', [
-            'items'       => CustomerResource::collection($query),
-            'stats'       => $stats,
-            'agents'      => $agents,
-            'branches'    => BranchResource::collection($branches),
+            'items' => CustomerResource::collection($query),
+            'stats' => $stats,
+            'agents' => $agents,
+            'branches' => BranchResource::collection($branches),
             'isSuperAdmin' => $isSuperAdmin,
-            'filters'     => $request->only(['search', 'tier', 'type', 'agent_id', 'has_outstanding']),
+            'filters' => $request->only(['search', 'tier', 'type', 'agent_id', 'has_outstanding']),
         ]);
     }
 
@@ -90,7 +92,7 @@ class CustomerController extends Controller
         Gate::authorize('create', Customer::class);
 
         $isSuperAdmin = Auth::user()->roleName->isSuperAdmin();
-        $branchId     = $isSuperAdmin
+        $branchId = $isSuperAdmin
             ? (int) $request->input('branch_id')
             : Auth::user()->branchId;
 
@@ -105,7 +107,6 @@ class CustomerController extends Controller
 
         $customer->load(['branch', 'agent']);
 
-
         $customers = Customer::select('id', 'full_name')
             ->when(! Auth::user()->branchId, function ($query) {
                 return $query->where('branch_id', Auth::user()->branchId);
@@ -114,11 +115,11 @@ class CustomerController extends Controller
             ->get();
 
         return Inertia::render('customers/show', [
-            'customer'         => new CustomerResource($customer),
+            'customer' => new CustomerResource($customer),
             'financialSummary' => $this->computeFinancialSummary($customer),
-            'loyaltyHistory'   => $this->loadLoyaltyHistory($customer),
-            'invoiceHistory'   => $this->loadInvoiceHistory($customer),
-            'customers'        => CustomerResource::collection($customers),
+            'loyaltyHistory' => $this->loadLoyaltyHistory($customer),
+            'invoiceHistory' => $this->loadInvoiceHistory($customer),
+            'customers' => CustomerResource::collection($customers),
         ]);
     }
 
@@ -199,8 +200,11 @@ class CustomerController extends Controller
         return to_route('customers.index')->with('success', 'تم تحديث حالة العميل بنجاح');
     }
 
-    /** @param \Illuminate\Support\Collection<int,int> $ids */
-    private function loadPageStats(\Illuminate\Support\Collection $ids): array
+    /**
+     * @param  Collection<int,int>  $ids
+     * @return array<int|string, array<string, mixed>>
+     */
+    private function loadPageStats(Collection $ids): array
     {
         if ($ids->isEmpty()) {
             return [];
@@ -226,8 +230,8 @@ class CustomerController extends Controller
                 ->get();
 
             foreach ($rows as $row) {
-                $id                       = $row->customer_id;
-                $stats[$id]               ??= ['invoiceCount' => 0, 'outstanding' => 0, 'lastVisit' => null];
+                $id = $row->customer_id;
+                $stats[$id] ??= ['invoiceCount' => 0, 'outstanding' => 0, 'lastVisit' => null];
                 $stats[$id]['invoiceCount'] += (int) $row->cnt;
                 $stats[$id]['outstanding'] += (float) $row->outstanding;
 
@@ -243,6 +247,7 @@ class CustomerController extends Controller
         return $stats;
     }
 
+    /** @return array<string, mixed> */
     private function computeFinancialSummary(Customer $customer): array
     {
         $totals = ['count' => 0, 'total' => 0.0, 'paid' => 0.0, 'due' => 0.0];
@@ -266,23 +271,24 @@ class CustomerController extends Controller
             if ($row !== null) {
                 $totals['count'] += (int) $row->cnt;
                 $totals['total'] += (float) $row->total;
-                $totals['paid']  += (float) $row->paid;
-                $totals['due']   += (float) $row->due;
+                $totals['paid'] += (float) $row->paid;
+                $totals['due'] += (float) $row->due;
             }
         }
 
         return [
-            'invoiceCount'     => $totals['count'],
-            'totalBilled'      => $totals['total'],
-            'totalPaid'        => $totals['paid'],
+            'invoiceCount' => $totals['count'],
+            'totalBilled' => $totals['total'],
+            'totalPaid' => $totals['paid'],
             'totalOutstanding' => $totals['due'],
-            'creditLimit'      => $customer->credit_limit,
-            'availableCredit'  => $customer->credit_limit !== null
+            'creditLimit' => $customer->credit_limit,
+            'availableCredit' => $customer->credit_limit !== null
                 ? max(0, (float) $customer->credit_limit - $totals['due'])
                 : null,
         ];
     }
 
+    /** @return array<int, stdClass> */
     private function loadLoyaltyHistory(Customer $customer): array
     {
         if (! Schema::hasTable('loyalty_transactions')) {
@@ -297,6 +303,7 @@ class CustomerController extends Controller
             ->toArray();
     }
 
+    /** @return array<int, array<string, mixed>> */
     private function loadInvoiceHistory(Customer $customer): array
     {
         $invoices = [];
@@ -324,6 +331,7 @@ class CustomerController extends Controller
         return array_slice($invoices, 0, 100);
     }
 
+    /** @return array<int, array<string, mixed>> */
     private function buildOutstandingReport(?int $branchId): array
     {
         $customers = Customer::query()
@@ -334,8 +342,8 @@ class CustomerController extends Controller
             return [];
         }
 
-        $ids     = $customers->pluck('id');
-        $totals  = [];
+        $ids = $customers->pluck('id');
+        $totals = [];
         $oldestDue = [];
 
         foreach (['service_invoices', 'product_invoices'] as $table) {
@@ -356,8 +364,8 @@ class CustomerController extends Controller
                 ->get();
 
             foreach ($rows as $row) {
-                $cid             = $row->customer_id;
-                $totals[$cid]    = ($totals[$cid] ?? 0) + (float) $row->due_amount;
+                $cid = $row->customer_id;
+                $totals[$cid] = ($totals[$cid] ?? 0) + (float) $row->due_amount;
                 $oldestDue[$cid] = isset($oldestDue[$cid])
                     ? min($oldestDue[$cid], $row->oldest_due)
                     : $row->oldest_due;
@@ -367,12 +375,12 @@ class CustomerController extends Controller
         return $customers
             ->filter(fn ($c) => isset($totals[$c->id]))
             ->map(fn ($c) => [
-                'id'          => $c->id,
-                'fullName'    => $c->full_name,
-                'phone'       => $c->phone,
+                'id' => $c->id,
+                'fullName' => $c->full_name,
+                'phone' => $c->phone,
                 'companyName' => $c->company_name,
-                'totalDue'    => $totals[$c->id],
-                'oldestDue'   => $oldestDue[$c->id],
+                'totalDue' => $totals[$c->id],
+                'oldestDue' => $oldestDue[$c->id],
             ])
             ->sortByDesc('totalDue')
             ->values()

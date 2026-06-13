@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\BranchFactory;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -14,7 +15,8 @@ use Spatie\MediaLibrary\InteractsWithMedia;
 
 class Branch extends Model implements HasMedia
 {
-    use HasFactory, SoftDeletes, InteractsWithMedia;
+    /** @use HasFactory<BranchFactory> */
+    use HasFactory, InteractsWithMedia, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -31,7 +33,7 @@ class Branch extends Model implements HasMedia
 
     protected $casts = [
         'vat_rate_override' => 'decimal:2',
-        'is_active'         => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     public function registerMediaCollections(): void
@@ -39,24 +41,25 @@ class Branch extends Model implements HasMedia
         $this->addMediaCollection('logo')->singleFile();
     }
 
-    /** @return BelongsTo<City, self> */
+    /** @return BelongsTo<City, $this> */
     public function city(): BelongsTo
     {
         return $this->belongsTo(City::class);
     }
 
-    /** @return BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
     }
 
+    /** @return HasMany<User, $this> */
     public function employees(): HasMany
     {
         return $this->hasMany(User::class, 'branch_id');
     }
 
-    /** @return BelongsToMany<ServiceTemplate, self> */
+    /** @return BelongsToMany<ServiceTemplate, $this, BranchService, 'pivot'> */
     public function serviceTemplates(): BelongsToMany
     {
         return $this->belongsToMany(ServiceTemplate::class, 'branch_services')
