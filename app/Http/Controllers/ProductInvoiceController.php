@@ -59,7 +59,7 @@ class ProductInvoiceController extends Controller
             'products' => $products,
             'customers' => $customers,
             'paymentMethods' => $paymentMethods,
-            'vatPct' => (float) ($branch?->vat_rate_override ?? 15),
+            'vatPct' => (float) ($branch->vat_rate_override ?? 15),
         ]);
     }
 

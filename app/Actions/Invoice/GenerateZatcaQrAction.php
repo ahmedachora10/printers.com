@@ -18,8 +18,8 @@ class GenerateZatcaQrAction
         $branch = $invoice->branch;
 
         $fields = [
-            1 => (string) ($branch?->name ?? config('app.name')),
-            2 => (string) ($branch?->tax_number ?? ''),
+            1 => (string) ($branch->name ?? config('app.name')),
+            2 => (string) ($branch->tax_number ?? ''),
             3 => $invoice->created_at?->toIso8601String() ?? now()->toIso8601String(),
             4 => number_format((float) $invoice->total_amount, 2, '.', ''),
             5 => number_format((float) $invoice->vat_amount, 2, '.', ''),

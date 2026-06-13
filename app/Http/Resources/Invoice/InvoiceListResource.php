@@ -10,6 +10,14 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /**
  * A single row of the unified invoices list (M13). Wraps a stdClass row
  * produced by the UNION query in InvoiceController::index.
+ *
+ * @property int|string $id
+ * @property string $type
+ * @property string $status
+ * @property string $invoice_number
+ * @property string $total_amount
+ * @property string|null $customer_name
+ * @property string|null $created_at
  */
 class InvoiceListResource extends JsonResource
 {

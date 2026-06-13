@@ -28,7 +28,7 @@ class UpdateUserAction
         return DB::transaction(function () use ($user, $data, $role) {
             $user->update($data);
 
-            if ($role && $role !== $user->roles()->first()?->name) {
+            if ($role && ! $user->hasRole($role)) {
                 $user->syncRoles([$role]);
             }
 

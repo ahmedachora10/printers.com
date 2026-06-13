@@ -73,7 +73,7 @@ class CreateServiceInvoiceAction
 
                 $lines[] = [
                     'branch_service_id' => $branchService->id,
-                    'service_name' => $branchService->serviceTemplate?->name ?? 'خدمة',
+                    'service_name' => $branchService->serviceTemplate->name ?? 'خدمة',
                     'qty' => $qty,
                     'unit_price' => $unitPrice,
                     'discount_pct' => $discountPct,

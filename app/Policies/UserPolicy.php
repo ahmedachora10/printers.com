@@ -58,9 +58,7 @@ class UserPolicy
             return false;
         }
 
-        $targetRole = $model->roles()->first()?->name;
-
-        if (in_array($targetRole, ['super-admin', 'branch-admin'], true)) {
+        if ($model->hasRole(['super-admin', 'branch-admin'])) {
             return false;
         }
 

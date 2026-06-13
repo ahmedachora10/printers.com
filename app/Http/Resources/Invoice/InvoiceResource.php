@@ -57,7 +57,7 @@ class InvoiceResource extends JsonResource
             'vatAmount' => (float) $this->vat_amount,
             'totalAmount' => (float) $this->total_amount,
             'employeeCommission' => $this->resource instanceof ServiceInvoice
-                ? (float) $this->employee_commission
+                ? (float) $this->resource->employee_commission
                 : null,
             'customerName' => $this->customer?->full_name,
             'customerPhone' => $this->customer?->phone,
@@ -75,7 +75,7 @@ class InvoiceResource extends JsonResource
                     'stockReversed' => (bool) $refund->stock_reversed,
                     'userName' => $refund->user?->name,
                     'createdAt' => $refund->created_at?->toIso8601String(),
-                ])->values()),
+                ])->values()->all()),
             'branch' => [
                 'name' => $this->branch?->name,
                 'phone' => $this->branch?->phone,

@@ -4,8 +4,10 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\Roles;
+use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -19,8 +21,10 @@ use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
 /**
- * @property-read \App\Enums\Roles|null $roleName
+ * @property-read Roles|null $roleName
  * @property-read int|null $branchId
+ * @property-read Collection<int, Role> $roles
+ * @property CarbonImmutable|null $joined_date
  */
 class User extends Authenticatable implements HasMedia, LaratrustUser
 {
