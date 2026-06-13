@@ -102,6 +102,18 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
+                'title' => 'فئات المصروفات',
+                'url' => route('expense-categories.index'),
+                'icon' => 'FolderKanban',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
+                'title' => 'المصروفات',
+                'url' => route('expenses.index'),
+                'icon' => 'Receipt',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
                 'title' => 'الكوبونات',
                 'url' => route('coupons.index'),
                 'icon' => 'Ticket',

@@ -5,6 +5,7 @@ import PaymentMethodController from './PaymentMethodController'
 import ProductInvoiceController from './ProductInvoiceController'
 import StockMovementController from './StockMovementController'
 import RefundController from './RefundController'
+import ExpenseController from './ExpenseController'
 import ServiceInvoiceController from './ServiceInvoiceController'
 import CustomerController from './CustomerController'
 import InvoiceController from './InvoiceController'
@@ -12,6 +13,7 @@ import UserController from './UserController'
 import AppSettingController from './AppSettingController'
 import BranchServiceController from './BranchServiceController'
 import ProductCategoryController from './ProductCategoryController'
+import ExpenseCategoryController from './ExpenseCategoryController'
 import CouponController from './CouponController'
 import CommissionController from './CommissionController'
 import ProductController from './ProductController'
@@ -25,6 +27,7 @@ PaymentMethodController: Object.assign(PaymentMethodController, PaymentMethodCon
 ProductInvoiceController: Object.assign(ProductInvoiceController, ProductInvoiceController),
 StockMovementController: Object.assign(StockMovementController, StockMovementController),
 RefundController: Object.assign(RefundController, RefundController),
+ExpenseController: Object.assign(ExpenseController, ExpenseController),
 ServiceInvoiceController: Object.assign(ServiceInvoiceController, ServiceInvoiceController),
 CustomerController: Object.assign(CustomerController, CustomerController),
 InvoiceController: Object.assign(InvoiceController, InvoiceController),
@@ -32,6 +35,7 @@ UserController: Object.assign(UserController, UserController),
 AppSettingController: Object.assign(AppSettingController, AppSettingController),
 BranchServiceController: Object.assign(BranchServiceController, BranchServiceController),
 ProductCategoryController: Object.assign(ProductCategoryController, ProductCategoryController),
+ExpenseCategoryController: Object.assign(ExpenseCategoryController, ExpenseCategoryController),
 CouponController: Object.assign(CouponController, CouponController),
 CommissionController: Object.assign(CommissionController, CommissionController),
 ProductController: Object.assign(ProductController, ProductController),
