@@ -122,7 +122,7 @@ class UserController extends Controller
 
         $action->handle($user, ['is_active' => ! $user->is_active]);
 
-        return back()->with('success', 'تم تحديث حالة المستخدم بنجاح');
+        return to_route('users.index')->with('success', 'تم تحديث حالة المستخدم بنجاح');
     }
 
     /**
