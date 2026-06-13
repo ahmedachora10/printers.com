@@ -18,6 +18,10 @@ use Laratrust\Traits\HasRolesAndPermissions;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
+/**
+ * @property-read \App\Enums\Roles|null $roleName
+ * @property-read int|null $branchId
+ */
 class User extends Authenticatable implements HasMedia, LaratrustUser
 {
     /** @use HasFactory<UserFactory> */
@@ -71,13 +75,13 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         ];
     }
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return HasOne<Branch, self> */
+    /** @return HasOne<Branch, $this> */
     public function branchManager(): HasOne
     {
         return $this->hasOne(Branch::class, 'owner_id');

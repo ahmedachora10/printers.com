@@ -5,6 +5,9 @@ namespace App\Http\Resources\StockMovement;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin \App\Models\StockMovement
+ */
 class StockMovementResource extends JsonResource
 {
     public function toArray(Request $request): array

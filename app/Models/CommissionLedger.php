@@ -43,19 +43,19 @@ class CommissionLedger extends Model
         'paid_at' => 'datetime',
     ];
 
-    /** @return BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return MorphTo<Model, self> */
+    /** @return MorphTo<Model, $this> */
     public function invoiceLine(): MorphTo
     {
         return $this->morphTo(__FUNCTION__, 'invoice_line_type', 'invoice_line_id');

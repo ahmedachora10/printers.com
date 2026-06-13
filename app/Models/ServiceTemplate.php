@@ -20,7 +20,7 @@ class ServiceTemplate extends Model
         'is_active' => 'boolean',
     ];
 
-    /** @return BelongsToMany<Branch, self> */
+    /** @return BelongsToMany<Branch, $this, BranchService, 'pivot'> */
     public function branches(): BelongsToMany
     {
         return $this->belongsToMany(Branch::class, 'branch_services')

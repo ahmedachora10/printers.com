@@ -31,7 +31,7 @@ class Coupon extends Model
         'expires_at'     => 'datetime',
     ];
 
-    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Branch, self> */
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);

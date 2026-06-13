@@ -32,7 +32,7 @@ class Setting extends Model
         );
     }
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);

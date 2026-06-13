@@ -6,6 +6,9 @@ use App\Http\Resources\BranchService\BranchServiceResource;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
+/**
+ * @mixin \App\Models\ServiceTemplate
+ */
 class ServiceTemplateResource extends JsonResource
 {
     public function toArray(Request $request): array

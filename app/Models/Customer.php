@@ -38,13 +38,13 @@ class Customer extends Model
         'is_active'        => 'boolean',
     ];
 
-    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Branch, self> */
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, self> */
+    /** @return \Illuminate\Database\Eloquent\Relations\BelongsTo<User, $this> */
     public function agent(): BelongsTo
     {
         return $this->belongsTo(User::class, 'agent_id');

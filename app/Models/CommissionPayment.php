@@ -28,19 +28,19 @@ class CommissionPayment extends Model
         'paid_at' => 'datetime',
     ];
 
-    /** @return BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function paidBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'paid_by');

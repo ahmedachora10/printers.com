@@ -57,37 +57,37 @@ class ProductInvoice extends Model
         return LogOptions::defaults()->logFillable()->useLogName('sales');
     }
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /** @return BelongsTo<Customer, self> */
+    /** @return BelongsTo<Customer, $this> */
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
     }
 
-    /** @return BelongsTo<PaymentMethod, self> */
+    /** @return BelongsTo<PaymentMethod, $this> */
     public function paymentMethod(): BelongsTo
     {
         return $this->belongsTo(PaymentMethod::class);
     }
 
-    /** @return HasMany<ProductInvoiceLine> */
+    /** @return HasMany<ProductInvoiceLine, $this> */
     public function lines(): HasMany
     {
         return $this->hasMany(ProductInvoiceLine::class, 'invoice_id');
     }
 
-    /** @return MorphMany<Refund> */
+    /** @return MorphMany<Refund, $this> */
     public function refunds(): MorphMany
     {
         return $this->morphMany(Refund::class, 'invoice');

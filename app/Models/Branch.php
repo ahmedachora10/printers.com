@@ -39,13 +39,13 @@ class Branch extends Model implements HasMedia
         $this->addMediaCollection('logo')->singleFile();
     }
 
-    /** @return BelongsTo<City, self> */
+    /** @return BelongsTo<City, $this> */
     public function city(): BelongsTo
     {
         return $this->belongsTo(City::class);
     }
 
-    /** @return BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
@@ -56,7 +56,7 @@ class Branch extends Model implements HasMedia
         return $this->hasMany(User::class, 'branch_id');
     }
 
-    /** @return BelongsToMany<ServiceTemplate, self> */
+    /** @return BelongsToMany<ServiceTemplate, $this, BranchService, 'pivot'> */
     public function serviceTemplates(): BelongsToMany
     {
         return $this->belongsToMany(ServiceTemplate::class, 'branch_services')

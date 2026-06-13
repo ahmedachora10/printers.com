@@ -33,25 +33,25 @@ class Product extends Model
         'is_active' => 'boolean',
     ];
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return BelongsTo<ProductCategory, self> */
+    /** @return BelongsTo<ProductCategory, $this> */
     public function category(): BelongsTo
     {
         return $this->belongsTo(ProductCategory::class, 'category_id');
     }
 
-    /** @return BelongsTo<ProductUnit, self> */
+    /** @return BelongsTo<ProductUnit, $this> */
     public function unit(): BelongsTo
     {
         return $this->belongsTo(ProductUnit::class, 'unit_id');
     }
 
-    /** @return HasMany<StockMovement> */
+    /** @return HasMany<StockMovement, $this> */
     public function stockMovements(): HasMany
     {
         return $this->hasMany(StockMovement::class);

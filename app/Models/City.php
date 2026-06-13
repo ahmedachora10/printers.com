@@ -18,7 +18,7 @@ class City extends Model
         'is_active' => 'boolean',
     ];
 
-    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<Branch, self> */
+    /** @return \Illuminate\Database\Eloquent\Relations\HasMany<Branch, $this> */
     public function branches(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(Branch::class);

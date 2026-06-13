@@ -28,13 +28,13 @@ class ProductInvoiceLine extends Model
         'subtotal' => 'decimal:2',
     ];
 
-    /** @return BelongsTo<ProductInvoice, self> */
+    /** @return BelongsTo<ProductInvoice, $this> */
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(ProductInvoice::class, 'invoice_id');
     }
 
-    /** @return BelongsTo<Product, self> */
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);

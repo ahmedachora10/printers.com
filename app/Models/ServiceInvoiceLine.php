@@ -33,13 +33,13 @@ class ServiceInvoiceLine extends Model
         'tier_applied' => 'integer',
     ];
 
-    /** @return BelongsTo<ServiceInvoice, self> */
+    /** @return BelongsTo<ServiceInvoice, $this> */
     public function invoice(): BelongsTo
     {
         return $this->belongsTo(ServiceInvoice::class, 'invoice_id');
     }
 
-    /** @return BelongsTo<BranchService, self> */
+    /** @return BelongsTo<BranchService, $this> */
     public function branchService(): BelongsTo
     {
         return $this->belongsTo(BranchService::class);

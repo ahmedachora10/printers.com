@@ -51,19 +51,19 @@ class StockMovement extends Model
         });
     }
 
-    /** @return BelongsTo<Product, self> */
+    /** @return BelongsTo<Product, $this> */
     public function product(): BelongsTo
     {
         return $this->belongsTo(Product::class);
     }
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

@@ -14,7 +14,7 @@ class ProductUnit extends Model
         'name',
     ];
 
-    /** @return HasMany<Product, self> */
+    /** @return HasMany<Product, $this> */
     public function products(): HasMany
     {
         return $this->hasMany(Product::class, 'unit_id');

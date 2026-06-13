@@ -39,19 +39,19 @@ class Refund extends Model
         return LogOptions::defaults()->logFillable()->useLogName('refunds');
     }
 
-    /** @return BelongsTo<Branch, self> */
+    /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
     }
 
-    /** @return BelongsTo<User, self> */
+    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /** @return MorphTo<Model, self> */
+    /** @return MorphTo<Model, $this> */
     public function invoice(): MorphTo
     {
         return $this->morphTo(__FUNCTION__, 'invoice_type', 'invoice_id');
