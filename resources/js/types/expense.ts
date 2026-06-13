@@ -1,5 +1,6 @@
 export interface Expense {
     id: number;
+    branchId: number;
     expenseCategoryId: number;
     categoryName: string | null;
     qty: number;

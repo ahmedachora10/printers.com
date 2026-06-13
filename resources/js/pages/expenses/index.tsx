@@ -31,6 +31,7 @@ interface Props {
     items: PaginatedExpense;
     periodTotal: number;
     categories: Category[];
+    branches?: { id: number; name: string }[] | null;
     filters: {
         search?: string;
         expense_category_id?: string;
@@ -43,7 +44,7 @@ function formatSar(value: number): string {
     return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
 }
 
-export default function ExpensesIndex({ items, periodTotal, categories, filters }: Props) {
+export default function ExpensesIndex({ items, periodTotal, categories, branches, filters }: Props) {
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Expense | null>(null);
     const [deleting, setDeleting] = useState<Expense | null>(null);
@@ -245,6 +246,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, filters 
                 onOpenChange={setFormOpen}
                 expense={editing ?? undefined}
                 categories={categories}
+                branches={branches}
             />
         </AppLayout>
     );

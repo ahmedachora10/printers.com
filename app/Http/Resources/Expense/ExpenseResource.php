@@ -16,6 +16,7 @@ class ExpenseResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'branchId' => $this->branch_id,
             'expenseCategoryId' => $this->expense_category_id,
             'categoryName' => $this->category?->name,
             'qty' => (float) $this->qty,
