@@ -7,6 +7,8 @@ use App\Http\Controllers\CityController;
 use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\ExpenseCategoryController;
+use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
@@ -61,6 +63,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('refunds/lookup', [RefundController::class, 'lookup'])->name('refunds.lookup');
         Route::get('refunds', [RefundController::class, 'index'])->name('refunds.index');
         Route::post('refunds', [RefundController::class, 'store'])->name('refunds.store');
+
+        Route::resource('expenses', ExpenseController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
     });
 
     Route::middleware('role:branch-admin|super-admin|employee')->group(function () {
@@ -109,6 +114,12 @@ Route::middleware(['auth'])->group(function () {
             ->name('product-categories.toggle-status');
         Route::resource('product-categories', ProductCategoryController::class)
             ->parameters(['product-categories' => 'productCategory'])
+            ->only(['index', 'store', 'update', 'destroy']);
+
+        Route::patch('expense-categories/{expenseCategory}/toggle-status', [ExpenseCategoryController::class, 'toggleStatus'])
+            ->name('expense-categories.toggle-status');
+        Route::resource('expense-categories', ExpenseCategoryController::class)
+            ->parameters(['expense-categories' => 'expenseCategory'])
             ->only(['index', 'store', 'update', 'destroy']);
 
         Route::patch('coupons/{coupon}/toggle-status', [CouponController::class, 'toggleStatus'])
