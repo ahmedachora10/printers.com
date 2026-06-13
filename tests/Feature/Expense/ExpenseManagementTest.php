@@ -95,6 +95,39 @@ describe('Expense Management', function () {
         ])->assertSessionHasErrors(['date']);
     });
 
+    it('allows super-admin to create an expense for a chosen branch', function () {
+        $superAdmin = User::factory()->create(['branch_id' => null]);
+        $superAdmin->addRole(Roles::SUPER_ADMIN->value);
+        $this->actingAs($superAdmin);
+
+        $this->post(route('expenses.store'), [
+            'branch_id' => $this->branch->id,
+            'expense_category_id' => $this->category->id,
+            'qty' => 2,
+            'unit_price' => 30,
+            'date' => '2026-06-10',
+        ])->assertRedirect(route('expenses.index'));
+
+        $this->assertDatabaseHas('expenses', [
+            'branch_id' => $this->branch->id,
+            'user_id' => $superAdmin->id,
+            'total' => 60,
+        ]);
+    });
+
+    it('fails when super-admin creates an expense without a branch', function () {
+        $superAdmin = User::factory()->create(['branch_id' => null]);
+        $superAdmin->addRole(Roles::SUPER_ADMIN->value);
+        $this->actingAs($superAdmin);
+
+        $this->post(route('expenses.store'), [
+            'expense_category_id' => $this->category->id,
+            'qty' => 1,
+            'unit_price' => 10,
+            'date' => '2026-06-10',
+        ])->assertSessionHasErrors(['branch_id']);
+    });
+
     // ── UPDATE ─────────────────────────────────────────────────────
 
     it('updates an expense and recomputes the total', function () {

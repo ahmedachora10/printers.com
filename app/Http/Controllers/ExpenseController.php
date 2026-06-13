@@ -8,6 +8,7 @@ use App\Actions\Expense\UpdateExpenseAction;
 use App\Http\Requests\Expense\StoreExpenseRequest;
 use App\Http\Requests\Expense\UpdateExpenseRequest;
 use App\Http\Resources\Expense\ExpenseResource;
+use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use Illuminate\Http\RedirectResponse;
@@ -52,6 +53,9 @@ class ExpenseController extends Controller
             'items' => ExpenseResource::collection($items),
             'periodTotal' => $periodTotal,
             'categories' => $categories,
+            'branches' => auth()->user()->roleName?->isSuperAdmin()
+                ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                : null,
             'filters' => [
                 'search' => $request->input('search'),
                 'expense_category_id' => $request->input('expense_category_id'),

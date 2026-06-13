@@ -19,21 +19,29 @@ interface Category {
     name: string;
 }
 
+interface Branch {
+    id: number;
+    name: string;
+}
+
 interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     expense?: Expense;
     categories: Category[];
+    branches?: Branch[] | null;
 }
 
 function todayIso(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
-export default function ExpenseFormModal({ open, onOpenChange, expense, categories }: Props) {
+export default function ExpenseFormModal({ open, onOpenChange, expense, categories, branches }: Props) {
     const isEdit = !!expense;
+    const isSuperAdmin = Array.isArray(branches);
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
+        branch_id: expense?.branchId?.toString() ?? (branches?.[0]?.id?.toString() ?? ''),
         expense_category_id: expense?.expenseCategoryId?.toString() ?? '',
         qty:                 expense?.qty?.toString() ?? '1',
         unit_price:          expense?.unitPrice?.toString() ?? '',
@@ -72,6 +80,29 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                 </DialogHeader>
 
                 <form id="expense-form" onSubmit={handleSubmit} className="space-y-4 py-2">
+                    {isSuperAdmin && (
+                        <div className="space-y-1">
+                            <Label htmlFor="exp-branch">الفرع</Label>
+                            <Select
+                                value={data.branch_id}
+                                onValueChange={(val) => setData('branch_id', val)}
+                                disabled={isEdit}
+                            >
+                                <SelectTrigger id="exp-branch">
+                                    <SelectValue placeholder="اختر الفرع" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {branches!.map((b) => (
+                                        <SelectItem key={b.id} value={b.id.toString()}>
+                                            {b.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <InputError message={errors.branch_id} />
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <Label htmlFor="exp-category">الفئة</Label>
