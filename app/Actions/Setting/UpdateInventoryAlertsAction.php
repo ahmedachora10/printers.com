@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 class UpdateInventoryAlertsAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(array $data, ?int $branchId): void
     {
         DB::transaction(function () use ($data, $branchId) {

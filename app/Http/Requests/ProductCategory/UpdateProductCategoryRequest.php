@@ -11,10 +11,11 @@ class UpdateProductCategoryRequest extends FormRequest
         return true;
     }
 
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         return [
-            'name'      => ['required', 'string', 'max:255', 'unique:product_categories,name,' . $this->route('productCategory')->id],
+            'name' => ['required', 'string', 'max:255', 'unique:product_categories,name,'.$this->route('productCategory')->id],
             'is_active' => ['boolean'],
         ];
     }

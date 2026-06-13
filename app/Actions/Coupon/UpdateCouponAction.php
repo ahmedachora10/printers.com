@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 class UpdateCouponAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(Coupon $coupon, array $data): Coupon
     {
         return DB::transaction(function () use ($coupon, $data) {

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 class UpdateServiceTemplateAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(ServiceTemplate $serviceTemplate, array $data): ServiceTemplate
     {
         return DB::transaction(function () use ($serviceTemplate, $data): ServiceTemplate {

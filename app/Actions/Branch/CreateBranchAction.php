@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class CreateBranchAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(array $data): Branch
     {
         return DB::transaction(function () use ($data) {

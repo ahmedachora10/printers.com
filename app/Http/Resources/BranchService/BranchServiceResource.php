@@ -17,6 +17,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class BranchServiceResource extends JsonResource
 {
+    /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
         $hasPivot = $this->pivot !== null;

@@ -13,6 +13,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class RefundResource extends JsonResource
 {
+    /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
         /** @var ProductInvoice|ServiceInvoice|null $invoice */

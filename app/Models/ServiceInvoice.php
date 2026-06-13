@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\InvoiceStatusEnum;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -14,7 +13,7 @@ use Spatie\Activitylog\Traits\LogsActivity;
 
 class ServiceInvoice extends Model
 {
-    use HasFactory, LogsActivity, SoftDeletes;
+    use LogsActivity, SoftDeletes;
 
     protected $fillable = [
         'invoice_number',

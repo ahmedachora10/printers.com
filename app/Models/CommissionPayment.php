@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\CommissionPaymentFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class CommissionPayment extends Model
 {
+    /** @use HasFactory<CommissionPaymentFactory> */
     use HasFactory;
 
     protected $fillable = [

@@ -11,10 +11,11 @@ class UpdateBranchPaymentMethodsRequest extends FormRequest
         return true;
     }
 
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         return [
-            'enabled_ids'   => ['required', 'array'],
+            'enabled_ids' => ['required', 'array'],
             'enabled_ids.*' => ['integer', 'exists:payment_methods,id'],
         ];
     }

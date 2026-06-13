@@ -91,6 +91,7 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         return $this->hasOne(Branch::class, 'owner_id');
     }
 
+    /** @return Attribute<Roles|null, never> */
     public function roleName(): Attribute
     {
         return Attribute::make(
@@ -98,6 +99,7 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         );
     }
 
+    /** @return Attribute<int|null, never> */
     public function branchId(): Attribute
     {
         return Attribute::make(

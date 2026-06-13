@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Database\Factories\PaymentMethodFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -10,6 +11,7 @@ use Illuminate\Support\Facades\Schema;
 
 class PaymentMethod extends Model
 {
+    /** @use HasFactory<PaymentMethodFactory> */
     use HasFactory, SoftDeletes;
 
     protected $fillable = [

@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\ServiceTemplateFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class ServiceTemplate extends Model
 {
+    /** @use HasFactory<ServiceTemplateFactory> */
     use HasFactory;
 
     protected $fillable = [

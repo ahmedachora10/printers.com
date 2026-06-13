@@ -17,6 +17,7 @@ enum InvoiceStatusEnum: string
         };
     }
 
+    /** @return array<int, string> */
     public static function all(): array
     {
         return array_map(fn ($case) => $case->value, self::cases());

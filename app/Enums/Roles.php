@@ -2,28 +2,29 @@
 
 namespace App\Enums;
 
-enum Roles:string
+enum Roles: string
 {
-    case SUPER_ADMIN  = 'super-admin';
+    case SUPER_ADMIN = 'super-admin';
     case BRANCH_ADMIN = 'branch-admin';
-    case ACCOUNTANT   = 'accountant';
-    case EMPLOYEE     = 'employee';
-    case AGENT        = 'agent';
+    case ACCOUNTANT = 'accountant';
+    case EMPLOYEE = 'employee';
+    case AGENT = 'agent';
 
     public function label(): string
     {
-        return match($this) {
-            self::SUPER_ADMIN  => 'مدير عام',
+        return match ($this) {
+            self::SUPER_ADMIN => 'مدير عام',
             self::BRANCH_ADMIN => 'مدير فرع',
-            self::ACCOUNTANT   => 'محاسب',
-            self::EMPLOYEE     => 'موظف',
-            self::AGENT        => 'وكيل',
+            self::ACCOUNTANT => 'محاسب',
+            self::EMPLOYEE => 'موظف',
+            self::AGENT => 'وكيل',
         };
     }
 
+    /** @return array<int, string> */
     public static function all(): array
     {
-        return array_map(fn($case) => $case->value, self::cases());
+        return array_map(fn ($case) => $case->value, self::cases());
     }
 
     public function isSuperAdmin(): bool

@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 class CreateServiceTemplateAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(array $data): ServiceTemplate
     {
         return DB::transaction(fn (): ServiceTemplate => ServiceTemplate::create($data));

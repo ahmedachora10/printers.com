@@ -54,6 +54,7 @@ class HandleInertiaRequests extends Middleware
     }
 
     // sidebar items for each role
+    /** @return array<int, array<string, mixed>> */
     private function getSidebarItems(Request $request): array
     {
 

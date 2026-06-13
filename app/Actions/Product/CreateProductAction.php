@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\DB;
 
 class CreateProductAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(array $data): Product
     {
         $user = auth()->user();

@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class UpdateBranchAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(Branch $branch, array $data): Branch
     {
         return DB::transaction(function () use ($branch, $data) {
@@ -26,4 +27,3 @@ class UpdateBranchAction
         });
     }
 }
-

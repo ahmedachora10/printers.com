@@ -11,10 +11,11 @@ class StoreProductCategoryRequest extends FormRequest
         return true;
     }
 
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         return [
-            'name'      => ['required', 'string', 'max:255', 'unique:product_categories,name'],
+            'name' => ['required', 'string', 'max:255', 'unique:product_categories,name'],
             'is_active' => ['boolean'],
         ];
     }

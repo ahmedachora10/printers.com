@@ -18,6 +18,7 @@ use Illuminate\Validation\ValidationException;
 
 class CreateServiceInvoiceAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(array $data): ServiceInvoice
     {
         $user = auth()->user();
@@ -30,7 +31,7 @@ class CreateServiceInvoiceAction
 
             // Load the branch services referenced by the lines so we can resolve
             // their name, commission rate, tahazir flag and discount ceiling.
-            $branchServiceIds = collect($data['lines'])->pluck('branch_service_id')->unique();
+            $branchServiceIds = collect((array) $data['lines'])->pluck('branch_service_id')->unique();
 
             $branchServices = BranchService::query()
                 ->where('branch_id', $branchId)
@@ -150,6 +151,8 @@ class CreateServiceInvoiceAction
     /**
      * Resolve the customer for the invoice: an explicit customer, a walk-in
      * (found-or-created from name/phone), or none (cash customer).
+     *
+     * @param  array<string, mixed>  $data
      */
     private function resolveCustomerId(array $data, int $branchId): ?int
     {
@@ -185,6 +188,7 @@ class CreateServiceInvoiceAction
     }
 
     /**
+     * @param  array<string, mixed>  $data
      * @return array{0: ?Coupon, 1: float}
      */
     private function resolveCoupon(array $data, int $branchId, float $subtotal): array

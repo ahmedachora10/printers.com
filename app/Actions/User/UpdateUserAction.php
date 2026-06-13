@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 
 class UpdateUserAction
 {
+    /** @param array<string, mixed> $data */
     public function handle(User $user, array $data): User
     {
         $actor = auth()->user();

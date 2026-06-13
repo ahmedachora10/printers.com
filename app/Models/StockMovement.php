@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\StockMovementTypeEnum;
+use Database\Factories\StockMovementFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,6 +16,7 @@ use RuntimeException;
  */
 class StockMovement extends Model
 {
+    /** @use HasFactory<StockMovementFactory> */
     use HasFactory;
 
     const UPDATED_AT = null;

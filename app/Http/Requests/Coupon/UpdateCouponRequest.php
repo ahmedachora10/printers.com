@@ -25,15 +25,16 @@ class UpdateCouponRequest extends FormRequest
         $this->merge(['branch_id' => $coupon->branch_id]);
     }
 
+    /** @return array<string, mixed> */
     public function rules(): array
     {
         /** @var Coupon $coupon */
-        $coupon   = $this->route('coupon');
+        $coupon = $this->route('coupon');
         $branchId = $coupon->branch_id;
 
         return [
-            'branch_id'      => ['required', 'exists:branches,id'],
-            'code'           => [
+            'branch_id' => ['required', 'exists:branches,id'],
+            'code' => [
                 'required',
                 'string',
                 'max:100',
@@ -42,11 +43,11 @@ class UpdateCouponRequest extends FormRequest
                     ->whereNull('deleted_at')
                     ->ignore($coupon->id),
             ],
-            'discount_type'  => ['required', Rule::enum(CouponDiscountTypeEnum::class)],
+            'discount_type' => ['required', Rule::enum(CouponDiscountTypeEnum::class)],
             'discount_value' => ['required', 'numeric', 'min:0'],
-            'capacity'       => ['nullable', 'integer', 'min:1'],
-            'expires_at'     => ['nullable', 'date'],
-            'is_active'      => ['boolean'],
+            'capacity' => ['nullable', 'integer', 'min:1'],
+            'expires_at' => ['nullable', 'date'],
+            'is_active' => ['boolean'],
         ];
     }
 }

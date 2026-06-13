@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\CommissionSourceTypeEnum;
+use Database\Factories\CommissionLedgerFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -10,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class CommissionLedger extends Model
 {
+    /** @use HasFactory<CommissionLedgerFactory> */
     use HasFactory;
 
     protected $table = 'commission_ledger';
