@@ -3,7 +3,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowLeftRight, FileText, GitBranch, LayoutGrid, LucideIcon, Package, Receipt, ServerIcon, ShoppingCart, Undo2, Users, Wallet } from 'lucide-react';
+import { ArrowLeftRight, FileText, GitBranch, Handshake, LayoutGrid, LucideIcon, Package, Receipt, ServerIcon, ShoppingCart, Undo2, Users, Wallet } from 'lucide-react';
 import AppLogo from './app-logo';
 
 
@@ -22,6 +22,7 @@ export function AppSidebar() {
         Wallet,
         Undo2,
         Receipt,
+        Handshake,
     };
 
     const mainNavItems = (auth.sidebarItems ?? []).map((item) => ({

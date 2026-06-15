@@ -1,0 +1,41 @@
+<?php
+
+namespace App\Http\Resources\Agent;
+
+use App\Models\User;
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+/**
+ * @mixin User
+ */
+class AgentResource extends JsonResource
+{
+    /** @return array<string, mixed> */
+    public function toArray(Request $request): array
+    {
+        $profile = $this->agentProfile;
+
+        return [
+            'id' => $this->id,
+            'name' => $this->name,
+            'username' => $this->username,
+            'email' => $this->email,
+            'phone' => $this->phone,
+            'branchId' => $this->branch_id,
+            'branchName' => $this->branch?->name,
+            'isActive' => $this->is_active,
+            'agentType' => $profile?->agent_type ? [
+                'value' => $profile->agent_type->value,
+                'label' => $profile->agent_type->label(),
+            ] : null,
+            'discountMode' => $profile?->discount_mode ? [
+                'value' => $profile->discount_mode->value,
+                'label' => $profile->discount_mode->label(),
+            ] : null,
+            'rate' => (float) ($profile?->rate ?? 0),
+            'commercialRegNo' => $profile?->commercial_reg_no,
+            'createdAt' => $this->created_at?->format('d/m/Y'),
+        ];
+    }
+}

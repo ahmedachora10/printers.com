@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\AgentController;
+use App\Http\Controllers\AgentPaymentController;
+use App\Http\Controllers\AgentPortalController;
 use App\Http\Controllers\AppSettingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchServiceController;
@@ -30,6 +33,11 @@ Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', function () {
         return Inertia::render('dashboard');
     })->name('dashboard');
+
+    // Read-only self-service portal for B2B agents.
+    Route::middleware('role:agent')->group(function () {
+        Route::get('agent-portal', [AgentPortalController::class, 'index'])->name('agent-portal.index');
+    });
 
     Route::middleware('role:super-admin')->group(function () {
         Route::resource('cities', CityController::class);
@@ -66,6 +74,9 @@ Route::middleware(['auth'])->group(function () {
 
         Route::resource('expenses', ExpenseController::class)
             ->only(['index', 'store', 'update', 'destroy']);
+
+        Route::resource('agents', AgentController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
     });
 
     Route::middleware('role:branch-admin|super-admin|employee')->group(function () {
@@ -97,6 +108,9 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {
+        Route::resource('agent-payments', AgentPaymentController::class)
+            ->only(['index', 'store']);
+
         Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
             ->name('users.toggle-status');
         Route::resource('users', UserController::class)

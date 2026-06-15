@@ -206,12 +206,21 @@ export default function InvoiceShow({ invoice }: Props) {
                                 {invoice.couponDiscount > 0 && (
                                     <TotalRow label="خصم الكوبون" value={`−${formatCurrency(invoice.couponDiscount)}`} />
                                 )}
+                                {invoice.agentDiscount > 0 && (
+                                    <TotalRow label="خصم الوكيل" value={`−${formatCurrency(invoice.agentDiscount)}`} />
+                                )}
                                 {invoice.pointsDiscount > 0 && (
                                     <TotalRow label="خصم النقاط" value={`−${formatCurrency(invoice.pointsDiscount)}`} />
                                 )}
                                 <TotalRow label={`الضريبة (${invoice.vatPct}%)`} value={formatCurrency(invoice.vatAmount)} />
                                 <Separator className="my-1" />
                                 <TotalRow label="الإجمالي" value={formatCurrency(invoice.totalAmount)} strong />
+                                {invoice.agentRebate > 0 && (
+                                    <TotalRow
+                                        label={`عمولة الوكيل المرتجعة${invoice.agentName ? ` (${invoice.agentName})` : ''}`}
+                                        value={formatCurrency(invoice.agentRebate)}
+                                    />
+                                )}
                             </div>
                         </CardContent>
                     </Card>

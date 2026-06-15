@@ -41,6 +41,9 @@ export interface Invoice {
     tierDiscountPct: number;
     tierDiscountAmount: number;
     couponDiscount: number;
+    agentDiscount: number;
+    agentRebate: number;
+    agentName: string | null;
     pointsRedeemed: number;
     pointsDiscount: number;
     vatPct: number;

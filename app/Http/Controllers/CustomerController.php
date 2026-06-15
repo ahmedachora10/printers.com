@@ -13,6 +13,7 @@ use App\Http\Requests\Customer\StoreCustomerRequest;
 use App\Http\Requests\Customer\UpdateCustomerRequest;
 use App\Http\Resources\Branch\BranchResource;
 use App\Http\Resources\Customer\CustomerResource;
+use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\User;
@@ -66,7 +67,9 @@ class CustomerController extends Controller
         $ids = $query->pluck('id');
         $stats = $this->loadPageStats($ids);
 
-        $agents = User::select('id', 'name')->whereHasRole(Roles::AGENT->value)->get();
+        $agents = Agent::select('id', 'name')
+        ->when(!$isSuperAdmin, fn ($q) => $q->where('branch_id', $branchId))
+        ->get();
 
         $branches = $isSuperAdmin ? Branch::select('id', 'name')->get() : [];
 

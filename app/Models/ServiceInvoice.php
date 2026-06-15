@@ -27,6 +27,9 @@ class ServiceInvoice extends Model
         'tier_discount_pct',
         'tier_discount_amount',
         'coupon_discount',
+        'agent_discount',
+        'agent_rebate',
+        'agent_payment_id',
         'points_redeemed',
         'points_discount',
         'vat_pct',
@@ -44,6 +47,8 @@ class ServiceInvoice extends Model
         'tier_discount_pct' => 'decimal:2',
         'tier_discount_amount' => 'decimal:2',
         'coupon_discount' => 'decimal:2',
+        'agent_discount' => 'decimal:2',
+        'agent_rebate' => 'decimal:2',
         'points_redeemed' => 'integer',
         'points_discount' => 'decimal:2',
         'vat_pct' => 'decimal:2',
@@ -74,6 +79,12 @@ class ServiceInvoice extends Model
     public function customer(): BelongsTo
     {
         return $this->belongsTo(Customer::class);
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'agent_id');
     }
 
     /** @return BelongsTo<PaymentMethod, $this> */

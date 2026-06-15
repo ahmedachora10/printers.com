@@ -33,6 +33,16 @@ export interface PosCustomer {
     id: number;
     fullName: string;
     phone: string;
+    agentId: number | null;
+}
+
+export type AgentDiscountMode = 'discount' | 'rebate';
+
+export interface PosAgent {
+    id: number;
+    name: string;
+    discountMode: AgentDiscountMode | null;
+    rate: number;
 }
 
 export interface PosPaymentMethod {
@@ -70,6 +80,7 @@ export interface PosInvoice {
     statusLabel: string;
     subtotal: number;
     couponDiscount: number;
+    agentDiscount: number;
     vatPct: number;
     vatAmount: number;
     totalAmount: number;

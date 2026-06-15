@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
+use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\Customer;
 use App\Models\ServiceInvoice;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -42,12 +44,15 @@ class ServiceInvoiceController extends Controller
             ->where('branch_id', $branchId)
             ->where('is_active', true)
             ->orderBy('full_name')
-            ->get(['id', 'full_name', 'phone'])
+            ->get(['id', 'full_name', 'phone', 'agent_id'])
             ->map(fn (Customer $customer) => [
                 'id' => $customer->id,
                 'fullName' => $customer->full_name,
                 'phone' => $customer->phone,
+                'agentId' => $customer->agent_id,
             ]);
+
+        $agents = $this->branchAgents($branchId);
 
         $paymentMethods = $branch
             ? $branch->enabledPaymentMethods()->map(fn ($method) => [
@@ -59,6 +64,7 @@ class ServiceInvoiceController extends Controller
         return Inertia::render('pos/service/index', [
             'services' => $services,
             'customers' => $customers,
+            'agents' => $agents,
             'paymentMethods' => $paymentMethods,
             'vatPct' => (float) ($branch->vat_rate_override ?? 15),
         ]);
@@ -93,6 +99,7 @@ class ServiceInvoiceController extends Controller
                 'statusLabel' => $invoice->status->label(),
                 'subtotal' => (float) $invoice->subtotal,
                 'couponDiscount' => (float) $invoice->coupon_discount,
+                'agentDiscount' => (float) $invoice->agent_discount,
                 'vatPct' => (float) $invoice->vat_pct,
                 'vatAmount' => (float) $invoice->vat_amount,
                 'totalAmount' => (float) $invoice->total_amount,
@@ -115,5 +122,27 @@ class ServiceInvoiceController extends Controller
                 'taxNumber' => $invoice->branch?->tax_number,
             ],
         ]);
+    }
+
+    /**
+     * Active agents for the branch, with the terms the POS previews.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function branchAgents(?int $branchId): Collection
+    {
+        return Agent::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->with('agentProfile')
+            ->orderBy('name')
+            ->get()
+            ->map(fn (Agent $agent) => [
+                'id' => $agent->id,
+                'name' => $agent->name,
+                'discountMode' => $agent->agentProfile?->discount_mode?->value,
+                'rate' => (float) ($agent->agentProfile?->rate ?? 0),
+            ])
+            ->values();
     }
 }

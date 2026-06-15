@@ -121,6 +121,12 @@ export default function ServiceInvoicePrint({ invoice, branch }: Props) {
                         <span>−{formatCurrency(invoice.couponDiscount)}</span>
                     </div>
                 )}
+                {invoice.agentDiscount > 0 && (
+                    <div className="flex justify-between">
+                        <span>خصم الوكيل</span>
+                        <span>−{formatCurrency(invoice.agentDiscount)}</span>
+                    </div>
+                )}
                 <div className="flex justify-between">
                     <span>الضريبة ({invoice.vatPct}%)</span>
                     <span>{formatCurrency(invoice.vatAmount)}</span>

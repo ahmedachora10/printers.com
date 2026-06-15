@@ -1,3 +1,4 @@
+import AgentPortalController from './AgentPortalController'
 import CityController from './CityController'
 import BranchController from './BranchController'
 import ServiceTemplateController from './ServiceTemplateController'
@@ -6,9 +7,11 @@ import ProductInvoiceController from './ProductInvoiceController'
 import StockMovementController from './StockMovementController'
 import RefundController from './RefundController'
 import ExpenseController from './ExpenseController'
+import AgentController from './AgentController'
 import ServiceInvoiceController from './ServiceInvoiceController'
 import CustomerController from './CustomerController'
 import InvoiceController from './InvoiceController'
+import AgentPaymentController from './AgentPaymentController'
 import UserController from './UserController'
 import AppSettingController from './AppSettingController'
 import BranchServiceController from './BranchServiceController'
@@ -20,7 +23,8 @@ import ProductController from './ProductController'
 import Settings from './Settings'
 import Auth from './Auth'
 const Controllers = {
-    CityController: Object.assign(CityController, CityController),
+    AgentPortalController: Object.assign(AgentPortalController, AgentPortalController),
+CityController: Object.assign(CityController, CityController),
 BranchController: Object.assign(BranchController, BranchController),
 ServiceTemplateController: Object.assign(ServiceTemplateController, ServiceTemplateController),
 PaymentMethodController: Object.assign(PaymentMethodController, PaymentMethodController),
@@ -28,9 +32,11 @@ ProductInvoiceController: Object.assign(ProductInvoiceController, ProductInvoice
 StockMovementController: Object.assign(StockMovementController, StockMovementController),
 RefundController: Object.assign(RefundController, RefundController),
 ExpenseController: Object.assign(ExpenseController, ExpenseController),
+AgentController: Object.assign(AgentController, AgentController),
 ServiceInvoiceController: Object.assign(ServiceInvoiceController, ServiceInvoiceController),
 CustomerController: Object.assign(CustomerController, CustomerController),
 InvoiceController: Object.assign(InvoiceController, InvoiceController),
+AgentPaymentController: Object.assign(AgentPaymentController, AgentPaymentController),
 UserController: Object.assign(UserController, UserController),
 AppSettingController: Object.assign(AppSettingController, AppSettingController),
 BranchServiceController: Object.assign(BranchServiceController, BranchServiceController),
