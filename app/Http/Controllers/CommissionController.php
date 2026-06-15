@@ -9,6 +9,7 @@ use App\Models\Branch;
 use App\Models\CommissionLedger;
 use App\Models\CommissionPayment;
 use App\Models\User;
+use App\Notifications\CommissionPaidNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -89,7 +90,9 @@ class CommissionController extends Controller
 
         Gate::authorize('pay', [CommissionPayment::class, $employee]);
 
-        $action->handle($request->validated(), $request->user());
+        $payment = $action->handle($request->validated(), $request->user());
+
+        $payment->user?->notify(new CommissionPaidNotification($payment));
 
         return to_route('commissions.index')->with('success', 'تم صرف العمولة بنجاح');
     }
