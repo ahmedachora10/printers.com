@@ -3,6 +3,7 @@
 namespace App\Actions\ServiceInvoice;
 
 use App\Actions\Agent\ResolveInvoiceAgentAction;
+use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Enums\AgentDiscountModeEnum;
 use App\Enums\CommissionSourceTypeEnum;
 use App\Enums\CouponDiscountTypeEnum;
@@ -22,6 +23,7 @@ class CreateServiceInvoiceAction
 {
     public function __construct(
         private readonly ResolveInvoiceAgentAction $resolveAgent,
+        private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -169,6 +171,10 @@ class CreateServiceInvoiceAction
             if ($coupon) {
                 $coupon->increment('used_count');
             }
+
+            // Loyalty points accrue only on paid invoices for eligible
+            // individual customers; the action no-ops otherwise.
+            $this->earnLoyaltyPoints->handle($invoice);
 
             return $invoice;
         });
