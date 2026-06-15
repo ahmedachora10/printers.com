@@ -19,10 +19,12 @@ use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductInvoiceController;
+use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\RefundController;
 use App\Http\Controllers\ServiceInvoiceController;
 use App\Http\Controllers\ServiceTemplateController;
 use App\Http\Controllers\StockMovementController;
+use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -75,6 +77,16 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('inventory/stock-movements', [StockMovementController::class, 'index'])
             ->name('inventory.stock-movements.index');
+
+        // Read-only procurement views are open to accountants for audit; all
+        // mutations live in the branch-admin/super-admin group below.
+        Route::get('inventory/suppliers', [SupplierController::class, 'index'])
+            ->name('inventory.suppliers.index');
+        Route::get('inventory/purchase-orders', [PurchaseOrderController::class, 'index'])
+            ->name('inventory.purchase-orders.index');
+        Route::get('inventory/purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'show'])
+            ->whereNumber('purchase_order')
+            ->name('inventory.purchase-orders.show');
 
         Route::get('refunds/lookup', [RefundController::class, 'lookup'])->name('refunds.lookup');
         Route::get('refunds', [RefundController::class, 'index'])->name('refunds.index');
@@ -163,6 +175,20 @@ Route::middleware(['auth'])->group(function () {
 
             Route::post('stock-movements', [StockMovementController::class, 'store'])
                 ->name('stock-movements.store');
+
+            Route::patch('suppliers/{supplier}/toggle-status', [SupplierController::class, 'toggleStatus'])
+                ->name('suppliers.toggle-status');
+            Route::resource('suppliers', SupplierController::class)
+                ->only(['store', 'update', 'destroy']);
+
+            Route::resource('purchase-orders', PurchaseOrderController::class)
+                ->only(['store', 'update', 'destroy']);
+            Route::patch('purchase-orders/{purchase_order}/sent', [PurchaseOrderController::class, 'markSent'])
+                ->name('purchase-orders.sent');
+            Route::post('purchase-orders/{purchase_order}/receive', [PurchaseOrderController::class, 'receive'])
+                ->name('purchase-orders.receive');
+            Route::patch('purchase-orders/{purchase_order}/cancel', [PurchaseOrderController::class, 'cancel'])
+                ->name('purchase-orders.cancel');
         });
     });
 
