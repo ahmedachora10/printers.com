@@ -115,6 +115,12 @@ export default function ProductInvoicePrint({ invoice, branch }: Props) {
                     <span>المجموع الفرعي</span>
                     <span>{formatCurrency(invoice.subtotal)}</span>
                 </div>
+                {invoice.tierDiscountAmount > 0 && (
+                    <div className="flex justify-between">
+                        <span>خصم الفئة</span>
+                        <span>−{formatCurrency(invoice.tierDiscountAmount)}</span>
+                    </div>
+                )}
                 {invoice.couponDiscount > 0 && (
                     <div className="flex justify-between">
                         <span>خصم الكوبون</span>
@@ -125,6 +131,12 @@ export default function ProductInvoicePrint({ invoice, branch }: Props) {
                     <div className="flex justify-between">
                         <span>خصم الوكيل</span>
                         <span>−{formatCurrency(invoice.agentDiscount)}</span>
+                    </div>
+                )}
+                {invoice.pointsDiscount > 0 && (
+                    <div className="flex justify-between">
+                        <span>استبدال النقاط</span>
+                        <span>−{formatCurrency(invoice.pointsDiscount)}</span>
                     </div>
                 )}
                 <div className="flex justify-between">

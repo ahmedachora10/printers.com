@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Actions\ProductInvoice\CreateProductInvoiceAction;
+use App\Enums\CustomerTypeEnum;
 use App\Http\Requests\ProductInvoice\StoreProductInvoiceRequest;
 use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\Customer;
+use App\Models\LoyaltyConfig;
 use App\Models\Product;
 use App\Models\ProductInvoice;
 use Illuminate\Http\RedirectResponse;
@@ -39,17 +41,31 @@ class ProductInvoiceController extends Controller
                 'unitName' => $product->unit?->name,
             ]);
 
+        $loyalty = $branchId ? LoyaltyConfig::forBranch($branchId) : null;
+        $loyaltyActive = (bool) ($loyalty?->is_active);
+
         $customers = Customer::query()
             ->where('branch_id', $branchId)
             ->where('is_active', true)
             ->orderBy('full_name')
-            ->get(['id', 'full_name', 'phone', 'agent_id'])
-            ->map(fn (Customer $customer) => [
-                'id' => $customer->id,
-                'fullName' => $customer->full_name,
-                'phone' => $customer->phone,
-                'agentId' => $customer->agent_id,
-            ]);
+            ->get(['id', 'full_name', 'phone', 'agent_id', 'customer_type', 'points_balance', 'tier'])
+            ->map(function (Customer $customer) use ($loyalty, $loyaltyActive) {
+                $eligible = $loyaltyActive
+                    && $customer->customer_type === CustomerTypeEnum::Individual
+                    && $customer->agent_id === null;
+
+                return [
+                    'id' => $customer->id,
+                    'fullName' => $customer->full_name,
+                    'phone' => $customer->phone,
+                    'agentId' => $customer->agent_id,
+                    'pointsBalance' => (int) $customer->points_balance,
+                    'tier' => $customer->tier->value,
+                    'tierLabel' => $customer->tier->label(),
+                    'tierDiscountPct' => $eligible ? $loyalty->discountPctForTier($customer->tier) : 0.0,
+                    'loyaltyEligible' => $eligible,
+                ];
+            });
 
         $agents = $this->branchAgents($branchId);
 
@@ -66,6 +82,11 @@ class ProductInvoiceController extends Controller
             'agents' => $agents,
             'paymentMethods' => $paymentMethods,
             'vatPct' => (float) ($branch->vat_rate_override ?? 15),
+            'loyalty' => [
+                'active' => $loyaltyActive,
+                'redemptionRate' => (float) ($loyalty?->redemption_rate ?? 0),
+                'minRedemptionPoints' => (int) ($loyalty?->min_redemption_points ?? 0),
+            ],
         ]);
     }
 
@@ -97,8 +118,10 @@ class ProductInvoiceController extends Controller
                 'status' => $invoice->status->value,
                 'statusLabel' => $invoice->status->label(),
                 'subtotal' => (float) $invoice->subtotal,
+                'tierDiscountAmount' => (float) $invoice->tier_discount_amount,
                 'couponDiscount' => (float) $invoice->coupon_discount,
                 'agentDiscount' => (float) $invoice->agent_discount,
+                'pointsDiscount' => (float) $invoice->points_discount,
                 'vatPct' => (float) $invoice->vat_pct,
                 'vatAmount' => (float) $invoice->vat_amount,
                 'totalAmount' => (float) $invoice->total_amount,

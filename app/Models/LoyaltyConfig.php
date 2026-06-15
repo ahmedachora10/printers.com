@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CustomerTierEnum;
 use Database\Factories\LoyaltyConfigFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -48,6 +49,20 @@ class LoyaltyConfig extends Model
     public static function forBranch(int $branchId): self
     {
         return static::firstOrCreate(['branch_id' => $branchId]);
+    }
+
+    /**
+     * The automatic discount percentage granted to a customer of the given
+     * loyalty tier. Untiered customers get nothing.
+     */
+    public function discountPctForTier(CustomerTierEnum $tier): float
+    {
+        return (float) match ($tier) {
+            CustomerTierEnum::Bronze => $this->bronze_discount_pct,
+            CustomerTierEnum::Silver => $this->silver_discount_pct,
+            CustomerTierEnum::Gold => $this->gold_discount_pct,
+            CustomerTierEnum::None => 0,
+        };
     }
 
     /** @return BelongsTo<Branch, $this> */

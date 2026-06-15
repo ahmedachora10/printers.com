@@ -22,6 +22,7 @@ class StoreProductInvoiceRequest extends FormRequest
             'walkin_name' => ['nullable', 'string', 'max:255'],
             'walkin_phone' => ['nullable', 'string', 'max:30'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
+            'redeem_points' => ['nullable', 'integer', 'min:0'],
             'payment_method_id' => ['nullable', 'integer', 'exists:payment_methods,id'],
             'status' => ['required', Rule::in([InvoiceStatusEnum::PAID->value, InvoiceStatusEnum::DUE->value])],
             'print' => ['nullable', 'boolean'],
