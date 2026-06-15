@@ -13,6 +13,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\LoyaltyController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
@@ -120,6 +121,7 @@ Route::middleware(['auth'])->group(function () {
         Route::put('app-settings/general', [AppSettingController::class, 'updateGeneral'])->name('app-settings.update-general');
         Route::put('app-settings/inventory-alerts', [AppSettingController::class, 'updateInventoryAlerts'])->name('app-settings.update-inventory-alerts');
         Route::put('app-settings/payment-methods', [AppSettingController::class, 'updatePaymentMethods'])->name('app-settings.update-payment-methods');
+        Route::put('app-settings/loyalty', [AppSettingController::class, 'updateLoyalty'])->name('app-settings.update-loyalty');
 
         Route::resource('branch-services', BranchServiceController::class)
             ->only(['index', 'store', 'update', 'destroy']);
@@ -143,6 +145,8 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('commissions', [CommissionController::class, 'index'])->name('commissions.index');
         Route::post('commissions/pay', [CommissionController::class, 'pay'])->name('commissions.pay');
+
+        Route::get('loyalty', [LoyaltyController::class, 'index'])->name('loyalty.index');
 
         Route::prefix('inventory')->name('inventory.')->group(function () {
             Route::patch('products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])

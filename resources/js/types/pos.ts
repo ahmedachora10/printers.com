@@ -34,6 +34,17 @@ export interface PosCustomer {
     fullName: string;
     phone: string;
     agentId: number | null;
+    pointsBalance: number;
+    tier: string;
+    tierLabel: string;
+    tierDiscountPct: number;
+    loyaltyEligible: boolean;
+}
+
+export interface PosLoyalty {
+    active: boolean;
+    redemptionRate: number;
+    minRedemptionPoints: number;
 }
 
 export type AgentDiscountMode = 'discount' | 'rebate';
@@ -79,8 +90,10 @@ export interface PosInvoice {
     status: string;
     statusLabel: string;
     subtotal: number;
+    tierDiscountAmount: number;
     couponDiscount: number;
     agentDiscount: number;
+    pointsDiscount: number;
     vatPct: number;
     vatAmount: number;
     totalAmount: number;

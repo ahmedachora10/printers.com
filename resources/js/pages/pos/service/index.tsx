@@ -10,9 +10,9 @@ import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
 import service from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { type PosAgent, type PosCustomer, type PosPaymentMethod, type PosService, type ServiceCartLine } from '@/types/pos';
+import { type PosAgent, type PosCustomer, type PosLoyalty, type PosPaymentMethod, type PosService, type ServiceCartLine } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Printer, Save, Search, Tag, X } from 'lucide-react';
+import { Award, Printer, Save, Search, Tag, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -27,6 +27,7 @@ interface Props {
     agents: PosAgent[];
     paymentMethods: PosPaymentMethod[];
     vatPct: number;
+    loyalty: PosLoyalty;
 }
 
 type InvoiceStatus = 'paid' | 'due';
@@ -41,7 +42,7 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const lineTotal = (line: ServiceCartLine) => round2(line.qty * line.unitPrice * (1 - line.discountPct / 100));
 
-export default function ServicePos({ services, customers, agents, paymentMethods, vatPct }: Props) {
+export default function ServicePos({ services, customers, agents, paymentMethods, vatPct, loyalty }: Props) {
     const { props } = usePage<SharedData>();
     const [search, setSearch] = useState('');
     const [searchFocused, setSearchFocused] = useState(false);
@@ -55,6 +56,7 @@ export default function ServicePos({ services, customers, agents, paymentMethods
     const [couponCode, setCouponCode] = useState('');
     const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
     const [couponLoading, setCouponLoading] = useState(false);
+    const [redeemPoints, setRedeemPoints] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const lineSeq = useRef(0);
@@ -68,6 +70,7 @@ export default function ServicePos({ services, customers, agents, paymentMethods
     // Auto-fill the agent from the chosen customer's link; the cashier can still
     // change or clear it afterwards.
     useEffect(() => {
+        setRedeemPoints('');
         if (customerId === 'none') {
             setAgentId('none');
             return;
@@ -84,21 +87,39 @@ export default function ServicePos({ services, customers, agents, paymentMethods
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
     const commission = useMemo(() => round2(cart.reduce((sum, l) => sum + (lineTotal(l) * l.baseCommissionPct) / 100, 0)), [cart]);
+    const selectedCustomer = useMemo(
+        () => (customerId === 'none' ? null : (customers.find((c) => String(c.id) === customerId) ?? null)),
+        [customerId, customers],
+    );
+    const selectedAgent = useMemo(() => (agentId === 'none' ? null : (agents.find((a) => String(a.id) === agentId) ?? null)), [agentId, agents]);
+
+    // Loyalty benefits apply only to an eligible customer with no agent on the
+    // invoice. Pipeline mirrors the server: subtotal → tier → coupon → agent → points.
+    const loyaltyOn = loyalty.active && !!selectedCustomer?.loyaltyEligible && agentId === 'none';
+
+    const tierDiscount = useMemo(
+        () => (loyaltyOn && selectedCustomer ? round2((subtotal * selectedCustomer.tierDiscountPct) / 100) : 0),
+        [loyaltyOn, selectedCustomer, subtotal],
+    );
+    const afterTier = useMemo(() => round2(subtotal - tierDiscount), [subtotal, tierDiscount]);
     const couponDiscount = useMemo(() => {
         if (!appliedCoupon) return 0;
-        const raw = appliedCoupon.type === 'percentage' ? (subtotal * appliedCoupon.value) / 100 : appliedCoupon.value;
-        return round2(Math.min(raw, subtotal));
-    }, [appliedCoupon, subtotal]);
-    const selectedAgent = useMemo(
-        () => (agentId === 'none' ? null : agents.find((a) => String(a.id) === agentId) ?? null),
-        [agentId, agents],
-    );
-    const afterCoupon = useMemo(() => round2(subtotal - couponDiscount), [subtotal, couponDiscount]);
+        const raw = appliedCoupon.type === 'percentage' ? (afterTier * appliedCoupon.value) / 100 : appliedCoupon.value;
+        return round2(Math.min(raw, afterTier));
+    }, [appliedCoupon, afterTier]);
+    const afterCoupon = useMemo(() => round2(afterTier - couponDiscount), [afterTier, couponDiscount]);
     const agentDiscount = useMemo(
         () => (selectedAgent?.discountMode === 'discount' ? round2((afterCoupon * selectedAgent.rate) / 100) : 0),
         [selectedAgent, afterCoupon],
     );
-    const taxableBase = useMemo(() => round2(afterCoupon - agentDiscount), [afterCoupon, agentDiscount]);
+    const afterAgent = useMemo(() => round2(afterCoupon - agentDiscount), [afterCoupon, agentDiscount]);
+    const pointsDiscount = useMemo(() => {
+        if (!loyaltyOn || !loyalty.redemptionRate) return 0;
+        const pts = Number(redeemPoints) || 0;
+        if (pts <= 0) return 0;
+        return round2(Math.min(pts / loyalty.redemptionRate, afterAgent));
+    }, [loyaltyOn, redeemPoints, loyalty.redemptionRate, afterAgent]);
+    const taxableBase = useMemo(() => round2(afterAgent - pointsDiscount), [afterAgent, pointsDiscount]);
     const vatAmount = useMemo(() => round2((taxableBase * vatPct) / 100), [taxableBase, vatPct]);
     const total = useMemo(() => round2(taxableBase + vatAmount), [taxableBase, vatAmount]);
     const agentRebate = useMemo(
@@ -223,6 +244,7 @@ export default function ServicePos({ services, customers, agents, paymentMethods
         setWalkinPhone('');
         setPaymentMethodId(null);
         setStatus('paid');
+        setRedeemPoints('');
         removeCoupon();
     }
 
@@ -245,6 +267,7 @@ export default function ServicePos({ services, customers, agents, paymentMethods
                 walkin_name: customerId === 'none' ? walkinName.trim() || null : null,
                 walkin_phone: customerId === 'none' ? walkinPhone.trim() || null : null,
                 coupon_code: appliedCoupon?.code ?? null,
+                redeem_points: loyaltyOn && Number(redeemPoints) > 0 ? Number(redeemPoints) : null,
                 payment_method_id: paymentMethodId,
                 status,
                 print,
@@ -390,6 +413,47 @@ export default function ServicePos({ services, customers, agents, paymentMethods
                         </CardContent>
                     </Card>
 
+                    {/* Loyalty */}
+                    {loyaltyOn && selectedCustomer && (
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="flex items-center gap-2 text-base">
+                                    <Award className="size-4" /> نقاط الولاء
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">الفئة</span>
+                                    <span className="font-medium">
+                                        {selectedCustomer.tierLabel}
+                                        {selectedCustomer.tierDiscountPct > 0 && ` — خصم ${selectedCustomer.tierDiscountPct}%`}
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="text-muted-foreground">رصيد النقاط</span>
+                                    <span className="font-medium">{selectedCustomer.pointsBalance.toLocaleString('en-US')}</span>
+                                </div>
+                                <Input
+                                    value={redeemPoints}
+                                    onChange={(e) => setRedeemPoints(e.target.value.replace(/[^0-9]/g, ''))}
+                                    placeholder={`نقاط للاستبدال (الحد الأدنى ${loyalty.minRedemptionPoints})`}
+                                    inputMode="numeric"
+                                    disabled={selectedCustomer.pointsBalance < loyalty.minRedemptionPoints}
+                                />
+                                {selectedCustomer.pointsBalance < loyalty.minRedemptionPoints ? (
+                                    <p className="text-muted-foreground text-xs">الرصيد أقل من الحد الأدنى للاستبدال.</p>
+                                ) : (
+                                    pointsDiscount > 0 && (
+                                        <p className="text-xs text-green-600 dark:text-green-400">
+                                            خصم {formatCurrency(pointsDiscount)} مقابل {Number(redeemPoints).toLocaleString('en-US')} نقطة
+                                        </p>
+                                    )
+                                )}
+                                {errors.redeem_points && <p className="text-destructive text-xs">{errors.redeem_points}</p>}
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {/* Totals */}
                     <Card>
                         <CardContent className="space-y-2 py-4 text-sm">
@@ -397,6 +461,12 @@ export default function ServicePos({ services, customers, agents, paymentMethods
                                 <span className="text-muted-foreground">المجموع الفرعي</span>
                                 <span>{formatCurrency(subtotal)}</span>
                             </div>
+                            {tierDiscount > 0 && (
+                                <div className="flex justify-between text-green-600 dark:text-green-400">
+                                    <span>خصم الفئة{selectedCustomer ? ` (${selectedCustomer.tierLabel})` : ''}</span>
+                                    <span>−{formatCurrency(tierDiscount)}</span>
+                                </div>
+                            )}
                             {couponDiscount > 0 && (
                                 <div className="flex justify-between text-green-600 dark:text-green-400">
                                     <span>خصم الكوبون</span>
@@ -407,6 +477,12 @@ export default function ServicePos({ services, customers, agents, paymentMethods
                                 <div className="flex justify-between text-green-600 dark:text-green-400">
                                     <span>خصم الوكيل</span>
                                     <span>−{formatCurrency(agentDiscount)}</span>
+                                </div>
+                            )}
+                            {pointsDiscount > 0 && (
+                                <div className="flex justify-between text-green-600 dark:text-green-400">
+                                    <span>استبدال النقاط</span>
+                                    <span>−{formatCurrency(pointsDiscount)}</span>
                                 </div>
                             )}
                             <div className="flex justify-between">

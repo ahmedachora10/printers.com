@@ -3,7 +3,9 @@
 namespace App\Actions\ProductInvoice;
 
 use App\Actions\Agent\ResolveInvoiceAgentAction;
+use App\Actions\Loyalty\ApplyLoyaltyDiscountsAction;
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
+use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
 use App\Actions\StockMovement\RecordStockMovementAction;
 use App\Enums\AgentDiscountModeEnum;
 use App\Enums\CouponDiscountTypeEnum;
@@ -13,6 +15,7 @@ use App\Enums\StockMovementTypeEnum;
 use App\Models\Branch;
 use App\Models\Coupon;
 use App\Models\Customer;
+use App\Models\LoyaltyConfig;
 use App\Models\Product;
 use App\Models\ProductInvoice;
 use Illuminate\Support\Facades\DB;
@@ -23,6 +26,8 @@ class CreateProductInvoiceAction
     public function __construct(
         private readonly RecordStockMovementAction $recordStockMovement,
         private readonly ResolveInvoiceAgentAction $resolveAgent,
+        private readonly ApplyLoyaltyDiscountsAction $loyalty,
+        private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
     ) {}
 
@@ -105,21 +110,40 @@ class CreateProductInvoiceAction
 
             $subtotal = round($subtotal, 2);
 
-            [$coupon, $couponDiscount] = $this->resolveCoupon($data, $branchId, $subtotal);
+            $customer = $customerId !== null ? Customer::find($customerId) : null;
+            $config = LoyaltyConfig::forBranch($branchId);
 
             [$agentId, $agentMode, $agentRate] = $this->resolveAgent->handle(
                 isset($data['agent_id']) ? (int) $data['agent_id'] : null,
                 $branchId,
             );
 
+            // Loyalty benefits (tier discount, redemption) apply only to
+            // eligible customers: individual, not agent-linked, on a non-agent
+            // invoice — B2B sales are settled via agent terms instead.
+            $loyaltyEligible = $agentId === null
+                && $customer !== null
+                && $customer->customer_type === CustomerTypeEnum::Individual
+                && $customer->agent_id === null;
+
+            // Discount pipeline: subtotal → tier → coupon → agent → points → VAT.
+            [$tierPct, $tierDiscount] = $this->loyalty->tierDiscount($customer, $loyaltyEligible, $config, $subtotal);
+            $afterTier = round($subtotal - $tierDiscount, 2);
+
+            [$coupon, $couponDiscount] = $this->resolveCoupon($data, $branchId, $afterTier);
+            $afterCoupon = round($afterTier - $couponDiscount, 2);
+
             // discount mode reduces the taxable base; rebate is recorded on the
             // invoice after the total but never deducted from it.
-            $afterCoupon = round($subtotal - $couponDiscount, 2);
             $agentDiscount = $agentMode === AgentDiscountModeEnum::Discount
                 ? round($afterCoupon * $agentRate / 100, 2)
                 : 0.0;
+            $afterAgent = round($afterCoupon - $agentDiscount, 2);
 
-            $taxableBase = round($afterCoupon - $agentDiscount, 2);
+            $requestedPoints = (int) ($data['redeem_points'] ?? 0);
+            [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($customer, $loyaltyEligible, $config, $requestedPoints, $afterAgent);
+
+            $taxableBase = round($afterAgent - $pointsDiscount, 2);
             $vatAmount = round($taxableBase * $vatPct / 100, 2);
             $total = round($taxableBase + $vatAmount, 2);
 
@@ -138,9 +162,13 @@ class CreateProductInvoiceAction
                 'coupon_id' => $coupon?->id,
                 'payment_method_id' => $data['payment_method_id'] ?? null,
                 'subtotal' => $subtotal,
+                'tier_discount_pct' => $tierPct,
+                'tier_discount_amount' => $tierDiscount,
                 'coupon_discount' => $couponDiscount,
                 'agent_discount' => $agentDiscount,
                 'agent_rebate' => $agentRebate,
+                'points_redeemed' => $pointsRedeemed,
+                'points_discount' => $pointsDiscount,
                 'vat_pct' => $vatPct,
                 'vat_amount' => $vatAmount,
                 'total_amount' => $total,
@@ -182,8 +210,13 @@ class CreateProductInvoiceAction
                 $coupon->increment('used_count');
             }
 
-            // Loyalty points accrue only on paid invoices for eligible
-            // individual customers; the action no-ops otherwise.
+            // Spend redeemed points (decrement + immutable ledger row), then
+            // accrue earnings. Earning re-reads the post-redemption balance and
+            // no-ops unless the invoice is paid for an eligible customer.
+            if ($pointsRedeemed > 0 && $customerId !== null) {
+                $this->redeemLoyaltyPoints->handle($invoice, $customerId, $pointsRedeemed);
+            }
+
             $this->earnLoyaltyPoints->handle($invoice);
 
             return $invoice;
@@ -233,7 +266,7 @@ class CreateProductInvoiceAction
      * @param  array<string, mixed>  $data
      * @return array{0: ?Coupon, 1: float}
      */
-    private function resolveCoupon(array $data, int $branchId, float $subtotal): array
+    private function resolveCoupon(array $data, int $branchId, float $base): array
     {
         $code = trim((string) ($data['coupon_code'] ?? ''));
 
@@ -257,10 +290,10 @@ class CreateProductInvoiceAction
         }
 
         $discount = $coupon->discount_type === CouponDiscountTypeEnum::Percentage
-            ? $subtotal * (float) $coupon->discount_value / 100
+            ? $base * (float) $coupon->discount_value / 100
             : (float) $coupon->discount_value;
 
-        return [$coupon, round(min($discount, $subtotal), 2)];
+        return [$coupon, round(min($discount, $base), 2)];
     }
 
     private function generateInvoiceNumber(int $branchId): string
