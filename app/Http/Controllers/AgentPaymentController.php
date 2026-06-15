@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Agent\GenerateAgentPaymentAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Http\Requests\Agent\StoreAgentPaymentRequest;
+use App\Http\Resources\Agent\AgentPaymentResource;
 use App\Models\Agent;
 use App\Models\AgentPayment;
 use App\Models\Branch;
@@ -44,22 +45,12 @@ class AgentPaymentController extends Controller
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->orderByDesc('paid_at')
             ->paginate(15)
-            ->withQueryString()
-            ->through(fn (AgentPayment $payment) => [
-                'id' => $payment->id,
-                'agentName' => $payment->agent?->name,
-                'periodStart' => $payment->period_start->format('d/m/Y'),
-                'periodEnd' => $payment->period_end->format('d/m/Y'),
-                'totalInvoices' => $payment->total_invoices,
-                'totalRebate' => (float) $payment->total_rebate,
-                'paidBy' => $payment->paidBy?->name,
-                'paidAt' => $payment->paid_at?->format('d/m/Y H:i'),
-                'notes' => $payment->notes,
-            ]);
+            ->withQueryString();
 
         return Inertia::render('agent-payments/index', [
             'agents' => $agents,
-            'payments' => $payments,
+            // Resource collection => { data, links, meta } shape the page expects.
+            'payments' => AgentPaymentResource::collection($payments),
             'branches' => auth()->user()->roleName?->isSuperAdmin()
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,

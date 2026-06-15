@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 /**
 * @see \App\Http\Controllers\PaymentMethodController::store
  * @see app/Http/Controllers/PaymentMethodController.php:16
@@ -33,6 +33,27 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     method: 'post',
 })
 
+    /**
+* @see \App\Http\Controllers\PaymentMethodController::store
+ * @see app/Http/Controllers/PaymentMethodController.php:16
+ * @route '/payment-methods'
+ */
+    const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: store.url(options),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\PaymentMethodController::store
+ * @see app/Http/Controllers/PaymentMethodController.php:16
+ * @route '/payment-methods'
+ */
+        storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: store.url(options),
+            method: 'post',
+        })
+    
+    store.form = storeForm
 /**
 * @see \App\Http\Controllers\PaymentMethodController::update
  * @see app/Http/Controllers/PaymentMethodController.php:25
@@ -100,6 +121,51 @@ update.patch = (args: { payment_method: number | { id: number } } | [payment_met
     method: 'patch',
 })
 
+    /**
+* @see \App\Http\Controllers\PaymentMethodController::update
+ * @see app/Http/Controllers/PaymentMethodController.php:25
+ * @route '/payment-methods/{payment_method}'
+ */
+    const updateForm = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: update.url(args, {
+                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                        _method: 'PUT',
+                        ...(options?.query ?? options?.mergeQuery ?? {}),
+                    }
+                }),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\PaymentMethodController::update
+ * @see app/Http/Controllers/PaymentMethodController.php:25
+ * @route '/payment-methods/{payment_method}'
+ */
+        updateForm.put = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: update.url(args, {
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'PUT',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'post',
+        })
+            /**
+* @see \App\Http\Controllers\PaymentMethodController::update
+ * @see app/Http/Controllers/PaymentMethodController.php:25
+ * @route '/payment-methods/{payment_method}'
+ */
+        updateForm.patch = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: update.url(args, {
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'PATCH',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'post',
+        })
+    
+    update.form = updateForm
 /**
 * @see \App\Http\Controllers\PaymentMethodController::destroy
  * @see app/Http/Controllers/PaymentMethodController.php:34
@@ -158,6 +224,37 @@ destroy.delete = (args: { payment_method: number | { id: number } } | [payment_m
     method: 'delete',
 })
 
+    /**
+* @see \App\Http\Controllers\PaymentMethodController::destroy
+ * @see app/Http/Controllers/PaymentMethodController.php:34
+ * @route '/payment-methods/{payment_method}'
+ */
+    const destroyForm = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: destroy.url(args, {
+                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                        _method: 'DELETE',
+                        ...(options?.query ?? options?.mergeQuery ?? {}),
+                    }
+                }),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\PaymentMethodController::destroy
+ * @see app/Http/Controllers/PaymentMethodController.php:34
+ * @route '/payment-methods/{payment_method}'
+ */
+        destroyForm.delete = (args: { payment_method: number | { id: number } } | [payment_method: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: destroy.url(args, {
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'DELETE',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'post',
+        })
+    
+    destroy.form = destroyForm
 /**
 * @see \App\Http\Controllers\PaymentMethodController::toggleStatus
  * @see app/Http/Controllers/PaymentMethodController.php:43
@@ -215,6 +312,38 @@ toggleStatus.patch = (args: { paymentMethod: number | { id: number } } | [paymen
     url: toggleStatus.url(args, options),
     method: 'patch',
 })
+
+    /**
+* @see \App\Http\Controllers\PaymentMethodController::toggleStatus
+ * @see app/Http/Controllers/PaymentMethodController.php:43
+ * @route '/payment-methods/{paymentMethod}/toggle-status'
+ */
+    const toggleStatusForm = (args: { paymentMethod: number | { id: number } } | [paymentMethod: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: toggleStatus.url(args, {
+                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                        _method: 'PATCH',
+                        ...(options?.query ?? options?.mergeQuery ?? {}),
+                    }
+                }),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\PaymentMethodController::toggleStatus
+ * @see app/Http/Controllers/PaymentMethodController.php:43
+ * @route '/payment-methods/{paymentMethod}/toggle-status'
+ */
+        toggleStatusForm.patch = (args: { paymentMethod: number | { id: number } } | [paymentMethod: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: toggleStatus.url(args, {
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'PATCH',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'post',
+        })
+    
+    toggleStatus.form = toggleStatusForm
 const paymentMethods = {
     store: Object.assign(store, store),
 update: Object.assign(update, update),

@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../wayfinder'
 /**
 * @see \App\Http\Controllers\BranchServiceController::index
  * @see app/Http/Controllers/BranchServiceController.php:22
@@ -42,6 +42,41 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     method: 'head',
 })
 
+    /**
+* @see \App\Http\Controllers\BranchServiceController::index
+ * @see app/Http/Controllers/BranchServiceController.php:22
+ * @route '/branch-services'
+ */
+    const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: index.url(options),
+        method: 'get',
+    })
+
+            /**
+* @see \App\Http\Controllers\BranchServiceController::index
+ * @see app/Http/Controllers/BranchServiceController.php:22
+ * @route '/branch-services'
+ */
+        indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: index.url(options),
+            method: 'get',
+        })
+            /**
+* @see \App\Http\Controllers\BranchServiceController::index
+ * @see app/Http/Controllers/BranchServiceController.php:22
+ * @route '/branch-services'
+ */
+        indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: index.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    index.form = indexForm
 /**
 * @see \App\Http\Controllers\BranchServiceController::store
  * @see app/Http/Controllers/BranchServiceController.php:59
@@ -76,6 +111,27 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     method: 'post',
 })
 
+    /**
+* @see \App\Http\Controllers\BranchServiceController::store
+ * @see app/Http/Controllers/BranchServiceController.php:59
+ * @route '/branch-services'
+ */
+    const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: store.url(options),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\BranchServiceController::store
+ * @see app/Http/Controllers/BranchServiceController.php:59
+ * @route '/branch-services'
+ */
+        storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: store.url(options),
+            method: 'post',
+        })
+    
+    store.form = storeForm
 /**
 * @see \App\Http\Controllers\BranchServiceController::update
  * @see app/Http/Controllers/BranchServiceController.php:68
@@ -143,6 +199,51 @@ update.patch = (args: { branch_service: number | { id: number } } | [branch_serv
     method: 'patch',
 })
 
+    /**
+* @see \App\Http\Controllers\BranchServiceController::update
+ * @see app/Http/Controllers/BranchServiceController.php:68
+ * @route '/branch-services/{branch_service}'
+ */
+    const updateForm = (args: { branch_service: number | { id: number } } | [branch_service: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: update.url(args, {
+                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                        _method: 'PUT',
+                        ...(options?.query ?? options?.mergeQuery ?? {}),
+                    }
+                }),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\BranchServiceController::update
+ * @see app/Http/Controllers/BranchServiceController.php:68
+ * @route '/branch-services/{branch_service}'
+ */
+        updateForm.put = (args: { branch_service: number | { id: number } } | [branch_service: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: update.url(args, {
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'PUT',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'post',
+        })
+            /**
+* @see \App\Http\Controllers\BranchServiceController::update
+ * @see app/Http/Controllers/BranchServiceController.php:68
+ * @route '/branch-services/{branch_service}'
+ */
+        updateForm.patch = (args: { branch_service: number | { id: number } } | [branch_service: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: update.url(args, {
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'PATCH',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'post',
+        })
+    
+    update.form = updateForm
 /**
 * @see \App\Http\Controllers\BranchServiceController::destroy
  * @see app/Http/Controllers/BranchServiceController.php:77
@@ -200,6 +301,38 @@ destroy.delete = (args: { branch_service: number | { id: number } } | [branch_se
     url: destroy.url(args, options),
     method: 'delete',
 })
+
+    /**
+* @see \App\Http\Controllers\BranchServiceController::destroy
+ * @see app/Http/Controllers/BranchServiceController.php:77
+ * @route '/branch-services/{branch_service}'
+ */
+    const destroyForm = (args: { branch_service: number | { id: number } } | [branch_service: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: destroy.url(args, {
+                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                        _method: 'DELETE',
+                        ...(options?.query ?? options?.mergeQuery ?? {}),
+                    }
+                }),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\BranchServiceController::destroy
+ * @see app/Http/Controllers/BranchServiceController.php:77
+ * @route '/branch-services/{branch_service}'
+ */
+        destroyForm.delete = (args: { branch_service: number | { id: number } } | [branch_service: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: destroy.url(args, {
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'DELETE',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'post',
+        })
+    
+    destroy.form = destroyForm
 const branchServices = {
     index: Object.assign(index, index),
 store: Object.assign(store, store),

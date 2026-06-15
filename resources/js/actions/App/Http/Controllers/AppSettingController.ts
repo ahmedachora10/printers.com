@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition } from './../../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\AppSettingController::index
  * @see app/Http/Controllers/AppSettingController.php:22
@@ -42,6 +42,41 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     method: 'head',
 })
 
+    /**
+* @see \App\Http\Controllers\AppSettingController::index
+ * @see app/Http/Controllers/AppSettingController.php:22
+ * @route '/app-settings'
+ */
+    const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: index.url(options),
+        method: 'get',
+    })
+
+            /**
+* @see \App\Http\Controllers\AppSettingController::index
+ * @see app/Http/Controllers/AppSettingController.php:22
+ * @route '/app-settings'
+ */
+        indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: index.url(options),
+            method: 'get',
+        })
+            /**
+* @see \App\Http\Controllers\AppSettingController::index
+ * @see app/Http/Controllers/AppSettingController.php:22
+ * @route '/app-settings'
+ */
+        indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: index.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    index.form = indexForm
 /**
 * @see \App\Http\Controllers\AppSettingController::updateGeneral
  * @see app/Http/Controllers/AppSettingController.php:51
@@ -76,6 +111,37 @@ updateGeneral.put = (options?: RouteQueryOptions): RouteDefinition<'put'> => ({
     method: 'put',
 })
 
+    /**
+* @see \App\Http\Controllers\AppSettingController::updateGeneral
+ * @see app/Http/Controllers/AppSettingController.php:51
+ * @route '/app-settings/general'
+ */
+    const updateGeneralForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: updateGeneral.url({
+                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                        _method: 'PUT',
+                        ...(options?.query ?? options?.mergeQuery ?? {}),
+                    }
+                }),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\AppSettingController::updateGeneral
+ * @see app/Http/Controllers/AppSettingController.php:51
+ * @route '/app-settings/general'
+ */
+        updateGeneralForm.put = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: updateGeneral.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'PUT',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'post',
+        })
+    
+    updateGeneral.form = updateGeneralForm
 /**
 * @see \App\Http\Controllers\AppSettingController::updateInventoryAlerts
  * @see app/Http/Controllers/AppSettingController.php:60
@@ -110,6 +176,37 @@ updateInventoryAlerts.put = (options?: RouteQueryOptions): RouteDefinition<'put'
     method: 'put',
 })
 
+    /**
+* @see \App\Http\Controllers\AppSettingController::updateInventoryAlerts
+ * @see app/Http/Controllers/AppSettingController.php:60
+ * @route '/app-settings/inventory-alerts'
+ */
+    const updateInventoryAlertsForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: updateInventoryAlerts.url({
+                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                        _method: 'PUT',
+                        ...(options?.query ?? options?.mergeQuery ?? {}),
+                    }
+                }),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\AppSettingController::updateInventoryAlerts
+ * @see app/Http/Controllers/AppSettingController.php:60
+ * @route '/app-settings/inventory-alerts'
+ */
+        updateInventoryAlertsForm.put = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: updateInventoryAlerts.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'PUT',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'post',
+        })
+    
+    updateInventoryAlerts.form = updateInventoryAlertsForm
 /**
 * @see \App\Http\Controllers\AppSettingController::updatePaymentMethods
  * @see app/Http/Controllers/AppSettingController.php:69
@@ -143,6 +240,38 @@ updatePaymentMethods.put = (options?: RouteQueryOptions): RouteDefinition<'put'>
     url: updatePaymentMethods.url(options),
     method: 'put',
 })
+
+    /**
+* @see \App\Http\Controllers\AppSettingController::updatePaymentMethods
+ * @see app/Http/Controllers/AppSettingController.php:69
+ * @route '/app-settings/payment-methods'
+ */
+    const updatePaymentMethodsForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: updatePaymentMethods.url({
+                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                        _method: 'PUT',
+                        ...(options?.query ?? options?.mergeQuery ?? {}),
+                    }
+                }),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\AppSettingController::updatePaymentMethods
+ * @see app/Http/Controllers/AppSettingController.php:69
+ * @route '/app-settings/payment-methods'
+ */
+        updatePaymentMethodsForm.put = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: updatePaymentMethods.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'PUT',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'post',
+        })
+    
+    updatePaymentMethods.form = updatePaymentMethodsForm
 const AppSettingController = { index, updateGeneral, updateInventoryAlerts, updatePaymentMethods }
 
 export default AppSettingController

@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition } from './../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\StockMovementController::index
  * @see app/Http/Controllers/StockMovementController.php:19
@@ -42,6 +42,41 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     method: 'head',
 })
 
+    /**
+* @see \App\Http\Controllers\StockMovementController::index
+ * @see app/Http/Controllers/StockMovementController.php:19
+ * @route '/inventory/stock-movements'
+ */
+    const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+        action: index.url(options),
+        method: 'get',
+    })
+
+            /**
+* @see \App\Http\Controllers\StockMovementController::index
+ * @see app/Http/Controllers/StockMovementController.php:19
+ * @route '/inventory/stock-movements'
+ */
+        indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: index.url(options),
+            method: 'get',
+        })
+            /**
+* @see \App\Http\Controllers\StockMovementController::index
+ * @see app/Http/Controllers/StockMovementController.php:19
+ * @route '/inventory/stock-movements'
+ */
+        indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
+            action: index.url({
+                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
+                            _method: 'HEAD',
+                            ...(options?.query ?? options?.mergeQuery ?? {}),
+                        }
+                    }),
+            method: 'get',
+        })
+    
+    index.form = indexForm
 /**
 * @see \App\Http\Controllers\StockMovementController::store
  * @see app/Http/Controllers/StockMovementController.php:59
@@ -75,6 +110,28 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     url: store.url(options),
     method: 'post',
 })
+
+    /**
+* @see \App\Http\Controllers\StockMovementController::store
+ * @see app/Http/Controllers/StockMovementController.php:59
+ * @route '/inventory/stock-movements'
+ */
+    const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+        action: store.url(options),
+        method: 'post',
+    })
+
+            /**
+* @see \App\Http\Controllers\StockMovementController::store
+ * @see app/Http/Controllers/StockMovementController.php:59
+ * @route '/inventory/stock-movements'
+ */
+        storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
+            action: store.url(options),
+            method: 'post',
+        })
+    
+    store.form = storeForm
 const stockMovements = {
     index: Object.assign(index, index),
 store: Object.assign(store, store),

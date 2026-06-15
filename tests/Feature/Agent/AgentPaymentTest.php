@@ -49,9 +49,22 @@ describe('Agent Payments', function () {
     });
 
     it('allows branch-admin to view the payments page', function () {
+        rebateInvoice($this->branch->id, $this->agent->id, 10);
+        $this->post(route('agent-payments.store'), [
+            'agent_id' => $this->agent->id,
+            'period_start' => now()->subDay()->toDateString(),
+            'period_end' => now()->addDay()->toDateString(),
+        ]);
+
         $this->get(route('agent-payments.index'))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('agent-payments/index'));
+            ->assertInertia(fn ($page) => $page
+                ->component('agent-payments/index')
+                // Payments must be a paginated resource ({ data, meta }), the
+                // shape the page's TablePagination reads.
+                ->has('payments.data', 1)
+                ->has('payments.meta.current_page')
+                ->has('payments.meta.total'));
     });
 
     it('prevents accountant from viewing the payments page', function () {
