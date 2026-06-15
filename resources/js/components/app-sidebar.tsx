@@ -3,7 +3,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowLeftRight, Award, Bell, FileText, GitBranch, Handshake, LayoutGrid, LucideIcon, Package, Receipt, ServerIcon, ShoppingCart, Undo2, Users, Wallet } from 'lucide-react';
+import { ArrowLeftRight, Award, Bell, ClipboardList, FileText, GitBranch, Handshake, LayoutGrid, LucideIcon, Package, Receipt, ServerIcon, ShoppingCart, Truck, Undo2, Users, Wallet } from 'lucide-react';
 import AppLogo from './app-logo';
 
 
@@ -25,6 +25,8 @@ export function AppSidebar() {
         Handshake,
         Award,
         Bell,
+        Truck,
+        ClipboardList,
     };
 
     const mainNavItems = (auth.sidebarItems ?? []).map((item) => ({
