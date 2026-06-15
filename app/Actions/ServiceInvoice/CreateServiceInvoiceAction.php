@@ -2,6 +2,8 @@
 
 namespace App\Actions\ServiceInvoice;
 
+use App\Actions\Agent\ResolveInvoiceAgentAction;
+use App\Enums\AgentDiscountModeEnum;
 use App\Enums\CommissionSourceTypeEnum;
 use App\Enums\CouponDiscountTypeEnum;
 use App\Enums\CustomerTypeEnum;
@@ -18,6 +20,10 @@ use Illuminate\Validation\ValidationException;
 
 class CreateServiceInvoiceAction
 {
+    public function __construct(
+        private readonly ResolveInvoiceAgentAction $resolveAgent,
+    ) {}
+
     /** @param array<string, mixed> $data */
     public function handle(array $data): ServiceInvoice
     {
@@ -90,9 +96,26 @@ class CreateServiceInvoiceAction
 
             [$coupon, $couponDiscount] = $this->resolveCoupon($data, $branchId, $subtotal);
 
-            $taxableBase = round($subtotal - $couponDiscount, 2);
+            [$agentId, $agentMode, $agentRate] = $this->resolveAgent->handle(
+                isset($data['agent_id']) ? (int) $data['agent_id'] : null,
+                $branchId,
+            );
+
+            // discount mode reduces the taxable base; rebate is recorded on the
+            // invoice after the total but never deducted from it.
+            $afterCoupon = round($subtotal - $couponDiscount, 2);
+            $agentDiscount = $agentMode === AgentDiscountModeEnum::Discount
+                ? round($afterCoupon * $agentRate / 100, 2)
+                : 0.0;
+
+            $taxableBase = round($afterCoupon - $agentDiscount, 2);
             $vatAmount = round($taxableBase * $vatPct / 100, 2);
             $total = round($taxableBase + $vatAmount, 2);
+
+            $agentRebate = $agentMode === AgentDiscountModeEnum::Rebate
+                ? round($total * $agentRate / 100, 2)
+                : 0.0;
+
             $status = InvoiceStatusEnum::from($data['status']);
 
             $invoice = ServiceInvoice::create([
@@ -100,10 +123,13 @@ class CreateServiceInvoiceAction
                 'branch_id' => $branchId,
                 'user_id' => $user->id,
                 'customer_id' => $customerId,
+                'agent_id' => $agentId,
                 'coupon_id' => $coupon?->id,
                 'payment_method_id' => $data['payment_method_id'] ?? null,
                 'subtotal' => $subtotal,
                 'coupon_discount' => $couponDiscount,
+                'agent_discount' => $agentDiscount,
+                'agent_rebate' => $agentRebate,
                 'vat_pct' => $vatPct,
                 'vat_amount' => $vatAmount,
                 'total_amount' => $total,

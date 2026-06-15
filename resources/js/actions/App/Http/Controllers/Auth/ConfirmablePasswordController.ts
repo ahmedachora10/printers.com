@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition } from './../../../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition } from './../../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\Auth\ConfirmablePasswordController::show
  * @see app/Http/Controllers/Auth/ConfirmablePasswordController.php:18
@@ -42,41 +42,6 @@ show.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     method: 'head',
 })
 
-    /**
-* @see \App\Http\Controllers\Auth\ConfirmablePasswordController::show
- * @see app/Http/Controllers/Auth/ConfirmablePasswordController.php:18
- * @route '/confirm-password'
- */
-    const showForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: show.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\Auth\ConfirmablePasswordController::show
- * @see app/Http/Controllers/Auth/ConfirmablePasswordController.php:18
- * @route '/confirm-password'
- */
-        showForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: show.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\Auth\ConfirmablePasswordController::show
- * @see app/Http/Controllers/Auth/ConfirmablePasswordController.php:18
- * @route '/confirm-password'
- */
-        showForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: show.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    show.form = showForm
 /**
 * @see \App\Http\Controllers\Auth\ConfirmablePasswordController::store
  * @see app/Http/Controllers/Auth/ConfirmablePasswordController.php:26
@@ -110,28 +75,6 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     url: store.url(options),
     method: 'post',
 })
-
-    /**
-* @see \App\Http\Controllers\Auth\ConfirmablePasswordController::store
- * @see app/Http/Controllers/Auth/ConfirmablePasswordController.php:26
- * @route '/confirm-password'
- */
-    const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-        action: store.url(options),
-        method: 'post',
-    })
-
-            /**
-* @see \App\Http\Controllers\Auth\ConfirmablePasswordController::store
- * @see app/Http/Controllers/Auth/ConfirmablePasswordController.php:26
- * @route '/confirm-password'
- */
-        storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-            action: store.url(options),
-            method: 'post',
-        })
-    
-    store.form = storeForm
 const ConfirmablePasswordController = { show, store }
 
 export default ConfirmablePasswordController

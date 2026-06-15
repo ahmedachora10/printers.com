@@ -1,11 +1,11 @@
 <?php
 
 use App\Enums\Roles;
+use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\CommissionLedger;
 use App\Models\Coupon;
-use App\Models\Customer;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\ServiceTemplate;
@@ -228,6 +228,46 @@ describe('Service POS', function () {
     it('rejects an invalid coupon code', function () {
         $this->post(route('pos.service.store'), svcPayload(['coupon_code' => 'NOPE']))
             ->assertSessionHasErrors('coupon_code');
+
+        expect(ServiceInvoice::count())->toBe(0);
+    });
+
+    it('applies an agent discount to the taxable base', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->agentProfile->update(['discount_mode' => 'discount', 'rate' => 10]);
+
+        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+        // subtotal 30, agent discount 10% = 3, taxable 27, VAT 15% = 4.05, total 31.05, no rebate
+        expect((float) $invoice->subtotal)->toBe(30.00)
+            ->and((float) $invoice->agent_discount)->toBe(3.00)
+            ->and((float) $invoice->agent_rebate)->toBe(0.00)
+            ->and((float) $invoice->total_amount)->toBe(31.05)
+            ->and($invoice->agent_id)->toBe($agent->id);
+    });
+
+    it('records an agent rebate without deducting it from the total', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
+
+        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+        // subtotal 30, no discount, taxable 30, VAT 15% = 4.50, total 34.50, rebate 10% of total = 3.45
+        expect((float) $invoice->subtotal)->toBe(30.00)
+            ->and((float) $invoice->agent_discount)->toBe(0.00)
+            ->and((float) $invoice->total_amount)->toBe(34.50)
+            ->and((float) $invoice->agent_rebate)->toBe(3.45)
+            ->and($invoice->agent_id)->toBe($agent->id);
+    });
+
+    it('rejects an agent from another branch', function () {
+        $otherBranch = Branch::factory()->create();
+        $agent = Agent::factory()->create(['branch_id' => $otherBranch->id]);
+
+        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]))
+            ->assertSessionHasErrors('agent_id');
 
         expect(ServiceInvoice::count())->toBe(0);
     });

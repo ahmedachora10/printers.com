@@ -2,7 +2,10 @@
 
 use App\Enums\Roles;
 use App\Enums\StockMovementTypeEnum;
+use App\Models\Agent;
 use App\Models\Branch;
+use App\Models\Coupon;
+use App\Models\Customer;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductInvoice;
@@ -175,7 +178,7 @@ describe('Product POS', function () {
     });
 
     it('reuses an existing customer with the same phone for a walk-in', function () {
-        $existing = \App\Models\Customer::factory()->create([
+        $existing = Customer::factory()->create([
             'branch_id' => $this->branch->id,
             'phone' => '0500000002',
         ]);
@@ -185,7 +188,7 @@ describe('Product POS', function () {
             'walkin_phone' => '0500000002',
         ]));
 
-        expect(\App\Models\Customer::where('phone', '0500000002')->count())->toBe(1);
+        expect(Customer::where('phone', '0500000002')->count())->toBe(1);
         expect(ProductInvoice::firstOrFail()->customer_id)->toBe($existing->id);
     });
 
@@ -214,7 +217,7 @@ describe('Product POS', function () {
     });
 
     it('applies a percentage coupon to the taxable base', function () {
-        $coupon = \App\Models\Coupon::factory()->create([
+        $coupon = Coupon::factory()->create([
             'branch_id' => $this->branch->id,
             'code' => 'save10',
             'discount_type' => 'percentage',
@@ -239,6 +242,44 @@ describe('Product POS', function () {
     it('rejects an invalid coupon code', function () {
         $this->post(route('pos.product.store'), posPayload(['coupon_code' => 'NOPE']))
             ->assertSessionHasErrors('coupon_code');
+
+        expect(ProductInvoice::count())->toBe(0);
+    });
+
+    it('applies an agent discount to the taxable base', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->agentProfile->update(['discount_mode' => 'discount', 'rate' => 10]);
+
+        $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
+
+        $invoice = ProductInvoice::firstOrFail();
+        // subtotal 30, agent discount 10% = 3, taxable 27, VAT 15% = 4.05, total 31.05
+        expect((float) $invoice->subtotal)->toBe(30.00)
+            ->and((float) $invoice->agent_discount)->toBe(3.00)
+            ->and((float) $invoice->agent_rebate)->toBe(0.00)
+            ->and((float) $invoice->total_amount)->toBe(31.05)
+            ->and($invoice->agent_id)->toBe($agent->id);
+    });
+
+    it('records an agent rebate without deducting it from the total', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
+
+        $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
+
+        $invoice = ProductInvoice::firstOrFail();
+        // subtotal 30, taxable 30, VAT 15% = 4.50, total 34.50, rebate 10% of total = 3.45
+        expect((float) $invoice->total_amount)->toBe(34.50)
+            ->and((float) $invoice->agent_discount)->toBe(0.00)
+            ->and((float) $invoice->agent_rebate)->toBe(3.45);
+    });
+
+    it('rejects an agent from another branch', function () {
+        $otherBranch = Branch::factory()->create();
+        $agent = Agent::factory()->create(['branch_id' => $otherBranch->id]);
+
+        $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]))
+            ->assertSessionHasErrors('agent_id');
 
         expect(ProductInvoice::count())->toBe(0);
     });

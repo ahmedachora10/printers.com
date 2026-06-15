@@ -73,6 +73,7 @@ class InvoiceController extends Controller
         $invoice->load([
             'lines',
             'customer:id,full_name,phone',
+            'agent:id,name',
             'paymentMethod:id,name',
             'branch',
             'refunds' => fn ($q) => $q->with('user:id,name')->latest(),

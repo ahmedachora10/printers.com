@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\ServiceTemplateController::index
  * @see app/Http/Controllers/ServiceTemplateController.php:21
@@ -42,41 +42,6 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     method: 'head',
 })
 
-    /**
-* @see \App\Http\Controllers\ServiceTemplateController::index
- * @see app/Http/Controllers/ServiceTemplateController.php:21
- * @route '/service-templates'
- */
-    const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: index.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\ServiceTemplateController::index
- * @see app/Http/Controllers/ServiceTemplateController.php:21
- * @route '/service-templates'
- */
-        indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: index.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\ServiceTemplateController::index
- * @see app/Http/Controllers/ServiceTemplateController.php:21
- * @route '/service-templates'
- */
-        indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: index.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    index.form = indexForm
 /**
 * @see \App\Http\Controllers\ServiceTemplateController::store
  * @see app/Http/Controllers/ServiceTemplateController.php:51
@@ -111,27 +76,6 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     method: 'post',
 })
 
-    /**
-* @see \App\Http\Controllers\ServiceTemplateController::store
- * @see app/Http/Controllers/ServiceTemplateController.php:51
- * @route '/service-templates'
- */
-    const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-        action: store.url(options),
-        method: 'post',
-    })
-
-            /**
-* @see \App\Http\Controllers\ServiceTemplateController::store
- * @see app/Http/Controllers/ServiceTemplateController.php:51
- * @route '/service-templates'
- */
-        storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-            action: store.url(options),
-            method: 'post',
-        })
-    
-    store.form = storeForm
 /**
 * @see \App\Http\Controllers\ServiceTemplateController::show
  * @see app/Http/Controllers/ServiceTemplateController.php:0
@@ -194,41 +138,6 @@ show.head = (args: { service_template: string | number } | [service_template: st
     method: 'head',
 })
 
-    /**
-* @see \App\Http\Controllers\ServiceTemplateController::show
- * @see app/Http/Controllers/ServiceTemplateController.php:0
- * @route '/service-templates/{service_template}'
- */
-    const showForm = (args: { service_template: string | number } | [service_template: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: show.url(args, options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\ServiceTemplateController::show
- * @see app/Http/Controllers/ServiceTemplateController.php:0
- * @route '/service-templates/{service_template}'
- */
-        showForm.get = (args: { service_template: string | number } | [service_template: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: show.url(args, options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\ServiceTemplateController::show
- * @see app/Http/Controllers/ServiceTemplateController.php:0
- * @route '/service-templates/{service_template}'
- */
-        showForm.head = (args: { service_template: string | number } | [service_template: string | number ] | string | number, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: show.url(args, {
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    show.form = showForm
 /**
 * @see \App\Http\Controllers\ServiceTemplateController::update
  * @see app/Http/Controllers/ServiceTemplateController.php:60
@@ -296,51 +205,6 @@ update.patch = (args: { service_template: number | { id: number } } | [service_t
     method: 'patch',
 })
 
-    /**
-* @see \App\Http\Controllers\ServiceTemplateController::update
- * @see app/Http/Controllers/ServiceTemplateController.php:60
- * @route '/service-templates/{service_template}'
- */
-    const updateForm = (args: { service_template: number | { id: number } } | [service_template: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-        action: update.url(args, {
-                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                        _method: 'PUT',
-                        ...(options?.query ?? options?.mergeQuery ?? {}),
-                    }
-                }),
-        method: 'post',
-    })
-
-            /**
-* @see \App\Http\Controllers\ServiceTemplateController::update
- * @see app/Http/Controllers/ServiceTemplateController.php:60
- * @route '/service-templates/{service_template}'
- */
-        updateForm.put = (args: { service_template: number | { id: number } } | [service_template: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-            action: update.url(args, {
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'PUT',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'post',
-        })
-            /**
-* @see \App\Http\Controllers\ServiceTemplateController::update
- * @see app/Http/Controllers/ServiceTemplateController.php:60
- * @route '/service-templates/{service_template}'
- */
-        updateForm.patch = (args: { service_template: number | { id: number } } | [service_template: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-            action: update.url(args, {
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'PATCH',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'post',
-        })
-    
-    update.form = updateForm
 /**
 * @see \App\Http\Controllers\ServiceTemplateController::destroy
  * @see app/Http/Controllers/ServiceTemplateController.php:69
@@ -398,38 +262,6 @@ destroy.delete = (args: { service_template: number | { id: number } } | [service
     url: destroy.url(args, options),
     method: 'delete',
 })
-
-    /**
-* @see \App\Http\Controllers\ServiceTemplateController::destroy
- * @see app/Http/Controllers/ServiceTemplateController.php:69
- * @route '/service-templates/{service_template}'
- */
-    const destroyForm = (args: { service_template: number | { id: number } } | [service_template: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-        action: destroy.url(args, {
-                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                        _method: 'DELETE',
-                        ...(options?.query ?? options?.mergeQuery ?? {}),
-                    }
-                }),
-        method: 'post',
-    })
-
-            /**
-* @see \App\Http\Controllers\ServiceTemplateController::destroy
- * @see app/Http/Controllers/ServiceTemplateController.php:69
- * @route '/service-templates/{service_template}'
- */
-        destroyForm.delete = (args: { service_template: number | { id: number } } | [service_template: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-            action: destroy.url(args, {
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'DELETE',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'post',
-        })
-    
-    destroy.form = destroyForm
 const ServiceTemplateController = { index, store, show, update, destroy }
 
 export default ServiceTemplateController

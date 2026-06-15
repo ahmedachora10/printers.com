@@ -1,7 +1,7 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::create
- * @see app/Http/Controllers/ProductInvoiceController.php:19
+ * @see app/Http/Controllers/ProductInvoiceController.php:20
  * @route '/pos/product'
  */
 export const create = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ create.definition = {
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::create
- * @see app/Http/Controllers/ProductInvoiceController.php:19
+ * @see app/Http/Controllers/ProductInvoiceController.php:20
  * @route '/pos/product'
  */
 create.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ create.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::create
- * @see app/Http/Controllers/ProductInvoiceController.php:19
+ * @see app/Http/Controllers/ProductInvoiceController.php:20
  * @route '/pos/product'
  */
 create.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ create.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::create
- * @see app/Http/Controllers/ProductInvoiceController.php:19
+ * @see app/Http/Controllers/ProductInvoiceController.php:20
  * @route '/pos/product'
  */
 create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -42,44 +42,9 @@ create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     method: 'head',
 })
 
-    /**
-* @see \App\Http\Controllers\ProductInvoiceController::create
- * @see app/Http/Controllers/ProductInvoiceController.php:19
- * @route '/pos/product'
- */
-    const createForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: create.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\ProductInvoiceController::create
- * @see app/Http/Controllers/ProductInvoiceController.php:19
- * @route '/pos/product'
- */
-        createForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: create.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\ProductInvoiceController::create
- * @see app/Http/Controllers/ProductInvoiceController.php:19
- * @route '/pos/product'
- */
-        createForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: create.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    create.form = createForm
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::store
- * @see app/Http/Controllers/ProductInvoiceController.php:66
+ * @see app/Http/Controllers/ProductInvoiceController.php:71
  * @route '/pos/product'
  */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -94,7 +59,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::store
- * @see app/Http/Controllers/ProductInvoiceController.php:66
+ * @see app/Http/Controllers/ProductInvoiceController.php:71
  * @route '/pos/product'
  */
 store.url = (options?: RouteQueryOptions) => {
@@ -103,7 +68,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::store
- * @see app/Http/Controllers/ProductInvoiceController.php:66
+ * @see app/Http/Controllers/ProductInvoiceController.php:71
  * @route '/pos/product'
  */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -111,30 +76,9 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     method: 'post',
 })
 
-    /**
-* @see \App\Http\Controllers\ProductInvoiceController::store
- * @see app/Http/Controllers/ProductInvoiceController.php:66
- * @route '/pos/product'
- */
-    const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-        action: store.url(options),
-        method: 'post',
-    })
-
-            /**
-* @see \App\Http\Controllers\ProductInvoiceController::store
- * @see app/Http/Controllers/ProductInvoiceController.php:66
- * @route '/pos/product'
- */
-        storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-            action: store.url(options),
-            method: 'post',
-        })
-    
-    store.form = storeForm
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::print
- * @see app/Http/Controllers/ProductInvoiceController.php:81
+ * @see app/Http/Controllers/ProductInvoiceController.php:86
  * @route '/pos/product/{invoice}/print'
  */
 export const print = (args: { invoice: number | { id: number } } | [invoice: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -149,7 +93,7 @@ print.definition = {
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::print
- * @see app/Http/Controllers/ProductInvoiceController.php:81
+ * @see app/Http/Controllers/ProductInvoiceController.php:86
  * @route '/pos/product/{invoice}/print'
  */
 print.url = (args: { invoice: number | { id: number } } | [invoice: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -182,7 +126,7 @@ print.url = (args: { invoice: number | { id: number } } | [invoice: number | { i
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::print
- * @see app/Http/Controllers/ProductInvoiceController.php:81
+ * @see app/Http/Controllers/ProductInvoiceController.php:86
  * @route '/pos/product/{invoice}/print'
  */
 print.get = (args: { invoice: number | { id: number } } | [invoice: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -191,49 +135,13 @@ print.get = (args: { invoice: number | { id: number } } | [invoice: number | { i
 })
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::print
- * @see app/Http/Controllers/ProductInvoiceController.php:81
+ * @see app/Http/Controllers/ProductInvoiceController.php:86
  * @route '/pos/product/{invoice}/print'
  */
 print.head = (args: { invoice: number | { id: number } } | [invoice: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     url: print.url(args, options),
     method: 'head',
 })
-
-    /**
-* @see \App\Http\Controllers\ProductInvoiceController::print
- * @see app/Http/Controllers/ProductInvoiceController.php:81
- * @route '/pos/product/{invoice}/print'
- */
-    const printForm = (args: { invoice: number | { id: number } } | [invoice: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: print.url(args, options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\ProductInvoiceController::print
- * @see app/Http/Controllers/ProductInvoiceController.php:81
- * @route '/pos/product/{invoice}/print'
- */
-        printForm.get = (args: { invoice: number | { id: number } } | [invoice: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: print.url(args, options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\ProductInvoiceController::print
- * @see app/Http/Controllers/ProductInvoiceController.php:81
- * @route '/pos/product/{invoice}/print'
- */
-        printForm.head = (args: { invoice: number | { id: number } } | [invoice: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: print.url(args, {
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    print.form = printForm
 const product = {
     create: Object.assign(create, create),
 store: Object.assign(store, store),

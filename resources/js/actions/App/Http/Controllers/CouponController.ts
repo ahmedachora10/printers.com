@@ -1,4 +1,4 @@
-import { queryParams, type RouteQueryOptions, type RouteDefinition, type RouteFormDefinition, applyUrlDefaults } from './../../../../wayfinder'
+import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../../../wayfinder'
 /**
 * @see \App\Http\Controllers\CouponController::toggleStatus
  * @see app/Http/Controllers/CouponController.php:74
@@ -57,37 +57,6 @@ toggleStatus.patch = (args: { coupon: number | { id: number } } | [coupon: numbe
     method: 'patch',
 })
 
-    /**
-* @see \App\Http\Controllers\CouponController::toggleStatus
- * @see app/Http/Controllers/CouponController.php:74
- * @route '/coupons/{coupon}/toggle-status'
- */
-    const toggleStatusForm = (args: { coupon: number | { id: number } } | [coupon: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-        action: toggleStatus.url(args, {
-                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                        _method: 'PATCH',
-                        ...(options?.query ?? options?.mergeQuery ?? {}),
-                    }
-                }),
-        method: 'post',
-    })
-
-            /**
-* @see \App\Http\Controllers\CouponController::toggleStatus
- * @see app/Http/Controllers/CouponController.php:74
- * @route '/coupons/{coupon}/toggle-status'
- */
-        toggleStatusForm.patch = (args: { coupon: number | { id: number } } | [coupon: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-            action: toggleStatus.url(args, {
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'PATCH',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'post',
-        })
-    
-    toggleStatus.form = toggleStatusForm
 /**
 * @see \App\Http\Controllers\CouponController::index
  * @see app/Http/Controllers/CouponController.php:22
@@ -131,41 +100,6 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
     method: 'head',
 })
 
-    /**
-* @see \App\Http\Controllers\CouponController::index
- * @see app/Http/Controllers/CouponController.php:22
- * @route '/coupons'
- */
-    const indexForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: index.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\CouponController::index
- * @see app/Http/Controllers/CouponController.php:22
- * @route '/coupons'
- */
-        indexForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: index.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\CouponController::index
- * @see app/Http/Controllers/CouponController.php:22
- * @route '/coupons'
- */
-        indexForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: index.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    index.form = indexForm
 /**
 * @see \App\Http\Controllers\CouponController::store
  * @see app/Http/Controllers/CouponController.php:47
@@ -200,27 +134,6 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
     method: 'post',
 })
 
-    /**
-* @see \App\Http\Controllers\CouponController::store
- * @see app/Http/Controllers/CouponController.php:47
- * @route '/coupons'
- */
-    const storeForm = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-        action: store.url(options),
-        method: 'post',
-    })
-
-            /**
-* @see \App\Http\Controllers\CouponController::store
- * @see app/Http/Controllers/CouponController.php:47
- * @route '/coupons'
- */
-        storeForm.post = (options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-            action: store.url(options),
-            method: 'post',
-        })
-    
-    store.form = storeForm
 /**
 * @see \App\Http\Controllers\CouponController::update
  * @see app/Http/Controllers/CouponController.php:56
@@ -288,51 +201,6 @@ update.patch = (args: { coupon: number | { id: number } } | [coupon: number | { 
     method: 'patch',
 })
 
-    /**
-* @see \App\Http\Controllers\CouponController::update
- * @see app/Http/Controllers/CouponController.php:56
- * @route '/coupons/{coupon}'
- */
-    const updateForm = (args: { coupon: number | { id: number } } | [coupon: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-        action: update.url(args, {
-                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                        _method: 'PUT',
-                        ...(options?.query ?? options?.mergeQuery ?? {}),
-                    }
-                }),
-        method: 'post',
-    })
-
-            /**
-* @see \App\Http\Controllers\CouponController::update
- * @see app/Http/Controllers/CouponController.php:56
- * @route '/coupons/{coupon}'
- */
-        updateForm.put = (args: { coupon: number | { id: number } } | [coupon: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-            action: update.url(args, {
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'PUT',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'post',
-        })
-            /**
-* @see \App\Http\Controllers\CouponController::update
- * @see app/Http/Controllers/CouponController.php:56
- * @route '/coupons/{coupon}'
- */
-        updateForm.patch = (args: { coupon: number | { id: number } } | [coupon: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-            action: update.url(args, {
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'PATCH',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'post',
-        })
-    
-    update.form = updateForm
 /**
 * @see \App\Http\Controllers\CouponController::destroy
  * @see app/Http/Controllers/CouponController.php:65
@@ -391,37 +259,6 @@ destroy.delete = (args: { coupon: number | { id: number } } | [coupon: number | 
     method: 'delete',
 })
 
-    /**
-* @see \App\Http\Controllers\CouponController::destroy
- * @see app/Http/Controllers/CouponController.php:65
- * @route '/coupons/{coupon}'
- */
-    const destroyForm = (args: { coupon: number | { id: number } } | [coupon: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-        action: destroy.url(args, {
-                    [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                        _method: 'DELETE',
-                        ...(options?.query ?? options?.mergeQuery ?? {}),
-                    }
-                }),
-        method: 'post',
-    })
-
-            /**
-* @see \App\Http\Controllers\CouponController::destroy
- * @see app/Http/Controllers/CouponController.php:65
- * @route '/coupons/{coupon}'
- */
-        destroyForm.delete = (args: { coupon: number | { id: number } } | [coupon: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteFormDefinition<'post'> => ({
-            action: destroy.url(args, {
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'DELETE',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'post',
-        })
-    
-    destroy.form = destroyForm
 /**
 * @see \App\Http\Controllers\CouponController::validateCoupon
  * @see app/Http/Controllers/CouponController.php:83
@@ -464,42 +301,6 @@ validateCoupon.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => 
     url: validateCoupon.url(options),
     method: 'head',
 })
-
-    /**
-* @see \App\Http\Controllers\CouponController::validateCoupon
- * @see app/Http/Controllers/CouponController.php:83
- * @route '/coupons/validate'
- */
-    const validateCouponForm = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-        action: validateCoupon.url(options),
-        method: 'get',
-    })
-
-            /**
-* @see \App\Http\Controllers\CouponController::validateCoupon
- * @see app/Http/Controllers/CouponController.php:83
- * @route '/coupons/validate'
- */
-        validateCouponForm.get = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: validateCoupon.url(options),
-            method: 'get',
-        })
-            /**
-* @see \App\Http\Controllers\CouponController::validateCoupon
- * @see app/Http/Controllers/CouponController.php:83
- * @route '/coupons/validate'
- */
-        validateCouponForm.head = (options?: RouteQueryOptions): RouteFormDefinition<'get'> => ({
-            action: validateCoupon.url({
-                        [options?.mergeQuery ? 'mergeQuery' : 'query']: {
-                            _method: 'HEAD',
-                            ...(options?.query ?? options?.mergeQuery ?? {}),
-                        }
-                    }),
-            method: 'get',
-        })
-    
-    validateCoupon.form = validateCouponForm
 const CouponController = { toggleStatus, index, store, update, destroy, validateCoupon }
 
 export default CouponController

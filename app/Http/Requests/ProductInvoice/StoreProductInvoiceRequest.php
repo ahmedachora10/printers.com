@@ -18,6 +18,7 @@ class StoreProductInvoiceRequest extends FormRequest
     {
         return [
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
+            'agent_id' => ['nullable', 'integer', 'exists:users,id'],
             'walkin_name' => ['nullable', 'string', 'max:255'],
             'walkin_phone' => ['nullable', 'string', 'max:30'],
             'coupon_code' => ['nullable', 'string', 'max:100'],

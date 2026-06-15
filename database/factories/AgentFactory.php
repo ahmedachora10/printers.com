@@ -36,9 +36,10 @@ class AgentFactory extends Factory
         return $this->afterCreating(function (Agent $agent) {
             $agent->addRole(Roles::AGENT->value);
 
-            if (! $agent->agentProfile) {
-                AgentProfile::factory()->create(['user_id' => $agent->id]);
-            }
+            AgentProfile::factory()->create(['user_id' => $agent->id]);
+            // Refresh so the freshly created profile is available on the instance
+            // (reading the relation before creating it would cache a null).
+            $agent->load('agentProfile');
 
             Cache::forget('user_role_'.$agent->id);
         });

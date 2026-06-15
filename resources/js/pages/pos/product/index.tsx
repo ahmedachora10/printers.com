@@ -10,7 +10,7 @@ import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
 import product from '@/routes/pos/product';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { type CartLine, type PosCustomer, type PosPaymentMethod, type PosProduct } from '@/types/pos';
+import { type CartLine, type PosAgent, type PosCustomer, type PosPaymentMethod, type PosProduct } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Printer, Save, Search, Tag, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -24,6 +24,7 @@ const breadcrumbs: BreadcrumbItem[] = [
 interface Props {
     products: PosProduct[];
     customers: PosCustomer[];
+    agents: PosAgent[];
     paymentMethods: PosPaymentMethod[];
     vatPct: number;
 }
@@ -40,12 +41,13 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const lineTotal = (line: CartLine) => round2(line.qty * line.unitPrice * (1 - line.discountPct / 100));
 
-export default function ProductPos({ products, customers, paymentMethods, vatPct }: Props) {
+export default function ProductPos({ products, customers, agents, paymentMethods, vatPct }: Props) {
     const { props } = usePage<SharedData>();
     const [search, setSearch] = useState('');
     const [searchFocused, setSearchFocused] = useState(false);
     const [cart, setCart] = useState<CartLine[]>([]);
     const [customerId, setCustomerId] = useState<string>('none');
+    const [agentId, setAgentId] = useState<string>('none');
     const [walkinName, setWalkinName] = useState('');
     const [walkinPhone, setWalkinPhone] = useState('');
     const [status, setStatus] = useState<InvoiceStatus>('paid');
@@ -63,6 +65,17 @@ export default function ProductPos({ products, customers, paymentMethods, vatPct
         }
     }, [props.success]);
 
+    // Auto-fill the agent from the chosen customer's link; the cashier can still
+    // change or clear it afterwards.
+    useEffect(() => {
+        if (customerId === 'none') {
+            setAgentId('none');
+            return;
+        }
+        const customer = customers.find((c) => String(c.id) === customerId);
+        setAgentId(customer?.agentId ? String(customer.agentId) : 'none');
+    }, [customerId, customers]);
+
     const filteredProducts = useMemo(() => {
         const term = search.trim().toLowerCase();
         if (!term) return [];
@@ -75,9 +88,22 @@ export default function ProductPos({ products, customers, paymentMethods, vatPct
         const raw = appliedCoupon.type === 'percentage' ? (subtotal * appliedCoupon.value) / 100 : appliedCoupon.value;
         return round2(Math.min(raw, subtotal));
     }, [appliedCoupon, subtotal]);
-    const taxableBase = useMemo(() => round2(subtotal - couponDiscount), [subtotal, couponDiscount]);
+    const selectedAgent = useMemo(
+        () => (agentId === 'none' ? null : agents.find((a) => String(a.id) === agentId) ?? null),
+        [agentId, agents],
+    );
+    const afterCoupon = useMemo(() => round2(subtotal - couponDiscount), [subtotal, couponDiscount]);
+    const agentDiscount = useMemo(
+        () => (selectedAgent?.discountMode === 'discount' ? round2((afterCoupon * selectedAgent.rate) / 100) : 0),
+        [selectedAgent, afterCoupon],
+    );
+    const taxableBase = useMemo(() => round2(afterCoupon - agentDiscount), [afterCoupon, agentDiscount]);
     const vatAmount = useMemo(() => round2((taxableBase * vatPct) / 100), [taxableBase, vatPct]);
     const total = useMemo(() => round2(taxableBase + vatAmount), [taxableBase, vatAmount]);
+    const agentRebate = useMemo(
+        () => (selectedAgent?.discountMode === 'rebate' ? round2((total * selectedAgent.rate) / 100) : 0),
+        [selectedAgent, total],
+    );
 
     function addProduct(p: PosProduct) {
         if (p.currentStock <= 0) {
@@ -216,6 +242,7 @@ export default function ProductPos({ products, customers, paymentMethods, vatPct
             product.store().url,
             {
                 customer_id: customerId === 'none' ? null : Number(customerId),
+                agent_id: agentId === 'none' ? null : Number(agentId),
                 walkin_name: customerId === 'none' ? walkinName.trim() || null : null,
                 walkin_phone: customerId === 'none' ? walkinPhone.trim() || null : null,
                 coupon_code: appliedCoupon?.code ?? null,
@@ -284,6 +311,38 @@ export default function ProductPos({ products, customers, paymentMethods, vatPct
                         </CardContent>
                     </Card>
 
+                    {/* Agent */}
+                    {agents.length > 0 && (
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-base">الوكيل</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-2">
+                                <Select value={agentId} onValueChange={setAgentId}>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="بدون وكيل" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">— بدون وكيل —</SelectItem>
+                                        {agents.map((a) => (
+                                            <SelectItem key={a.id} value={String(a.id)}>
+                                                {a.name} ({a.discountMode === 'rebate' ? 'عمولة' : 'خصم'} {a.rate}%)
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {selectedAgent && (
+                                    <p className="text-muted-foreground text-xs">
+                                        {selectedAgent.discountMode === 'rebate'
+                                            ? `عمولة مرتجعة ${selectedAgent.rate}% تُحتسب على الإجمالي`
+                                            : `خصم ${selectedAgent.rate}% على الفاتورة`}
+                                    </p>
+                                )}
+                                {errors.agent_id && <p className="text-destructive text-xs">{errors.agent_id}</p>}
+                            </CardContent>
+                        </Card>
+                    )}
+
                     {/* Status */}
                     <Card>
                         <CardHeader className="pb-3">
@@ -346,6 +405,12 @@ export default function ProductPos({ products, customers, paymentMethods, vatPct
                                     <span>−{formatCurrency(couponDiscount)}</span>
                                 </div>
                             )}
+                            {agentDiscount > 0 && (
+                                <div className="flex justify-between text-green-600 dark:text-green-400">
+                                    <span>خصم الوكيل</span>
+                                    <span>−{formatCurrency(agentDiscount)}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">الضريبة ({vatPct}%)</span>
                                 <span>{formatCurrency(vatAmount)}</span>
@@ -355,6 +420,12 @@ export default function ProductPos({ products, customers, paymentMethods, vatPct
                                 <span>الإجمالي</span>
                                 <span>{formatCurrency(total)}</span>
                             </div>
+                            {agentRebate > 0 && (
+                                <div className="text-muted-foreground flex justify-between text-xs">
+                                    <span>عمولة الوكيل المرتجعة</span>
+                                    <span>{formatCurrency(agentRebate)}</span>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
