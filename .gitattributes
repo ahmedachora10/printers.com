@@ -1,5 +1,11 @@
 * text=auto eol=lf
 
+# Wayfinder-generated TS files are rewritten on every `wayfinder:generate`.
+# Pin them to LF so a Windows-generated CRLF copy never shows the whole file
+# as changed in a diff.
+resources/js/actions/** text eol=lf
+resources/js/routes/** text eol=lf
+
 *.blade.php diff=html
 *.css diff=css
 *.html diff=html
