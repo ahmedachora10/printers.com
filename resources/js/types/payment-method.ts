@@ -13,3 +13,16 @@ export interface AppSettingsGeneralData {
 export interface AppSettingsInventoryData {
     minStockAlertThreshold: string | null;
 }
+
+export interface AppSettingsLoyaltyData {
+    isActive: boolean;
+    earningRate: number;
+    redemptionRate: number;
+    minRedemptionPoints: number;
+    bronzeThreshold: number;
+    silverThreshold: number;
+    goldThreshold: number;
+    bronzeDiscountPct: number;
+    silverDiscountPct: number;
+    goldDiscountPct: number;
+}
