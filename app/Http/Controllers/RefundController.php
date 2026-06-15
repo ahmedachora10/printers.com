@@ -8,11 +8,14 @@ use App\Enums\InvoiceTypeEnum;
 use App\Http\Requests\Refund\StoreRefundRequest;
 use App\Http\Resources\Refund\RefundResource;
 use App\Models\Refund;
+use App\Notifications\RefundProcessedNotification;
+use App\Support\BranchNotifiables;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -48,7 +51,14 @@ class RefundController extends Controller
     {
         Gate::authorize('create', Refund::class);
 
-        $action->handle($request->validated(), $request->user());
+        $refund = $action->handle($request->validated(), $request->user());
+
+        $refund->loadMissing('invoice:id,invoice_number');
+
+        Notification::send(
+            BranchNotifiables::forBranch($refund->branch_id, ['branch-admin']),
+            new RefundProcessedNotification($refund, $refund->invoice?->invoice_number),
+        );
 
         return to_route('refunds.index')->with('success', 'تم تسجيل المرتجع بنجاح');
     }

@@ -48,9 +48,41 @@ class HandleInertiaRequests extends Middleware
                 'role' => $request->user()?->roleName,
                 'sidebarItems' => $this->getSidebarItems($request),
             ],
+            'notifications' => fn () => $this->notifications($request),
             'success' => $request->session()->get('success'),
             'error' => $request->session()->get('error'),
         ]);
+    }
+
+    /**
+     * Unread count + the most recent notifications for the header bell. Lazy so
+     * `usePoll`/partial reloads can refresh only this key.
+     *
+     * @return array{unreadCount: int, items: array<int, array<string, mixed>>}
+     */
+    private function notifications(Request $request): array
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return ['unreadCount' => 0, 'items' => []];
+        }
+
+        $items = $user->notifications()->latest()->limit(10)->get()->map(fn ($n) => [
+            'id' => $n->id,
+            'type' => $n->data['type'] ?? 'general',
+            'title' => $n->data['title'] ?? '',
+            'body' => $n->data['body'] ?? '',
+            'url' => $n->data['url'] ?? null,
+            'icon' => $n->data['icon'] ?? 'Bell',
+            'isRead' => $n->read_at !== null,
+            'timeAgo' => $n->created_at?->diffForHumans(),
+        ])->all();
+
+        return [
+            'unreadCount' => $user->unreadNotifications()->count(),
+            'items' => $items,
+        ];
     }
 
     // sidebar items for each role
@@ -190,6 +222,12 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('inventory.stock-movements.index'),
                 'icon' => 'ArrowLeftRight',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
+                'title' => 'الإشعارات',
+                'url' => route('notifications.index'),
+                'icon' => 'Bell',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE, Roles::AGENT],
             ],
             [
                 'title' => 'الاعدادات',

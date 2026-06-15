@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Actions\ProductInvoice\CreateProductInvoiceAction;
 use App\Enums\CustomerTypeEnum;
+use App\Enums\InvoiceStatusEnum;
+use App\Enums\InvoiceTypeEnum;
 use App\Http\Requests\ProductInvoice\StoreProductInvoiceRequest;
 use App\Models\Agent;
 use App\Models\Branch;
@@ -11,10 +13,13 @@ use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\Product;
 use App\Models\ProductInvoice;
+use App\Notifications\DueInvoiceNotification;
+use App\Support\BranchNotifiables;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -95,6 +100,13 @@ class ProductInvoiceController extends Controller
         Gate::authorize('create', ProductInvoice::class);
 
         $invoice = $action->handle($request->validated());
+
+        if ($invoice->status === InvoiceStatusEnum::DUE) {
+            Notification::send(
+                BranchNotifiables::forBranch($invoice->branch_id, ['branch-admin', 'accountant']),
+                new DueInvoiceNotification($invoice->invoice_number, $invoice->id, InvoiceTypeEnum::PRODUCT, (float) $invoice->total_amount),
+            );
+        }
 
         if ($request->boolean('print')) {
             return to_route('pos.product.print', $invoice)

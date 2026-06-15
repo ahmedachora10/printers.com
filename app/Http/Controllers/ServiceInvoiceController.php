@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
 use App\Enums\CustomerTypeEnum;
+use App\Enums\InvoiceStatusEnum;
+use App\Enums\InvoiceTypeEnum;
+use App\Enums\Roles;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Models\Agent;
 use App\Models\Branch;
@@ -11,10 +14,13 @@ use App\Models\BranchService;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
+use App\Notifications\DueInvoiceNotification;
+use App\Support\BranchNotifiables;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -96,6 +102,13 @@ class ServiceInvoiceController extends Controller
         Gate::authorize('create', ServiceInvoice::class);
 
         $invoice = $action->handle($request->validated());
+
+        if ($invoice->status === InvoiceStatusEnum::DUE) {
+            Notification::send(
+                BranchNotifiables::forBranch($invoice->branch_id, [Roles::BRANCH_ADMIN, Roles::ACCOUNTANT]),
+                new DueInvoiceNotification($invoice->invoice_number, $invoice->id, InvoiceTypeEnum::SERVICE, (float) $invoice->total_amount),
+            );
+        }
 
         if ($request->boolean('print')) {
             return to_route('pos.service.print', $invoice)
