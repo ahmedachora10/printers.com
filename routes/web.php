@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AppSettingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchServiceController;
@@ -65,6 +66,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('refunds', [RefundController::class, 'store'])->name('refunds.store');
 
         Route::resource('expenses', ExpenseController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+
+        Route::resource('agents', AgentController::class)
             ->only(['index', 'store', 'update', 'destroy']);
     });
 

@@ -6,6 +6,7 @@ import ProductInvoiceController from './ProductInvoiceController'
 import StockMovementController from './StockMovementController'
 import RefundController from './RefundController'
 import ExpenseController from './ExpenseController'
+import AgentController from './AgentController'
 import ServiceInvoiceController from './ServiceInvoiceController'
 import CustomerController from './CustomerController'
 import InvoiceController from './InvoiceController'
@@ -28,6 +29,7 @@ ProductInvoiceController: Object.assign(ProductInvoiceController, ProductInvoice
 StockMovementController: Object.assign(StockMovementController, StockMovementController),
 RefundController: Object.assign(RefundController, RefundController),
 ExpenseController: Object.assign(ExpenseController, ExpenseController),
+AgentController: Object.assign(AgentController, AgentController),
 ServiceInvoiceController: Object.assign(ServiceInvoiceController, ServiceInvoiceController),
 CustomerController: Object.assign(CustomerController, CustomerController),
 InvoiceController: Object.assign(InvoiceController, InvoiceController),

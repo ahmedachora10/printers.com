@@ -91,6 +91,14 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         return $this->hasOne(Branch::class, 'owner_id');
     }
 
+    /** @return HasOne<AgentProfile, $this> */
+    public function agentProfile(): HasOne
+    {
+        // Pin the foreign key: this relation is also used on the Agent subclass,
+        // where the default would wrongly infer `agent_id`.
+        return $this->hasOne(AgentProfile::class, 'user_id');
+    }
+
     /** @return Attribute<Roles|null, never> */
     public function roleName(): Attribute
     {

@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\City;
@@ -20,6 +21,7 @@ use App\Models\ServiceTemplate;
 use App\Models\Setting;
 use App\Models\StockMovement;
 use App\Models\User;
+use App\Policies\AgentPolicy;
 use App\Policies\BranchPolicy;
 use App\Policies\BranchServicePolicy;
 use App\Policies\CityPolicy;
@@ -85,6 +87,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(ProductCategory::class, ProductCategoryPolicy::class);
         Gate::policy(ExpenseCategory::class, ExpenseCategoryPolicy::class);
         Gate::policy(Expense::class, ExpensePolicy::class);
+        Gate::policy(Agent::class, AgentPolicy::class);
         Gate::policy(Coupon::class, CouponPolicy::class);
         Gate::policy(CommissionPayment::class, CommissionPaymentPolicy::class);
         Gate::policy(Product::class, ProductPolicy::class);
