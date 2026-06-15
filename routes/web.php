@@ -12,6 +12,7 @@ use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\LoyaltyController;
 use App\Http\Controllers\NotificationController;
@@ -166,6 +167,13 @@ Route::middleware(['auth'])->group(function () {
         Route::post('commissions/pay', [CommissionController::class, 'pay'])->name('commissions.pay');
 
         Route::get('loyalty', [LoyaltyController::class, 'index'])->name('loyalty.index');
+
+        Route::get('incentives', [IncentiveController::class, 'index'])->name('incentives.index');
+        Route::post('incentives', [IncentiveController::class, 'store'])->name('incentives.store');
+        Route::post('incentives/recalculate', [IncentiveController::class, 'recalculate'])->name('incentives.recalculate');
+        Route::put('incentives/{incentive_plan}', [IncentiveController::class, 'update'])->name('incentives.update');
+        Route::delete('incentives/{incentive_plan}', [IncentiveController::class, 'destroy'])->name('incentives.destroy');
+        Route::post('incentives/{incentive_plan}/pay', [IncentiveController::class, 'pay'])->name('incentives.pay');
 
         Route::prefix('inventory')->name('inventory.')->group(function () {
             Route::patch('products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])
