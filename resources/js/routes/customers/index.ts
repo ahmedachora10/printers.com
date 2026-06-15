@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../wayfinder'
 /**
 * @see \App\Http\Controllers\CustomerController::outstandingBalance
- * @see app/Http/Controllers/CustomerController.php:172
+ * @see app/Http/Controllers/CustomerController.php:175
  * @route '/customers/outstanding-balance'
  */
 export const outstandingBalance = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ outstandingBalance.definition = {
 
 /**
 * @see \App\Http\Controllers\CustomerController::outstandingBalance
- * @see app/Http/Controllers/CustomerController.php:172
+ * @see app/Http/Controllers/CustomerController.php:175
  * @route '/customers/outstanding-balance'
  */
 outstandingBalance.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ outstandingBalance.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\CustomerController::outstandingBalance
- * @see app/Http/Controllers/CustomerController.php:172
+ * @see app/Http/Controllers/CustomerController.php:175
  * @route '/customers/outstanding-balance'
  */
 outstandingBalance.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ outstandingBalance.get = (options?: RouteQueryOptions): RouteDefinition<'get'> =
 })
 /**
 * @see \App\Http\Controllers\CustomerController::outstandingBalance
- * @see app/Http/Controllers/CustomerController.php:172
+ * @see app/Http/Controllers/CustomerController.php:175
  * @route '/customers/outstanding-balance'
  */
 outstandingBalance.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,7 +44,7 @@ outstandingBalance.head = (options?: RouteQueryOptions): RouteDefinition<'head'>
 
 /**
 * @see \App\Http\Controllers\CustomerController::exportMethod
- * @see app/Http/Controllers/CustomerController.php:185
+ * @see app/Http/Controllers/CustomerController.php:188
  * @route '/customers/export'
  */
 export const exportMethod = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -59,7 +59,7 @@ exportMethod.definition = {
 
 /**
 * @see \App\Http\Controllers\CustomerController::exportMethod
- * @see app/Http/Controllers/CustomerController.php:185
+ * @see app/Http/Controllers/CustomerController.php:188
  * @route '/customers/export'
  */
 exportMethod.url = (options?: RouteQueryOptions) => {
@@ -68,7 +68,7 @@ exportMethod.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\CustomerController::exportMethod
- * @see app/Http/Controllers/CustomerController.php:185
+ * @see app/Http/Controllers/CustomerController.php:188
  * @route '/customers/export'
  */
 exportMethod.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -77,7 +77,7 @@ exportMethod.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\CustomerController::exportMethod
- * @see app/Http/Controllers/CustomerController.php:185
+ * @see app/Http/Controllers/CustomerController.php:188
  * @route '/customers/export'
  */
 exportMethod.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -87,7 +87,7 @@ exportMethod.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\CustomerController::index
- * @see app/Http/Controllers/CustomerController.php:34
+ * @see app/Http/Controllers/CustomerController.php:35
  * @route '/customers'
  */
 export const index = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -102,7 +102,7 @@ index.definition = {
 
 /**
 * @see \App\Http\Controllers\CustomerController::index
- * @see app/Http/Controllers/CustomerController.php:34
+ * @see app/Http/Controllers/CustomerController.php:35
  * @route '/customers'
  */
 index.url = (options?: RouteQueryOptions) => {
@@ -111,7 +111,7 @@ index.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\CustomerController::index
- * @see app/Http/Controllers/CustomerController.php:34
+ * @see app/Http/Controllers/CustomerController.php:35
  * @route '/customers'
  */
 index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -120,7 +120,7 @@ index.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\CustomerController::index
- * @see app/Http/Controllers/CustomerController.php:34
+ * @see app/Http/Controllers/CustomerController.php:35
  * @route '/customers'
  */
 index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -130,7 +130,7 @@ index.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\CustomerController::create
- * @see app/Http/Controllers/CustomerController.php:83
+ * @see app/Http/Controllers/CustomerController.php:86
  * @route '/customers/create'
  */
 export const create = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -145,7 +145,7 @@ create.definition = {
 
 /**
 * @see \App\Http\Controllers\CustomerController::create
- * @see app/Http/Controllers/CustomerController.php:83
+ * @see app/Http/Controllers/CustomerController.php:86
  * @route '/customers/create'
  */
 create.url = (options?: RouteQueryOptions) => {
@@ -154,7 +154,7 @@ create.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\CustomerController::create
- * @see app/Http/Controllers/CustomerController.php:83
+ * @see app/Http/Controllers/CustomerController.php:86
  * @route '/customers/create'
  */
 create.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -163,7 +163,7 @@ create.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\CustomerController::create
- * @see app/Http/Controllers/CustomerController.php:83
+ * @see app/Http/Controllers/CustomerController.php:86
  * @route '/customers/create'
  */
 create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -173,7 +173,7 @@ create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\CustomerController::store
- * @see app/Http/Controllers/CustomerController.php:90
+ * @see app/Http/Controllers/CustomerController.php:93
  * @route '/customers'
  */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -188,7 +188,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\CustomerController::store
- * @see app/Http/Controllers/CustomerController.php:90
+ * @see app/Http/Controllers/CustomerController.php:93
  * @route '/customers'
  */
 store.url = (options?: RouteQueryOptions) => {
@@ -197,7 +197,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\CustomerController::store
- * @see app/Http/Controllers/CustomerController.php:90
+ * @see app/Http/Controllers/CustomerController.php:93
  * @route '/customers'
  */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -207,7 +207,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\CustomerController::show
- * @see app/Http/Controllers/CustomerController.php:104
+ * @see app/Http/Controllers/CustomerController.php:107
  * @route '/customers/{customer}'
  */
 export const show = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -222,7 +222,7 @@ show.definition = {
 
 /**
 * @see \App\Http\Controllers\CustomerController::show
- * @see app/Http/Controllers/CustomerController.php:104
+ * @see app/Http/Controllers/CustomerController.php:107
  * @route '/customers/{customer}'
  */
 show.url = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -255,7 +255,7 @@ show.url = (args: { customer: number | { id: number } } | [customer: number | { 
 
 /**
 * @see \App\Http\Controllers\CustomerController::show
- * @see app/Http/Controllers/CustomerController.php:104
+ * @see app/Http/Controllers/CustomerController.php:107
  * @route '/customers/{customer}'
  */
 show.get = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -264,7 +264,7 @@ show.get = (args: { customer: number | { id: number } } | [customer: number | { 
 })
 /**
 * @see \App\Http\Controllers\CustomerController::show
- * @see app/Http/Controllers/CustomerController.php:104
+ * @see app/Http/Controllers/CustomerController.php:107
  * @route '/customers/{customer}'
  */
 show.head = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -274,7 +274,7 @@ show.head = (args: { customer: number | { id: number } } | [customer: number | {
 
 /**
 * @see \App\Http\Controllers\CustomerController::edit
- * @see app/Http/Controllers/CustomerController.php:126
+ * @see app/Http/Controllers/CustomerController.php:129
  * @route '/customers/{customer}/edit'
  */
 export const edit = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -289,7 +289,7 @@ edit.definition = {
 
 /**
 * @see \App\Http\Controllers\CustomerController::edit
- * @see app/Http/Controllers/CustomerController.php:126
+ * @see app/Http/Controllers/CustomerController.php:129
  * @route '/customers/{customer}/edit'
  */
 edit.url = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -322,7 +322,7 @@ edit.url = (args: { customer: number | { id: number } } | [customer: number | { 
 
 /**
 * @see \App\Http\Controllers\CustomerController::edit
- * @see app/Http/Controllers/CustomerController.php:126
+ * @see app/Http/Controllers/CustomerController.php:129
  * @route '/customers/{customer}/edit'
  */
 edit.get = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -331,7 +331,7 @@ edit.get = (args: { customer: number | { id: number } } | [customer: number | { 
 })
 /**
 * @see \App\Http\Controllers\CustomerController::edit
- * @see app/Http/Controllers/CustomerController.php:126
+ * @see app/Http/Controllers/CustomerController.php:129
  * @route '/customers/{customer}/edit'
  */
 edit.head = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -341,7 +341,7 @@ edit.head = (args: { customer: number | { id: number } } | [customer: number | {
 
 /**
 * @see \App\Http\Controllers\CustomerController::update
- * @see app/Http/Controllers/CustomerController.php:135
+ * @see app/Http/Controllers/CustomerController.php:138
  * @route '/customers/{customer}'
  */
 export const update = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -356,7 +356,7 @@ update.definition = {
 
 /**
 * @see \App\Http\Controllers\CustomerController::update
- * @see app/Http/Controllers/CustomerController.php:135
+ * @see app/Http/Controllers/CustomerController.php:138
  * @route '/customers/{customer}'
  */
 update.url = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -389,7 +389,7 @@ update.url = (args: { customer: number | { id: number } } | [customer: number | 
 
 /**
 * @see \App\Http\Controllers\CustomerController::update
- * @see app/Http/Controllers/CustomerController.php:135
+ * @see app/Http/Controllers/CustomerController.php:138
  * @route '/customers/{customer}'
  */
 update.put = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'put'> => ({
@@ -398,7 +398,7 @@ update.put = (args: { customer: number | { id: number } } | [customer: number | 
 })
 /**
 * @see \App\Http\Controllers\CustomerController::update
- * @see app/Http/Controllers/CustomerController.php:135
+ * @see app/Http/Controllers/CustomerController.php:138
  * @route '/customers/{customer}'
  */
 update.patch = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -408,7 +408,7 @@ update.patch = (args: { customer: number | { id: number } } | [customer: number 
 
 /**
 * @see \App\Http\Controllers\CustomerController::destroy
- * @see app/Http/Controllers/CustomerController.php:147
+ * @see app/Http/Controllers/CustomerController.php:150
  * @route '/customers/{customer}'
  */
 export const destroy = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -423,7 +423,7 @@ destroy.definition = {
 
 /**
 * @see \App\Http\Controllers\CustomerController::destroy
- * @see app/Http/Controllers/CustomerController.php:147
+ * @see app/Http/Controllers/CustomerController.php:150
  * @route '/customers/{customer}'
  */
 destroy.url = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -456,7 +456,7 @@ destroy.url = (args: { customer: number | { id: number } } | [customer: number |
 
 /**
 * @see \App\Http\Controllers\CustomerController::destroy
- * @see app/Http/Controllers/CustomerController.php:147
+ * @see app/Http/Controllers/CustomerController.php:150
  * @route '/customers/{customer}'
  */
 destroy.delete = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'delete'> => ({
@@ -466,7 +466,7 @@ destroy.delete = (args: { customer: number | { id: number } } | [customer: numbe
 
 /**
 * @see \App\Http\Controllers\CustomerController::merge
- * @see app/Http/Controllers/CustomerController.php:156
+ * @see app/Http/Controllers/CustomerController.php:159
  * @route '/customers/{customer}/merge'
  */
 export const merge = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -481,7 +481,7 @@ merge.definition = {
 
 /**
 * @see \App\Http\Controllers\CustomerController::merge
- * @see app/Http/Controllers/CustomerController.php:156
+ * @see app/Http/Controllers/CustomerController.php:159
  * @route '/customers/{customer}/merge'
  */
 merge.url = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -514,7 +514,7 @@ merge.url = (args: { customer: number | { id: number } } | [customer: number | {
 
 /**
 * @see \App\Http\Controllers\CustomerController::merge
- * @see app/Http/Controllers/CustomerController.php:156
+ * @see app/Http/Controllers/CustomerController.php:159
  * @route '/customers/{customer}/merge'
  */
 merge.post = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -524,7 +524,7 @@ merge.post = (args: { customer: number | { id: number } } | [customer: number | 
 
 /**
 * @see \App\Http\Controllers\CustomerController::toggleStatus
- * @see app/Http/Controllers/CustomerController.php:194
+ * @see app/Http/Controllers/CustomerController.php:197
  * @route '/customers/{customer}/toggle-status'
  */
 export const toggleStatus = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({
@@ -539,7 +539,7 @@ toggleStatus.definition = {
 
 /**
 * @see \App\Http\Controllers\CustomerController::toggleStatus
- * @see app/Http/Controllers/CustomerController.php:194
+ * @see app/Http/Controllers/CustomerController.php:197
  * @route '/customers/{customer}/toggle-status'
  */
 toggleStatus.url = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -572,7 +572,7 @@ toggleStatus.url = (args: { customer: number | { id: number } } | [customer: num
 
 /**
 * @see \App\Http\Controllers\CustomerController::toggleStatus
- * @see app/Http/Controllers/CustomerController.php:194
+ * @see app/Http/Controllers/CustomerController.php:197
  * @route '/customers/{customer}/toggle-status'
  */
 toggleStatus.patch = (args: { customer: number | { id: number } } | [customer: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'patch'> => ({

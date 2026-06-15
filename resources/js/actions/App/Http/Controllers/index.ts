@@ -1,3 +1,4 @@
+import AgentPortalController from './AgentPortalController'
 import CityController from './CityController'
 import BranchController from './BranchController'
 import ServiceTemplateController from './ServiceTemplateController'
@@ -10,6 +11,7 @@ import AgentController from './AgentController'
 import ServiceInvoiceController from './ServiceInvoiceController'
 import CustomerController from './CustomerController'
 import InvoiceController from './InvoiceController'
+import AgentPaymentController from './AgentPaymentController'
 import UserController from './UserController'
 import AppSettingController from './AppSettingController'
 import BranchServiceController from './BranchServiceController'
@@ -21,7 +23,8 @@ import ProductController from './ProductController'
 import Settings from './Settings'
 import Auth from './Auth'
 const Controllers = {
-    CityController: Object.assign(CityController, CityController),
+    AgentPortalController: Object.assign(AgentPortalController, AgentPortalController),
+CityController: Object.assign(CityController, CityController),
 BranchController: Object.assign(BranchController, BranchController),
 ServiceTemplateController: Object.assign(ServiceTemplateController, ServiceTemplateController),
 PaymentMethodController: Object.assign(PaymentMethodController, PaymentMethodController),
@@ -33,6 +36,7 @@ AgentController: Object.assign(AgentController, AgentController),
 ServiceInvoiceController: Object.assign(ServiceInvoiceController, ServiceInvoiceController),
 CustomerController: Object.assign(CustomerController, CustomerController),
 InvoiceController: Object.assign(InvoiceController, InvoiceController),
+AgentPaymentController: Object.assign(AgentPaymentController, AgentPaymentController),
 UserController: Object.assign(UserController, UserController),
 AppSettingController: Object.assign(AppSettingController, AppSettingController),
 BranchServiceController: Object.assign(BranchServiceController, BranchServiceController),

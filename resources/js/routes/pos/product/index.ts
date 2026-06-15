@@ -1,7 +1,7 @@
 import { queryParams, type RouteQueryOptions, type RouteDefinition, applyUrlDefaults } from './../../../wayfinder'
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::create
- * @see app/Http/Controllers/ProductInvoiceController.php:20
+ * @see app/Http/Controllers/ProductInvoiceController.php:21
  * @route '/pos/product'
  */
 export const create = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -16,7 +16,7 @@ create.definition = {
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::create
- * @see app/Http/Controllers/ProductInvoiceController.php:20
+ * @see app/Http/Controllers/ProductInvoiceController.php:21
  * @route '/pos/product'
  */
 create.url = (options?: RouteQueryOptions) => {
@@ -25,7 +25,7 @@ create.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::create
- * @see app/Http/Controllers/ProductInvoiceController.php:20
+ * @see app/Http/Controllers/ProductInvoiceController.php:21
  * @route '/pos/product'
  */
 create.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -34,7 +34,7 @@ create.get = (options?: RouteQueryOptions): RouteDefinition<'get'> => ({
 })
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::create
- * @see app/Http/Controllers/ProductInvoiceController.php:20
+ * @see app/Http/Controllers/ProductInvoiceController.php:21
  * @route '/pos/product'
  */
 create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
@@ -44,7 +44,7 @@ create.head = (options?: RouteQueryOptions): RouteDefinition<'head'> => ({
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::store
- * @see app/Http/Controllers/ProductInvoiceController.php:71
+ * @see app/Http/Controllers/ProductInvoiceController.php:72
  * @route '/pos/product'
  */
 export const store = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -59,7 +59,7 @@ store.definition = {
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::store
- * @see app/Http/Controllers/ProductInvoiceController.php:71
+ * @see app/Http/Controllers/ProductInvoiceController.php:72
  * @route '/pos/product'
  */
 store.url = (options?: RouteQueryOptions) => {
@@ -68,7 +68,7 @@ store.url = (options?: RouteQueryOptions) => {
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::store
- * @see app/Http/Controllers/ProductInvoiceController.php:71
+ * @see app/Http/Controllers/ProductInvoiceController.php:72
  * @route '/pos/product'
  */
 store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
@@ -78,7 +78,7 @@ store.post = (options?: RouteQueryOptions): RouteDefinition<'post'> => ({
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::print
- * @see app/Http/Controllers/ProductInvoiceController.php:86
+ * @see app/Http/Controllers/ProductInvoiceController.php:87
  * @route '/pos/product/{invoice}/print'
  */
 export const print = (args: { invoice: number | { id: number } } | [invoice: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -93,7 +93,7 @@ print.definition = {
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::print
- * @see app/Http/Controllers/ProductInvoiceController.php:86
+ * @see app/Http/Controllers/ProductInvoiceController.php:87
  * @route '/pos/product/{invoice}/print'
  */
 print.url = (args: { invoice: number | { id: number } } | [invoice: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions) => {
@@ -126,7 +126,7 @@ print.url = (args: { invoice: number | { id: number } } | [invoice: number | { i
 
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::print
- * @see app/Http/Controllers/ProductInvoiceController.php:86
+ * @see app/Http/Controllers/ProductInvoiceController.php:87
  * @route '/pos/product/{invoice}/print'
  */
 print.get = (args: { invoice: number | { id: number } } | [invoice: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'get'> => ({
@@ -135,7 +135,7 @@ print.get = (args: { invoice: number | { id: number } } | [invoice: number | { i
 })
 /**
 * @see \App\Http\Controllers\ProductInvoiceController::print
- * @see app/Http/Controllers/ProductInvoiceController.php:86
+ * @see app/Http/Controllers/ProductInvoiceController.php:87
  * @route '/pos/product/{invoice}/print'
  */
 print.head = (args: { invoice: number | { id: number } } | [invoice: number | { id: number } ] | number | { id: number }, options?: RouteQueryOptions): RouteDefinition<'head'> => ({

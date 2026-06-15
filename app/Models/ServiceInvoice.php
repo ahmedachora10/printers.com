@@ -29,6 +29,7 @@ class ServiceInvoice extends Model
         'coupon_discount',
         'agent_discount',
         'agent_rebate',
+        'agent_payment_id',
         'points_redeemed',
         'points_discount',
         'vat_pct',

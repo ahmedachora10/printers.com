@@ -35,7 +35,7 @@ class UpdateCustomerRequest extends FormRequest
             'customer_type' => ['required', Rule::enum(CustomerTypeEnum::class)],
             'company_name' => ['nullable', 'string', 'max:255', 'required_if:customer_type,corporate'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
-            'agent_id' => ['nullable', 'integer', 'exists:agents,id'],
+            'agent_id' => ['nullable', 'integer', 'exists:users,id'],
             'notes' => ['nullable', 'string'],
             'is_active' => ['boolean'],
         ];

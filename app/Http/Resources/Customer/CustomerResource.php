@@ -21,8 +21,8 @@ class CustomerResource extends JsonResource
             'email' => $this->email,
             'branchId' => $this->branch_id,
             'customerType' => [
-                'value' => $this->customer_type->value,
-                'label' => $this->customer_type->label(),
+                'value' => $this->customer_type?->value,
+                'label' => $this->customer_type?->label(),
             ],
             'companyName' => $this->company_name,
             'creditLimit' => $this->credit_limit,
@@ -34,8 +34,8 @@ class CustomerResource extends JsonResource
             'pointsBalance' => $this->points_balance,
             'cumulativeSpend' => $this->cumulative_spend,
             'tier' => [
-                'value' => $this->tier->value,
-                'label' => $this->tier->label(),
+                'value' => $this->tier?->value,
+                'label' => $this->tier?->label(),
             ],
             'notes' => $this->notes,
             'isActive' => $this->is_active,

@@ -36,6 +36,15 @@ class AgentPolicy
         return $this->update($user, $agent);
     }
 
+    /**
+     * Whether the actor may settle rebate payments for this agent.
+     */
+    public function pay(User $user, User $agent): bool
+    {
+        return ($user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin())
+            && $this->sharesBranch($user, $agent);
+    }
+
     public function restore(User $user, User $agent): bool
     {
         return ($user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin())

@@ -67,7 +67,7 @@ describe('Authentication', function () {
         $response->assertRedirect(route('dashboard', absolute: false));
     });
 
-    test('agent is redirected to dashboard after login', function () {
+    test('agent is redirected to the portal after login', function () {
         $this->seed(RolesAndPermissionsSeeder::class);
         $user = User::factory()->create();
         $user->addRole('agent');
@@ -78,7 +78,7 @@ describe('Authentication', function () {
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertRedirect(route('agent-portal.index', absolute: false));
     });
 
     test('logout invalidates server session and redirects to home', function () {

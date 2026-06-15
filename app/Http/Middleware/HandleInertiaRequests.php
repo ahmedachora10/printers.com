@@ -72,6 +72,12 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
+                'title' => 'بوابة الوكيل',
+                'url' => route('agent-portal.index'),
+                'icon' => 'Handshake',
+                'role' => [Roles::AGENT],
+            ],
+            [
                 'title' => 'المدن',
                 'url' => route('cities.index'),
                 'icon' => 'LayoutGrid',
@@ -154,6 +160,12 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('agents.index'),
                 'icon' => 'Handshake',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
+                'title' => 'مدفوعات الوكلاء',
+                'url' => route('agent-payments.index'),
+                'icon' => 'Wallet',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
                 'title' => 'المرتجعات',
