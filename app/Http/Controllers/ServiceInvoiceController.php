@@ -105,7 +105,7 @@ class ServiceInvoiceController extends Controller
 
         if ($invoice->status === InvoiceStatusEnum::DUE) {
             Notification::send(
-                BranchNotifiables::forBranch($invoice->branch_id, [Roles::BRANCH_ADMIN, Roles::ACCOUNTANT]),
+                BranchNotifiables::forBranch($invoice->branch_id, [Roles::BRANCH_ADMIN->value, Roles::ACCOUNTANT->value]),
                 new DueInvoiceNotification($invoice->invoice_number, $invoice->id, InvoiceTypeEnum::SERVICE, (float) $invoice->total_amount),
             );
         }
