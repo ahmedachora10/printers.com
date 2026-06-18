@@ -14,7 +14,8 @@ class ServiceInvoicePolicy
     {
         return $user->roleName->isSuperAdmin()
             || $user->roleName->isBranchAdmin()
-            || $user->roleName->isEmployee();
+            || $user->roleName->isEmployee()
+            || $user->roleName->isAccountant();
     }
 
     public function view(User $user, ServiceInvoice $invoice): bool
