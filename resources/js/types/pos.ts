@@ -59,6 +59,7 @@ export interface PosAgent {
 export interface PosPaymentMethod {
     id: number;
     name: string;
+    requiresAttachment: boolean;
 }
 
 export interface CartLine {

@@ -14,6 +14,7 @@ use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoiceReceiptController;
 use App\Http\Controllers\LoyaltyController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentMethodController;
@@ -115,6 +116,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('review', [ServiceInvoiceController::class, 'review'])->name('review');
             Route::patch('{invoice}/pay', [ServiceInvoiceController::class, 'markPaid'])->name('pay');
             Route::patch('{invoice}/cancel', [ServiceInvoiceController::class, 'cancel'])->name('cancel');
+            Route::post('{invoice}/receipt', [InvoiceReceiptController::class, 'store'])->name('receipt');
         });
     });
 
@@ -135,6 +137,8 @@ Route::middleware(['auth'])->group(function () {
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('show');
             Route::get('{type}/{id}/print', [InvoiceController::class, 'print'])
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('print');
+            Route::get('{type}/{id}/receipt', [InvoiceReceiptController::class, 'show'])
+                ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('receipt');
         });
     });
 

@@ -18,6 +18,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\Product;
 use App\Models\ProductInvoice;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -32,14 +33,14 @@ class CreateProductInvoiceAction
     ) {}
 
     /** @param array<string, mixed> $data */
-    public function handle(array $data): ProductInvoice
+    public function handle(array $data, ?UploadedFile $receipt = null): ProductInvoice
     {
         $user = auth()->user();
         $branchId = $user->branchId;
         $branch = Branch::findOrFail($branchId);
         $vatPct = (float) $branch->vat_rate_override;
 
-        return DB::transaction(function () use ($data, $user, $branchId, $vatPct) {
+        return DB::transaction(function () use ($data, $user, $branchId, $vatPct, $receipt) {
             $customerId = $this->resolveCustomerId($data, $branchId);
 
             // Lock the branch's products that are being sold to keep stock checks
@@ -175,6 +176,10 @@ class CreateProductInvoiceAction
                 'status' => $status,
                 'paid_at' => $status === InvoiceStatusEnum::PAID ? now() : null,
             ]);
+
+            if ($receipt !== null) {
+                $invoice->addMedia($receipt)->toMediaCollection(ProductInvoice::RECEIPT_COLLECTION);
+            }
 
             foreach ($lines as $line) {
                 $invoice->lines()->create([

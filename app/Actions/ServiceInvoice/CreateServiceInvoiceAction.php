@@ -19,6 +19,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -32,14 +33,14 @@ class CreateServiceInvoiceAction
     ) {}
 
     /** @param array<string, mixed> $data */
-    public function handle(array $data): ServiceInvoice
+    public function handle(array $data, ?UploadedFile $receipt = null): ServiceInvoice
     {
         $user = auth()->user();
         $branchId = $user->branchId;
         $branch = Branch::findOrFail($branchId);
         $vatPct = (float) $branch->vat_rate_override;
 
-        return DB::transaction(function () use ($data, $user, $branchId, $vatPct) {
+        return DB::transaction(function () use ($data, $user, $branchId, $vatPct, $receipt) {
             $customerId = $this->resolveCustomerId($data, $branchId);
 
             // Load the branch services referenced by the lines so we can resolve
@@ -167,6 +168,10 @@ class CreateServiceInvoiceAction
                 'status' => $status,
                 'paid_at' => $status === InvoiceStatusEnum::PAID ? now() : null,
             ]);
+
+            if ($receipt !== null) {
+                $invoice->addMedia($receipt)->toMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);
+            }
 
             foreach ($lines as $line) {
                 /** @var ServiceInvoiceLine $invoiceLine */

@@ -32,7 +32,7 @@ import {
     type PaymentMethod,
 } from '@/types/payment-method';
 import { router, useForm } from '@inertiajs/react';
-import { CreditCard, Pencil, Plus, Trash2 } from 'lucide-react';
+import { CreditCard, Paperclip, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 
@@ -275,6 +275,12 @@ export default function AppSettingsIndex({
                                                             </Badge>
                                                         )}
                                                     </button>
+                                                    {pm.requiresAttachment && (
+                                                        <Badge variant="outline" className="gap-1.5 border-amber-200 bg-amber-50 text-amber-700">
+                                                            <Paperclip className="size-3" />
+                                                            تتطلب إيصال
+                                                        </Badge>
+                                                    )}
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <Button

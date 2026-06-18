@@ -78,6 +78,7 @@ class ProductInvoiceController extends Controller
             ? $branch->enabledPaymentMethods()->map(fn ($method) => [
                 'id' => $method->id,
                 'name' => $method->name,
+                'requiresAttachment' => (bool) $method->requires_attachment,
             ])->values()
             : collect();
 
@@ -99,7 +100,7 @@ class ProductInvoiceController extends Controller
     {
         Gate::authorize('create', ProductInvoice::class);
 
-        $invoice = $action->handle($request->validated());
+        $invoice = $action->handle($request->validated(), $request->file('receipt'));
 
         if ($invoice->status === InvoiceStatusEnum::DUE) {
             Notification::send(

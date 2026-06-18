@@ -17,7 +17,9 @@ use App\Models\BranchService;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
+use App\Models\User;
 use App\Notifications\DueInvoiceNotification;
+use App\Notifications\ServiceInvoiceReviewedNotification;
 use App\Support\BranchNotifiables;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection;
@@ -83,6 +85,7 @@ class ServiceInvoiceController extends Controller
             ? $branch->enabledPaymentMethods()->map(fn ($method) => [
                 'id' => $method->id,
                 'name' => $method->name,
+                'requiresAttachment' => (bool) $method->requires_attachment,
             ])->values()
             : collect();
 
@@ -104,7 +107,7 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('create', ServiceInvoice::class);
 
-        $invoice = $action->handle($request->validated());
+        $invoice = $action->handle($request->validated(), $request->file('receipt'));
 
         if ($invoice->status === InvoiceStatusEnum::DUE) {
             Notification::send(
@@ -136,7 +139,7 @@ class ServiceInvoiceController extends Controller
         $invoices = ServiceInvoice::query()
             ->where('status', InvoiceStatusEnum::DUE)
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $user->branchId))
-            ->with(['lines', 'customer:id,full_name,phone', 'user:id,name', 'branch:id,name'])
+            ->with(['lines', 'customer:id,full_name,phone', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media'])
             ->latest()
             ->get()
             ->map(fn (ServiceInvoice $invoice) => [
@@ -147,6 +150,8 @@ class ServiceInvoiceController extends Controller
                 'customerName' => $invoice->customer?->full_name,
                 'customerPhone' => $invoice->customer?->phone,
                 'branchName' => $invoice->branch?->name,
+                'paymentMethod' => $invoice->paymentMethod?->name,
+                'receiptUrl' => $invoice->receiptUrl(),
                 'subtotal' => (float) $invoice->subtotal,
                 'vatAmount' => (float) $invoice->vat_amount,
                 'totalAmount' => (float) $invoice->total_amount,
@@ -171,6 +176,11 @@ class ServiceInvoiceController extends Controller
 
         $action->handle($invoice);
 
+        Notification::send(
+            $this->reviewNotifiables($invoice),
+            new ServiceInvoiceReviewedNotification($invoice->invoice_number, $invoice->id, (float) $invoice->total_amount, InvoiceStatusEnum::PAID),
+        );
+
         return to_route('invoices.service.review')
             ->with('success', "تم اعتماد دفع الفاتورة {$invoice->invoice_number}");
     }
@@ -179,10 +189,37 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('updateStatus', $invoice);
 
-        $action->handle($invoice, $request->validated()['reason']);
+        $reason = $request->validated()['reason'];
+        $action->handle($invoice, $reason);
+
+        Notification::send(
+            $this->reviewNotifiables($invoice),
+            new ServiceInvoiceReviewedNotification($invoice->invoice_number, $invoice->id, (float) $invoice->total_amount, InvoiceStatusEnum::CANCELLED, $reason),
+        );
 
         return to_route('invoices.service.review')
             ->with('success', "تم إلغاء الفاتورة {$invoice->invoice_number}");
+    }
+
+    /**
+     * Who to notify of a review decision: the employee who raised the invoice,
+     * the branch admin, and super admins — excluding whoever made the decision.
+     *
+     * @return Collection<int, User>
+     */
+    private function reviewNotifiables(ServiceInvoice $invoice): Collection
+    {
+        $recipients = collect();
+
+        if ($invoice->user) {
+            $recipients->push($invoice->user);
+        }
+
+        $recipients = $recipients
+            ->concat(BranchNotifiables::forBranch($invoice->branch_id, [Roles::BRANCH_ADMIN->value]))
+            ->concat(User::query()->whereHas('roles', fn ($q) => $q->where('name', Roles::SUPER_ADMIN->value))->get());
+
+        return $recipients->unique('id')->reject(fn (User $u) => $u->id === Auth::id())->values();
     }
 
     public function print(ServiceInvoice $invoice): Response

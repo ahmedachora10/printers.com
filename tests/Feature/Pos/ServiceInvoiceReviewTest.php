@@ -12,8 +12,10 @@ use App\Models\LoyaltyTransaction;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\User;
+use App\Notifications\ServiceInvoiceReviewedNotification;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
@@ -168,6 +170,43 @@ describe('Service invoice review', function () {
             ->assertSessionHasErrors('reason');
 
         expect($invoice->refresh()->status->value)->toBe('due');
+    });
+
+    it('notifies the employee, branch admin and super admin when accepting', function () {
+        Notification::fake();
+
+        $branchAdmin = User::factory()->create();
+        $branchAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        $this->branch->update(['owner_id' => $branchAdmin->id]);
+
+        $superAdmin = User::factory()->create();
+        $superAdmin->addRole(Roles::SUPER_ADMIN->value);
+
+        $invoice = makeDueInvoice();
+
+        $this->patch(route('invoices.service.pay', $invoice));
+
+        Notification::assertSentTo([$this->employee, $branchAdmin, $superAdmin], ServiceInvoiceReviewedNotification::class);
+        // The accountant who made the decision is not notified.
+        Notification::assertNotSentTo([$this->accountant], ServiceInvoiceReviewedNotification::class);
+    });
+
+    it('notifies the employee on rejection with the cancellation reason', function () {
+        Notification::fake();
+
+        $invoice = makeDueInvoice();
+
+        $this->patch(route('invoices.service.cancel', $invoice), ['reason' => 'بيانات ناقصة']);
+
+        Notification::assertSentTo(
+            [$this->employee],
+            ServiceInvoiceReviewedNotification::class,
+            function (ServiceInvoiceReviewedNotification $n) {
+                $data = $n->toArray($this->employee);
+
+                return $data['type'] === 'invoice_rejected' && str_contains($data['body'], 'بيانات ناقصة');
+            },
+        );
     });
 
     it('forbids settling an invoice from another branch', function () {

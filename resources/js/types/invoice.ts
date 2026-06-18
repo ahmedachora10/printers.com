@@ -53,6 +53,7 @@ export interface Invoice {
     customerName: string | null;
     customerPhone: string | null;
     paymentMethod: string | null;
+    receiptUrl: string | null;
     lines: InvoiceLine[];
     refundedTotal: number;
     refundableRemaining: number;
