@@ -10,8 +10,10 @@ use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\ServiceTemplate;
 use App\Models\User;
+use App\Notifications\DueInvoiceNotification;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
@@ -38,7 +40,7 @@ function makeBranchService(array $attrs = []): BranchService
 function svcPayload(array $overrides = []): array
 {
     return array_merge([
-        'status' => 'paid',
+        'status' => 'due',
         'lines' => [
             ['branch_service_id' => test()->service->id, 'qty' => 3, 'unit_price' => 10, 'discount_pct' => 0],
         ],
@@ -55,6 +57,11 @@ describe('Service POS', function () {
         $this->employee = User::factory()->create(['branch_id' => $this->branch->id]);
         $this->employee->addRole(Roles::EMPLOYEE->value);
         $this->actingAs($this->employee);
+
+        // Branch admins are linked through branches.owner_id, not users.branch_id.
+        $this->branchAdmin = User::factory()->create();
+        $this->branchAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        $this->branch->update(['owner_id' => $this->branchAdmin->id]);
 
         $this->service = makeBranchService();
     });
@@ -74,7 +81,9 @@ describe('Service POS', function () {
     });
 
     it('creates a paid invoice with correct totals and commission', function () {
-        $this->post(route('pos.service.store'), svcPayload())
+        $this->actingAs($this->branchAdmin);
+
+        $this->post(route('pos.service.store'), svcPayload(['status' => 'paid']))
             ->assertRedirect(route('pos.service.create'))
             ->assertSessionHas('success');
 
@@ -158,6 +167,27 @@ describe('Service POS', function () {
         $invoice = ServiceInvoice::firstOrFail();
         expect($invoice->status->value)->toBe('due')
             ->and($invoice->paid_at)->toBeNull();
+    });
+
+    it('forbids an employee from issuing a paid invoice', function () {
+        $this->post(route('pos.service.store'), svcPayload(['status' => 'paid']))
+            ->assertSessionHasErrors('status');
+
+        expect(ServiceInvoice::count())->toBe(0)
+            ->and(CommissionLedger::count())->toBe(0);
+    });
+
+    it('notifies the accountant and branch admin when an employee raises a due invoice', function () {
+        Notification::fake();
+
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole(Roles::ACCOUNTANT->value);
+
+        $this->post(route('pos.service.store'), svcPayload(['status' => 'due']))
+            ->assertRedirect(route('pos.service.create'));
+
+        Notification::assertSentTo([$accountant, $this->branchAdmin], DueInvoiceNotification::class);
+        Notification::assertNotSentTo([$this->employee], DueInvoiceNotification::class);
     });
 
     it('computes VAT from the branch override rate', function () {

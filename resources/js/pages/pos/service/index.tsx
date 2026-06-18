@@ -44,6 +44,9 @@ const lineTotal = (line: ServiceCartLine) => round2(line.qty * line.unitPrice * 
 
 export default function ServicePos({ services, customers, agents, paymentMethods, vatPct, loyalty }: Props) {
     const { props } = usePage<SharedData>();
+    // Employees may only raise DUE (معلق) invoices for an accountant to review;
+    // the paid/due toggle is hidden for them and the status is locked to 'due'.
+    const isEmployee = props.auth.role === 'employee';
     const [search, setSearch] = useState('');
     const [searchFocused, setSearchFocused] = useState(false);
     const [cart, setCart] = useState<ServiceCartLine[]>([]);
@@ -51,7 +54,7 @@ export default function ServicePos({ services, customers, agents, paymentMethods
     const [agentId, setAgentId] = useState<string>('none');
     const [walkinName, setWalkinName] = useState('');
     const [walkinPhone, setWalkinPhone] = useState('');
-    const [status, setStatus] = useState<InvoiceStatus>('paid');
+    const [status, setStatus] = useState<InvoiceStatus>(isEmployee ? 'due' : 'paid');
     const [paymentMethodId, setPaymentMethodId] = useState<number | null>(null);
     const [couponCode, setCouponCode] = useState('');
     const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
@@ -243,7 +246,7 @@ export default function ServicePos({ services, customers, agents, paymentMethods
         setWalkinName('');
         setWalkinPhone('');
         setPaymentMethodId(null);
-        setStatus('paid');
+        setStatus(isEmployee ? 'due' : 'paid');
         setRedeemPoints('');
         removeCoupon();
     }
@@ -370,14 +373,20 @@ export default function ServicePos({ services, customers, agents, paymentMethods
                             <CardTitle className="text-base">حالة الفاتورة</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="grid grid-cols-2 gap-2">
-                                <Button type="button" variant={status === 'paid' ? 'default' : 'outline'} onClick={() => setStatus('paid')}>
-                                    مدفوع
-                                </Button>
-                                <Button type="button" variant={status === 'due' ? 'default' : 'outline'} onClick={() => setStatus('due')}>
-                                    معلق
-                                </Button>
-                            </div>
+                            {isEmployee ? (
+                                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+                                    تُحفظ الفاتورة كـ <span className="font-semibold">معلقة</span> ليراجعها المحاسب ويعتمد الدفع.
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-2">
+                                    <Button type="button" variant={status === 'paid' ? 'default' : 'outline'} onClick={() => setStatus('paid')}>
+                                        مدفوع
+                                    </Button>
+                                    <Button type="button" variant={status === 'due' ? 'default' : 'outline'} onClick={() => setStatus('due')}>
+                                        معلق
+                                    </Button>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 

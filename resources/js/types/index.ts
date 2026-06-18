@@ -3,6 +3,7 @@ import { type NotificationsShared } from './notification';
 
 export interface Auth {
     user: User;
+    role?: string;
 }
 
 export interface BreadcrumbItem {

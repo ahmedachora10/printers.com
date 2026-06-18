@@ -16,6 +16,13 @@ class StoreServiceInvoiceRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        // Employees may only raise DUE (معلق) invoices — an accountant or
+        // branch admin reviews them before they are marked paid. Higher roles
+        // can still settle invoices as PAID directly from the POS.
+        $allowedStatuses = $this->user()?->roleName?->isEmployee()
+            ? [InvoiceStatusEnum::DUE->value]
+            : [InvoiceStatusEnum::PAID->value, InvoiceStatusEnum::DUE->value];
+
         return [
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'agent_id' => ['nullable', 'integer', 'exists:users,id'],
@@ -24,7 +31,7 @@ class StoreServiceInvoiceRequest extends FormRequest
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             'payment_method_id' => ['nullable', 'integer', 'exists:payment_methods,id'],
-            'status' => ['required', Rule::in([InvoiceStatusEnum::PAID->value, InvoiceStatusEnum::DUE->value])],
+            'status' => ['required', Rule::in($allowedStatuses)],
             'print' => ['nullable', 'boolean'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.branch_service_id' => ['required', 'integer', 'exists:branch_services,id'],
@@ -37,6 +44,7 @@ class StoreServiceInvoiceRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'status.in' => 'لا يمكنك إصدار فاتورة مدفوعة. يتم حفظ الفاتورة كمعلقة ليراجعها المحاسب.',
             'lines.required' => 'يجب إضافة خدمة واحدة على الأقل للفاتورة.',
             'lines.min' => 'يجب إضافة خدمة واحدة على الأقل للفاتورة.',
             'lines.*.branch_service_id.required' => 'يجب اختيار خدمة لكل سطر.',
