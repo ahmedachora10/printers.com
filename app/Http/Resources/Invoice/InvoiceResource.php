@@ -65,6 +65,7 @@ class InvoiceResource extends JsonResource
             'customerName' => $this->customer?->full_name,
             'customerPhone' => $this->customer?->phone,
             'paymentMethod' => $this->paymentMethod?->name,
+            'receiptUrl' => $this->receiptUrl(),
             'lines' => InvoiceLineResource::collection($this->whenLoaded('lines')),
             'refundedTotal' => $refundedTotal,
             'refundableRemaining' => $refundableRemaining,

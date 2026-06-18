@@ -17,10 +17,12 @@ class PaymentMethod extends Model
     protected $fillable = [
         'name',
         'is_active',
+        'requires_attachment',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'requires_attachment' => 'boolean',
     ];
 
     public function isReferencedByInvoices(): bool
@@ -32,5 +34,10 @@ class PaymentMethod extends Model
         }
 
         return false;
+    }
+
+    public static function transferMethod(): ?PaymentMethod
+    {
+        return self::firstWhere('name', 'تحويل بنكي');
     }
 }

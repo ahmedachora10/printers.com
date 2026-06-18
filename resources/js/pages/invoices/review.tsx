@@ -11,7 +11,7 @@ import { formatCurrency } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { CheckCircle2, ClipboardList, XCircle } from 'lucide-react';
+import { CheckCircle2, ClipboardList, Paperclip, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -31,6 +31,8 @@ interface ReviewInvoice {
     customerName: string | null;
     customerPhone: string | null;
     branchName: string | null;
+    paymentMethod: string | null;
+    receiptUrl: string | null;
     subtotal: number;
     vatAmount: number;
     totalAmount: number;
@@ -53,6 +55,7 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
     const [reason, setReason] = useState('');
     const [reasonError, setReasonError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [uploadingId, setUploadingId] = useState<number | null>(null);
 
     useEffect(() => {
         if (props.success) {
@@ -72,6 +75,21 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                     setSubmitting(false);
                     setPaying(null);
                 },
+            },
+        );
+    }
+
+    function uploadReceipt(invoiceId: number, file: File | undefined) {
+        if (!file) return;
+        setUploadingId(invoiceId);
+        router.post(
+            serviceInvoice.receipt(invoiceId).url,
+            { receipt: file },
+            {
+                forceFormData: true,
+                preserveScroll: true,
+                onError: (e) => toast.error(e.receipt ?? 'تعذّر رفع الإيصال.'),
+                onFinish: () => setUploadingId(null),
             },
         );
     }
@@ -170,6 +188,48 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                             <span>الإجمالي</span>
                                             <span>{formatCurrency(invoice.totalAmount)}</span>
                                         </div>
+                                    </div>
+
+                                    <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-sm">
+                                        <div className="text-muted-foreground flex items-center justify-between">
+                                            <span>طريقة الدفع</span>
+                                            <span className="font-medium">{invoice.paymentMethod ?? '—'}</span>
+                                        </div>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-muted-foreground flex items-center gap-1.5">
+                                                <Paperclip className="size-4" /> إيصال التحويل
+                                            </span>
+                                            {invoice.receiptUrl ? (
+                                                <a
+                                                    href={invoice.receiptUrl}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-primary font-medium hover:underline"
+                                                >
+                                                    عرض الإيصال
+                                                </a>
+                                            ) : (
+                                                <span className="text-amber-600 dark:text-amber-400">لا يوجد</span>
+                                            )}
+                                        </div>
+                                        <Label
+                                            htmlFor={`receipt-${invoice.id}`}
+                                            className="text-primary block cursor-pointer text-xs hover:underline"
+                                        >
+                                            {uploadingId === invoice.id
+                                                ? 'جارٍ الرفع...'
+                                                : invoice.receiptUrl
+                                                  ? 'استبدال الإيصال'
+                                                  : 'إرفاق إيصال'}
+                                        </Label>
+                                        <input
+                                            id={`receipt-${invoice.id}`}
+                                            type="file"
+                                            accept="image/jpeg,image/png,image/webp,application/pdf"
+                                            className="hidden"
+                                            disabled={uploadingId === invoice.id}
+                                            onChange={(e) => uploadReceipt(invoice.id, e.target.files?.[0])}
+                                        />
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-2 pt-1">

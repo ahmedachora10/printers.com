@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\InvoiceStatusEnum;
+use App\Models\Concerns\HasReceiptMedia;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -10,10 +11,12 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
-class ProductInvoice extends Model
+class ProductInvoice extends Model implements HasMedia
 {
-    use LogsActivity, SoftDeletes;
+    use HasReceiptMedia, InteractsWithMedia, LogsActivity, SoftDeletes;
 
     protected $fillable = [
         'invoice_number',
@@ -37,7 +40,6 @@ class ProductInvoice extends Model
         'total_amount',
         'status',
         'paid_at',
-        'attachment_path',
     ];
 
     protected $casts = [
@@ -59,6 +61,14 @@ class ProductInvoice extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()->logFillable()->useLogName('sales');
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection(self::RECEIPT_COLLECTION)
+            ->singleFile()
+            ->useDisk('local')
+            ->acceptsMimeTypes(self::RECEIPT_MIME_TYPES);
     }
 
     /** @return BelongsTo<Branch, $this> */

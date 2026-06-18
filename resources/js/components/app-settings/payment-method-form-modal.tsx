@@ -24,8 +24,9 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
     const isEdit = !!paymentMethod;
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
-        name:      paymentMethod?.name ?? '',
-        is_active: paymentMethod?.isActive ?? true,
+        name:                paymentMethod?.name ?? '',
+        is_active:           paymentMethod?.isActive ?? true,
+        requires_attachment: paymentMethod?.requiresAttachment ?? false,
     });
 
     function handleSubmit(e: React.FormEvent) {
@@ -73,6 +74,22 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
                         <Label htmlFor="pm-is-active" className="cursor-pointer">
                             نشطة
                         </Label>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                        <Checkbox
+                            id="pm-requires-attachment"
+                            checked={data.requires_attachment}
+                            onCheckedChange={(checked) => setData('requires_attachment', checked === true)}
+                        />
+                        <div className="grid gap-0.5">
+                            <Label htmlFor="pm-requires-attachment" className="cursor-pointer">
+                                تتطلب إرفاق إيصال
+                            </Label>
+                            <p className="text-muted-foreground text-xs">
+                                مثل التحويل البنكي — يُطلب رفع صورة أو ملف PDF للإيصال عند إصدار الفاتورة.
+                            </p>
+                        </div>
                     </div>
                 </form>
 

@@ -18,6 +18,7 @@ class PaymentMethodResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'isActive' => $this->is_active,
+            'requiresAttachment' => $this->requires_attachment,
         ];
     }
 }

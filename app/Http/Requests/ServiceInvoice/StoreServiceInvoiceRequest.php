@@ -3,6 +3,7 @@
 namespace App\Http\Requests\ServiceInvoice;
 
 use App\Enums\InvoiceStatusEnum;
+use App\Models\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -31,6 +32,11 @@ class StoreServiceInvoiceRequest extends FormRequest
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             'payment_method_id' => ['nullable', 'integer', 'exists:payment_methods,id'],
+            // A bank-transfer (requires-attachment) method must carry its proof.
+            'receipt' => [
+                $this->paymentMethodRequiresAttachment() ? 'required' : 'nullable',
+                'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120',
+            ],
             'status' => ['required', Rule::in($allowedStatuses)],
             'print' => ['nullable', 'boolean'],
             'lines' => ['required', 'array', 'min:1'],
@@ -41,9 +47,22 @@ class StoreServiceInvoiceRequest extends FormRequest
         ];
     }
 
+    /**
+     * Whether the chosen payment method mandates a receipt upload.
+     */
+    private function paymentMethodRequiresAttachment(): bool
+    {
+        $id = $this->input('payment_method_id');
+
+        return $id !== null && (bool) PaymentMethod::find($id)?->requires_attachment;
+    }
+
     public function messages(): array
     {
         return [
+            'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.',
+            'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
+            'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
             'status.in' => 'لا يمكنك إصدار فاتورة مدفوعة. يتم حفظ الفاتورة كمعلقة ليراجعها المحاسب.',
             'lines.required' => 'يجب إضافة خدمة واحدة على الأقل للفاتورة.',
             'lines.min' => 'يجب إضافة خدمة واحدة على الأقل للفاتورة.',

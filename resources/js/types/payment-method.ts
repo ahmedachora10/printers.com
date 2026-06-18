@@ -2,6 +2,7 @@ export interface PaymentMethod {
     id: number;
     name: string;
     isActive: boolean;
+    requiresAttachment: boolean;
 }
 
 export interface AppSettingsGeneralData {

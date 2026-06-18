@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
@@ -12,7 +13,7 @@ import service from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type PosAgent, type PosCustomer, type PosLoyalty, type PosPaymentMethod, type PosService, type ServiceCartLine } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Award, Printer, Save, Search, Tag, X } from 'lucide-react';
+import { Award, Paperclip, Printer, Save, Search, Tag, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -56,6 +57,7 @@ export default function ServicePos({ services, customers, agents, paymentMethods
     const [walkinPhone, setWalkinPhone] = useState('');
     const [status, setStatus] = useState<InvoiceStatus>(isEmployee ? 'due' : 'paid');
     const [paymentMethodId, setPaymentMethodId] = useState<number | null>(null);
+    const [receipt, setReceipt] = useState<File | null>(null);
     const [couponCode, setCouponCode] = useState('');
     const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
     const [couponLoading, setCouponLoading] = useState(false);
@@ -95,6 +97,8 @@ export default function ServicePos({ services, customers, agents, paymentMethods
         [customerId, customers],
     );
     const selectedAgent = useMemo(() => (agentId === 'none' ? null : (agents.find((a) => String(a.id) === agentId) ?? null)), [agentId, agents]);
+    const selectedPaymentMethod = useMemo(() => paymentMethods.find((m) => m.id === paymentMethodId) ?? null, [paymentMethods, paymentMethodId]);
+    const requiresReceipt = selectedPaymentMethod?.requiresAttachment ?? false;
 
     // Loyalty benefits apply only to an eligible customer with no agent on the
     // invoice. Pipeline mirrors the server: subtotal → tier → coupon → agent → points.
@@ -246,6 +250,7 @@ export default function ServicePos({ services, customers, agents, paymentMethods
         setWalkinName('');
         setWalkinPhone('');
         setPaymentMethodId(null);
+        setReceipt(null);
         setStatus(isEmployee ? 'due' : 'paid');
         setRedeemPoints('');
         removeCoupon();
@@ -260,6 +265,10 @@ export default function ServicePos({ services, customers, agents, paymentMethods
             toast.error('اختر خدمة لكل سطر يدوي');
             return;
         }
+        if (requiresReceipt && !receipt) {
+            toast.error('يجب إرفاق إيصال التحويل لطريقة الدفع المحددة');
+            return;
+        }
         setSubmitting(true);
         setErrors({});
         router.post(
@@ -272,6 +281,7 @@ export default function ServicePos({ services, customers, agents, paymentMethods
                 coupon_code: appliedCoupon?.code ?? null,
                 redeem_points: loyaltyOn && Number(redeemPoints) > 0 ? Number(redeemPoints) : null,
                 payment_method_id: paymentMethodId,
+                receipt,
                 status,
                 print,
                 lines: cart.map((l) => ({
@@ -282,6 +292,7 @@ export default function ServicePos({ services, customers, agents, paymentMethods
                 })),
             },
             {
+                forceFormData: true,
                 preserveScroll: true,
                 onSuccess: () => resetForm(),
                 onError: (e) => setErrors(e as Record<string, string>),
@@ -525,17 +536,39 @@ export default function ServicePos({ services, customers, agents, paymentMethods
                             {paymentMethods.length === 0 ? (
                                 <p className="text-muted-foreground text-sm">لا توجد طرق دفع مفعّلة</p>
                             ) : (
-                                <div className="grid grid-cols-2 gap-2">
-                                    {paymentMethods.map((m) => (
-                                        <Button
-                                            key={m.id}
-                                            type="button"
-                                            variant={paymentMethodId === m.id ? 'default' : 'outline'}
-                                            onClick={() => setPaymentMethodId((prev) => (prev === m.id ? null : m.id))}
-                                        >
-                                            {m.name}
-                                        </Button>
-                                    ))}
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        {paymentMethods.map((m) => (
+                                            <Button
+                                                key={m.id}
+                                                type="button"
+                                                variant={paymentMethodId === m.id ? 'default' : 'outline'}
+                                                onClick={() => {
+                                                    setReceipt(null);
+                                                    setPaymentMethodId((prev) => (prev === m.id ? null : m.id));
+                                                }}
+                                            >
+                                                {m.name}
+                                            </Button>
+                                        ))}
+                                    </div>
+
+                                    {requiresReceipt && (
+                                        <div className="space-y-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+                                            <Label htmlFor="receipt" className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400">
+                                                <Paperclip className="size-4" /> إيصال التحويل (مطلوب)
+                                            </Label>
+                                            <Input
+                                                id="receipt"
+                                                type="file"
+                                                accept="image/jpeg,image/png,image/webp,application/pdf"
+                                                onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
+                                                className="cursor-pointer"
+                                            />
+                                            <p className="text-muted-foreground text-xs">صورة (jpg, png, webp) أو ملف PDF — بحد أقصى 5 ميجابايت.</p>
+                                            {errors.receipt && <p className="text-destructive text-xs">{errors.receipt}</p>}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </CardContent>

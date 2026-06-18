@@ -9,7 +9,7 @@ import { type BreadcrumbItem } from '@/types';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { type Invoice } from '@/types/invoice';
 import { Head } from '@inertiajs/react';
-import { Printer, ReceiptText, Undo2 } from 'lucide-react';
+import { Paperclip, Printer, ReceiptText, Undo2 } from 'lucide-react';
 import { useState } from 'react';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -236,6 +236,21 @@ export default function InvoiceShow({ invoice }: Props) {
                                 <MetaRow label="الهاتف" value={<span dir="ltr">{invoice.customerPhone}</span>} />
                             )}
                             <MetaRow label="طريقة الدفع" value={invoice.paymentMethod ?? '—'} />
+                            {invoice.receiptUrl && (
+                                <MetaRow
+                                    label="إيصال التحويل"
+                                    value={
+                                        <a
+                                            href={invoice.receiptUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-primary inline-flex items-center gap-1 hover:underline"
+                                        >
+                                            <Paperclip className="size-3.5" /> عرض الإيصال
+                                        </a>
+                                    }
+                                />
+                            )}
                             {invoice.paidAt && <MetaRow label="تاريخ الدفع" value={formatDateTime(invoice.paidAt)} />}
                             {invoice.employeeCommission !== null && (
                                 <MetaRow

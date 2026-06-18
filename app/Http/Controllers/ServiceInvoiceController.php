@@ -85,6 +85,7 @@ class ServiceInvoiceController extends Controller
             ? $branch->enabledPaymentMethods()->map(fn ($method) => [
                 'id' => $method->id,
                 'name' => $method->name,
+                'requiresAttachment' => (bool) $method->requires_attachment,
             ])->values()
             : collect();
 
@@ -106,7 +107,7 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('create', ServiceInvoice::class);
 
-        $invoice = $action->handle($request->validated());
+        $invoice = $action->handle($request->validated(), $request->file('receipt'));
 
         if ($invoice->status === InvoiceStatusEnum::DUE) {
             Notification::send(
@@ -138,7 +139,7 @@ class ServiceInvoiceController extends Controller
         $invoices = ServiceInvoice::query()
             ->where('status', InvoiceStatusEnum::DUE)
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $user->branchId))
-            ->with(['lines', 'customer:id,full_name,phone', 'user:id,name', 'branch:id,name'])
+            ->with(['lines', 'customer:id,full_name,phone', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media'])
             ->latest()
             ->get()
             ->map(fn (ServiceInvoice $invoice) => [
@@ -149,6 +150,8 @@ class ServiceInvoiceController extends Controller
                 'customerName' => $invoice->customer?->full_name,
                 'customerPhone' => $invoice->customer?->phone,
                 'branchName' => $invoice->branch?->name,
+                'paymentMethod' => $invoice->paymentMethod?->name,
+                'receiptUrl' => $invoice->receiptUrl(),
                 'subtotal' => (float) $invoice->subtotal,
                 'vatAmount' => (float) $invoice->vat_amount,
                 'totalAmount' => (float) $invoice->total_amount,
