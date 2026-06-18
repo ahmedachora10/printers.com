@@ -17,7 +17,9 @@ use App\Models\BranchService;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
+use App\Models\User;
 use App\Notifications\DueInvoiceNotification;
+use App\Notifications\ServiceInvoiceReviewedNotification;
 use App\Support\BranchNotifiables;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Collection;
@@ -171,6 +173,11 @@ class ServiceInvoiceController extends Controller
 
         $action->handle($invoice);
 
+        Notification::send(
+            $this->reviewNotifiables($invoice),
+            new ServiceInvoiceReviewedNotification($invoice->invoice_number, $invoice->id, (float) $invoice->total_amount, InvoiceStatusEnum::PAID),
+        );
+
         return to_route('invoices.service.review')
             ->with('success', "تم اعتماد دفع الفاتورة {$invoice->invoice_number}");
     }
@@ -179,10 +186,37 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('updateStatus', $invoice);
 
-        $action->handle($invoice, $request->validated()['reason']);
+        $reason = $request->validated()['reason'];
+        $action->handle($invoice, $reason);
+
+        Notification::send(
+            $this->reviewNotifiables($invoice),
+            new ServiceInvoiceReviewedNotification($invoice->invoice_number, $invoice->id, (float) $invoice->total_amount, InvoiceStatusEnum::CANCELLED, $reason),
+        );
 
         return to_route('invoices.service.review')
             ->with('success', "تم إلغاء الفاتورة {$invoice->invoice_number}");
+    }
+
+    /**
+     * Who to notify of a review decision: the employee who raised the invoice,
+     * the branch admin, and super admins — excluding whoever made the decision.
+     *
+     * @return Collection<int, User>
+     */
+    private function reviewNotifiables(ServiceInvoice $invoice): Collection
+    {
+        $recipients = collect();
+
+        if ($invoice->user) {
+            $recipients->push($invoice->user);
+        }
+
+        $recipients = $recipients
+            ->concat(BranchNotifiables::forBranch($invoice->branch_id, [Roles::BRANCH_ADMIN->value]))
+            ->concat(User::query()->whereHas('roles', fn ($q) => $q->where('name', Roles::SUPER_ADMIN->value))->get());
+
+        return $recipients->unique('id')->reject(fn (User $u) => $u->id === Auth::id())->values();
     }
 
     public function print(ServiceInvoice $invoice): Response
