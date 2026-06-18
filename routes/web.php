@@ -65,6 +65,7 @@ Route::middleware(['auth'])->group(function () {
             ->except(['create', 'edit']);
 
         Route::resource('payment-methods', PaymentMethodController::class)
+            ->parameters(['payment-methods' => 'paymentMethod'])
             ->only(['store', 'update', 'destroy']);
         Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
             ->name('payment-methods.toggle-status');
