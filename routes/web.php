@@ -108,6 +108,16 @@ Route::middleware(['auth'])->group(function () {
         });
     });
 
+    // Due service-invoice review queue — an accountant or branch admin settles
+    // or cancels invoices raised by employees.
+    Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
+        Route::prefix('invoices/service')->name('invoices.service.')->group(function () {
+            Route::get('review', [ServiceInvoiceController::class, 'review'])->name('review');
+            Route::patch('{invoice}/pay', [ServiceInvoiceController::class, 'markPaid'])->name('pay');
+            Route::patch('{invoice}/cancel', [ServiceInvoiceController::class, 'cancel'])->name('cancel');
+        });
+    });
+
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
         Route::get('customers/outstanding-balance', [CustomerController::class, 'outstandingBalance'])
             ->name('customers.outstanding-balance');

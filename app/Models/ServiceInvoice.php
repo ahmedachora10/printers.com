@@ -38,6 +38,7 @@ class ServiceInvoice extends Model
         'employee_commission',
         'status',
         'paid_at',
+        'cancellation_reason',
         'attachment_path',
     ];
 

@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
+use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
 use App\Enums\CustomerTypeEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Enums\Roles;
+use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Models\Agent;
 use App\Models\Branch;
@@ -117,6 +120,69 @@ class ServiceInvoiceController extends Controller
 
         return to_route('pos.service.create')
             ->with('success', "تم حفظ الفاتورة {$invoice->invoice_number} بنجاح");
+    }
+
+    /**
+     * Review queue of due service invoices awaiting an accountant/branch-admin
+     * decision (settle or cancel). Super admins see every branch.
+     */
+    public function review(): Response
+    {
+        Gate::authorize('review', ServiceInvoice::class);
+
+        $user = Auth::user();
+        $isSuperAdmin = $user->roleName->isSuperAdmin();
+
+        $invoices = ServiceInvoice::query()
+            ->where('status', InvoiceStatusEnum::DUE)
+            ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $user->branchId))
+            ->with(['lines', 'customer:id,full_name,phone', 'user:id,name', 'branch:id,name'])
+            ->latest()
+            ->get()
+            ->map(fn (ServiceInvoice $invoice) => [
+                'id' => $invoice->id,
+                'invoiceNumber' => $invoice->invoice_number,
+                'createdAt' => $invoice->created_at?->toIso8601String(),
+                'employeeName' => $invoice->user?->name,
+                'customerName' => $invoice->customer?->full_name,
+                'customerPhone' => $invoice->customer?->phone,
+                'branchName' => $invoice->branch?->name,
+                'subtotal' => (float) $invoice->subtotal,
+                'vatAmount' => (float) $invoice->vat_amount,
+                'totalAmount' => (float) $invoice->total_amount,
+                'lines' => $invoice->lines->map(fn ($line) => [
+                    'name' => $line->service_name,
+                    'qty' => $line->qty,
+                    'unitPrice' => (float) $line->unit_price,
+                    'discountPct' => (float) $line->discount_pct,
+                    'subtotal' => (float) $line->subtotal,
+                ])->values(),
+            ]);
+
+        return Inertia::render('invoices/review', [
+            'invoices' => $invoices,
+            'isSuperAdmin' => $isSuperAdmin,
+        ]);
+    }
+
+    public function markPaid(ServiceInvoice $invoice, MarkServiceInvoicePaidAction $action): RedirectResponse
+    {
+        Gate::authorize('updateStatus', $invoice);
+
+        $action->handle($invoice);
+
+        return to_route('invoices.service.review')
+            ->with('success', "تم اعتماد دفع الفاتورة {$invoice->invoice_number}");
+    }
+
+    public function cancel(CancelServiceInvoiceRequest $request, ServiceInvoice $invoice, CancelServiceInvoiceAction $action): RedirectResponse
+    {
+        Gate::authorize('updateStatus', $invoice);
+
+        $action->handle($invoice, $request->validated()['reason']);
+
+        return to_route('invoices.service.review')
+            ->with('success', "تم إلغاء الفاتورة {$invoice->invoice_number}");
     }
 
     public function print(ServiceInvoice $invoice): Response
