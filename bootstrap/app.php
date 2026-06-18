@@ -8,8 +8,7 @@ use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Console\Scheduling\Schedule;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
-use Spatie\Permission\Exceptions\UnauthorizedException;
-use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Inertia\Inertia;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -25,8 +24,13 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
-        // Handle 403 - Access Denied
-        $exceptions->render(function (UnauthorizedException|AccessDeniedHttpException $e, $request) {
+        // Handle 403 - Access Denied (Gate::authorize throws AccessDeniedHttpException;
+        // Laratrust middleware calls abort(403) which throws a generic HttpException)
+        $exceptions->render(function (HttpException $e, $request) {
+
+            if ($e->getStatusCode() !== 403) {
+                return null;
+            }
 
             if ($request->expectsJson() || $request->is('api/*')) {
                 return response()->json([

@@ -25,11 +25,17 @@ class DueInvoiceNotification extends Notification
     {
         $total = number_format($this->total, 2);
 
+        // Service due invoices land in the review queue where an accountant or
+        // branch admin settles or cancels them; product invoices link to detail.
+        $url = $this->invoiceType === InvoiceTypeEnum::SERVICE
+            ? route('invoices.service.review')
+            : route('invoices.show', ['type' => $this->invoiceType->value, 'id' => $this->invoiceId]);
+
         return [
             'type' => 'due_invoice',
             'title' => 'فاتورة آجلة جديدة',
             'body' => "الفاتورة {$this->invoiceNumber} بمبلغ {$total} ر.س مسجلة كآجلة.",
-            'url' => route('invoices.show', ['type' => $this->invoiceType->value, 'id' => $this->invoiceId]),
+            'url' => $url,
             'icon' => 'FileText',
         ];
     }
