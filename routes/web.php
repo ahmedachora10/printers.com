@@ -149,6 +149,8 @@ Route::middleware(['auth'])->group(function () {
 
         Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
             ->name('users.toggle-status');
+        Route::put('users/{user}/service-commissions', [UserController::class, 'updateServiceCommissions'])
+            ->name('users.service-commissions.update');
         Route::resource('users', UserController::class)
             ->only(['index', 'show', 'store', 'update', 'destroy']);
 
@@ -158,6 +160,8 @@ Route::middleware(['auth'])->group(function () {
         Route::put('app-settings/payment-methods', [AppSettingController::class, 'updatePaymentMethods'])->name('app-settings.update-payment-methods');
         Route::put('app-settings/loyalty', [AppSettingController::class, 'updateLoyalty'])->name('app-settings.update-loyalty');
 
+        Route::put('branch-services/{branchService}/employee-commissions', [BranchServiceController::class, 'updateEmployeeCommissions'])
+            ->name('branch-services.employee-commissions.update');
         Route::resource('branch-services', BranchServiceController::class)
             ->only(['index', 'store', 'update', 'destroy']);
 

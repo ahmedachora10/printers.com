@@ -56,6 +56,13 @@ export interface UserInvoiceHistoryItem {
     created_at: string;
 }
 
+export interface UserServiceCommission {
+    branchServiceId: number;
+    serviceName: string;
+    baseCommissionPct: number;
+    commissionPct: number | null;
+}
+
 export interface UserCommissionLedgerItem {
     id: number;
     amount: number | string;

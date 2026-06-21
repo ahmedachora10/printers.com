@@ -10,6 +10,7 @@ use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\ServiceTemplate;
 use App\Models\User;
+use App\Models\UserService;
 use App\Notifications\DueInvoiceNotification;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -35,6 +36,17 @@ function makeBranchService(array $attrs = []): BranchService
     return BranchService::where('branch_id', test()->branch->id)
         ->where('service_template_id', $template->id)
         ->firstOrFail();
+}
+
+// Commission now comes from a per-employee rate; with no row the employee earns
+// 0% on the service (zero fallback).
+function setCommissionRate(User $user, BranchService $service, float $pct): void
+{
+    UserService::create([
+        'user_id' => $user->id,
+        'branch_service_id' => $service->id,
+        'commission_override_pct' => $pct,
+    ]);
 }
 
 function svcPayload(array $overrides = []): array
@@ -64,6 +76,10 @@ describe('Service POS', function () {
         $this->branch->update(['owner_id' => $this->branchAdmin->id]);
 
         $this->service = makeBranchService();
+
+        // Both the employee and branch admin earn 10% on the default service.
+        setCommissionRate($this->employee, $this->service, 10);
+        setCommissionRate($this->branchAdmin, $this->service, 10);
     });
 
     it('lets an employee open the service POS screen', function () {
@@ -125,6 +141,7 @@ describe('Service POS', function () {
 
     it('flags tahazir commission on the ledger', function () {
         $tahazir = makeBranchService(['is_tahazir' => true, 'base_commission_pct' => 5]);
+        setCommissionRate($this->employee, $tahazir, 5);
 
         $this->post(route('pos.service.store'), svcPayload([
             'lines' => [

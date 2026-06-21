@@ -5,21 +5,24 @@ namespace App\Http\Controllers;
 use App\Actions\User\CreateUserAction;
 use App\Actions\User\DeleteUserAction;
 use App\Actions\User\UpdateUserAction;
+use App\Actions\UserService\SyncUserServiceCommissionsAction;
 use App\Enums\Roles;
 use App\Http\Requests\User\StoreUserRequest;
 use App\Http\Requests\User\UpdateUserRequest;
+use App\Http\Requests\User\UpdateUserServiceCommissionsRequest;
 use App\Http\Resources\User\UserResource;
 use App\Models\Branch;
+use App\Models\BranchService;
 use App\Models\CommissionLedger;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use App\Models\User;
+use App\Models\UserService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -81,6 +84,7 @@ class UserController extends Controller
             'salesSummary' => $this->salesSummary($user),
             'commissionHistory' => $this->recentCommissionLedger($user),
             'invoiceHistory' => $this->recentInvoices($user),
+            'serviceCommissions' => $this->serviceCommissions($user),
             'roles' => $this->assignableRoles($isSuper),
             'branches' => $isSuper
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
@@ -105,6 +109,28 @@ class UserController extends Controller
         $action->handle($user, $request->validated());
 
         return to_route('users.index')->with('success', 'تم تحديث المستخدم بنجاح');
+    }
+
+    /**
+     * Set the employee's per-service commission rates. A service omitted (or sent
+     * with a null rate) leaves the employee on 0% commission for it.
+     */
+    public function updateServiceCommissions(
+        UpdateUserServiceCommissionsRequest $request,
+        User $user,
+        SyncUserServiceCommissionsAction $action,
+    ): RedirectResponse {
+        Gate::authorize('update', $user);
+
+        $pairs = array_map(fn (array $row) => [
+            'user_id' => $user->id,
+            'branch_service_id' => (int) $row['branch_service_id'],
+            'commission_pct' => isset($row['commission_pct']) ? (float) $row['commission_pct'] : null,
+        ], $request->validated('commissions'));
+
+        $action->handle($pairs);
+
+        return back()->with('success', 'تم تحديث عمولات الخدمات بنجاح');
     }
 
     public function destroy(User $user, DeleteUserAction $action): RedirectResponse
@@ -233,6 +259,38 @@ class UserController extends Controller
             ->limit(10)
             ->get(['id', 'amount', 'is_tahazir', 'source_type', 'earned_at', 'paid_at'])
             ->toArray();
+    }
+
+    /**
+     * The employee's branch services with their personal commission rate. A
+     * service with no row reports a null rate (i.e. 0% until explicitly set).
+     *
+     * @return list<array{branchServiceId: int, serviceName: string, baseCommissionPct: float, commissionPct: float|null}>
+     */
+    private function serviceCommissions(User $user): array
+    {
+        if ($user->branch_id === null) {
+            return [];
+        }
+
+        $overrides = UserService::query()
+            ->where('user_id', $user->id)
+            ->pluck('commission_override_pct', 'branch_service_id');
+
+        return BranchService::query()
+            ->where('branch_id', $user->branch_id)
+            ->where('is_active', true)
+            ->with('serviceTemplate:id,name')
+            ->get()
+            ->map(fn (BranchService $bs) => [
+                'branchServiceId' => $bs->id,
+                'serviceName' => $bs->serviceTemplate?->name,
+                'baseCommissionPct' => (float) $bs->base_commission_pct,
+                'commissionPct' => $overrides->has($bs->id) ? (float) $overrides[$bs->id] : null,
+            ])
+            ->filter(fn (array $row) => $row['serviceName'] !== null)
+            ->values()
+            ->all();
     }
 
     /**

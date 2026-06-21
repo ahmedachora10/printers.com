@@ -19,6 +19,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
+use App\Models\UserService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -54,6 +55,13 @@ class CreateServiceInvoiceAction
                 ->get()
                 ->keyBy('id');
 
+            // Per-employee commission rates for this employee. A service with no
+            // row earns 0% commission for them (zero fallback, not the base rate).
+            $commissionRates = UserService::query()
+                ->where('user_id', $user->id)
+                ->whereIn('branch_service_id', $branchServiceIds)
+                ->pluck('commission_override_pct', 'branch_service_id');
+
             $lines = [];
             $subtotal = 0.0;
             $totalCommission = 0.0;
@@ -80,7 +88,7 @@ class CreateServiceInvoiceAction
                 }
 
                 $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
-                $commissionPct = (float) $branchService->base_commission_pct;
+                $commissionPct = (float) ($commissionRates[$branchService->id] ?? 0);
                 $commissionAmount = round($lineSubtotal * $commissionPct / 100, 2);
 
                 $subtotal += $lineSubtotal;

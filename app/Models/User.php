@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -89,6 +90,12 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
     public function branchManager(): HasOne
     {
         return $this->hasOne(Branch::class, 'owner_id');
+    }
+
+    /** @return HasMany<UserService, $this> */
+    public function serviceCommissions(): HasMany
+    {
+        return $this->hasMany(UserService::class);
     }
 
     /** @return HasOne<AgentProfile, $this> */
