@@ -3,6 +3,7 @@
 namespace App\Http\Requests\User;
 
 use App\Enums\Roles;
+use App\Rules\SingleBranchManager;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
@@ -30,7 +31,7 @@ class StoreUserRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['required', 'confirmed', Password::defaults()],
             'role' => ['required', Rule::in($this->assignableRoles())],
-            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
+            'branch_id' => ['nullable', 'integer', 'exists:branches,id', new SingleBranchManager($this->input('role'))],
             'salary' => ['nullable', 'numeric', 'min:0'],
             'base_commission_pct' => ['nullable', 'numeric', 'between:0,100'],
             'referral_commission_pct' => ['nullable', 'numeric', 'between:0,100'],

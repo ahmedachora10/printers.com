@@ -15,8 +15,7 @@ class CreateUserAction
 {
     public function __construct(
         private UpdateBranchAction $updateBranchAction
-    )
-    {}
+    ) {}
 
     /** @param array<string, mixed> $data */
     public function handle(array $data): User
@@ -38,7 +37,7 @@ class CreateUserAction
                 $user->addRole($role);
             }
 
-            if( $role === Roles::BRANCH_ADMIN->value) {
+            if ($role === Roles::BRANCH_ADMIN->value && ! empty($data['branch_id'])) {
                 $this->updateBranchAction->handle(Branch::find($data['branch_id']), ['owner_id' => $user->id]);
             }
 

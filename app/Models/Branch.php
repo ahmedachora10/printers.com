@@ -81,4 +81,14 @@ class Branch extends Model implements HasMedia
 
         return $query->orderBy('name')->get();
     }
+
+    public function scopeActive($query)
+    {
+        $query->where('is_active', true);
+    }
+
+    public function scopeHasManager($query)
+    {
+        $query->whereNotNull('owner_id');
+    }
 }

@@ -56,7 +56,7 @@ class UserController extends Controller
             'users' => UserResource::collection($users),
             'roles' => $this->assignableRoles($isSuper),
             'branches' => $isSuper
-                ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                ? Branch::query()->active()->orderBy('name')->get(['id', 'name'])
                 : [],
             'isSuperAdmin' => $isSuper,
             'filters' => [

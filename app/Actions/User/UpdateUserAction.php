@@ -13,11 +13,9 @@ use Illuminate\Support\Facades\DB;
 
 class UpdateUserAction
 {
-
     public function __construct(
         private UpdateBranchAction $updateBranchAction
-    )
-    {}
+    ) {}
 
     /** @param array<string, mixed> $data */
     public function handle(User $user, array $data): User
@@ -36,14 +34,21 @@ class UpdateUserAction
             unset($data['password']);
         }
 
-        return DB::transaction(function () use ($user, $data, $role, $actor) {
+        return DB::transaction(function () use ($user, $data, $role) {
             $user->update($data);
 
             if ($role && ! $user->hasRole($role)) {
                 $user->syncRoles([$role]);
             }
 
-            if($role === Roles::BRANCH_ADMIN->value) {
+            if ($role === Roles::BRANCH_ADMIN->value && ! empty($data['branch_id'])) {
+                // Release any other branch this user currently manages so a
+                // manager only ever owns a single branch.
+                Branch::query()
+                    ->where('owner_id', $user->id)
+                    ->where('id', '!=', $data['branch_id'])
+                    ->update(['owner_id' => null]);
+
                 $this->updateBranchAction->handle(Branch::find($data['branch_id']), ['owner_id' => $user->id]);
             }
 
