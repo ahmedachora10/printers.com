@@ -2,6 +2,9 @@
 
 namespace App\Actions\User;
 
+use App\Actions\Branch\UpdateBranchAction;
+use App\Enums\Roles;
+use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
@@ -10,6 +13,11 @@ use Illuminate\Support\Facades\DB;
 
 class CreateUserAction
 {
+    public function __construct(
+        private UpdateBranchAction $updateBranchAction
+    )
+    {}
+
     /** @param array<string, mixed> $data */
     public function handle(array $data): User
     {
@@ -28,6 +36,10 @@ class CreateUserAction
 
             if ($role) {
                 $user->addRole($role);
+            }
+
+            if( $role === Roles::BRANCH_ADMIN->value) {
+                $this->updateBranchAction->handle(Branch::find($data['branch_id']), ['owner_id' => $user->id]);
             }
 
             Cache::forget('user_role_'.$user->id);
