@@ -224,6 +224,74 @@ describe('User Management', function () {
             ])->assertForbidden();
     });
 
+    // ── BRANCH MANAGER (one branch per manager) ────────────────────
+
+    it('reassigns a branch-admin to a new branch and vacates the old one', function () {
+        $newBranch = Branch::factory()->create(['owner_id' => null]);
+
+        $this->put(route('users.update', $this->branchAdmin), [
+            'name'      => $this->branchAdmin->name,
+            'username'  => $this->branchAdmin->username,
+            'email'     => $this->branchAdmin->email,
+            'role'      => Roles::BRANCH_ADMIN->value,
+            'branch_id' => $newBranch->id,
+            'is_active' => true,
+        ])->assertRedirect(route('users.index'));
+
+        // New branch is now managed by the admin; the previous branch is vacated.
+        expect($newBranch->refresh()->owner_id)->toBe($this->branchAdmin->id)
+            ->and($this->branch->refresh()->owner_id)->toBeNull();
+    });
+
+    it('rejects creating a branch-admin for a branch that already has a manager', function () {
+        $this->post(route('users.store'), [
+            'name'      => 'مدير ثانٍ',
+            'username'  => 'secondmanager',
+            'email'     => 'secondmanager@example.com',
+            'password'  => 'password123',
+            'password_confirmation' => 'password123',
+            'role'      => Roles::BRANCH_ADMIN->value,
+            'branch_id' => $this->branch->id, // already managed by $this->branchAdmin
+            'is_active' => true,
+        ])->assertSessionHasErrors(['branch_id']);
+
+        $this->assertDatabaseMissing('users', ['username' => 'secondmanager']);
+    });
+
+    it('rejects reassigning a branch-admin to a branch managed by someone else', function () {
+        $otherAdmin = User::factory()->create();
+        $otherAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        $otherBranch = Branch::factory()->create(['owner_id' => $otherAdmin->id]);
+
+        $this->put(route('users.update', $this->branchAdmin), [
+            'name'      => $this->branchAdmin->name,
+            'username'  => $this->branchAdmin->username,
+            'email'     => $this->branchAdmin->email,
+            'role'      => Roles::BRANCH_ADMIN->value,
+            'branch_id' => $otherBranch->id,
+            'is_active' => true,
+        ])->assertSessionHasErrors(['branch_id']);
+
+        // Ownership is untouched on both branches.
+        expect($otherBranch->refresh()->owner_id)->toBe($otherAdmin->id)
+            ->and($this->branch->refresh()->owner_id)->toBe($this->branchAdmin->id);
+    });
+
+    it('lets a branch-admin keep the branch they already manage', function () {
+        $this->put(route('users.update', $this->branchAdmin), [
+            'name'      => 'اسم محدث',
+            'username'  => $this->branchAdmin->username,
+            'email'     => $this->branchAdmin->email,
+            'role'      => Roles::BRANCH_ADMIN->value,
+            'branch_id' => $this->branch->id,
+            'is_active' => true,
+        ])->assertRedirect(route('users.index'))
+            ->assertSessionHasNoErrors();
+
+        expect($this->branch->refresh()->owner_id)->toBe($this->branchAdmin->id)
+            ->and($this->branchAdmin->refresh()->name)->toBe('اسم محدث');
+    });
+
     // ── SHOW ───────────────────────────────────────────────────────
 
     it('allows super-admin to view any user profile', function () {
