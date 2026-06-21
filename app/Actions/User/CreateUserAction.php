@@ -4,6 +4,7 @@ namespace App\Actions\User;
 
 use App\Models\User;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
@@ -12,7 +13,7 @@ class CreateUserAction
     /** @param array<string, mixed> $data */
     public function handle(array $data): User
     {
-        $actor = auth()->user();
+        $actor = Auth::user();
 
         // Branch-scoped actors can only create users inside their own branch.
         if (! $actor->roleName->isSuperAdmin()) {
