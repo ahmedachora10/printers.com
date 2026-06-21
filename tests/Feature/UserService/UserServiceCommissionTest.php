@@ -186,6 +186,23 @@ describe('managing rates from the service screen', function () {
         ]);
     });
 
+    it('lets a super admin set rates for any branch\'s service', function () {
+        $superAdmin = User::factory()->create();
+        $superAdmin->addRole(Roles::SUPER_ADMIN->value);
+
+        $this->actingAs($superAdmin)
+            ->put(route('branch-services.employee-commissions.update', $this->service), ['commissions' => [
+                ['user_id' => $this->employee->id, 'commission_pct' => 11],
+            ]])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('user_services', [
+            'user_id' => $this->employee->id,
+            'branch_service_id' => $this->service->id,
+            'commission_override_pct' => 11,
+        ]);
+    });
+
     it('rejects an employee from another branch', function () {
         $otherBranch = Branch::factory()->create();
         $outsider = User::factory()->create(['branch_id' => $otherBranch->id]);
