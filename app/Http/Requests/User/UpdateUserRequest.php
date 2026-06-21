@@ -23,11 +23,11 @@ class UpdateUserRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'username' => [
                 'required', 'string', 'max:255', 'regex:/^[a-zA-Z0-9._-]+$/',
-                Rule::unique('users', 'username')->ignore($userId)->whereNull('deleted_at'),
+                Rule::unique('users', 'username')->ignore($userId),
             ],
             'email' => [
                 'required', 'email', 'max:255',
-                Rule::unique('users', 'email')->ignore($userId)->whereNull('deleted_at'),
+                Rule::unique('users', 'email')->ignore($userId),
             ],
             'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['nullable', 'confirmed', Password::defaults()],
