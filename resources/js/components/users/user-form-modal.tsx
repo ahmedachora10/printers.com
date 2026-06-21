@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type BranchOption, type ManagedUser, type RoleOption } from '@/types/user';
 import { useForm } from '@inertiajs/react';
@@ -125,23 +126,26 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
                             <Label htmlFor="user-password">
                                 كلمة المرور {isEdit && <span className="text-xs text-muted-foreground">(اتركها فارغة لعدم التغيير)</span>}
                             </Label>
-                            <Input
+                            <PasswordInput
                                 id="user-password"
-                                type="password"
                                 value={data.password}
                                 onChange={(e) => setData('password', e.target.value)}
                                 placeholder="••••••••"
                                 dir="ltr"
                                 autoComplete="new-password"
+                                withGenerator
+                                onGenerate={(password) => {
+                                    setData('password', password);
+                                    setData('password_confirmation', password);
+                                }}
                             />
                             <InputError message={errors.password} />
                         </div>
 
                         <div className="space-y-1">
                             <Label htmlFor="user-password-confirm">تأكيد كلمة المرور</Label>
-                            <Input
+                            <PasswordInput
                                 id="user-password-confirm"
-                                type="password"
                                 value={data.password_confirmation}
                                 onChange={(e) => setData('password_confirmation', e.target.value)}
                                 placeholder="••••••••"

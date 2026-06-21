@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PasswordInput } from '@/components/ui/password-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { type Agent, type AgentDiscountMode, type AgentType, type EnumOption } from '@/types/agent';
@@ -160,23 +161,26 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                             <Label htmlFor="agent-password">
                                 {isEdit ? 'كلمة المرور (اتركها فارغة لعدم التغيير)' : 'كلمة المرور'}
                             </Label>
-                            <Input
+                            <PasswordInput
                                 id="agent-password"
-                                type="password"
                                 value={data.password}
                                 onChange={(e) => setData('password', e.target.value)}
                                 placeholder="••••••••"
                                 dir="ltr"
                                 autoComplete="new-password"
+                                withGenerator
+                                onGenerate={(password) => {
+                                    setData('password', password);
+                                    setData('password_confirmation', password);
+                                }}
                             />
                             <InputError message={errors.password} />
                         </div>
 
                         <div className="space-y-1">
                             <Label htmlFor="agent-password-confirm">تأكيد كلمة المرور</Label>
-                            <Input
+                            <PasswordInput
                                 id="agent-password-confirm"
-                                type="password"
                                 value={data.password_confirmation}
                                 onChange={(e) => setData('password_confirmation', e.target.value)}
                                 placeholder="••••••••"
