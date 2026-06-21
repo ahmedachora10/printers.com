@@ -1,28 +1,23 @@
 import { destroy } from '@/actions/App/Http/Controllers/BranchServiceController';
-import branchServicesRoute from '@/routes/branch-services';
+import BranchServiceEmployeesModal, {
+    type BranchEmployee,
+    type EmployeeCommission,
+} from '@/components/branch-services/branch-service-employees-modal';
 import BranchServiceFormModal from '@/components/branch-services/branch-service-form-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
+import branchServicesRoute from '@/routes/branch-services';
 import { type BreadcrumbItem } from '@/types';
 import { type BranchService } from '@/types/branch-service';
 import { router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2, Users } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'خدمات الفرع', href: '/branch-services' },
-];
+const breadcrumbs: BreadcrumbItem[] = [{ title: 'خدمات الفرع', href: '/branch-services' }];
 
 interface ServiceTemplateOption {
     id: number;
@@ -44,25 +39,21 @@ interface Props {
     branchServices: PaginatedBranchService;
     serviceTemplates: ServiceTemplateOption[];
     userBranch: BranchOption | null;
+    employees: BranchEmployee[];
+    employeeCommissions: Record<number, EmployeeCommission[]>;
     filters: { search?: string; status?: string };
 }
 
-export default function BranchServicesIndex({
-    branchServices,
-    serviceTemplates,
-    userBranch,
-    filters,
-}: Props) {
+export default function BranchServicesIndex({ branchServices, serviceTemplates, userBranch, employees, employeeCommissions, filters }: Props) {
     const [formOpen, setFormOpen] = useState(false);
     const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
-    const editingService = editingServiceId
-        ? (branchServices.data.find((s) => s.id === editingServiceId) ?? null)
-        : null;
+    const editingService = editingServiceId ? (branchServices.data.find((s) => s.id === editingServiceId) ?? null) : null;
+
+    const [employeesServiceId, setEmployeesServiceId] = useState<number | null>(null);
+    const employeesService = employeesServiceId ? (branchServices.data.find((s) => s.id === employeesServiceId) ?? null) : null;
 
     const [deletingServiceId, setDeletingServiceId] = useState<number | null>(null);
-    const deletingService = deletingServiceId
-        ? (branchServices.data.find((s) => s.id === deletingServiceId) ?? null)
-        : null;
+    const deletingService = deletingServiceId ? (branchServices.data.find((s) => s.id === deletingServiceId) ?? null) : null;
 
     function openCreate() {
         setEditingServiceId(null);
@@ -97,9 +88,7 @@ export default function BranchServicesIndex({
             {
                 key: 'baseCommissionPct',
                 header: 'نسبة العمولة',
-                cell: (s) => (
-                    <span className="font-medium text-primary">{s.baseCommissionPct}%</span>
-                ),
+                cell: (s) => <span className="text-primary font-medium">{s.baseCommissionPct}%</span>,
             },
             {
                 key: 'maxDiscountPct',
@@ -118,7 +107,7 @@ export default function BranchServicesIndex({
                             نعم
                         </Badge>
                     ) : (
-                        <span className="text-sm text-muted-foreground">لا</span>
+                        <span className="text-muted-foreground text-sm">لا</span>
                     ),
             },
             {
@@ -126,19 +115,13 @@ export default function BranchServicesIndex({
                 header: 'الحالة',
                 cell: (s) =>
                     s.isActive ? (
-                        <Badge
-                            variant="outline"
-                            className="gap-1.5 border-green-200 bg-green-50 text-green-700"
-                        >
+                        <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
                             <span className="inline-block size-1.5 rounded-full bg-green-500" />
                             نشطة
                         </Badge>
                     ) : (
-                        <Badge
-                            variant="outline"
-                            className="gap-1.5 border-border bg-muted/60 text-muted-foreground"
-                        >
-                            <span className="inline-block size-1.5 rounded-full bg-muted-foreground/50" />
+                        <Badge variant="outline" className="border-border bg-muted/60 text-muted-foreground gap-1.5">
+                            <span className="bg-muted-foreground/50 inline-block size-1.5 rounded-full" />
                             غير نشطة
                         </Badge>
                     ),
@@ -149,12 +132,10 @@ export default function BranchServicesIndex({
                 headerClassName: 'w-24',
                 cell: (s) => (
                     <div className="flex items-center gap-1.5">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            title="تعديل"
-                            onClick={() => openEdit(s)}
-                        >
+                        <Button variant="outline" size="sm" title="عمولات الموظفين" onClick={() => setEmployeesServiceId(s.id)}>
+                            <Users className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button variant="outline" size="sm" title="تعديل" onClick={() => openEdit(s)}>
                             <Pencil className="h-3.5 w-3.5" />
                         </Button>
                         <Button
@@ -214,9 +195,7 @@ export default function BranchServicesIndex({
                 <div className="mb-6 flex items-center justify-between">
                     <div>
                         <h1 className="text-2xl font-bold">خدمات الفرع</h1>
-                        {userBranch && (
-                            <p className="mt-0.5 text-sm text-muted-foreground">{userBranch.name}</p>
-                        )}
+                        {userBranch && <p className="text-muted-foreground mt-0.5 text-sm">{userBranch.name}</p>}
                     </div>
                 </div>
 
@@ -247,11 +226,7 @@ export default function BranchServicesIndex({
                     />
                 </div>
 
-                <DataTable
-                    columns={columns}
-                    data={branchServices.data}
-                    keyExtractor={(s) => s.id}
-                />
+                <DataTable columns={columns} data={branchServices.data} keyExtractor={(s) => s.id} />
 
                 <TablePagination
                     currentPage={branchServices.meta.current_page as number}
@@ -264,17 +239,11 @@ export default function BranchServicesIndex({
             </div>
 
             {/* Delete confirmation */}
-            <Dialog
-                open={!!deletingServiceId}
-                onOpenChange={(open) => !open && setDeletingServiceId(null)}
-            >
+            <Dialog open={!!deletingServiceId} onOpenChange={(open) => !open && setDeletingServiceId(null)}>
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>تأكيد الحذف</DialogTitle>
-                        <DialogDescription>
-                            هل أنت متأكد من إزالة خدمة "
-                            {deletingService?.serviceTemplateName ?? ''}" من الفرع؟
-                        </DialogDescription>
+                        <DialogDescription>هل أنت متأكد من إزالة خدمة "{deletingService?.serviceTemplateName ?? ''}" من الفرع؟</DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDeletingServiceId(null)}>
@@ -286,6 +255,17 @@ export default function BranchServicesIndex({
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            {/* Per-employee commission rates for a service */}
+            <BranchServiceEmployeesModal
+                key={employeesServiceId ?? 'employees'}
+                open={!!employeesServiceId}
+                onOpenChange={(open) => !open && setEmployeesServiceId(null)}
+                branchServiceId={employeesServiceId}
+                serviceName={employeesService?.serviceTemplateName ?? ''}
+                employees={employees}
+                current={employeesServiceId ? (employeeCommissions[employeesServiceId] ?? []) : []}
+            />
 
             {/* Create / Edit modal */}
             {userBranch && (

@@ -18,6 +18,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\User;
+use App\Models\UserService;
 use App\Notifications\DueInvoiceNotification;
 use App\Notifications\ServiceInvoiceReviewedNotification;
 use App\Support\BranchNotifiables;
@@ -35,8 +36,15 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('create', ServiceInvoice::class);
 
-        $branchId = Auth::user()->branchId;
+        $user = Auth::user();
+        $branchId = $user->branchId;
         $branch = Branch::find($branchId);
+
+        // The logged-in employee's own commission rate per service. A service with
+        // no row earns 0% for them — the preview reflects what will be recorded.
+        $commissionRates = UserService::query()
+            ->where('user_id', $user->id)
+            ->pluck('commission_override_pct', 'branch_service_id');
 
         $services = BranchService::query()
             ->where('branch_id', $branchId)
@@ -46,7 +54,7 @@ class ServiceInvoiceController extends Controller
             ->map(fn (BranchService $service) => [
                 'id' => $service->id,
                 'name' => $service->serviceTemplate?->name,
-                'baseCommissionPct' => (float) $service->base_commission_pct,
+                'baseCommissionPct' => (float) ($commissionRates[$service->id] ?? 0),
                 'maxDiscountPct' => (float) $service->max_discount_pct,
                 'isTahazir' => $service->is_tahazir,
             ])
