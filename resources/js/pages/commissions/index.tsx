@@ -213,7 +213,7 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                             totalPages={payments.meta.last_page as number}
                             totalItems={payments.meta.total as number}
                             onPageChange={(page) => {
-                                router.get(commissions.index().url, { page }, { preserveState: true, preserveScroll: true });
+                                router.reload({ data: { page } });
                             }}
                         />
                     </CardContent>

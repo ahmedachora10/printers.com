@@ -130,7 +130,7 @@ export default function NotificationsIndex({ items, unreadCount }: Props) {
                             totalItems={items.meta.total}
                             pageSize={15}
                             onPageChange={(page) =>
-                                router.get(notifications.index().url, { page }, { preserveState: true, preserveScroll: true })
+                                router.reload({ data: { page } })
                             }
                         />
                     )}

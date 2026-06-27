@@ -42,7 +42,7 @@ class ExpenseCategoryController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('expense-categories.index')->with('success', 'تم إنشاء فئة المصروف بنجاح');
+        return back(fallback: route('expense-categories.index'))->with('success', 'تم إنشاء فئة المصروف بنجاح');
     }
 
     public function update(UpdateExpenseCategoryRequest $request, ExpenseCategory $expenseCategory, UpdateExpenseCategoryAction $action): RedirectResponse
@@ -51,7 +51,7 @@ class ExpenseCategoryController extends Controller
 
         $action->handle($expenseCategory, $request->validated());
 
-        return to_route('expense-categories.index')->with('success', 'تم تحديث فئة المصروف بنجاح');
+        return back(fallback: route('expense-categories.index'))->with('success', 'تم تحديث فئة المصروف بنجاح');
     }
 
     public function destroy(ExpenseCategory $expenseCategory, DeleteExpenseCategoryAction $action): RedirectResponse
@@ -60,7 +60,7 @@ class ExpenseCategoryController extends Controller
 
         $action->handle($expenseCategory);
 
-        return to_route('expense-categories.index')->with('success', 'تم حذف فئة المصروف بنجاح');
+        return back(fallback: route('expense-categories.index'))->with('success', 'تم حذف فئة المصروف بنجاح');
     }
 
     public function toggleStatus(ExpenseCategory $expenseCategory, UpdateExpenseCategoryAction $action): RedirectResponse
@@ -69,6 +69,6 @@ class ExpenseCategoryController extends Controller
 
         $action->handle($expenseCategory, ['is_active' => ! $expenseCategory->is_active]);
 
-        return to_route('expense-categories.index')->with('success', 'تم تحديث حالة فئة المصروف بنجاح');
+        return back(fallback: route('expense-categories.index'))->with('success', 'تم تحديث حالة فئة المصروف بنجاح');
     }
 }

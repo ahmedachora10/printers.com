@@ -242,7 +242,7 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                     totalPages={items.meta.last_page as number}
                     totalItems={items.meta.total as number}
                     onPageChange={(page) => {
-                        router.get(users.index({ query: { page } }).url, {}, { preserveState: true, preserveScroll: true });
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

@@ -60,7 +60,7 @@ class RefundController extends Controller
             new RefundProcessedNotification($refund, $refund->invoice?->invoice_number),
         );
 
-        return to_route('refunds.index')->with('success', 'تم تسجيل المرتجع بنجاح');
+        return back(fallback: route('refunds.index'))->with('success', 'تم تسجيل المرتجع بنجاح');
     }
 
     /**

@@ -65,7 +65,7 @@ class BranchController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('branches.index');
+        return back(fallback: route('branches.index'));
     }
 
     public function edit(Branch $branch): Response
@@ -86,7 +86,7 @@ class BranchController extends Controller
 
         $action->handle($branch, $request->validated());
 
-        return to_route('branches.index');
+        return back(fallback: route('branches.index'));
     }
 
     public function destroy(Branch $branch, DeleteBranchAction $action): RedirectResponse
@@ -95,7 +95,7 @@ class BranchController extends Controller
 
         $action->handle($branch);
 
-        return to_route('branches.index');
+        return back(fallback: route('branches.index'));
     }
 
     public function toggleStatus(Branch $branch, UpdateBranchAction $action): RedirectResponse
@@ -104,6 +104,6 @@ class BranchController extends Controller
 
         $action->handle($branch, ['is_active' => ! $branch->is_active]);
 
-        return to_route('branches.index');
+        return back(fallback: route('branches.index'));
     }
 }

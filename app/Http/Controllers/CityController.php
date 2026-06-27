@@ -53,7 +53,7 @@ class CityController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('cities.index');
+        return back(fallback: route('cities.index'));
     }
 
     public function edit(City $city): Response
@@ -71,7 +71,7 @@ class CityController extends Controller
 
         $action->handle($city, $request->validated());
 
-        return to_route('cities.index');
+        return back(fallback: route('cities.index'));
     }
 
     public function destroy(City $city, DeleteCityAction $action): RedirectResponse
@@ -80,7 +80,7 @@ class CityController extends Controller
 
         $action->handle($city);
 
-        return to_route('cities.index');
+        return back(fallback: route('cities.index'));
     }
 
     public function toggleStatus(City $city, UpdateCityAction $action): RedirectResponse
@@ -89,6 +89,6 @@ class CityController extends Controller
 
         $action->handle($city, ['is_active' => ! $city->is_active]);
 
-        return to_route('cities.index');
+        return back(fallback: route('cities.index'));
     }
 }

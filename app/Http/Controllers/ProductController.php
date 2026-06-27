@@ -71,7 +71,7 @@ class ProductController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('inventory.products.index')->with('success', 'تم إضافة المنتج بنجاح');
+        return back(fallback: route('inventory.products.index'))->with('success', 'تم إضافة المنتج بنجاح');
     }
 
     public function update(UpdateProductRequest $request, Product $product, UpdateProductAction $action): RedirectResponse
@@ -80,7 +80,7 @@ class ProductController extends Controller
 
         $action->handle($product, $request->validated());
 
-        return to_route('inventory.products.index')->with('success', 'تم تحديث المنتج بنجاح');
+        return back(fallback: route('inventory.products.index'))->with('success', 'تم تحديث المنتج بنجاح');
     }
 
     public function destroy(Product $product, DeleteProductAction $action): RedirectResponse
@@ -89,7 +89,7 @@ class ProductController extends Controller
 
         $action->handle($product);
 
-        return to_route('inventory.products.index')->with('success', 'تم حذف المنتج بنجاح');
+        return back(fallback: route('inventory.products.index'))->with('success', 'تم حذف المنتج بنجاح');
     }
 
     public function toggleStatus(Product $product, UpdateProductAction $action): RedirectResponse
@@ -98,6 +98,6 @@ class ProductController extends Controller
 
         $action->handle($product, ['is_active' => ! $product->is_active]);
 
-        return to_route('inventory.products.index')->with('success', 'تم تحديث حالة المنتج بنجاح');
+        return back(fallback: route('inventory.products.index'))->with('success', 'تم تحديث حالة المنتج بنجاح');
     }
 }

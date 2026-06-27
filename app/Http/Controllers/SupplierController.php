@@ -50,7 +50,7 @@ class SupplierController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('inventory.suppliers.index')->with('success', 'تم إضافة المورد بنجاح');
+        return back(fallback: route('inventory.suppliers.index'))->with('success', 'تم إضافة المورد بنجاح');
     }
 
     public function update(UpdateSupplierRequest $request, Supplier $supplier, UpdateSupplierAction $action): RedirectResponse
@@ -59,7 +59,7 @@ class SupplierController extends Controller
 
         $action->handle($supplier, $request->validated());
 
-        return to_route('inventory.suppliers.index')->with('success', 'تم تحديث المورد بنجاح');
+        return back(fallback: route('inventory.suppliers.index'))->with('success', 'تم تحديث المورد بنجاح');
     }
 
     public function destroy(Supplier $supplier, DeleteSupplierAction $action): RedirectResponse
@@ -68,7 +68,7 @@ class SupplierController extends Controller
 
         $action->handle($supplier);
 
-        return to_route('inventory.suppliers.index')->with('success', 'تم حذف المورد بنجاح');
+        return back(fallback: route('inventory.suppliers.index'))->with('success', 'تم حذف المورد بنجاح');
     }
 
     public function toggleStatus(Supplier $supplier, UpdateSupplierAction $action): RedirectResponse
@@ -77,6 +77,6 @@ class SupplierController extends Controller
 
         $action->handle($supplier, ['is_active' => ! $supplier->is_active]);
 
-        return to_route('inventory.suppliers.index')->with('success', 'تم تحديث حالة المورد بنجاح');
+        return back(fallback: route('inventory.suppliers.index'))->with('success', 'تم تحديث حالة المورد بنجاح');
     }
 }

@@ -92,7 +92,7 @@ class BranchServiceController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route($this->redirectRoute());
+        return back(fallback: route($this->redirectRoute()));
     }
 
     public function update(UpdateBranchServiceRequest $request, BranchService $branchService, UpdateBranchServiceAction $action): RedirectResponse
@@ -101,7 +101,7 @@ class BranchServiceController extends Controller
 
         $action->handle($branchService, $request->validated());
 
-        return to_route($this->redirectRoute());
+        return back(fallback: route($this->redirectRoute()));
     }
 
     public function destroy(BranchService $branchService, DetachBranchServiceAction $action): RedirectResponse
@@ -110,7 +110,7 @@ class BranchServiceController extends Controller
 
         $action->handle($branchService);
 
-        return to_route($this->redirectRoute());
+        return back(fallback: route($this->redirectRoute()));
     }
 
     /**

@@ -208,11 +208,7 @@ export default function StockMovementsIndex({ items, products, types, filters }:
                     totalPages={items.meta.last_page as number}
                     totalItems={items.meta.total as number}
                     onPageChange={(page) => {
-                        router.get(
-                            inventory.stockMovements.index({ query: { page } }).url,
-                            {},
-                            { preserveState: true, preserveScroll: true },
-                        );
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

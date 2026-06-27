@@ -189,7 +189,7 @@ export default function CitiesIndex({ cities, filters }: Props) {
                     totalPages={cities.meta.last_page as number}
                     totalItems={cities.meta.total as number}
                     onPageChange={(page) => {
-                        router.get(index.url(), { page }, { preserveState: true, preserveScroll: true });
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

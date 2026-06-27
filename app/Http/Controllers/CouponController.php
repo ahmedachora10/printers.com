@@ -50,7 +50,7 @@ class CouponController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('coupons.index')->with('success', 'تم إنشاء الكوبون بنجاح');
+        return back(fallback: route('coupons.index'))->with('success', 'تم إنشاء الكوبون بنجاح');
     }
 
     public function update(UpdateCouponRequest $request, Coupon $coupon, UpdateCouponAction $action): RedirectResponse
@@ -59,7 +59,7 @@ class CouponController extends Controller
 
         $action->handle($coupon, $request->validated());
 
-        return to_route('coupons.index')->with('success', 'تم تحديث الكوبون بنجاح');
+        return back(fallback: route('coupons.index'))->with('success', 'تم تحديث الكوبون بنجاح');
     }
 
     public function destroy(Coupon $coupon, DeleteCouponAction $action): RedirectResponse
@@ -68,7 +68,7 @@ class CouponController extends Controller
 
         $action->handle($coupon);
 
-        return to_route('coupons.index')->with('success', 'تم حذف الكوبون بنجاح');
+        return back(fallback: route('coupons.index'))->with('success', 'تم حذف الكوبون بنجاح');
     }
 
     public function toggleStatus(Coupon $coupon, UpdateCouponAction $action): RedirectResponse
@@ -77,7 +77,7 @@ class CouponController extends Controller
 
         $action->handle($coupon, ['is_active' => ! $coupon->is_active]);
 
-        return to_route('coupons.index')->with('success', 'تم تحديث حالة الكوبون بنجاح');
+        return back(fallback: route('coupons.index'))->with('success', 'تم تحديث حالة الكوبون بنجاح');
     }
 
     public function validateCoupon(Request $request): JsonResponse

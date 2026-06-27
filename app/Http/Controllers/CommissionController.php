@@ -94,6 +94,6 @@ class CommissionController extends Controller
 
         $payment->user?->notify(new CommissionPaidNotification($payment));
 
-        return to_route('commissions.index')->with('success', 'تم صرف العمولة بنجاح');
+        return back(fallback: route('commissions.index'))->with('success', 'تم صرف العمولة بنجاح');
     }
 }
