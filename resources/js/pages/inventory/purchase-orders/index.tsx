@@ -182,7 +182,7 @@ export default function PurchaseOrdersIndex({ items, suppliers, products, status
                     totalPages={items.meta.last_page as number}
                     totalItems={items.meta.total as number}
                     onPageChange={(page) => {
-                        router.get(inventory.purchaseOrders.index({ query: { page } }).url, {}, { preserveState: true, preserveScroll: true });
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

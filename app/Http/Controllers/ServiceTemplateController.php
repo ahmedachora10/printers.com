@@ -87,7 +87,7 @@ class ServiceTemplateController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('service-templates.index');
+        return back(fallback: route('service-templates.index'));
     }
 
     public function update(UpdateServiceTemplateRequest $request, ServiceTemplate $serviceTemplate, UpdateServiceTemplateAction $action): RedirectResponse
@@ -96,7 +96,7 @@ class ServiceTemplateController extends Controller
 
         $action->handle($serviceTemplate, $request->validated());
 
-        return to_route('service-templates.index');
+        return back(fallback: route('service-templates.index'));
     }
 
     public function destroy(ServiceTemplate $serviceTemplate, DeleteServiceTemplateAction $action): RedirectResponse
@@ -105,6 +105,6 @@ class ServiceTemplateController extends Controller
 
         $action->handle($serviceTemplate);
 
-        return to_route('service-templates.index');
+        return back(fallback: route('service-templates.index'));
     }
 }

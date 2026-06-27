@@ -99,7 +99,7 @@ class UserController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('users.index')->with('success', 'تم إضافة المستخدم بنجاح');
+        return back(fallback: route('users.index'))->with('success', 'تم إضافة المستخدم بنجاح');
     }
 
     public function update(UpdateUserRequest $request, User $user, UpdateUserAction $action): RedirectResponse
@@ -108,7 +108,7 @@ class UserController extends Controller
 
         $action->handle($user, $request->validated());
 
-        return to_route('users.index')->with('success', 'تم تحديث المستخدم بنجاح');
+        return back(fallback: route('users.index'))->with('success', 'تم تحديث المستخدم بنجاح');
     }
 
     /**
@@ -139,7 +139,7 @@ class UserController extends Controller
 
         $action->handle($user);
 
-        return to_route('users.index')->with('success', 'تم حذف المستخدم بنجاح');
+        return back(fallback: route('users.index'))->with('success', 'تم حذف المستخدم بنجاح');
     }
 
     public function toggleStatus(User $user, UpdateUserAction $action): RedirectResponse
@@ -148,7 +148,7 @@ class UserController extends Controller
 
         $action->handle($user, ['is_active' => ! $user->is_active]);
 
-        return to_route('users.index')->with('success', 'تم تحديث حالة المستخدم بنجاح');
+        return back(fallback: route('users.index'))->with('success', 'تم تحديث حالة المستخدم بنجاح');
     }
 
     /**

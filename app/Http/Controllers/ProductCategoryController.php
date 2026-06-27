@@ -43,7 +43,7 @@ class ProductCategoryController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('product-categories.index')->with('success', 'تم إنشاء فئة المنتج بنجاح');
+        return back(fallback: route('product-categories.index'))->with('success', 'تم إنشاء فئة المنتج بنجاح');
     }
 
     public function update(UpdateProductCategoryRequest $request, ProductCategory $productCategory, UpdateProductCategoryAction $action): RedirectResponse
@@ -52,7 +52,7 @@ class ProductCategoryController extends Controller
 
         $action->handle($productCategory, $request->validated());
 
-        return to_route('product-categories.index')->with('success', 'تم تحديث فئة المنتج بنجاح');
+        return back(fallback: route('product-categories.index'))->with('success', 'تم تحديث فئة المنتج بنجاح');
     }
 
     public function destroy(ProductCategory $productCategory, DeleteProductCategoryAction $action): RedirectResponse
@@ -61,7 +61,7 @@ class ProductCategoryController extends Controller
 
         $action->handle($productCategory);
 
-        return to_route('product-categories.index')->with('success', 'تم حذف فئة المنتج بنجاح');
+        return back(fallback: route('product-categories.index'))->with('success', 'تم حذف فئة المنتج بنجاح');
     }
 
     public function toggleStatus(ProductCategory $productCategory, UpdateProductCategoryAction $action): RedirectResponse
@@ -70,6 +70,6 @@ class ProductCategoryController extends Controller
 
         $action->handle($productCategory, ['is_active' => ! $productCategory->is_active]);
 
-        return to_route('product-categories.index')->with('success', 'تم تحديث حالة فئة المنتج بنجاح');
+        return back(fallback: route('product-categories.index'))->with('success', 'تم تحديث حالة فئة المنتج بنجاح');
     }
 }

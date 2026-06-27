@@ -75,7 +75,7 @@ class AgentController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('agents.index')->with('success', 'تم إضافة الوكيل بنجاح');
+        return back(fallback: route('agents.index'))->with('success', 'تم إضافة الوكيل بنجاح');
     }
 
     public function update(UpdateAgentRequest $request, Agent $agent, UpdateAgentAction $action): RedirectResponse
@@ -84,7 +84,7 @@ class AgentController extends Controller
 
         $action->handle($agent, $request->validated());
 
-        return to_route('agents.index')->with('success', 'تم تحديث بيانات الوكيل بنجاح');
+        return back(fallback: route('agents.index'))->with('success', 'تم تحديث بيانات الوكيل بنجاح');
     }
 
     public function destroy(Agent $agent, DeleteAgentAction $action): RedirectResponse
@@ -93,7 +93,7 @@ class AgentController extends Controller
 
         $action->handle($agent);
 
-        return to_route('agents.index')->with('success', 'تم حذف الوكيل بنجاح');
+        return back(fallback: route('agents.index'))->with('success', 'تم حذف الوكيل بنجاح');
     }
 
     /**

@@ -220,7 +220,7 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
                     totalPages={branches.meta.last_page as number}
                     totalItems={branches.meta.total as number}
                     onPageChange={(page) => {
-                        router.get(index.url(), { page }, { preserveState: true, preserveScroll: true });
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

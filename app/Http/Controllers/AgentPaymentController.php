@@ -66,7 +66,7 @@ class AgentPaymentController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('agent-payments.index')->with('success', 'تم تسجيل دفعة العمولة بنجاح');
+        return back(fallback: route('agent-payments.index'))->with('success', 'تم تسجيل دفعة العمولة بنجاح');
     }
 
     /**

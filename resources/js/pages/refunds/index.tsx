@@ -181,11 +181,7 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
                     totalPages={items.meta.last_page as number}
                     totalItems={items.meta.total as number}
                     onPageChange={(page) => {
-                        router.get(
-                            refunds.index().url,
-                            { ...buildParams(filterValues, dateFrom, dateTo), page },
-                            { preserveState: true, preserveScroll: true },
-                        );
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

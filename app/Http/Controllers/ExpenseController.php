@@ -71,7 +71,7 @@ class ExpenseController extends Controller
 
         $action->handle($request->validated());
 
-        return to_route('expenses.index')->with('success', 'تم تسجيل المصروف بنجاح');
+        return back(fallback: route('expenses.index'))->with('success', 'تم تسجيل المصروف بنجاح');
     }
 
     public function update(UpdateExpenseRequest $request, Expense $expense, UpdateExpenseAction $action): RedirectResponse
@@ -80,7 +80,7 @@ class ExpenseController extends Controller
 
         $action->handle($expense, $request->validated());
 
-        return to_route('expenses.index')->with('success', 'تم تحديث المصروف بنجاح');
+        return back(fallback: route('expenses.index'))->with('success', 'تم تحديث المصروف بنجاح');
     }
 
     public function destroy(Expense $expense, DeleteExpenseAction $action): RedirectResponse
@@ -89,6 +89,6 @@ class ExpenseController extends Controller
 
         $action->handle($expense);
 
-        return to_route('expenses.index')->with('success', 'تم حذف المصروف بنجاح');
+        return back(fallback: route('expenses.index'))->with('success', 'تم حذف المصروف بنجاح');
     }
 }

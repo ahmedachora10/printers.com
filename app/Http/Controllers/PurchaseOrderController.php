@@ -90,7 +90,7 @@ class PurchaseOrderController extends Controller
 
         $action->handle($purchaseOrder);
 
-        return to_route('inventory.purchase-orders.index')->with('success', 'تم حذف أمر الشراء بنجاح');
+        return back(fallback: route('inventory.purchase-orders.index'))->with('success', 'تم حذف أمر الشراء بنجاح');
     }
 
     public function markSent(PurchaseOrder $purchaseOrder, MarkPurchaseOrderSentAction $action): RedirectResponse

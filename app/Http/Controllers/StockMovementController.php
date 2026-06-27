@@ -74,6 +74,6 @@ class StockMovementController extends Controller
             ],
         );
 
-        return to_route('inventory.products.index')->with('success', 'تم تسجيل حركة المخزون بنجاح');
+        return back(fallback: route('inventory.products.index'))->with('success', 'تم تسجيل حركة المخزون بنجاح');
     }
 }

@@ -246,7 +246,7 @@ export default function AgentsIndex({ items, agentTypes, discountModes, branches
                     totalPages={items.meta.last_page as number}
                     totalItems={items.meta.total as number}
                     onPageChange={(page) => {
-                        router.get(index.url(), { ...buildQuery({}), page: String(page) }, { preserveState: true, preserveScroll: true });
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

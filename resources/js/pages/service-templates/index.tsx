@@ -197,7 +197,7 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
                     totalPages={templates.meta.last_page as number}
                     totalItems={templates.meta.total as number}
                     onPageChange={(page) => {
-                        router.get(index.url(), { page }, { preserveState: true, preserveScroll: true });
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

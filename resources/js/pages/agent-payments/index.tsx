@@ -114,7 +114,7 @@ export default function AgentPaymentsIndex({ agents, payments }: Props) {
                     totalPages={payments.meta.last_page as number}
                     totalItems={payments.meta.total as number}
                     onPageChange={(page) =>
-                        router.get(index.url(), { page: String(page) }, { preserveState: true, preserveScroll: true })
+                        router.reload({ data: { page } })
                     }
                 />
             </div>

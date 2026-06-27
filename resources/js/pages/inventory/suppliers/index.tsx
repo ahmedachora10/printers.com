@@ -210,7 +210,7 @@ export default function SuppliersIndex({ items, filters }: Props) {
                     totalPages={items.meta.last_page as number}
                     totalItems={items.meta.total as number}
                     onPageChange={(page) => {
-                        router.get(inventory.suppliers.index({ query: { page } }).url, {}, { preserveState: true, preserveScroll: true });
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

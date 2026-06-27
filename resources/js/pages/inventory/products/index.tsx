@@ -292,7 +292,7 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                     totalPages={items.meta.last_page as number}
                     totalItems={items.meta.total as number}
                     onPageChange={(page) => {
-                        router.get(inventory.products.index({ query: { page } }).url, {}, { preserveState: true, preserveScroll: true });
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

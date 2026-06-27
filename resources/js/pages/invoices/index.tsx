@@ -214,7 +214,7 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
                     totalPages={items.meta.last_page as number}
                     totalItems={items.meta.total as number}
                     onPageChange={(page) => {
-                        router.get('/invoices', { ...buildParams(search, filterValues, dateFrom, dateTo), page }, { preserveState: true, preserveScroll: true });
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

@@ -79,7 +79,7 @@ class IncentiveController extends Controller
 
         $action->handle($data);
 
-        return to_route('incentives.index')->with('success', 'تم إنشاء خطة الحوافز بنجاح');
+        return back(fallback: route('incentives.index'))->with('success', 'تم إنشاء خطة الحوافز بنجاح');
     }
 
     public function update(UpdateIncentivePlanRequest $request, IncentivePlan $incentivePlan, UpdateIncentivePlanAction $action): RedirectResponse
@@ -91,7 +91,7 @@ class IncentiveController extends Controller
 
         $action->handle($incentivePlan, $data);
 
-        return to_route('incentives.index')->with('success', 'تم تحديث خطة الحوافز بنجاح');
+        return back(fallback: route('incentives.index'))->with('success', 'تم تحديث خطة الحوافز بنجاح');
     }
 
     public function destroy(IncentivePlan $incentivePlan, DeleteIncentivePlanAction $action): RedirectResponse
@@ -100,7 +100,7 @@ class IncentiveController extends Controller
 
         $action->handle($incentivePlan);
 
-        return to_route('incentives.index')->with('success', 'تم حذف خطة الحوافز بنجاح');
+        return back(fallback: route('incentives.index'))->with('success', 'تم حذف خطة الحوافز بنجاح');
     }
 
     /**
@@ -118,7 +118,7 @@ class IncentiveController extends Controller
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->each(fn (IncentivePlan $plan) => $action->handle($plan));
 
-        return to_route('incentives.index')->with('success', 'تم تحديث المبيعات المحققة');
+        return back(fallback: route('incentives.index'))->with('success', 'تم تحديث المبيعات المحققة');
     }
 
     public function pay(PayBonusRequest $request, IncentivePlan $incentivePlan, PayBonusAction $action): RedirectResponse
@@ -129,7 +129,7 @@ class IncentiveController extends Controller
 
         $incentivePlan->user?->notify(new BonusPaidNotification($payment));
 
-        return to_route('incentives.index')->with('success', 'تم صرف المكافأة بنجاح');
+        return back(fallback: route('incentives.index'))->with('success', 'تم صرف المكافأة بنجاح');
     }
 
     /**

@@ -233,7 +233,7 @@ export default function BranchServicesIndex({ branchServices, serviceTemplates, 
                     totalPages={branchServices.meta.last_page as number}
                     totalItems={branchServices.meta.total as number}
                     onPageChange={(page) => {
-                        router.get(branchServicesRoute.index().url, { page }, { preserveState: true, preserveScroll: true });
+                        router.reload({ data: { page } });
                     }}
                 />
             </div>

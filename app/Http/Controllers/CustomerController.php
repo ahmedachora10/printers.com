@@ -101,7 +101,7 @@ class CustomerController extends Controller
 
         $action->handle($request->validated(), $branchId);
 
-        return to_route('customers.index')->with('success', 'تم إنشاء العميل بنجاح');
+        return back(fallback: route('customers.index'))->with('success', 'تم إنشاء العميل بنجاح');
     }
 
     public function show(Customer $customer): Response
@@ -153,7 +153,7 @@ class CustomerController extends Controller
 
         $action->handle($customer);
 
-        return to_route('customers.index')->with('success', 'تم حذف العميل بنجاح');
+        return back(fallback: route('customers.index'))->with('success', 'تم حذف العميل بنجاح');
     }
 
     public function merge(
@@ -200,7 +200,7 @@ class CustomerController extends Controller
 
         $action->handle($customer, ['is_active' => ! $customer->is_active]);
 
-        return to_route('customers.index')->with('success', 'تم تحديث حالة العميل بنجاح');
+        return back(fallback: route('customers.index'))->with('success', 'تم تحديث حالة العميل بنجاح');
     }
 
     /**

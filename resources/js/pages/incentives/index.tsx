@@ -239,7 +239,7 @@ export default function IncentivesIndex({ plans, employees, bonusTypes, statuses
                     totalPages={plans.meta.last_page as number}
                     totalItems={plans.meta.total as number}
                     onPageChange={(page) =>
-                        router.get(index.url(), { ...buildQuery({}), page: String(page) }, { preserveState: true, preserveScroll: true })
+                        router.reload({ data: { page } })
                     }
                 />
             </div>
