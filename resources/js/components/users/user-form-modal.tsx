@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { type BranchOption, type ManagedUser, type RoleOption } from '@/types/user';
 import { useForm } from '@inertiajs/react';
 import InputError from '../input-error';
+import { useEffect } from 'react';
 
 interface Props {
     open: boolean;
@@ -44,17 +45,41 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
         is_active:                user?.isActive ?? true,
     });
 
+    useEffect(() => {
+        if (user) {
+            setData({
+                name: user.name ?? '',
+                username: user.username ?? '',
+                email: user.email ?? '',
+                phone: user.phone ?? '',
+                password: '',
+                password_confirmation: '',
+                role: user.role ?? '',
+                branch_id: user.branchId?.toString() ?? '',
+                salary: user.salary?.toString() ?? '0',
+                base_commission_pct: user.baseCommissionPct?.toString() ?? '0',
+                referral_commission_pct: user.referralCommissionPct?.toString() ?? '0',
+                joined_date: user.joinedDate ?? '',
+                is_active: user.isActive ?? true,
+            });
+        } else {
+            reset();
+        }
+    }, [user, open]);
+
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
 
         if (isEdit) {
             put(update.url(user), {
                 preserveScroll: true,
+                preserveState: true,
                 onSuccess: () => { onOpenChange(false); reset(); },
             });
         } else {
             post(store.url(), {
                 preserveScroll: true,
+                preserveState: true,
                 onSuccess: () => { onOpenChange(false); reset(); },
             });
         }
