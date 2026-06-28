@@ -150,6 +150,8 @@ Route::middleware(['auth'])->group(function () {
 
         Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
             ->name('users.toggle-status');
+        Route::get('users/{user}/service-commissions', [UserController::class, 'showServiceCommissions'])
+            ->name('users.service-commissions.show');
         Route::put('users/{user}/service-commissions', [UserController::class, 'updateServiceCommissions'])
             ->name('users.service-commissions.update');
         Route::resource('users', UserController::class)

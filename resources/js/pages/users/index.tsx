@@ -1,4 +1,5 @@
 import UserFormModal from '@/components/users/user-form-modal';
+import UserServiceCommissionsModal from '@/components/users/user-service-commissions-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
@@ -15,7 +16,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type BranchOption, type ManagedUser, type PaginatedUser, type RoleOption } from '@/types/user';
 import { Link, router } from '@inertiajs/react';
-import { Eye, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Eye, Pencil, Percent, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import users from '@/routes/users';
 import { formatCurrency } from '@/lib/utils';
@@ -23,6 +24,14 @@ import { formatCurrency } from '@/lib/utils';
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'المستخدمون', href: users.index().url },
 ];
+
+// Roles that earn per-service commissions. The button only shows for these
+// users when they belong to a branch.
+const COMMISSION_ROLES = ['employee', 'accountant'];
+
+function hasServiceCommissions(item: ManagedUser): boolean {
+    return item.branchId !== null && item.role !== null && COMMISSION_ROLES.includes(item.role);
+}
 
 interface Props {
     users: PaginatedUser;
@@ -40,6 +49,7 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<ManagedUser | null>(null);
     const [deleting, setDeleting] = useState<ManagedUser | null>(null);
+    const [commissionUser, setCommissionUser] = useState<ManagedUser | null>(null);
 
     function openCreate() {
         setEditing(null);
@@ -126,9 +136,8 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
             {
                 key: 'actions',
                 header: '',
-                headerClassName: 'w-24',
                 cell: (item) => (
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 whitespace-nowrap">
                         <Button variant="outline" size="sm" asChild>
                             <Link href={users.show(item.id).url}>
                                 <Eye className="h-3.5 w-3.5" />
@@ -137,6 +146,16 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                         <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
                             <Pencil className="h-3.5 w-3.5" />
                         </Button>
+                        {hasServiceCommissions(item) && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setCommissionUser(item)}
+                                title="عمولات الخدمات"
+                            >
+                                <Percent className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
                         <Button
                             variant="outline"
                             size="sm"
@@ -274,6 +293,13 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                 roles={roles}
                 branches={branches}
                 isSuperAdmin={isSuperAdmin}
+            />
+
+            <UserServiceCommissionsModal
+                user={commissionUser}
+                open={!!commissionUser}
+                onOpenChange={(open) => !open && setCommissionUser(null)}
+                canEdit
             />
         </AppLayout>
     );
