@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
@@ -11,7 +12,7 @@ import { formatCurrency } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { CheckCircle2, ClipboardList, Paperclip, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ClipboardList, Paperclip, Pencil, User, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -28,6 +29,7 @@ interface ReviewInvoice {
     invoiceNumber: string;
     createdAt: string | null;
     employeeName: string | null;
+    customerId: number | null;
     customerName: string | null;
     customerPhone: string | null;
     branchName: string | null;
@@ -56,12 +58,51 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
     const [reasonError, setReasonError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [uploadingId, setUploadingId] = useState<number | null>(null);
+    const [expanded, setExpanded] = useState<Record<number, boolean>>({});
+    const [editingId, setEditingId] = useState<number | null>(null);
+    const [editName, setEditName] = useState('');
+    const [editPhone, setEditPhone] = useState('');
+    const [editErrors, setEditErrors] = useState<{ full_name?: string; phone?: string }>({});
+    const [savingCustomer, setSavingCustomer] = useState(false);
 
     useEffect(() => {
         if (props.success) {
             toast.success(props.success as string);
         }
     }, [props.success]);
+
+    function toggleExpanded(id: number) {
+        setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+    }
+
+    function startEditing(invoice: ReviewInvoice) {
+        setEditingId(invoice.id);
+        setEditName(invoice.customerName ?? '');
+        setEditPhone(invoice.customerPhone ?? '');
+        setEditErrors({});
+    }
+
+    function cancelEditing() {
+        setEditingId(null);
+        setEditErrors({});
+    }
+
+    function saveCustomer(invoice: ReviewInvoice) {
+        setSavingCustomer(true);
+        router.patch(
+            serviceInvoice.updateCustomer(invoice.id).url,
+            { full_name: editName.trim(), phone: editPhone.trim() },
+            {
+                preserveScroll: true,
+                onError: (e) => setEditErrors({ full_name: e.full_name, phone: e.phone }),
+                onSuccess: () => {
+                    setEditingId(null);
+                    setEditErrors({});
+                },
+                onFinish: () => setSavingCustomer(false),
+            },
+        );
+    }
 
     function confirmPay() {
         if (!paying) return;
@@ -135,23 +176,109 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                     </Card>
                 ) : (
                     <div className="grid gap-4 lg:grid-cols-2">
-                        {invoices.map((invoice) => (
+                        {invoices.map((invoice) => {
+                            const isOpen = !!expanded[invoice.id];
+                            const isEditing = editingId === invoice.id;
+
+                            return (
                             <Card key={invoice.id}>
-                                <CardHeader className="pb-3">
+                                <CardHeader
+                                    className="cursor-pointer pb-3"
+                                    onClick={() => toggleExpanded(invoice.id)}
+                                >
                                     <div className="flex items-start justify-between gap-2">
-                                        <CardTitle className="text-base">{invoice.invoiceNumber}</CardTitle>
-                                        <Badge variant="outline">{formatDate(invoice.createdAt)}</Badge>
+                                        <div className="space-y-1">
+                                            <CardTitle className="text-base">{invoice.invoiceNumber}</CardTitle>
+                                            <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
+                                                <User className="size-3.5 shrink-0" />
+                                                <span>
+                                                    {invoice.customerName ?? 'عميل عابر'}
+                                                    {invoice.customerPhone ? ` — ${invoice.customerPhone}` : ''}
+                                                </span>
+                                            </p>
+                                        </div>
+                                        <div className="flex shrink-0 items-center gap-2">
+                                            <Badge variant="outline">{formatDate(invoice.createdAt)}</Badge>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                aria-expanded={isOpen}
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleExpanded(invoice.id);
+                                                }}
+                                            >
+                                                <ChevronDown className={`size-4 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                                                {isOpen ? 'إخفاء' : 'عرض'}
+                                            </Button>
+                                        </div>
                                     </div>
+                                </CardHeader>
+                                {isOpen && (
+                                <CardContent className="space-y-3">
+                                    <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-sm">
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-muted-foreground flex items-center gap-1.5">
+                                                <User className="size-4" /> بيانات العميل
+                                            </span>
+                                            {invoice.customerId && !isEditing && (
+                                                <Button type="button" variant="ghost" size="sm" onClick={() => startEditing(invoice)}>
+                                                    <Pencil className="size-3.5" /> تعديل
+                                                </Button>
+                                            )}
+                                        </div>
+
+                                        {isEditing ? (
+                                            <div className="space-y-2">
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`name-${invoice.id}`} className="text-xs">
+                                                        الاسم
+                                                    </Label>
+                                                    <Input
+                                                        id={`name-${invoice.id}`}
+                                                        value={editName}
+                                                        onChange={(e) => setEditName(e.target.value)}
+                                                        disabled={savingCustomer}
+                                                    />
+                                                    {editErrors.full_name && <p className="text-destructive text-xs">{editErrors.full_name}</p>}
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <Label htmlFor={`phone-${invoice.id}`} className="text-xs">
+                                                        رقم الجوال
+                                                    </Label>
+                                                    <Input
+                                                        id={`phone-${invoice.id}`}
+                                                        value={editPhone}
+                                                        inputMode="tel"
+                                                        onChange={(e) => setEditPhone(e.target.value)}
+                                                        disabled={savingCustomer}
+                                                    />
+                                                    {editErrors.phone && <p className="text-destructive text-xs">{editErrors.phone}</p>}
+                                                </div>
+                                                <div className="flex gap-2 pt-1">
+                                                    <Button type="button" size="sm" onClick={() => saveCustomer(invoice)} disabled={savingCustomer}>
+                                                        <CheckCircle2 className="size-4" /> حفظ
+                                                    </Button>
+                                                    <Button type="button" size="sm" variant="outline" onClick={cancelEditing} disabled={savingCustomer}>
+                                                        إلغاء
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="text-muted-foreground space-y-0.5 text-xs">
+                                                <p>الاسم: {invoice.customerName ?? 'عميل عابر'}</p>
+                                                <p>الجوال: {invoice.customerPhone ?? '—'}</p>
+                                                {!invoice.customerId && <p className="text-amber-600 dark:text-amber-400">لا يمكن تعديل عميل عابر غير مسجَّل.</p>}
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="text-muted-foreground space-y-0.5 text-xs">
                                         {isSuperAdmin && invoice.branchName && <p>الفرع: {invoice.branchName}</p>}
                                         <p>الموظف: {invoice.employeeName ?? '—'}</p>
-                                        <p>
-                                            العميل: {invoice.customerName ?? 'عميل عابر'}
-                                            {invoice.customerPhone ? ` — ${invoice.customerPhone}` : ''}
-                                        </p>
                                     </div>
-                                </CardHeader>
-                                <CardContent className="space-y-3">
+
                                     <Table>
                                         <TableHeader>
                                             <TableRow>
@@ -250,8 +377,10 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                         </Button>
                                     </div>
                                 </CardContent>
+                                )}
                             </Card>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
             </div>

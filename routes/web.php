@@ -117,6 +117,7 @@ Route::middleware(['auth'])->group(function () {
             Route::get('review', [ServiceInvoiceController::class, 'review'])->name('review');
             Route::patch('{invoice}/pay', [ServiceInvoiceController::class, 'markPaid'])->name('pay');
             Route::patch('{invoice}/cancel', [ServiceInvoiceController::class, 'cancel'])->name('cancel');
+            Route::patch('{invoice}/customer', [ServiceInvoiceController::class, 'updateCustomer'])->name('update-customer');
             Route::post('{invoice}/receipt', [InvoiceReceiptController::class, 'store'])->name('receipt');
         });
     });

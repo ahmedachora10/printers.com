@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Customer\UpdateCustomerAction;
 use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
@@ -11,6 +12,7 @@ use App\Enums\InvoiceTypeEnum;
 use App\Enums\Roles;
 use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
+use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
 use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\BranchService;
@@ -155,6 +157,7 @@ class ServiceInvoiceController extends Controller
                 'invoiceNumber' => $invoice->invoice_number,
                 'createdAt' => $invoice->created_at?->toIso8601String(),
                 'employeeName' => $invoice->user?->name,
+                'customerId' => $invoice->customer?->id,
                 'customerName' => $invoice->customer?->full_name,
                 'customerPhone' => $invoice->customer?->phone,
                 'branchName' => $invoice->branch?->name,
@@ -191,6 +194,24 @@ class ServiceInvoiceController extends Controller
 
         return to_route('invoices.service.review')
             ->with('success', "تم اعتماد دفع الفاتورة {$invoice->invoice_number}");
+    }
+
+    /**
+     * Correct the linked customer's name/phone from the review queue. Writes to
+     * the shared customer record, so it affects the customer everywhere.
+     */
+    public function updateCustomer(UpdateInvoiceCustomerRequest $request, ServiceInvoice $invoice, UpdateCustomerAction $action): RedirectResponse
+    {
+        $customer = $invoice->customer;
+
+        abort_if($customer === null, 422, 'لا يوجد عميل مرتبط بهذه الفاتورة.');
+
+        Gate::authorize('update', $customer);
+
+        $action->handle($customer, $request->validated());
+
+        return to_route('invoices.service.review')
+            ->with('success', "تم تحديث بيانات العميل للفاتورة {$invoice->invoice_number}");
     }
 
     public function cancel(CancelServiceInvoiceRequest $request, ServiceInvoice $invoice, CancelServiceInvoiceAction $action): RedirectResponse

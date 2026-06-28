@@ -217,4 +217,83 @@ describe('Service invoice review', function () {
 
         expect($invoice->refresh()->status->value)->toBe('due');
     });
+
+    it('lets an accountant edit the linked customer name and phone from the review queue', function () {
+        $customer = Customer::factory()->create([
+            'branch_id' => $this->branch->id,
+            'full_name' => 'اسم قديم',
+            'phone' => '0500000001',
+        ]);
+
+        $invoice = makeDueInvoice(['customer_id' => $customer->id]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => 'اسم جديد',
+            'phone' => '0500000002',
+        ])
+            ->assertRedirect(route('invoices.service.review'))
+            ->assertSessionHas('success');
+
+        expect($customer->refresh())
+            ->full_name->toBe('اسم جديد')
+            ->phone->toBe('0500000002');
+    });
+
+    it('validates name and phone when editing the customer', function () {
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
+        $invoice = makeDueInvoice(['customer_id' => $customer->id]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => '',
+            'phone' => '',
+        ])->assertSessionHasErrors(['full_name', 'phone']);
+    });
+
+    it('rejects a phone already used by another customer in the branch', function () {
+        Customer::factory()->create(['branch_id' => $this->branch->id, 'phone' => '0512345678']);
+
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'phone' => '0599999999']);
+        $invoice = makeDueInvoice(['customer_id' => $customer->id]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => $customer->full_name,
+            'phone' => '0512345678',
+        ])->assertSessionHasErrors('phone');
+
+        expect($customer->refresh()->phone)->toBe('0599999999');
+    });
+
+    it('returns 422 when the invoice has no linked customer', function () {
+        $invoice = makeDueInvoice(['customer_id' => null]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => 'عميل',
+            'phone' => '0500000003',
+        ])->assertStatus(422);
+    });
+
+    it('forbids an employee from editing the invoice customer', function () {
+        $this->actingAs($this->employee);
+
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
+        $invoice = makeDueInvoice(['customer_id' => $customer->id]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => 'محاولة',
+            'phone' => '0500000004',
+        ])->assertForbidden();
+    });
+
+    it('forbids editing a customer on an invoice from another branch', function () {
+        $otherBranch = Branch::factory()->create();
+        $customer = Customer::factory()->create(['branch_id' => $otherBranch->id, 'full_name' => 'عميل آخر']);
+        $invoice = makeDueInvoice(['branch_id' => $otherBranch->id, 'customer_id' => $customer->id]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => 'تعديل',
+            'phone' => '0500000005',
+        ])->assertForbidden();
+
+        expect($customer->refresh()->full_name)->toBe('عميل آخر');
+    });
 });
