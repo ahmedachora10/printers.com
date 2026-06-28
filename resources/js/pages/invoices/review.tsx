@@ -202,6 +202,20 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                             <Button
                                                 type="button"
                                                 variant="ghost"
+                                                size="icon"
+                                                className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                                                aria-label="اعتماد الدفع"
+                                                title="اعتماد الدفع"
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPaying(invoice);
+                                                }}
+                                            >
+                                                <CheckCircle2 className="size-4" />
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
                                                 size="sm"
                                                 aria-expanded={isOpen}
                                                 onClick={(e) => {
