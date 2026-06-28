@@ -125,7 +125,7 @@ class InvoiceController extends Controller
         if ($role->isSuperAdmin() || $role->isBranchAdmin() || $role->isAccountant()) {
             $types[] = InvoiceTypeEnum::PRODUCT;
         }
-        if ($role->isSuperAdmin() || $role->isBranchAdmin() || $role->isEmployee()) {
+        if ($role->isSuperAdmin() || $role->isBranchAdmin() || $role->isEmployee() || $role->isAccountant()) {
             $types[] = InvoiceTypeEnum::SERVICE;
         }
 
