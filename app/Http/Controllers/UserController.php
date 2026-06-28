@@ -19,6 +19,7 @@ use App\Models\ServiceInvoice;
 use App\Models\User;
 use App\Models\UserService;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -109,6 +110,19 @@ class UserController extends Controller
         $action->handle($user, $request->validated());
 
         return back(fallback: route('users.index'))->with('success', 'تم تحديث المستخدم بنجاح');
+    }
+
+    /**
+     * The employee's branch services with their personal commission rate, as JSON.
+     * Used to lazily populate the service-commissions modal from the users list.
+     */
+    public function showServiceCommissions(User $user): JsonResponse
+    {
+        Gate::authorize('update', $user);
+
+        return response()->json([
+            'serviceCommissions' => $this->serviceCommissions($user),
+        ]);
     }
 
     /**
