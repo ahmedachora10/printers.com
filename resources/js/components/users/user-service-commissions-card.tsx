@@ -11,6 +11,7 @@ interface Props {
     userId: number;
     canEdit: boolean;
     services: UserServiceCommission[];
+    onSaved?: () => void;
 }
 
 // Local rate input keyed by branch service. Empty string means "no rate" — the
@@ -21,7 +22,7 @@ function initialRates(services: UserServiceCommission[]): RateMap {
     return Object.fromEntries(services.map((s) => [s.branchServiceId, s.commissionPct === null ? '' : String(s.commissionPct)]));
 }
 
-export default function UserServiceCommissionsCard({ userId, canEdit, services }: Props) {
+export default function UserServiceCommissionsCard({ userId, canEdit, services, onSaved }: Props) {
     const [rates, setRates] = useState<RateMap>(() => initialRates(services));
     const { transform, put, processing } = useForm({});
 
@@ -36,7 +37,10 @@ export default function UserServiceCommissionsCard({ userId, canEdit, services }
             }),
         }));
 
-        put(serviceCommissions.update(userId).url, { preserveScroll: true });
+        put(serviceCommissions.update(userId).url, {
+            preserveScroll: true,
+            onSuccess: () => onSaved?.(),
+        });
     }
 
     return (

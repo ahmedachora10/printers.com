@@ -48,7 +48,7 @@ export default function UserServiceCommissionsModal({ user, open, onOpenChange, 
                 </DialogHeader>
 
                 {user && services !== null ? (
-                    <UserServiceCommissionsCard key={user.id} userId={user.id} canEdit={canEdit} services={services} />
+                    <UserServiceCommissionsCard key={user.id} userId={user.id} canEdit={canEdit} services={services} onSaved={() => onOpenChange(false)} />
                 ) : (
                     <p className="text-muted-foreground py-8 text-center text-sm">جاري التحميل...</p>
                 )}
