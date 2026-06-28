@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type ProductCategory } from '@/types/product-category';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Props {
@@ -27,6 +28,17 @@ export default function ProductCategoryFormModal({ open, onOpenChange, productCa
         name: productCategory?.name ?? '',
         is_active: productCategory?.isActive ?? true,
     });
+
+    useEffect(() => {
+        if (productCategory) {
+            setData({
+                name: productCategory.name ?? '',
+                is_active: productCategory.isActive ?? true,
+            });
+        } else {
+            reset();
+        }
+    }, [productCategory, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

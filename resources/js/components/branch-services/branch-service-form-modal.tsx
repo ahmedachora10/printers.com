@@ -22,6 +22,7 @@ import {
 import { Switch } from '@/components/ui/switch';
 import { type BranchService, type BranchServiceFormData } from '@/types/branch-service';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface ServiceTemplateOption {
@@ -60,6 +61,21 @@ export default function BranchServiceFormModal({
             is_tahazir: branchService?.isTahazir ?? false,
             is_active: branchService?.isActive ?? true,
         });
+
+    useEffect(() => {
+        if (branchService) {
+            setData({
+                service_template_id: branchService.serviceTemplateId ?? 0,
+                branch_id: userBranch.id,
+                base_commission_pct: branchService.baseCommissionPct ?? 0,
+                max_discount_pct: branchService.maxDiscountPct ?? 0,
+                is_tahazir: branchService.isTahazir ?? false,
+                is_active: branchService.isActive ?? true,
+            });
+        } else {
+            reset();
+        }
+    }, [branchService, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

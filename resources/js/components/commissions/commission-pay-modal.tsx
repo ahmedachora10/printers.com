@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/lib/utils';
 import { type CommissionEmployeeRow } from '@/types/commission';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Props {
@@ -37,6 +38,15 @@ export default function CommissionPayModal({ open, onOpenChange, employee }: Pro
         period_end: monthEnd(),
         notes: '',
     });
+
+    useEffect(() => {
+        setData({
+            user_id: employee?.userId ?? 0,
+            period_start: monthStart(),
+            period_end: monthEnd(),
+            notes: '',
+        });
+    }, [employee, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

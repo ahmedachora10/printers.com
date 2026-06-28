@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type PaymentMethod } from '@/types/payment-method';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Props {
@@ -28,6 +29,18 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
         is_active:           paymentMethod?.isActive ?? true,
         requires_attachment: paymentMethod?.requiresAttachment ?? false,
     });
+
+    useEffect(() => {
+        if (paymentMethod) {
+            setData({
+                name: paymentMethod.name ?? '',
+                is_active: paymentMethod.isActive ?? true,
+                requires_attachment: paymentMethod.requiresAttachment ?? false,
+            });
+        } else {
+            reset();
+        }
+    }, [paymentMethod, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

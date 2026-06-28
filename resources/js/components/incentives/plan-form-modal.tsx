@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type EmployeeOption, type EnumOption, type IncentivePlan } from '@/types/incentive';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 const MONTHS = [
@@ -40,6 +41,22 @@ export default function PlanFormModal({ open, onOpenChange, plan, employees, bon
         bonus_value: plan?.bonusValue?.toString() ?? '',
         notes: plan?.notes ?? '',
     });
+
+    useEffect(() => {
+        if (plan) {
+            setData({
+                user_id: plan.userId?.toString() ?? '',
+                period_month: (plan.periodMonth ?? now.getMonth() + 1).toString(),
+                period_year: (plan.periodYear ?? now.getFullYear()).toString(),
+                target_amount: plan.targetAmount?.toString() ?? '',
+                bonus_type: plan.bonusType ?? 'fixed',
+                bonus_value: plan.bonusValue?.toString() ?? '',
+                notes: plan.notes ?? '',
+            });
+        } else {
+            reset();
+        }
+    }, [plan, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

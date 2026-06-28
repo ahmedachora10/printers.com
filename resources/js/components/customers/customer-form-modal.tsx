@@ -14,6 +14,7 @@ import { Switch } from '@/components/ui/switch';
 import { type Customer } from '@/types/customer';
 import { useForm } from '@inertiajs/react';
 import { Loader2 } from 'lucide-react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Agent {
@@ -53,6 +54,28 @@ export default function CustomerFormModal({ open, onOpenChange, customer, agents
         notes: customer?.notes ?? '',
         is_active: customer?.isActive ?? true,
     });
+
+    useEffect(() => {
+        if (customer) {
+            setData({
+                branch_id: customer.branchId ? String(customer.branchId) : '',
+                full_name: customer.fullName ?? '',
+                phone: customer.phone ?? '',
+                email: customer.email ?? '',
+                customer_type: customer.customerType.value ?? 'individual',
+                company_name: customer.companyName ?? '',
+                credit_limit:
+                    customer.creditLimit !== null && customer.creditLimit !== undefined
+                        ? String(customer.creditLimit)
+                        : '',
+                agent_id: customer.agentId ? String(customer.agentId) : '',
+                notes: customer.notes ?? '',
+                is_active: customer.isActive ?? true,
+            });
+        } else {
+            reset();
+        }
+    }, [customer, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { type Product } from '@/types/product';
 import { MANUAL_MOVEMENT_TYPES, type StockMovementType } from '@/types/stock-movement';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import { toast } from 'sonner';
 import InputError from '../input-error';
 
@@ -31,6 +32,16 @@ export default function StockAdjustmentModal({ open, onOpenChange, product }: Pr
         unit_cost: '',
         notes: '',
     });
+
+    useEffect(() => {
+        setData({
+            product_id: product?.id ?? 0,
+            type: 'opening_stock' as StockMovementType,
+            qty: '',
+            unit_cost: '',
+            notes: '',
+        });
+    }, [product, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

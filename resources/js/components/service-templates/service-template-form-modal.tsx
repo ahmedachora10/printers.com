@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type ServiceTemplate, type ServiceTemplateFormData } from '@/types/service-template';
 import { router, useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Props {
@@ -28,6 +29,18 @@ export default function ServiceTemplateFormModal({ open, onOpenChange, template 
         description: template?.description ?? '',
         is_active: template?.isActive ?? true,
     });
+
+    useEffect(() => {
+        if (template) {
+            setData({
+                name: template.name ?? '',
+                description: template.description ?? '',
+                is_active: template.isActive ?? true,
+            });
+        } else {
+            reset();
+        }
+    }, [template, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { type Coupon } from '@/types/coupon';
 import { useForm } from '@inertiajs/react';
 import { RefreshCw } from 'lucide-react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 function generateCouponCode(): string {
@@ -46,6 +47,22 @@ export default function CouponFormModal({ open, onOpenChange, coupon, branches }
         expires_at: coupon?.expiresAt ? coupon.expiresAt.slice(0, 10) : '',
         is_active: coupon?.isActive ?? true,
     });
+
+    useEffect(() => {
+        if (coupon) {
+            setData({
+                branch_id: coupon.branchId?.toString() ?? (branches?.[0]?.id?.toString() ?? ''),
+                code: coupon.code ?? '',
+                discount_type: coupon.discountType.value ?? 'percentage',
+                discount_value: coupon.discountValue?.toString() ?? '',
+                capacity: coupon.capacity?.toString() ?? '',
+                expires_at: coupon.expiresAt ? coupon.expiresAt.slice(0, 10) : '',
+                is_active: coupon.isActive ?? true,
+            });
+        } else {
+            reset();
+        }
+    }, [coupon, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

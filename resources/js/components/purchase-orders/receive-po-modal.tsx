@@ -11,7 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { type PurchaseOrder } from '@/types/purchase-order';
 import { useForm } from '@inertiajs/react';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 
 interface Props {
     open: boolean;
@@ -30,6 +30,10 @@ export default function ReceivePoModal({ open, onOpenChange, purchaseOrder }: Pr
     }>({
         receipts: openLines.map((line) => ({ line_id: line.id, qty: '' })),
     });
+
+    useEffect(() => {
+        setData('receipts', openLines.map((line) => ({ line_id: line.id, qty: '' })));
+    }, [openLines, open]);
 
     const setQty = (lineId: number, qty: string) => {
         setData(

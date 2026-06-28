@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Expense } from '@/types/expense';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Category {
@@ -50,6 +51,23 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         comment:             expense?.comment ?? '',
         date:                expense?.date ?? todayIso(),
     });
+
+    useEffect(() => {
+        if (expense) {
+            setData({
+                branch_id:           expense.branchId?.toString() ?? (branches?.[0]?.id?.toString() ?? ''),
+                expense_category_id: expense.expenseCategoryId?.toString() ?? '',
+                qty:                 expense.qty?.toString() ?? '1',
+                unit_price:          expense.unitPrice?.toString() ?? '',
+                supplier_name:       expense.supplierName ?? '',
+                receipt_reference:   expense.receiptReference ?? '',
+                comment:             expense.comment ?? '',
+                date:                expense.date ?? todayIso(),
+            });
+        } else {
+            reset();
+        }
+    }, [expense, open]);
 
     const total = (parseFloat(data.qty || '0') * parseFloat(data.unit_price || '0') || 0).toLocaleString('en-US', {
         minimumFractionDigits: 2,

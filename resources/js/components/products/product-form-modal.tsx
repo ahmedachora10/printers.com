@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { type Product } from '@/types/product';
 import { type ProductUnit } from '@/types/product-unit';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Category {
@@ -43,6 +44,24 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
         barcode:         product?.barcode ?? '',
         is_active:       product?.isActive ?? true,
     });
+
+    useEffect(() => {
+        if (product) {
+            setData({
+                sku:             product.sku ?? '',
+                name:            product.name ?? '',
+                category_id:     product.categoryId?.toString() ?? '',
+                unit_id:         product.unitId?.toString() ?? '',
+                cost_price:      product.costPrice?.toString() ?? '',
+                selling_price:   product.sellingPrice?.toString() ?? '',
+                min_stock_level: product.minStockLevel?.toString() ?? '0',
+                barcode:         product.barcode ?? '',
+                is_active:       product.isActive ?? true,
+            });
+        } else {
+            reset();
+        }
+    }, [product, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

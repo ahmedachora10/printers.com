@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/lib/utils';
 import { type IncentivePlan } from '@/types/incentive';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Props {
@@ -21,6 +22,10 @@ interface Props {
 
 export default function PayBonusModal({ open, onOpenChange, plan }: Props) {
     const { data, setData, post, processing, errors, reset } = useForm({ notes: '' });
+
+    useEffect(() => {
+        reset();
+    }, [plan, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

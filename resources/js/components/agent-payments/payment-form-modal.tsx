@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/lib/utils';
 import { type AgentOutstanding } from '@/types/agent-payment';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Props {
@@ -31,6 +32,15 @@ export default function PaymentFormModal({ open, onOpenChange, agent }: Props) {
         period_end: todayIso(),
         notes: '',
     });
+
+    useEffect(() => {
+        setData({
+            agent_id: agent?.id ?? 0,
+            period_start: '',
+            period_end: todayIso(),
+            notes: '',
+        });
+    }, [agent, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

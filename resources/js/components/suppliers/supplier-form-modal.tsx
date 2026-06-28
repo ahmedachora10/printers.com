@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type Supplier } from '@/types/supplier';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Props {
@@ -30,6 +31,20 @@ export default function SupplierFormModal({ open, onOpenChange, supplier }: Prop
         notes: supplier?.notes ?? '',
         is_active: supplier?.isActive ?? true,
     });
+
+    useEffect(() => {
+        if (supplier) {
+            setData({
+                name: supplier.name ?? '',
+                phone: supplier.phone ?? '',
+                email: supplier.email ?? '',
+                notes: supplier.notes ?? '',
+                is_active: supplier.isActive ?? true,
+            });
+        } else {
+            reset();
+        }
+    }, [supplier, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { type Agent, type AgentDiscountMode, type AgentType, type EnumOption } from '@/types/agent';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Branch {
@@ -48,6 +49,27 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
         rate: agent?.rate?.toString() ?? '',
         commercial_reg_no: agent?.commercialRegNo ?? '',
     });
+
+    useEffect(() => {
+        if (agent) {
+            setData({
+                name: agent.name ?? '',
+                username: agent.username ?? '',
+                email: agent.email ?? '',
+                phone: agent.phone ?? '',
+                password: '',
+                password_confirmation: '',
+                branch_id: agent.branchId?.toString() ?? (branches?.[0]?.id?.toString() ?? ''),
+                is_active: agent.isActive ?? true,
+                agent_type: (agent.agentType?.value ?? 'individual') as AgentType,
+                discount_mode: (agent.discountMode?.value ?? 'discount') as AgentDiscountMode,
+                rate: agent.rate?.toString() ?? '',
+                commercial_reg_no: agent.commercialRegNo ?? '',
+            });
+        } else {
+            reset();
+        }
+    }, [agent, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

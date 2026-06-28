@@ -21,6 +21,7 @@ import {
 import { type Branch, type BranchAdmin, type BranchFormData } from '@/types/branch';
 import { type City } from '@/types/city';
 import { router, useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Props {
@@ -47,6 +48,26 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
         is_active: branch?.isActive ?? true,
         logo: null,
     });
+
+    useEffect(() => {
+        if (branch) {
+            setData({
+                name: branch.name ?? '',
+                city_id: String(branch.cityId),
+                phone: branch.phone ?? '',
+                address: branch.address ?? '',
+                business_type: branch.businessType ?? '',
+                commercial_reg_no: branch.commercialRegNo ?? '',
+                tax_number: branch.taxNumber ?? '',
+                owner_id: branch.ownerId ? String(branch.ownerId) : '',
+                vat_rate_override: branch.vatRateOverride ?? 15,
+                is_active: branch.isActive ?? true,
+                logo: null,
+            });
+        } else {
+            reset();
+        }
+    }, [branch, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

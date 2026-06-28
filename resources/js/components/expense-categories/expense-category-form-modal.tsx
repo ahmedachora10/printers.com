@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type ExpenseCategory } from '@/types/expense-category';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Props {
@@ -27,6 +28,17 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
         name: expenseCategory?.name ?? '',
         is_active: expenseCategory?.isActive ?? true,
     });
+
+    useEffect(() => {
+        if (expenseCategory) {
+            setData({
+                name: expenseCategory.name ?? '',
+                is_active: expenseCategory.isActive ?? true,
+            });
+        } else {
+            reset();
+        }
+    }, [expenseCategory, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

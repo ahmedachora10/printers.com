@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type City } from '@/types/city';
 import { useForm } from '@inertiajs/react';
+import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Props {
@@ -27,6 +28,17 @@ export default function CityFormModal({ open, onOpenChange, city }: Props) {
         name: city?.name ?? '',
         is_active: city?.isActive ?? true,
     });
+
+    useEffect(() => {
+        if (city) {
+            setData({
+                name: city.name ?? '',
+                is_active: city.isActive ?? true,
+            });
+        } else {
+            reset();
+        }
+    }, [city, open]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
