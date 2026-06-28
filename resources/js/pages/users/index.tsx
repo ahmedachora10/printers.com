@@ -137,7 +137,7 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                 key: 'actions',
                 header: '',
                 cell: (item) => (
-                    <div className="flex items-center gap-2 whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-2 whitespace-nowrap">
                         <Button variant="outline" size="sm" asChild>
                             <Link href={users.show(item.id).url}>
                                 <Eye className="h-3.5 w-3.5" />
