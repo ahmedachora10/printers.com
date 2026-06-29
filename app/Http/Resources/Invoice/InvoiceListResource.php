@@ -17,6 +17,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string $invoice_number
  * @property string $total_amount
  * @property string|null $customer_name
+ * @property string|null $employee_name
  * @property string|null $created_at
  */
 class InvoiceListResource extends JsonResource
@@ -36,6 +37,7 @@ class InvoiceListResource extends JsonResource
             'status' => $status->value,
             'statusLabel' => $status->label(),
             'customerName' => $this->customer_name,
+            'employeeName' => $this->employee_name,
             'createdAt' => $this->created_at,
         ];
     }

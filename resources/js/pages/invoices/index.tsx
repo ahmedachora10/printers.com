@@ -115,6 +115,11 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
                 cell: (item) => item.customerName ?? <span className="text-muted-foreground">عميل نقدي</span>,
             },
             {
+                key: 'employeeName',
+                header: 'منشئ الفاتورة',
+                cell: (item) => item.employeeName ?? <span className="text-muted-foreground">—</span>,
+            },
+            {
                 key: 'totalAmount',
                 header: 'الإجمالي',
                 cell: (item) => (
@@ -165,7 +170,7 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
                 <div className="mb-6">
                     <FilterBar
                         searchable
-                        searchPlaceholder="بحث برقم الفاتورة..."
+                        searchPlaceholder="بحث برقم الفاتورة أو اسم الموظف..."
                         searchValue={search}
                         onSearchChange={handleSearchChange}
                         filters={[

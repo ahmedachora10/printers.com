@@ -73,6 +73,7 @@ export interface InvoiceListItem {
     status: InvoiceStatus;
     statusLabel: string;
     customerName: string | null;
+    employeeName: string | null;
     createdAt: string;
 }
 

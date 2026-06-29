@@ -40,7 +40,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_name');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_name, null as employee_name');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -141,13 +141,18 @@ class InvoiceController extends Controller
 
         return DB::table($table)
             ->leftJoin('customers', 'customers.id', '=', "{$table}.customer_id")
+            ->leftJoin('users', 'users.id', '=', "{$table}.user_id")
             ->whereNull("{$table}.deleted_at")
             ->when(! $isSuperAdmin, fn ($q) => $q->where("{$table}.branch_id", $branchId))
             ->when($request->filled('status') && in_array($request->input('status'), InvoiceStatusEnum::all(), true),
                 fn ($q) => $q->where("{$table}.status", $request->input('status')))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate("{$table}.created_at", '>=', $request->input('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate("{$table}.created_at", '<=', $request->input('date_to')))
-            ->when($request->filled('search'), fn ($q) => $q->where("{$table}.invoice_number", 'like', '%'.$request->input('search').'%'))
+            ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($table, $request) {
+                $term = '%'.$request->input('search').'%';
+                $q->where("{$table}.invoice_number", 'like', $term)
+                    ->orWhere('users.name', 'like', $term);
+            }))
             ->select([
                 "{$table}.id",
                 "{$table}.invoice_number",
@@ -156,6 +161,7 @@ class InvoiceController extends Controller
                 "{$table}.created_at",
                 DB::raw("'{$type->value}' as type"),
                 'customers.full_name as customer_name',
+                'users.name as employee_name',
             ]);
     }
 }
