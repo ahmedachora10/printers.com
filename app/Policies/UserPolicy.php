@@ -38,6 +38,23 @@ class UserPolicy
         return $user->roleName->isSuperAdmin() || $this->managesInBranch($user, $model);
     }
 
+    /**
+     * Sign in as another user. Reserved for admins, and never targets another
+     * admin or yourself. Branch-admins are confined to their own branch staff.
+     */
+    public function impersonate(User $user, User $model): bool
+    {
+        if ($user->id === $model->id) {
+            return false;
+        }
+
+        if ($model->hasRole(['super-admin', 'branch-admin'])) {
+            return false;
+        }
+
+        return $user->roleName->isSuperAdmin() || $this->managesInBranch($user, $model);
+    }
+
     public function restore(User $user, User $model): bool
     {
         return $user->roleName->isSuperAdmin();

@@ -47,6 +47,9 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
                 'role' => $request->user()?->roleName,
                 'sidebarItems' => $this->getSidebarItems($request),
+                'impersonating' => $request->session()->has('impersonator_id')
+                    ? ['active' => true, 'viewingName' => $request->user()?->name]
+                    : null,
             ],
             'notifications' => fn () => $this->notifications($request),
             'success' => $request->session()->get('success'),
@@ -156,6 +159,12 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('coupons.index'),
                 'icon' => 'Ticket',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
+                'title' => 'دليل الخدمات',
+                'url' => route('admin.catalogue.categories.index'),
+                'icon' => 'BookOpen',
+                'role' => [Roles::SUPER_ADMIN],
             ],
             [
                 'title' => 'العمولات',

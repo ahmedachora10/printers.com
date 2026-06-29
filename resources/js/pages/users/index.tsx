@@ -13,10 +13,10 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type BranchOption, type ManagedUser, type PaginatedUser, type RoleOption } from '@/types/user';
-import { Link, router } from '@inertiajs/react';
-import { Eye, Pencil, Percent, Plus, Trash2 } from 'lucide-react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { Eye, LogIn, Pencil, Percent, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import users from '@/routes/users';
 import { formatCurrency } from '@/lib/utils';
@@ -28,6 +28,9 @@ const breadcrumbs: BreadcrumbItem[] = [
 // Roles that earn per-service commissions. The button only shows for these
 // users when they belong to a branch.
 const COMMISSION_ROLES = ['employee', 'accountant'];
+
+// Roles that can never be impersonated. The server enforces this too (policy).
+const ADMIN_ROLES = ['super-admin', 'branch-admin'];
 
 function hasServiceCommissions(item: ManagedUser): boolean {
     return item.branchId !== null && item.role !== null && COMMISSION_ROLES.includes(item.role);
@@ -46,6 +49,19 @@ interface Props {
 }
 
 export default function UsersIndex({ users: items, roles, branches, isSuperAdmin, filters }: Props) {
+    const { auth } = usePage<SharedData>().props;
+    const isAdmin = isSuperAdmin || auth.role === 'branch-admin';
+
+    // Mirrors UserPolicy::impersonate — admins may sign in as any non-admin
+    // who isn't themselves. The server re-checks before swapping accounts.
+    function canImpersonate(item: ManagedUser): boolean {
+        return isAdmin && item.id !== auth.user.id && (item.role === null || !ADMIN_ROLES.includes(item.role));
+    }
+
+    function handleImpersonate(item: ManagedUser) {
+        router.post(users.impersonate(item.id).url);
+    }
+
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<ManagedUser | null>(null);
     const [deleting, setDeleting] = useState<ManagedUser | null>(null);
@@ -154,6 +170,16 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                                 title="عمولات الخدمات"
                             >
                                 <Percent className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
+                        {canImpersonate(item) && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleImpersonate(item)}
+                                title="تسجيل الدخول كـ"
+                            >
+                                <LogIn className="h-3.5 w-3.5" />
                             </Button>
                         )}
                         <Button

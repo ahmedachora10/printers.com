@@ -6,12 +6,17 @@ use App\Http\Controllers\AgentPortalController;
 use App\Http\Controllers\AppSettingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchServiceController;
+use App\Http\Controllers\CatalogCategoryController;
+use App\Http\Controllers\CatalogPriceController;
+use App\Http\Controllers\CatalogSubcategoryController;
+use App\Http\Controllers\CatalogueController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceReceiptController;
@@ -35,6 +40,9 @@ Route::get('/', function () {
     return Inertia::render('welcome');
 })->name('home');
 
+// M19 — Public service catalogue (no auth).
+Route::get('catalogue', [CatalogueController::class, 'index'])->name('catalogue.index');
+
 Route::middleware(['auth'])->group(function () {
     Route::get('dashboard', function () {
         return Inertia::render('dashboard');
@@ -45,6 +53,10 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::patch('notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::delete('notifications/{id}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
+    // Stop impersonating — must stay outside any role gate so the impersonated
+    // (non-admin) user can return to the original admin account.
+    Route::delete('impersonate/leave', [ImpersonationController::class, 'leave'])->name('impersonate.leave');
 
     // Read-only self-service portal for B2B agents.
     Route::middleware('role:agent')->group(function () {
@@ -69,6 +81,36 @@ Route::middleware(['auth'])->group(function () {
             ->only(['store', 'update', 'destroy']);
         Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
             ->name('payment-methods.toggle-status');
+
+        // M20 — Catalogue CRUD (admin).
+        Route::prefix('admin/catalogue')->name('admin.catalogue.')->group(function () {
+            // Full-catalogue Excel export / import (categories + subcategories + prices)
+            Route::get('export', [CatalogCategoryController::class, 'export'])->name('export');
+            Route::post('import', [CatalogCategoryController::class, 'import'])->name('import');
+
+            // Categories
+            Route::get('/', [CatalogCategoryController::class, 'index'])->name('categories.index');
+            Route::post('categories', [CatalogCategoryController::class, 'store'])->name('categories.store');
+            Route::post('categories/{category}', [CatalogCategoryController::class, 'update'])->name('categories.update');
+            Route::delete('categories/{category}', [CatalogCategoryController::class, 'destroy'])->name('categories.destroy');
+            Route::patch('categories/{category}/toggle-status', [CatalogCategoryController::class, 'toggleStatus'])->name('categories.toggle-status');
+
+            // Subcategories (listed per category)
+            Route::get('categories/{category}/subcategories', [CatalogSubcategoryController::class, 'index'])->name('subcategories.index');
+            Route::post('subcategories', [CatalogSubcategoryController::class, 'store'])->name('subcategories.store');
+            Route::post('subcategories/{subcategory}', [CatalogSubcategoryController::class, 'update'])->name('subcategories.update');
+            Route::delete('subcategories/{subcategory}', [CatalogSubcategoryController::class, 'destroy'])->name('subcategories.destroy');
+            Route::patch('subcategories/{subcategory}/toggle-status', [CatalogSubcategoryController::class, 'toggleStatus'])->name('subcategories.toggle-status');
+
+            // Prices (listed per subcategory)
+            Route::get('subcategories/{subcategory}/prices', [CatalogPriceController::class, 'index'])->name('prices.index');
+            Route::get('subcategories/{subcategory}/prices/export', [CatalogPriceController::class, 'export'])->name('prices.export');
+            Route::post('subcategories/{subcategory}/prices/import', [CatalogPriceController::class, 'import'])->name('prices.import');
+            Route::post('prices', [CatalogPriceController::class, 'store'])->name('prices.store');
+            Route::put('prices/{price}', [CatalogPriceController::class, 'update'])->name('prices.update');
+            Route::delete('prices/{price}', [CatalogPriceController::class, 'destroy'])->name('prices.destroy');
+            Route::patch('prices/{price}/toggle-status', [CatalogPriceController::class, 'toggleStatus'])->name('prices.toggle-status');
+        });
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
@@ -156,6 +198,9 @@ Route::middleware(['auth'])->group(function () {
             ->name('users.service-commissions.update');
         Route::resource('users', UserController::class)
             ->only(['index', 'show', 'store', 'update', 'destroy']);
+
+        Route::post('users/{user}/impersonate', [ImpersonationController::class, 'start'])
+            ->name('users.impersonate');
 
         Route::get('app-settings', [AppSettingController::class, 'index'])->name('app-settings.index');
         Route::put('app-settings/general', [AppSettingController::class, 'updateGeneral'])->name('app-settings.update-general');
