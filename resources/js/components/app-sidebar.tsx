@@ -3,7 +3,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowLeftRight, Award, Bell, ClipboardList, FileText, GitBranch, Handshake, LayoutGrid, LucideIcon, Package, Receipt, ServerIcon, ShoppingCart, Trophy, Truck, Undo2, Users, Wallet } from 'lucide-react';
+import { ArrowLeftRight, Award, Bell, BookOpen, ClipboardList, FileText, GitBranch, Handshake, LayoutGrid, LucideIcon, Package, Receipt, ServerIcon, ShoppingCart, Trophy, Truck, Undo2, Users, Wallet } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import AppLogo from './app-logo';
 
@@ -31,6 +31,7 @@ export function AppSidebar() {
         Truck,
         ClipboardList,
         Trophy,
+        BookOpen,
     };
 
     const mainNavItems = (auth.sidebarItems ?? []).map((item) => ({

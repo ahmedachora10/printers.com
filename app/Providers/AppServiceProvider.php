@@ -6,6 +6,9 @@ use App\Models\Agent;
 use App\Models\AgentPayment;
 use App\Models\Branch;
 use App\Models\BranchService;
+use App\Models\CatalogCategory;
+use App\Models\CatalogPrice;
+use App\Models\CatalogSubcategory;
 use App\Models\City;
 use App\Models\CommissionPayment;
 use App\Models\Coupon;
@@ -29,6 +32,9 @@ use App\Policies\AgentPaymentPolicy;
 use App\Policies\AgentPolicy;
 use App\Policies\BranchPolicy;
 use App\Policies\BranchServicePolicy;
+use App\Policies\CatalogCategoryPolicy;
+use App\Policies\CatalogPricePolicy;
+use App\Policies\CatalogSubcategoryPolicy;
 use App\Policies\CityPolicy;
 use App\Policies\CommissionPaymentPolicy;
 use App\Policies\CouponPolicy;
@@ -88,6 +94,9 @@ class AppServiceProvider extends ServiceProvider
     private function configureGates(): void
     {
         Gate::policy(City::class, CityPolicy::class);
+        Gate::policy(CatalogCategory::class, CatalogCategoryPolicy::class);
+        Gate::policy(CatalogSubcategory::class, CatalogSubcategoryPolicy::class);
+        Gate::policy(CatalogPrice::class, CatalogPricePolicy::class);
         Gate::policy(Branch::class, BranchPolicy::class);
         Gate::policy(Customer::class, CustomerPolicy::class);
         Gate::policy(ServiceTemplate::class, ServiceTemplatePolicy::class);
