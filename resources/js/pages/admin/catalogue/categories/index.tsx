@@ -17,7 +17,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type CatalogCategory, type Paginated } from '@/types/catalogue';
 import { Link, router } from '@inertiajs/react';
-import { ImageIcon, Layers, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Download, ImageIcon, Layers, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'دليل الخدمات', href: '/admin/catalogue' }];
@@ -31,6 +31,23 @@ export default function CatalogCategoriesIndex({ categories, filters }: Props) {
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<CatalogCategory | null>(null);
     const [deleting, setDeleting] = useState<CatalogCategory | null>(null);
+    const importInputRef = useRef<HTMLInputElement>(null);
+
+    function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        router.post(
+            categoryRoutes.import.url(),
+            { file },
+            {
+                forceFormData: true,
+                preserveScroll: true,
+                onFinish: () => {
+                    if (importInputRef.current) importInputRef.current.value = '';
+                },
+            },
+        );
+    }
 
     function openCreate() {
         setEditing(null);
@@ -192,9 +209,26 @@ export default function CatalogCategoriesIndex({ categories, filters }: Props) {
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
                         actions={
-                            <Button size="sm" onClick={openCreate}>
-                                <Plus className="size-4" /> إضافة فئة
-                            </Button>
+                            <>
+                                <input
+                                    ref={importInputRef}
+                                    type="file"
+                                    accept=".xlsx,.xls,.csv"
+                                    className="sr-only"
+                                    onChange={handleImport}
+                                />
+                                <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()}>
+                                    <Upload className="size-4" /> استيراد الكل
+                                </Button>
+                                <Button variant="outline" size="sm" asChild>
+                                    <a href={categoryRoutes.export.url()}>
+                                        <Download className="size-4" /> تصدير الكل
+                                    </a>
+                                </Button>
+                                <Button size="sm" onClick={openCreate}>
+                                    <Plus className="size-4" /> إضافة فئة
+                                </Button>
+                            </>
                         }
                     />
                 </div>

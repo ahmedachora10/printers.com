@@ -79,6 +79,10 @@ Route::middleware(['auth'])->group(function () {
 
         // M20 — Catalogue CRUD (admin).
         Route::prefix('admin/catalogue')->name('admin.catalogue.')->group(function () {
+            // Full-catalogue Excel export / import (categories + subcategories + prices)
+            Route::get('export', [CatalogCategoryController::class, 'export'])->name('export');
+            Route::post('import', [CatalogCategoryController::class, 'import'])->name('import');
+
             // Categories
             Route::get('/', [CatalogCategoryController::class, 'index'])->name('categories.index');
             Route::post('categories', [CatalogCategoryController::class, 'store'])->name('categories.store');

@@ -5,15 +5,19 @@ namespace App\Http\Controllers;
 use App\Actions\CatalogCategory\CreateCatalogCategoryAction;
 use App\Actions\CatalogCategory\DeleteCatalogCategoryAction;
 use App\Actions\CatalogCategory\UpdateCatalogCategoryAction;
+use App\Exports\CatalogueExport;
 use App\Http\Requests\CatalogCategory\StoreCatalogCategoryRequest;
 use App\Http\Requests\CatalogCategory\UpdateCatalogCategoryRequest;
 use App\Http\Resources\CatalogCategory\CatalogCategoryResource;
+use App\Imports\CatalogueImport;
 use App\Models\CatalogCategory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CatalogCategoryController extends Controller
 {
@@ -70,6 +74,34 @@ class CatalogCategoryController extends Controller
         Gate::authorize('update', $category);
 
         $action->handle($category, ['is_active' => ! $category->is_active]);
+
+        return back(fallback: route('admin.catalogue.categories.index'));
+    }
+
+    /**
+     * Export the whole catalogue (categories → subcategories → prices) as a
+     * single flat Excel sheet.
+     */
+    public function export(): BinaryFileResponse
+    {
+        Gate::authorize('viewAny', CatalogCategory::class);
+
+        return Excel::download(new CatalogueExport, 'catalogue-'.now()->format('Y-m-d').'.xlsx');
+    }
+
+    /**
+     * Import a full-catalogue sheet. Upsert-only: creates or updates
+     * categories, subcategories and prices; never deletes.
+     */
+    public function import(Request $request): RedirectResponse
+    {
+        Gate::authorize('create', CatalogCategory::class);
+
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
+        ]);
+
+        Excel::import(new CatalogueImport, $request->file('file'));
 
         return back(fallback: route('admin.catalogue.categories.index'));
     }
