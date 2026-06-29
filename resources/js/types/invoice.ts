@@ -59,6 +59,7 @@ export interface Invoice {
     refundableRemaining: number;
     isFullyRefunded: boolean;
     canRefund: boolean;
+    canApprovePayment: boolean;
     refunds?: InvoiceRefund[];
     branch: InvoiceBranch;
 }

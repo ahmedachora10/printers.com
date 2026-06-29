@@ -192,8 +192,9 @@ class ServiceInvoiceController extends Controller
             new ServiceInvoiceReviewedNotification($invoice->invoice_number, $invoice->id, (float) $invoice->total_amount, InvoiceStatusEnum::PAID),
         );
 
-        return to_route('invoices.service.review')
-            ->with('success', "تم اعتماد دفع الفاتورة {$invoice->invoice_number}");
+        // Redirect back so approving from the invoice viewer returns to the
+        // (now paid) invoice; from the review queue it falls back there too.
+        return back()->with('success', "تم اعتماد دفع الفاتورة {$invoice->invoice_number}");
     }
 
     /**

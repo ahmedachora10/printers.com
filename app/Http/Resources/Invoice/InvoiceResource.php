@@ -38,6 +38,13 @@ class InvoiceResource extends JsonResource
             && $this->status !== InvoiceStatusEnum::CANCELLED
             && $refundableRemaining > 0;
 
+        // Settling a due service invoice straight from the viewer, mirroring the
+        // review queue. Product invoices have no equivalent payment approval.
+        $canApprovePayment = $user !== null
+            && $this->resource instanceof ServiceInvoice
+            && $this->status === InvoiceStatusEnum::DUE
+            && $user->can('updateStatus', $this->resource);
+
         return [
             'id' => $this->id,
             'type' => $type->value,
@@ -71,6 +78,7 @@ class InvoiceResource extends JsonResource
             'refundableRemaining' => $refundableRemaining,
             'isFullyRefunded' => $refundedTotal > 0 && $refundableRemaining <= 0,
             'canRefund' => $canRefund,
+            'canApprovePayment' => $canApprovePayment,
             'refunds' => $this->whenLoaded('refunds', fn () => $this->refunds
                 ->map(fn (Refund $refund) => [
                     'id' => $refund->id,

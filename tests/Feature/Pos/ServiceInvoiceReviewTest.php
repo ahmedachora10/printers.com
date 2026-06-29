@@ -97,7 +97,8 @@ describe('Service invoice review', function () {
     it('marks a due invoice as paid and stamps paid_at', function () {
         $invoice = makeDueInvoice();
 
-        $this->patch(route('invoices.service.pay', $invoice))
+        $this->from(route('invoices.service.review'))
+            ->patch(route('invoices.service.pay', $invoice))
             ->assertRedirect(route('invoices.service.review'))
             ->assertSessionHas('success');
 

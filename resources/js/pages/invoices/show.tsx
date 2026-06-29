@@ -1,16 +1,20 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
+import { Toaster } from '@/components/ui/sonner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
-import { type BreadcrumbItem } from '@/types';
+import serviceInvoice from '@/routes/invoices/service';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { type Invoice } from '@/types/invoice';
-import { Head } from '@inertiajs/react';
-import { Paperclip, Printer, ReceiptText, Undo2 } from 'lucide-react';
-import { useState } from 'react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { CheckCircle2, Paperclip, Printer, ReceiptText, Undo2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 
 const STATUS_COLORS: Record<string, string> = {
     paid: 'border-green-200 bg-green-50 text-green-700',
@@ -43,7 +47,31 @@ function TotalRow({ label, value, strong = false }: { label: string; value: stri
 }
 
 export default function InvoiceShow({ invoice }: Props) {
+    const { props } = usePage<SharedData>();
     const [refundOpen, setRefundOpen] = useState(false);
+    const [approveOpen, setApproveOpen] = useState(false);
+    const [approving, setApproving] = useState(false);
+
+    useEffect(() => {
+        if (props.success) {
+            toast.success(props.success as string);
+        }
+    }, [props.success]);
+
+    function confirmApprove() {
+        setApproving(true);
+        router.patch(
+            serviceInvoice.pay(invoice.id).url,
+            {},
+            {
+                preserveScroll: true,
+                onFinish: () => {
+                    setApproving(false);
+                    setApproveOpen(false);
+                },
+            },
+        );
+    }
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'الفواتير', href: '/invoices' },
@@ -55,6 +83,7 @@ export default function InvoiceShow({ invoice }: Props) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`فاتورة ${invoice.invoiceNumber}`} />
+            <Toaster position="top-center" richColors />
 
             <div className="p-6">
                 <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -78,6 +107,14 @@ export default function InvoiceShow({ invoice }: Props) {
                         )}
                     </div>
                     <div className="flex gap-2">
+                        {invoice.canApprovePayment && (
+                            <Button
+                                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                onClick={() => setApproveOpen(true)}
+                            >
+                                <CheckCircle2 className="size-4" /> اعتماد الفاتورة
+                            </Button>
+                        )}
                         {invoice.canRefund && (
                             <Button variant="outline" onClick={() => setRefundOpen(true)}>
                                 <Undo2 className="size-4" /> إنشاء مرتجع
@@ -276,6 +313,27 @@ export default function InvoiceShow({ invoice }: Props) {
                     presetNumber={invoice.invoiceNumber}
                 />
             )}
+
+            {/* Approve-payment confirmation */}
+            <Dialog open={approveOpen} onOpenChange={(open) => !open && setApproveOpen(false)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>اعتماد دفع الفاتورة</DialogTitle>
+                        <DialogDescription>
+                            سيتم تحويل الفاتورة {invoice.invoiceNumber} إلى مدفوعة بمبلغ {formatCurrency(invoice.totalAmount)} واحتساب نقاط
+                            الولاء إن وُجدت.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setApproveOpen(false)} disabled={approving}>
+                            تراجع
+                        </Button>
+                        <Button onClick={confirmApprove} disabled={approving}>
+                            <CheckCircle2 className="size-4" /> تأكيد الدفع
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }
