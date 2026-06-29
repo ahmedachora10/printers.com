@@ -37,6 +37,7 @@ Full scope reference for all 30 modules. Use this to understand which tables, ro
 - Service assignment (Employee only): checkbox of branch services + per-service commission override %.
 - Soft delete. Cannot delete if has associated invoices.
 - WhatsApp button: `https://wa.me/{phone}`.
+- **Impersonation:** admins may "sign in as" a user from the list (`POST users/{user}/impersonate`). `super-admin` targets any non-admin in any branch; `branch-admin` targets only non-admin staff in their own branch. Never targets another admin or self (enforced by `UserPolicy::impersonate`). Original admin id is stashed in `session('impersonator_id')`; a persistent amber banner (shared via `auth.impersonating`) offers return via `DELETE impersonate/leave` (route kept outside role gates so the impersonated user can exit). Start/stop logged to activity log `security`.
 
 ## M06 — Settings
 - Tables: `settings`, `payment_methods`, `loyalty_config`

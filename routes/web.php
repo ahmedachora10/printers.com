@@ -16,6 +16,7 @@ use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoiceReceiptController;
@@ -52,6 +53,10 @@ Route::middleware(['auth'])->group(function () {
     Route::patch('notifications/read-all', [NotificationController::class, 'markAllAsRead'])->name('notifications.read-all');
     Route::patch('notifications/{id}/read', [NotificationController::class, 'markAsRead'])->name('notifications.read');
     Route::delete('notifications/{id}', [NotificationController::class, 'destroy'])->name('notifications.destroy');
+
+    // Stop impersonating — must stay outside any role gate so the impersonated
+    // (non-admin) user can return to the original admin account.
+    Route::delete('impersonate/leave', [ImpersonationController::class, 'leave'])->name('impersonate.leave');
 
     // Read-only self-service portal for B2B agents.
     Route::middleware('role:agent')->group(function () {
@@ -193,6 +198,9 @@ Route::middleware(['auth'])->group(function () {
             ->name('users.service-commissions.update');
         Route::resource('users', UserController::class)
             ->only(['index', 'show', 'store', 'update', 'destroy']);
+
+        Route::post('users/{user}/impersonate', [ImpersonationController::class, 'start'])
+            ->name('users.impersonate');
 
         Route::get('app-settings', [AppSettingController::class, 'index'])->name('app-settings.index');
         Route::put('app-settings/general', [AppSettingController::class, 'updateGeneral'])->name('app-settings.update-general');

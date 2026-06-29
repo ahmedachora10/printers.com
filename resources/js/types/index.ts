@@ -1,9 +1,15 @@
 import { LucideIcon } from 'lucide-react';
 import { type NotificationsShared } from './notification';
 
+export interface Impersonating {
+    active: boolean;
+    viewingName: string | null;
+}
+
 export interface Auth {
     user: User;
     role?: string;
+    impersonating?: Impersonating | null;
 }
 
 export interface BreadcrumbItem {
