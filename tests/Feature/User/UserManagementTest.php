@@ -60,6 +60,44 @@ describe('User Management', function () {
                 && ! collect($data)->pluck('id')->contains($theirs->id)));
     });
 
+    it('filters the list by several roles at once', function () {
+        $employee = User::factory()->create(['branch_id' => $this->branch->id]);
+        $employee->addRole(Roles::EMPLOYEE->value);
+
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole(Roles::ACCOUNTANT->value);
+
+        $agent = User::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->addRole(Roles::AGENT->value);
+
+        $this->get(route('users.index', ['role' => [Roles::EMPLOYEE->value, Roles::ACCOUNTANT->value]]))
+            ->assertInertia(fn ($page) => $page->where('users.data', function ($data) use ($employee, $accountant, $agent) {
+                $ids = collect($data)->pluck('id');
+
+                return $ids->contains($employee->id)
+                    && $ids->contains($accountant->id)
+                    && ! $ids->contains($agent->id);
+            }));
+    });
+
+    it('filters the list by several branches at once', function () {
+        $branchB = Branch::factory()->create();
+        $branchC = Branch::factory()->create();
+
+        $inA = User::factory()->create(['branch_id' => $this->branch->id]);
+        $inB = User::factory()->create(['branch_id' => $branchB->id]);
+        $inC = User::factory()->create(['branch_id' => $branchC->id]);
+
+        $this->get(route('users.index', ['branch' => [$this->branch->id, $branchB->id]]))
+            ->assertInertia(fn ($page) => $page->where('users.data', function ($data) use ($inA, $inB, $inC) {
+                $ids = collect($data)->pluck('id');
+
+                return $ids->contains($inA->id)
+                    && $ids->contains($inB->id)
+                    && ! $ids->contains($inC->id);
+            }));
+    });
+
     // ── STORE ──────────────────────────────────────────────────────
 
     it('creates a user with a role and hashed password', function () {

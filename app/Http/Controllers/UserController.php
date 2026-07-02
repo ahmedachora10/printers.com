@@ -50,10 +50,10 @@ class UserController extends Controller
                     ->orWhere('username', 'like', '%'.$search.'%')
                     ->orWhere('email', 'like', '%'.$search.'%');
             }))
-            ->when($request->filled('role'), fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', $request->input('role'))))
+            ->when($request->filled('role'), fn ($q) => $q->whereHas('roles', fn ($r) => $r->whereIn('name', (array) $request->input('role'))))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', (bool) $request->input('status')))
             // Only super-admins see users across branches, so only they can filter by branch.
-            ->when($isSuper && $request->filled('branch'), fn ($q) => $q->where('branch_id', $request->input('branch')))
+            ->when($isSuper && $request->filled('branch'), fn ($q) => $q->whereIn('branch_id', (array) $request->input('branch')))
             ->orderBy('name')
             ->paginate(12)
             ->withQueryString();
@@ -67,9 +67,9 @@ class UserController extends Controller
             'isSuperAdmin' => $isSuper,
             'filters' => [
                 'search' => $request->input('search'),
-                'role' => $request->input('role'),
+                'role' => array_values((array) $request->input('role', [])),
                 'status' => $request->input('status'),
-                'branch' => $isSuper ? $request->input('branch') : null,
+                'branch' => $isSuper ? array_values((array) $request->input('branch', [])) : [],
             ],
         ]);
     }

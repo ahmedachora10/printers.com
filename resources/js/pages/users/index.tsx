@@ -43,9 +43,9 @@ interface Props {
     isSuperAdmin: boolean;
     filters: {
         search?: string;
-        role?: string;
+        role?: string[];
         status?: string;
-        branch?: string;
+        branch?: string[];
     };
 }
 
@@ -199,21 +199,33 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
     );
 
     const [search, setSearch] = useState(filters.search ?? '');
+    // Status is single-select; role and branch each accept several values.
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
-        role: filters.role ?? '',
         status: filters.status ?? '',
-        branch: filters.branch ?? '',
+    });
+    const [multiValues, setMultiValues] = useState<Record<string, string[]>>({
+        role: filters.role ?? [],
+        branch: filters.branch ?? [],
     });
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
-    function visit(next: { search?: string; role?: string; status?: string; branch?: string }) {
+    type FilterState = { search: string; status: string; role: string[]; branch: string[] };
+
+    function visit(next: Partial<FilterState>) {
+        const state: FilterState = {
+            search,
+            status: filterValues.status ?? '',
+            role: multiValues.role ?? [],
+            branch: multiValues.branch ?? [],
+            ...next,
+        };
         router.get(
             users.index().url,
             {
-                ...(next.search && { search: next.search }),
-                ...(next.role && { role: next.role }),
-                ...(next.status && { status: next.status }),
-                ...(next.branch && { branch: next.branch }),
+                ...(state.search && { search: state.search }),
+                ...(state.status && { status: state.status }),
+                ...(state.role.length && { role: state.role }),
+                ...(state.branch.length && { branch: state.branch }),
             },
             { preserveState: true, replace: true },
         );
@@ -223,19 +235,24 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
         setSearch(value);
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         searchTimeout.current = setTimeout(() => {
-            visit({ search: value, ...filterValues });
+            visit({ search: value });
         }, 400);
     };
 
     const handleFilterChange = (key: string, val: string) => {
-        const next = { ...filterValues, [key]: val };
-        setFilterValues(next);
-        visit({ search, ...next });
+        setFilterValues((prev) => ({ ...prev, [key]: val }));
+        visit({ [key]: val } as Partial<FilterState>);
+    };
+
+    const handleMultiChange = (key: string, vals: string[]) => {
+        setMultiValues((prev) => ({ ...prev, [key]: vals }));
+        visit({ [key]: vals } as Partial<FilterState>);
     };
 
     const handleClearAll = () => {
         setSearch('');
-        setFilterValues({ role: '', status: '', branch: '' });
+        setFilterValues({ status: '' });
+        setMultiValues({ role: [], branch: [] });
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         router.get(users.index().url, {}, { preserveState: true, replace: true });
     };
@@ -257,6 +274,7 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                             {
                                 key: 'role',
                                 placeholder: 'الدور',
+                                multiple: true,
                                 options: roles.map((r) => ({ value: r.value, label: r.label })),
                             },
                             {
@@ -274,6 +292,7 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                                       {
                                           key: 'branch',
                                           placeholder: 'الفرع',
+                                          multiple: true,
                                           searchable: true,
                                           searchPlaceholder: 'بحث عن فرع...',
                                           options: branches.map((b) => ({ value: String(b.id), label: b.name })),
@@ -283,6 +302,8 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                         ]}
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
+                        multiValues={multiValues}
+                        onMultiChange={handleMultiChange}
                         onClearAll={handleClearAll}
                         actions={
                             <Button size="sm" onClick={openCreate}>

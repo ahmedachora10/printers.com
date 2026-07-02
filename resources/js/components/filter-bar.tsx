@@ -4,7 +4,7 @@ import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
-import { Combobox } from '@/components/ui/combobox';
+import { Combobox, MultiCombobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -26,6 +26,12 @@ export interface FilterConfig {
     searchable?: boolean;
     /** Placeholder for the search box inside a searchable combobox. */
     searchPlaceholder?: string;
+    /**
+     * Allow selecting several values at once. The value lives in `multiValues`
+     * (not `filterValues`) and changes fire `onMultiChange` instead of
+     * `onFilterChange`.
+     */
+    multiple?: boolean;
 }
 
 export interface FilterBarProps {
@@ -37,6 +43,11 @@ export interface FilterBarProps {
     filters?: FilterConfig[];
     filterValues?: Record<string, string>;
     onFilterChange?: (key: string, value: string) => void;
+
+    /** Selected values for filters marked `multiple`, keyed by filter key. */
+    multiValues?: Record<string, string[]>;
+    onMultiChange?: (key: string, values: string[]) => void;
+
     onClearAll?: () => void;
 
     actions?: React.ReactNode;
@@ -74,13 +85,19 @@ export function FilterBar({
     filters = [],
     filterValues = {},
     onFilterChange,
+    multiValues = {},
+    onMultiChange,
     onClearAll,
     actions,
     className,
 }: FilterBarProps) {
-    const activeFilterChips = filters.filter((f) => !!filterValues[f.key]);
+    const activeFilterChips = filters.filter((f) => !f.multiple && !!filterValues[f.key]);
+    // One chip per selected value on multi filters: [{ filter, value }, ...].
+    const activeMultiChips = filters
+        .filter((f) => f.multiple)
+        .flatMap((f) => (multiValues[f.key] ?? []).map((value) => ({ filter: f, value })));
     const hasActiveSearch = searchable && searchValue.trim().length > 0;
-    const hasAnyActive = activeFilterChips.length > 0 || hasActiveSearch;
+    const hasAnyActive = activeFilterChips.length > 0 || activeMultiChips.length > 0 || hasActiveSearch;
 
     return (
         <Card
@@ -113,7 +130,25 @@ export function FilterBar({
                             );
                         })}
 
-                        {activeFilterChips.length > 0 && <Separator orientation="vertical" className="h-5" />}
+                        {activeMultiChips.map(({ filter, value }) => {
+                            const option = filter.options.find((o) => o.value === value);
+                            return (
+                                <ActiveChip
+                                    key={`${filter.key}:${value}`}
+                                    label={`${filter.placeholder}: ${option?.label ?? value}`}
+                                    onRemove={() =>
+                                        onMultiChange?.(
+                                            filter.key,
+                                            (multiValues[filter.key] ?? []).filter((v) => v !== value),
+                                        )
+                                    }
+                                />
+                            );
+                        })}
+
+                        {(activeFilterChips.length > 0 || activeMultiChips.length > 0) && (
+                            <Separator orientation="vertical" className="h-5" />
+                        )}
 
                         <Button
                             type="button"
@@ -158,7 +193,18 @@ export function FilterBar({
                 )}
 
                 {filters.map((f) =>
-                    f.searchable ? (
+                    f.multiple ? (
+                        <MultiCombobox
+                            key={f.key}
+                            options={f.options}
+                            values={multiValues[f.key] ?? []}
+                            onChange={(vals) => onMultiChange?.(f.key, vals)}
+                            placeholder={f.placeholder}
+                            searchable={f.searchable}
+                            searchPlaceholder={f.searchPlaceholder ?? `بحث في ${f.placeholder}...`}
+                            triggerClassName={f.width ?? 'w-40'}
+                        />
+                    ) : f.searchable ? (
                         <Combobox
                             key={f.key}
                             options={f.options}
