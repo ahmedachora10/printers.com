@@ -2,6 +2,7 @@ import { PosCartTable } from '@/components/pos/cart-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -89,6 +90,23 @@ export default function ServicePos({ services, customers, agents, paymentMethods
         if (!term) return [];
         return services.filter((s) => s.name.toLowerCase().includes(term)).slice(0, 8);
     }, [services, search]);
+
+    // Searchable customer/agent options for the cmdk combobox — walk-in / no-agent
+    // sentinels sit first so the cashier can return to them from the list.
+    const customerOptions = useMemo<ComboboxOption[]>(
+        () => [
+            { value: 'none', label: '— عميل عابر —' },
+            ...customers.map((c) => ({ value: String(c.id), label: `${c.fullName} — ${c.phone}` })),
+        ],
+        [customers],
+    );
+    const agentOptions = useMemo<ComboboxOption[]>(
+        () => [
+            { value: 'none', label: '— بدون وكيل —' },
+            ...agents.map((a) => ({ value: String(a.id), label: `${a.name} (${a.discountMode === 'rebate' ? 'عمولة' : 'خصم'} ${a.rate}%)` })),
+        ],
+        [agents],
+    );
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
     const commission = useMemo(() => round2(cart.reduce((sum, l) => sum + (lineTotal(l) * l.baseCommissionPct) / 100, 0)), [cart]);
@@ -317,19 +335,16 @@ export default function ServicePos({ services, customers, agents, paymentMethods
                             <CardTitle className="text-base">العميل</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                            <Select value={customerId} onValueChange={setCustomerId}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="بحث عن عميل (اسم/هاتف)" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="none">— عميل عابر —</SelectItem>
-                                    {customers.map((c) => (
-                                        <SelectItem key={c.id} value={String(c.id)}>
-                                            {c.fullName} — {c.phone}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <Combobox
+                                options={customerOptions}
+                                value={customerId === 'none' ? '' : customerId}
+                                onChange={(v) => setCustomerId(v || 'none')}
+                                placeholder="— عميل عابر —"
+                                searchPlaceholder="بحث عن عميل (اسم/هاتف)"
+                                emptyText="لا يوجد عميل مطابق"
+                                triggerClassName="w-full"
+                                className="w-[var(--radix-popover-trigger-width)] min-w-56"
+                            />
 
                             {customerId === 'none' && (
                                 <>
@@ -353,19 +368,16 @@ export default function ServicePos({ services, customers, agents, paymentMethods
                                 <CardTitle className="text-base">الوكيل</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-2">
-                                <Select value={agentId} onValueChange={setAgentId}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="بدون وكيل" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="none">— بدون وكيل —</SelectItem>
-                                        {agents.map((a) => (
-                                            <SelectItem key={a.id} value={String(a.id)}>
-                                                {a.name} ({a.discountMode === 'rebate' ? 'عمولة' : 'خصم'} {a.rate}%)
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <Combobox
+                                    options={agentOptions}
+                                    value={agentId === 'none' ? '' : agentId}
+                                    onChange={(v) => setAgentId(v || 'none')}
+                                    placeholder="— بدون وكيل —"
+                                    searchPlaceholder="بحث عن وكيل"
+                                    emptyText="لا يوجد وكيل مطابق"
+                                    triggerClassName="w-full"
+                                    className="w-[var(--radix-popover-trigger-width)] min-w-56"
+                                />
                                 {selectedAgent && (
                                     <p className="text-muted-foreground text-xs">
                                         {selectedAgent.discountMode === 'rebate'
