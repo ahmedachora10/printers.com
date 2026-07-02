@@ -1,4 +1,5 @@
 import { PosCartTable } from '@/components/pos/cart-table';
+import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,8 +16,20 @@ import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type PosAgent, type PosCustomer, type PosLoyalty, type PosPaymentMethod, type PosService, type ServiceCartLine } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Award, Paperclip, Printer, Save, Search, Tag, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
+
+/** Fetches branch customers from the async POS lookup, shaped for the picker. */
+async function fetchCustomerOptions(query: string): Promise<AsyncOption<PosCustomer>[]> {
+    const res = await fetch(`/pos/customers/search?q=${encodeURIComponent(query)}`, {
+        headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    if (!res.ok) return [];
+    const json = (await res.json()) as { data: PosCustomer[] };
+    return json.data.map((c) => ({ value: String(c.id), label: `${c.fullName} — ${c.phone}`, data: c }));
+}
+
+const CUSTOMER_SENTINEL: AsyncOption<PosCustomer> = { value: 'none', label: '— عميل عابر —' };
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'نقطة البيع', href: service.create().url },
@@ -25,7 +38,6 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 interface Props {
     services: PosService[];
-    customers: PosCustomer[];
     agents: PosAgent[];
     paymentMethods: PosPaymentMethod[];
     vatPct: number;
@@ -44,7 +56,7 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const lineTotal = (line: ServiceCartLine) => round2(line.qty * line.unitPrice * (1 - line.discountPct / 100));
 
-export default function ServicePos({ services, customers, agents, paymentMethods, vatPct, loyalty }: Props) {
+export default function ServicePos({ services, agents, paymentMethods, vatPct, loyalty }: Props) {
     const { props } = usePage<SharedData>();
     // Employees may only raise DUE (معلق) invoices for an accountant to review;
     // the paid/due toggle is hidden for them and the status is locked to 'due'.
@@ -52,7 +64,10 @@ export default function ServicePos({ services, customers, agents, paymentMethods
     const [search, setSearch] = useState('');
     const [searchFocused, setSearchFocused] = useState(false);
     const [cart, setCart] = useState<ServiceCartLine[]>([]);
-    const [customerId, setCustomerId] = useState<string>('none');
+    // The chosen customer is held in full (fetched on demand) rather than looked up
+    // from a preloaded list, so 10k+ customers never ship to the browser.
+    const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(null);
+    const customerId = selectedCustomer ? String(selectedCustomer.id) : 'none';
     const [agentId, setAgentId] = useState<string>('none');
     const [walkinName, setWalkinName] = useState('');
     const [walkinPhone, setWalkinPhone] = useState('');
@@ -77,13 +92,10 @@ export default function ServicePos({ services, customers, agents, paymentMethods
     // change or clear it afterwards.
     useEffect(() => {
         setRedeemPoints('');
-        if (customerId === 'none') {
-            setAgentId('none');
-            return;
-        }
-        const customer = customers.find((c) => String(c.id) === customerId);
-        setAgentId(customer?.agentId ? String(customer.agentId) : 'none');
-    }, [customerId, customers]);
+        setAgentId(selectedCustomer?.agentId ? String(selectedCustomer.agentId) : 'none');
+    }, [selectedCustomer]);
+
+    const fetchCustomers = useCallback(fetchCustomerOptions, []);
 
     const filteredServices = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -91,15 +103,8 @@ export default function ServicePos({ services, customers, agents, paymentMethods
         return services.filter((s) => s.name.toLowerCase().includes(term)).slice(0, 8);
     }, [services, search]);
 
-    // Searchable customer/agent options for the cmdk combobox — walk-in / no-agent
-    // sentinels sit first so the cashier can return to them from the list.
-    const customerOptions = useMemo<ComboboxOption[]>(
-        () => [
-            { value: 'none', label: '— عميل عابر —' },
-            ...customers.map((c) => ({ value: String(c.id), label: `${c.fullName} — ${c.phone}` })),
-        ],
-        [customers],
-    );
+    // The agent list stays preloaded (small); the walk-in / no-agent sentinel sits
+    // first so the cashier can return to it from the list.
     const agentOptions = useMemo<ComboboxOption[]>(
         () => [
             { value: 'none', label: '— بدون وكيل —' },
@@ -110,10 +115,6 @@ export default function ServicePos({ services, customers, agents, paymentMethods
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
     const commission = useMemo(() => round2(cart.reduce((sum, l) => sum + (lineTotal(l) * l.baseCommissionPct) / 100, 0)), [cart]);
-    const selectedCustomer = useMemo(
-        () => (customerId === 'none' ? null : (customers.find((c) => String(c.id) === customerId) ?? null)),
-        [customerId, customers],
-    );
     const selectedAgent = useMemo(() => (agentId === 'none' ? null : (agents.find((a) => String(a.id) === agentId) ?? null)), [agentId, agents]);
     const selectedPaymentMethod = useMemo(() => paymentMethods.find((m) => m.id === paymentMethodId) ?? null, [paymentMethods, paymentMethodId]);
     const requiresReceipt = selectedPaymentMethod?.requiresAttachment ?? false;
@@ -264,7 +265,7 @@ export default function ServicePos({ services, customers, agents, paymentMethods
 
     function resetForm() {
         setCart([]);
-        setCustomerId('none');
+        setSelectedCustomer(null);
         setWalkinName('');
         setWalkinPhone('');
         setPaymentMethodId(null);
@@ -335,10 +336,12 @@ export default function ServicePos({ services, customers, agents, paymentMethods
                             <CardTitle className="text-base">العميل</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-3">
-                            <Combobox
-                                options={customerOptions}
-                                value={customerId === 'none' ? '' : customerId}
-                                onChange={(v) => setCustomerId(v || 'none')}
+                            <AsyncCombobox<PosCustomer>
+                                fetcher={fetchCustomers}
+                                value={customerId}
+                                selectedLabel={selectedCustomer ? `${selectedCustomer.fullName} — ${selectedCustomer.phone}` : undefined}
+                                onChange={(_v, option) => setSelectedCustomer(option?.data ?? null)}
+                                sentinel={CUSTOMER_SENTINEL}
                                 placeholder="— عميل عابر —"
                                 searchPlaceholder="بحث عن عميل (اسم/هاتف)"
                                 emptyText="لا يوجد عميل مطابق"

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Customer\CreateCustomerAction;
 use App\Actions\Customer\DeleteCustomerAction;
 use App\Actions\Customer\MergeCustomersAction;
+use App\Actions\Customer\SearchPosCustomersAction;
 use App\Actions\Customer\UpdateCustomerAction;
 use App\Enums\Roles;
 use App\Exports\CustomersExport;
@@ -17,6 +18,7 @@ use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\User;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -81,6 +83,20 @@ class CustomerController extends Controller
             'isSuperAdmin' => $isSuperAdmin,
             'filters' => $request->only(['search', 'tier', 'type', 'agent_id', 'has_outstanding']),
         ]);
+    }
+
+    /**
+     * Async customer lookup for the POS pickers — scoped to the cashier's branch,
+     * capped at 30 rows so 10k+ customers never ship to the browser at once.
+     */
+    public function posSearch(Request $request, SearchPosCustomersAction $action): JsonResponse
+    {
+        $customers = $action->handle(
+            Auth::user()->branchId,
+            (string) $request->query('q', ''),
+        );
+
+        return response()->json(['data' => $customers]);
     }
 
     public function create(): Response

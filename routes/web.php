@@ -165,6 +165,8 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
+        Route::get('pos/customers/search', [CustomerController::class, 'posSearch'])
+            ->name('pos.customers.search');
         Route::get('customers/outstanding-balance', [CustomerController::class, 'outstandingBalance'])
             ->name('customers.outstanding-balance');
         Route::get('customers/export', [CustomerController::class, 'export'])

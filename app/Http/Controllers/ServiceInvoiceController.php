@@ -6,7 +6,6 @@ use App\Actions\Customer\UpdateCustomerAction;
 use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
-use App\Enums\CustomerTypeEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Enums\Roles;
@@ -16,7 +15,6 @@ use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
 use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\BranchService;
-use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\User;
@@ -66,29 +64,6 @@ class ServiceInvoiceController extends Controller
         $loyalty = $branchId ? LoyaltyConfig::forBranch($branchId) : null;
         $loyaltyActive = (bool) ($loyalty?->is_active);
 
-        $customers = Customer::query()
-            ->where('branch_id', $branchId)
-            ->where('is_active', true)
-            ->orderBy('full_name')
-            ->get(['id', 'full_name', 'phone', 'agent_id', 'customer_type', 'points_balance', 'tier'])
-            ->map(function (Customer $customer) use ($loyalty, $loyaltyActive) {
-                $eligible = $loyaltyActive
-                    && $customer->customer_type === CustomerTypeEnum::Individual
-                    && $customer->agent_id === null;
-
-                return [
-                    'id' => $customer->id,
-                    'fullName' => $customer->full_name,
-                    'phone' => $customer->phone,
-                    'agentId' => $customer->agent_id,
-                    'pointsBalance' => (int) $customer->points_balance,
-                    'tier' => $customer->tier->value,
-                    'tierLabel' => $customer->tier->label(),
-                    'tierDiscountPct' => $eligible ? $loyalty->discountPctForTier($customer->tier) : 0.0,
-                    'loyaltyEligible' => $eligible,
-                ];
-            });
-
         $agents = $this->branchAgents($branchId);
 
         $paymentMethods = $branch
@@ -101,7 +76,6 @@ class ServiceInvoiceController extends Controller
 
         return Inertia::render('pos/service/index', [
             'services' => $services,
-            'customers' => $customers,
             'agents' => $agents,
             'paymentMethods' => $paymentMethods,
             'vatPct' => (float) ($branch->vat_rate_override ?? 15),
