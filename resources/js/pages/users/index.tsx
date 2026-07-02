@@ -45,6 +45,7 @@ interface Props {
         search?: string;
         role?: string;
         status?: string;
+        branch?: string;
     };
 }
 
@@ -201,16 +202,18 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
         role: filters.role ?? '',
         status: filters.status ?? '',
+        branch: filters.branch ?? '',
     });
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
-    function visit(next: { search?: string; role?: string; status?: string }) {
+    function visit(next: { search?: string; role?: string; status?: string; branch?: string }) {
         router.get(
             users.index().url,
             {
                 ...(next.search && { search: next.search }),
                 ...(next.role && { role: next.role }),
                 ...(next.status && { status: next.status }),
+                ...(next.branch && { branch: next.branch }),
             },
             { preserveState: true, replace: true },
         );
@@ -232,7 +235,7 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
 
     const handleClearAll = () => {
         setSearch('');
-        setFilterValues({ role: '', status: '' });
+        setFilterValues({ role: '', status: '', branch: '' });
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         router.get(users.index().url, {}, { preserveState: true, replace: true });
     };
@@ -264,6 +267,19 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                                     { value: '0', label: 'غير نشط' },
                                 ],
                             },
+                            // Only super-admins see users across branches; others are
+                            // scoped to their own branch, so the filter is hidden for them.
+                            ...(isSuperAdmin
+                                ? [
+                                      {
+                                          key: 'branch',
+                                          placeholder: 'الفرع',
+                                          searchable: true,
+                                          searchPlaceholder: 'بحث عن فرع...',
+                                          options: branches.map((b) => ({ value: String(b.id), label: b.name })),
+                                      },
+                                  ]
+                                : []),
                         ]}
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}

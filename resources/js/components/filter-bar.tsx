@@ -4,6 +4,7 @@ import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Combobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -21,6 +22,10 @@ export interface FilterConfig {
     placeholder: string;
     options: FilterOption[];
     width?: string;
+    /** Render a searchable combobox (type-to-filter) instead of a plain select. */
+    searchable?: boolean;
+    /** Placeholder for the search box inside a searchable combobox. */
+    searchPlaceholder?: string;
 }
 
 export interface FilterBarProps {
@@ -152,7 +157,18 @@ export function FilterBar({
                     </div>
                 )}
 
-                {filters.map((f) => (
+                {filters.map((f) =>
+                    f.searchable ? (
+                        <Combobox
+                            key={f.key}
+                            options={f.options}
+                            value={filterValues[f.key] || ''}
+                            onChange={(val) => onFilterChange?.(f.key, val)}
+                            placeholder={f.placeholder}
+                            searchPlaceholder={f.searchPlaceholder ?? `بحث في ${f.placeholder}...`}
+                            triggerClassName={f.width ?? 'w-40'}
+                        />
+                    ) : (
                     <Select
                         key={f.key}
                         value={filterValues[f.key] || ''}
@@ -178,7 +194,8 @@ export function FilterBar({
                             ))}
                         </SelectContent>
                     </Select>
-                ))}
+                    ),
+                )}
 
 
                 {filters.length > 0 && (

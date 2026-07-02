@@ -52,6 +52,8 @@ class UserController extends Controller
             }))
             ->when($request->filled('role'), fn ($q) => $q->whereHas('roles', fn ($r) => $r->where('name', $request->input('role'))))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', (bool) $request->input('status')))
+            // Only super-admins see users across branches, so only they can filter by branch.
+            ->when($isSuper && $request->filled('branch'), fn ($q) => $q->where('branch_id', $request->input('branch')))
             ->orderBy('name')
             ->paginate(12)
             ->withQueryString();
@@ -67,6 +69,7 @@ class UserController extends Controller
                 'search' => $request->input('search'),
                 'role' => $request->input('role'),
                 'status' => $request->input('status'),
+                'branch' => $isSuper ? $request->input('branch') : null,
             ],
         ]);
     }
