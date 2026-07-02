@@ -26,6 +26,10 @@ function PrintToolbar() {
 }
 
 function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) {
+    // إجمالي بدون خصم الخصومات: يُحسب على المجموع الفرعي بالكامل
+    const grossVat = invoice.subtotal * (invoice.vatPct / 100);
+    const grossTotal = invoice.subtotal + grossVat;
+
     return (
         <div dir="rtl" className="mx-auto max-w-sm bg-white p-4 font-sans text-sm text-black">
             <div className="text-center">
@@ -101,19 +105,13 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                     <span>المجموع الفرعي</span>
                     <span>{formatCurrency(invoice.subtotal)}</span>
                 </div>
-                {invoice.couponDiscount > 0 && (
-                    <div className="flex justify-between">
-                        <span>خصم الكوبون</span>
-                        <span>−{formatCurrency(invoice.couponDiscount)}</span>
-                    </div>
-                )}
                 <div className="flex justify-between">
                     <span>الضريبة ({invoice.vatPct}%)</span>
-                    <span>{formatCurrency(invoice.vatAmount)}</span>
+                    <span>{formatCurrency(grossVat)}</span>
                 </div>
                 <div className="mt-1 flex justify-between border-t border-black pt-1 text-sm font-bold">
                     <span>الإجمالي</span>
-                    <span>{formatCurrency(invoice.totalAmount)}</span>
+                    <span>{formatCurrency(grossTotal)}</span>
                 </div>
             </div>
 
@@ -127,6 +125,10 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
 }
 
 function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) {
+    // إجمالي بدون خصم الخصومات: يُحسب على المجموع الفرعي بالكامل
+    const grossVat = invoice.subtotal * (invoice.vatPct / 100);
+    const grossTotal = invoice.subtotal + grossVat;
+
     return (
         <div dir="rtl" className="mx-auto max-w-3xl bg-white p-10 font-sans text-sm text-black">
             {/* Header */}
@@ -216,31 +218,13 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) 
                         <span className="text-neutral-500">المجموع الفرعي</span>
                         <span dir="ltr">{formatCurrency(invoice.subtotal)}</span>
                     </div>
-                    {invoice.tierDiscountAmount > 0 && (
-                        <div className="flex justify-between">
-                            <span className="text-neutral-500">خصم المستوى</span>
-                            <span dir="ltr">−{formatCurrency(invoice.tierDiscountAmount)}</span>
-                        </div>
-                    )}
-                    {invoice.couponDiscount > 0 && (
-                        <div className="flex justify-between">
-                            <span className="text-neutral-500">خصم الكوبون</span>
-                            <span dir="ltr">−{formatCurrency(invoice.couponDiscount)}</span>
-                        </div>
-                    )}
-                    {invoice.pointsDiscount > 0 && (
-                        <div className="flex justify-between">
-                            <span className="text-neutral-500">خصم النقاط</span>
-                            <span dir="ltr">−{formatCurrency(invoice.pointsDiscount)}</span>
-                        </div>
-                    )}
                     <div className="flex justify-between">
                         <span className="text-neutral-500">الضريبة ({invoice.vatPct}%)</span>
-                        <span dir="ltr">{formatCurrency(invoice.vatAmount)}</span>
+                        <span dir="ltr">{formatCurrency(grossVat)}</span>
                     </div>
                     <div className="flex justify-between border-t-2 border-black pt-1 text-base font-bold">
                         <span>الإجمالي</span>
-                        <span dir="ltr">{formatCurrency(invoice.totalAmount)}</span>
+                        <span dir="ltr">{formatCurrency(grossTotal)}</span>
                     </div>
                 </div>
             </div>
