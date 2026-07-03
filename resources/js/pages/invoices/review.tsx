@@ -12,7 +12,7 @@ import { formatCurrency } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { CheckCircle2, ChevronDown, ClipboardList, Paperclip, Pencil, User, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ClipboardList, Paperclip, Pencil, User, UserPlus, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -236,11 +236,16 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                             <span className="text-muted-foreground flex items-center gap-1.5">
                                                 <User className="size-4" /> بيانات العميل
                                             </span>
-                                            {invoice.customerId && !isEditing && (
-                                                <Button type="button" variant="ghost" size="sm" onClick={() => startEditing(invoice)}>
-                                                    <Pencil className="size-3.5" /> تعديل
-                                                </Button>
-                                            )}
+                                            {!isEditing &&
+                                                (invoice.customerId ? (
+                                                    <Button type="button" variant="ghost" size="sm" onClick={() => startEditing(invoice)}>
+                                                        <Pencil className="size-3.5" /> تعديل
+                                                    </Button>
+                                                ) : (
+                                                    <Button type="button" variant="ghost" size="sm" onClick={() => startEditing(invoice)}>
+                                                        <UserPlus className="size-3.5" /> إضافة عميل
+                                                    </Button>
+                                                ))}
                                         </div>
 
                                         {isEditing ? (
@@ -283,7 +288,9 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                             <div className="text-muted-foreground space-y-0.5 text-xs">
                                                 <p>الاسم: {invoice.customerName ?? 'عميل عابر'}</p>
                                                 <p>الجوال: {invoice.customerPhone ?? '—'}</p>
-                                                {!invoice.customerId && <p className="text-amber-600 dark:text-amber-400">لا يمكن تعديل عميل عابر غير مسجَّل.</p>}
+                                                {!invoice.customerId && (
+                                                    <p className="text-amber-600 dark:text-amber-400">عميل عابر غير مسجَّل — أضف الاسم ورقم الجوال لتسجيله.</p>
+                                                )}
                                             </div>
                                         )}
                                     </div>

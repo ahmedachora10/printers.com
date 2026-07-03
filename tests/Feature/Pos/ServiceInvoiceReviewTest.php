@@ -264,13 +264,51 @@ describe('Service invoice review', function () {
         expect($customer->refresh()->phone)->toBe('0599999999');
     });
 
-    it('returns 422 when the invoice has no linked customer', function () {
+    it('registers and links a new customer for a walk-in invoice with none', function () {
         $invoice = makeDueInvoice(['customer_id' => null]);
 
         $this->patch(route('invoices.service.update-customer', $invoice), [
-            'full_name' => 'عميل',
+            'full_name' => 'عميل جديد',
             'phone' => '0500000003',
-        ])->assertStatus(422);
+        ])
+            ->assertRedirect(route('invoices.service.review'))
+            ->assertSessionHas('success');
+
+        $customer = Customer::where('phone', '0500000003')->where('branch_id', $this->branch->id)->first();
+
+        expect($customer)->not->toBeNull()
+            ->and($customer->full_name)->toBe('عميل جديد')
+            ->and($customer->customer_type)->toBe(CustomerTypeEnum::Individual)
+            ->and($invoice->refresh()->customer_id)->toBe($customer->id);
+    });
+
+    it('links an existing customer by phone instead of duplicating when adding to a walk-in', function () {
+        $existing = Customer::factory()->create([
+            'branch_id' => $this->branch->id,
+            'full_name' => 'عميل مسجَّل',
+            'phone' => '0500000006',
+        ]);
+
+        $invoice = makeDueInvoice(['customer_id' => null]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => 'اسم مختلف',
+            'phone' => '0500000006',
+        ])->assertRedirect(route('invoices.service.review'));
+
+        expect(Customer::where('phone', '0500000006')->where('branch_id', $this->branch->id)->count())->toBe(1)
+            ->and($invoice->refresh()->customer_id)->toBe($existing->id);
+    });
+
+    it('requires name and phone when adding a customer to a walk-in invoice', function () {
+        $invoice = makeDueInvoice(['customer_id' => null]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => '',
+            'phone' => '',
+        ])->assertSessionHasErrors(['full_name', 'phone']);
+
+        expect($invoice->refresh()->customer_id)->toBeNull();
     });
 
     it('forbids an employee from editing the invoice customer', function () {

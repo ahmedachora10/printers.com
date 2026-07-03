@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Customer\UpdateCustomerAction;
+use App\Actions\ServiceInvoice\AttachServiceInvoiceCustomerAction;
 use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
@@ -15,6 +16,7 @@ use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
 use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\BranchService;
+use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\User;
@@ -172,18 +174,30 @@ class ServiceInvoiceController extends Controller
     }
 
     /**
-     * Correct the linked customer's name/phone from the review queue. Writes to
-     * the shared customer record, so it affects the customer everywhere.
+     * Set the invoice's customer from the review queue. For a linked customer this
+     * corrects the shared record's name/phone (affects the customer everywhere);
+     * for a due invoice with no customer (walk-in), it registers/links one by phone.
      */
-    public function updateCustomer(UpdateInvoiceCustomerRequest $request, ServiceInvoice $invoice, UpdateCustomerAction $action): RedirectResponse
-    {
+    public function updateCustomer(
+        UpdateInvoiceCustomerRequest $request,
+        ServiceInvoice $invoice,
+        UpdateCustomerAction $updateAction,
+        AttachServiceInvoiceCustomerAction $attachAction,
+    ): RedirectResponse {
         $customer = $invoice->customer;
 
-        abort_if($customer === null, 422, 'لا يوجد عميل مرتبط بهذه الفاتورة.');
+        if ($customer === null) {
+            Gate::authorize('create', Customer::class);
+
+            $attachAction->handle($invoice, $request->validated());
+
+            return to_route('invoices.service.review')
+                ->with('success', "تم إضافة بيانات العميل للفاتورة {$invoice->invoice_number}");
+        }
 
         Gate::authorize('update', $customer);
 
-        $action->handle($customer, $request->validated());
+        $updateAction->handle($customer, $request->validated());
 
         return to_route('invoices.service.review')
             ->with('success', "تم تحديث بيانات العميل للفاتورة {$invoice->invoice_number}");

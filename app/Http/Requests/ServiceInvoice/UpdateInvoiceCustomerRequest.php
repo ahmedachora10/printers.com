@@ -20,17 +20,22 @@ class UpdateInvoiceCustomerRequest extends FormRequest
         $invoice = $this->route('invoice');
         $customer = $invoice->customer;
 
+        $phone = ['required', 'string', 'max:20'];
+
+        // Editing a linked customer must not collide with another record's phone.
+        // When the invoice has no customer yet, the phone is resolved via
+        // found-or-create (an existing phone links that customer), so no unique
+        // rule — otherwise a known phone would be rejected instead of linked.
+        if ($customer !== null) {
+            $phone[] = Rule::unique('customers', 'phone')
+                ->where('branch_id', $customer->branch_id)
+                ->ignore($customer->id)
+                ->whereNull('deleted_at');
+        }
+
         return [
             'full_name' => ['required', 'string', 'max:255'],
-            'phone' => [
-                'required',
-                'string',
-                'max:20',
-                Rule::unique('customers', 'phone')
-                    ->where('branch_id', $customer?->branch_id)
-                    ->ignore($customer?->id)
-                    ->whereNull('deleted_at'),
-            ],
+            'phone' => $phone,
         ];
     }
 
