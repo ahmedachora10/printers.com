@@ -12,6 +12,7 @@ use App\Http\Controllers\CatalogSubcategoryController;
 use App\Http\Controllers\CatalogueController;
 use App\Http\Controllers\CityController;
 use App\Http\Controllers\CommissionController;
+use App\Http\Controllers\CommissionReportController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\ExpenseCategoryController;
@@ -192,6 +193,13 @@ Route::middleware(['auth'])->group(function () {
             Route::get('{type}/{id}/receipt', [InvoiceReceiptController::class, 'show'])
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('receipt');
         });
+
+        // Employee commission report (M18): managers see their branch; employees
+        // see only their own rows — scoping is enforced in the controller.
+        Route::get('reports/commissions/export', [CommissionReportController::class, 'export'])
+            ->name('reports.commissions.export');
+        Route::get('reports/commissions', [CommissionReportController::class, 'index'])
+            ->name('reports.commissions');
     });
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {
