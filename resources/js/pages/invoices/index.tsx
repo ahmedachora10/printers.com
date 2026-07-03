@@ -173,9 +173,9 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
                         </Button>
                         {item.canEdit && (
                             <Button variant="outline" size="sm" asChild>
-                                <a href={posService.edit(item.id).url} aria-label="تعديل">
+                                <Link href={posService.edit(item.id).url} aria-label="تعديل">
                                     <Pencil className="h-3.5 w-3.5" />
-                                </a>
+                                </Link>
                             </Button>
                         )}
                         {item.canDelete && (
