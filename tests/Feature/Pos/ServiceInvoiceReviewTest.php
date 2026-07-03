@@ -9,6 +9,7 @@ use App\Models\CommissionLedger;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
+use App\Models\PaymentMethod;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\User;
@@ -298,6 +299,44 @@ describe('Service invoice review', function () {
 
         expect(Customer::where('phone', '0500000006')->where('branch_id', $this->branch->id)->count())->toBe(1)
             ->and($invoice->refresh()->customer_id)->toBe($existing->id);
+    });
+
+    it('lets an accountant change the payment method from the review queue', function () {
+        $card = PaymentMethod::factory()->create(['name' => 'بطاقة بنكية']);
+        $mada = PaymentMethod::factory()->create(['name' => 'مدى']);
+
+        $invoice = makeDueInvoice(['payment_method_id' => $card->id]);
+
+        $this->patch(route('invoices.service.update-payment-method', $invoice), [
+            'payment_method_id' => $mada->id,
+        ])
+            ->assertRedirect(route('invoices.service.review'))
+            ->assertSessionHas('success');
+
+        expect($invoice->refresh()->payment_method_id)->toBe($mada->id);
+    });
+
+    it('rejects a payment method that is not enabled for the branch', function () {
+        $card = PaymentMethod::factory()->create(['name' => 'بطاقة بنكية']);
+        $disabled = PaymentMethod::factory()->create(['name' => 'قديمة', 'is_active' => false]);
+
+        $invoice = makeDueInvoice(['payment_method_id' => $card->id]);
+
+        $this->patch(route('invoices.service.update-payment-method', $invoice), [
+            'payment_method_id' => $disabled->id,
+        ])->assertSessionHasErrors('payment_method_id');
+
+        expect($invoice->refresh()->payment_method_id)->toBe($card->id);
+    });
+
+    it('forbids an accountant from changing the payment method on another branch invoice', function () {
+        $otherBranch = Branch::factory()->create();
+        $method = PaymentMethod::factory()->create();
+        $invoice = makeDueInvoice(['branch_id' => $otherBranch->id]);
+
+        $this->patch(route('invoices.service.update-payment-method', $invoice), [
+            'payment_method_id' => $method->id,
+        ])->assertForbidden();
     });
 
     it('requires name and phone when adding a customer to a walk-in invoice', function () {

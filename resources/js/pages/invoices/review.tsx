@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -34,6 +35,8 @@ interface ReviewInvoice {
     customerPhone: string | null;
     branchName: string | null;
     paymentMethod: string | null;
+    paymentMethodId: number | null;
+    paymentMethodOptions: { id: number; name: string }[];
     receiptUrl: string | null;
     subtotal: number;
     vatAmount: number;
@@ -58,6 +61,7 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
     const [reasonError, setReasonError] = useState<string | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [uploadingId, setUploadingId] = useState<number | null>(null);
+    const [savingPaymentId, setSavingPaymentId] = useState<number | null>(null);
     const [expanded, setExpanded] = useState<Record<number, boolean>>({});
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editName, setEditName] = useState('');
@@ -100,6 +104,20 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                     setEditErrors({});
                 },
                 onFinish: () => setSavingCustomer(false),
+            },
+        );
+    }
+
+    function changePaymentMethod(invoice: ReviewInvoice, value: string) {
+        if (Number(value) === invoice.paymentMethodId) return;
+        setSavingPaymentId(invoice.id);
+        router.patch(
+            serviceInvoice.updatePaymentMethod(invoice.id).url,
+            { payment_method_id: Number(value) },
+            {
+                preserveScroll: true,
+                onError: (e) => toast.error(e.payment_method_id ?? 'تعذّر تحديث طريقة الدفع.'),
+                onFinish: () => setSavingPaymentId(null),
             },
         );
     }
@@ -339,9 +357,28 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                     </div>
 
                                     <div className="space-y-2 rounded-md border bg-muted/40 p-3 text-sm">
-                                        <div className="text-muted-foreground flex items-center justify-between">
-                                            <span>طريقة الدفع</span>
-                                            <span className="font-medium">{invoice.paymentMethod ?? '—'}</span>
+                                        <div className="flex items-center justify-between gap-2">
+                                            <span className="text-muted-foreground">طريقة الدفع</span>
+                                            {invoice.paymentMethodOptions.length > 0 ? (
+                                                <Select
+                                                    value={invoice.paymentMethodId ? String(invoice.paymentMethodId) : undefined}
+                                                    onValueChange={(v) => changePaymentMethod(invoice, v)}
+                                                    disabled={savingPaymentId === invoice.id}
+                                                >
+                                                    <SelectTrigger className="h-8 w-44">
+                                                        <SelectValue placeholder="اختر طريقة الدفع" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {invoice.paymentMethodOptions.map((m) => (
+                                                            <SelectItem key={m.id} value={String(m.id)}>
+                                                                {m.name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            ) : (
+                                                <span className="font-medium">{invoice.paymentMethod ?? '—'}</span>
+                                            )}
                                         </div>
                                         <div className="flex items-center justify-between gap-2">
                                             <span className="text-muted-foreground flex items-center gap-1.5">

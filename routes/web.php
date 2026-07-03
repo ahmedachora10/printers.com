@@ -160,6 +160,7 @@ Route::middleware(['auth'])->group(function () {
             Route::patch('{invoice}/pay', [ServiceInvoiceController::class, 'markPaid'])->name('pay');
             Route::patch('{invoice}/cancel', [ServiceInvoiceController::class, 'cancel'])->name('cancel');
             Route::patch('{invoice}/customer', [ServiceInvoiceController::class, 'updateCustomer'])->name('update-customer');
+            Route::patch('{invoice}/payment-method', [ServiceInvoiceController::class, 'updatePaymentMethod'])->name('update-payment-method');
             Route::post('{invoice}/receipt', [InvoiceReceiptController::class, 'store'])->name('receipt');
         });
     });

@@ -13,6 +13,7 @@ use App\Enums\Roles;
 use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
+use App\Http\Requests\ServiceInvoice\UpdateInvoicePaymentMethodRequest;
 use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\BranchService;
@@ -122,34 +123,58 @@ class ServiceInvoiceController extends Controller
         $user = Auth::user();
         $isSuperAdmin = $user->roleName->isSuperAdmin();
 
-        $invoices = ServiceInvoice::query()
+        $dueInvoices = ServiceInvoice::query()
             ->where('status', InvoiceStatusEnum::DUE)
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $user->branchId))
             ->with(['lines', 'customer:id,full_name,phone', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media'])
             ->latest()
-            ->get()
-            ->map(fn (ServiceInvoice $invoice) => [
-                'id' => $invoice->id,
-                'invoiceNumber' => $invoice->invoice_number,
-                'createdAt' => $invoice->created_at?->toIso8601String(),
-                'employeeName' => $invoice->user?->name,
-                'customerId' => $invoice->customer?->id,
-                'customerName' => $invoice->customer?->full_name,
-                'customerPhone' => $invoice->customer?->phone,
-                'branchName' => $invoice->branch?->name,
-                'paymentMethod' => $invoice->paymentMethod?->name,
-                'receiptUrl' => $invoice->receiptUrl(),
-                'subtotal' => (float) $invoice->subtotal,
-                'vatAmount' => (float) $invoice->vat_amount,
-                'totalAmount' => (float) $invoice->total_amount,
-                'lines' => $invoice->lines->map(fn ($line) => [
-                    'name' => $line->service_name,
-                    'qty' => $line->qty,
-                    'unitPrice' => (float) $line->unit_price,
-                    'discountPct' => (float) $line->discount_pct,
-                    'subtotal' => (float) $line->subtotal,
-                ])->values(),
-            ]);
+            ->get();
+
+        // The payment-method options a reviewer may switch to depend on the
+        // invoice's branch (super admins see several). Resolve each branch's
+        // enabled methods once, then reuse per invoice.
+        $methodsByBranch = $dueInvoices->pluck('branch_id')->unique()->mapWithKeys(function ($branchId) {
+            $branch = Branch::find($branchId);
+
+            return [$branchId => $branch
+                ? $branch->enabledPaymentMethods()->map(fn ($m) => ['id' => $m->id, 'name' => $m->name])->values()
+                : collect()];
+        });
+
+        $invoices = $dueInvoices
+            ->map(function (ServiceInvoice $invoice) use ($methodsByBranch) {
+                $options = collect($methodsByBranch[$invoice->branch_id] ?? []);
+
+                // Keep the current method selectable even if it was later disabled.
+                if ($invoice->paymentMethod && ! $options->contains('id', $invoice->payment_method_id)) {
+                    $options = $options->prepend(['id' => $invoice->payment_method_id, 'name' => $invoice->paymentMethod->name]);
+                }
+
+                return [
+                    'id' => $invoice->id,
+                    'invoiceNumber' => $invoice->invoice_number,
+                    'createdAt' => $invoice->created_at?->toIso8601String(),
+                    'employeeName' => $invoice->user?->name,
+                    'customerId' => $invoice->customer?->id,
+                    'customerName' => $invoice->customer?->full_name,
+                    'customerPhone' => $invoice->customer?->phone,
+                    'branchName' => $invoice->branch?->name,
+                    'paymentMethod' => $invoice->paymentMethod?->name,
+                    'paymentMethodId' => $invoice->payment_method_id,
+                    'paymentMethodOptions' => $options->values(),
+                    'receiptUrl' => $invoice->receiptUrl(),
+                    'subtotal' => (float) $invoice->subtotal,
+                    'vatAmount' => (float) $invoice->vat_amount,
+                    'totalAmount' => (float) $invoice->total_amount,
+                    'lines' => $invoice->lines->map(fn ($line) => [
+                        'name' => $line->service_name,
+                        'qty' => $line->qty,
+                        'unitPrice' => (float) $line->unit_price,
+                        'discountPct' => (float) $line->discount_pct,
+                        'subtotal' => (float) $line->subtotal,
+                    ])->values(),
+                ];
+            });
 
         return Inertia::render('invoices/review', [
             'invoices' => $invoices,
@@ -201,6 +226,20 @@ class ServiceInvoiceController extends Controller
 
         return to_route('invoices.service.review')
             ->with('success', "تم تحديث بيانات العميل للفاتورة {$invoice->invoice_number}");
+    }
+
+    /**
+     * Correct the payment method (transfer, card, mada, …) of a due invoice from
+     * the review queue. Restricted to the branch's enabled methods by the request.
+     */
+    public function updatePaymentMethod(UpdateInvoicePaymentMethodRequest $request, ServiceInvoice $invoice): RedirectResponse
+    {
+        Gate::authorize('updateStatus', $invoice);
+
+        $invoice->update(['payment_method_id' => $request->validated('payment_method_id')]);
+
+        return to_route('invoices.service.review')
+            ->with('success', "تم تحديث طريقة الدفع للفاتورة {$invoice->invoice_number}");
     }
 
     public function cancel(CancelServiceInvoiceRequest $request, ServiceInvoice $invoice, CancelServiceInvoiceAction $action): RedirectResponse
