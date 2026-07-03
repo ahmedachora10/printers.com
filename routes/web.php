@@ -29,6 +29,7 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\RefundController;
+use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\ServiceInvoiceController;
 use App\Http\Controllers\ServiceTemplateController;
 use App\Http\Controllers\StockMovementController;
@@ -200,6 +201,15 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.commissions.export');
         Route::get('reports/commissions', [CommissionReportController::class, 'index'])
             ->name('reports.commissions');
+    });
+
+    // Sales report (M17): realized revenue over paid invoices. Managers and
+    // accountants only; scoped to own branch (super-admin picks freely).
+    Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
+        Route::get('reports/sales/export', [SalesReportController::class, 'export'])
+            ->name('reports.sales.export');
+        Route::get('reports/sales', [SalesReportController::class, 'index'])
+            ->name('reports.sales');
     });
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {
