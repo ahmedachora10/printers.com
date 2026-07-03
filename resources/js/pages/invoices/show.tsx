@@ -8,11 +8,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
+import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { type Invoice } from '@/types/invoice';
 import { Head, router, usePage } from '@inertiajs/react';
-import { CheckCircle2, Paperclip, Printer, ReceiptText, Undo2 } from 'lucide-react';
+import { CheckCircle2, Paperclip, Pencil, Printer, ReceiptText, Trash2, Undo2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -51,6 +52,8 @@ export default function InvoiceShow({ invoice }: Props) {
     const [refundOpen, setRefundOpen] = useState(false);
     const [approveOpen, setApproveOpen] = useState(false);
     const [approving, setApproving] = useState(false);
+    const [deleteOpen, setDeleteOpen] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         if (props.success) {
@@ -71,6 +74,18 @@ export default function InvoiceShow({ invoice }: Props) {
                 },
             },
         );
+    }
+
+    function confirmDelete() {
+        setDeleting(true);
+        router.delete(posService.destroy(invoice.id).url, {
+            onError: (e) => {
+                toast.error((Object.values(e)[0] as string) ?? 'تعذّر حذف الفاتورة.');
+                setDeleting(false);
+                setDeleteOpen(false);
+            },
+            onFinish: () => setDeleting(false),
+        });
     }
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -118,6 +133,22 @@ export default function InvoiceShow({ invoice }: Props) {
                         {invoice.canRefund && (
                             <Button variant="outline" onClick={() => setRefundOpen(true)}>
                                 <Undo2 className="size-4" /> إنشاء مرتجع
+                            </Button>
+                        )}
+                        {invoice.canEdit && (
+                            <Button variant="outline" asChild>
+                                <a href={posService.edit(invoice.id).url}>
+                                    <Pencil className="size-4" /> تعديل
+                                </a>
+                            </Button>
+                        )}
+                        {invoice.canDelete && (
+                            <Button
+                                variant="outline"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setDeleteOpen(true)}
+                            >
+                                <Trash2 className="size-4" /> حذف
                             </Button>
                         )}
                         <Button variant="outline" asChild>
@@ -330,6 +361,30 @@ export default function InvoiceShow({ invoice }: Props) {
                         </Button>
                         <Button onClick={confirmApprove} disabled={approving}>
                             <CheckCircle2 className="size-4" /> تأكيد الدفع
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete confirmation */}
+            <Dialog open={deleteOpen} onOpenChange={(open) => !open && setDeleteOpen(false)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>حذف الفاتورة</DialogTitle>
+                        <DialogDescription>
+                            سيتم حذف الفاتورة {invoice.invoiceNumber} نهائياً من القوائم
+                            {invoice.status === 'paid'
+                                ? ' مع عكس العمولة غير المدفوعة وسحب نقاط الولاء المكتسبة واسترجاع أي نقاط مستبدلة.'
+                                : ' مع عكس العمولة غير المدفوعة واسترجاع أي نقاط مستبدلة.'}{' '}
+                            لا يمكن التراجع عن هذا الإجراء.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+                            تراجع
+                        </Button>
+                        <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+                            <Trash2 className="size-4" /> تأكيد الحذف
                         </Button>
                     </DialogFooter>
                 </DialogContent>

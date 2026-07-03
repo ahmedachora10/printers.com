@@ -13,7 +13,15 @@ import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
 import service from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { type PosAgent, type PosCustomer, type PosLoyalty, type PosPaymentMethod, type PosService, type ServiceCartLine } from '@/types/pos';
+import {
+    type EditServiceInvoice,
+    type PosAgent,
+    type PosCustomer,
+    type PosLoyalty,
+    type PosPaymentMethod,
+    type PosService,
+    type ServiceCartLine,
+} from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Award, Paperclip, Printer, Save, Search, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -31,17 +39,14 @@ async function fetchCustomerOptions(query: string): Promise<AsyncOption<PosCusto
 
 const CUSTOMER_SENTINEL: AsyncOption<PosCustomer> = { value: 'none', label: '— عميل عابر —' };
 
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'نقطة البيع', href: service.create().url },
-    { title: 'فاتورة خدمة', href: service.create().url },
-];
-
 interface Props {
     services: PosService[];
     agents: PosAgent[];
     paymentMethods: PosPaymentMethod[];
     vatPct: number;
     loyalty: PosLoyalty;
+    /** Present only when the owning employee re-opens a DUE invoice to edit it. */
+    invoice?: EditServiceInvoice;
 }
 
 type InvoiceStatus = 'paid' | 'due';
@@ -56,31 +61,51 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const lineTotal = (line: ServiceCartLine) => round2(line.qty * line.unitPrice * (1 - line.discountPct / 100));
 
-export default function ServicePos({ services, agents, paymentMethods, vatPct, loyalty }: Props) {
+export default function ServicePos({ services, agents, paymentMethods, vatPct, loyalty, invoice }: Props) {
     const { props } = usePage<SharedData>();
     // Employees may only raise DUE (معلق) invoices for an accountant to review;
     // the paid/due toggle is hidden for them and the status is locked to 'due'.
     const isEmployee = props.auth.role === 'employee';
+    const isEditing = !!invoice;
+    const lineSeq = useRef(0);
     const [search, setSearch] = useState('');
     const [searchFocused, setSearchFocused] = useState(false);
-    const [cart, setCart] = useState<ServiceCartLine[]>([]);
+    // Seed the cart from the invoice being edited, minting a stable key per line.
+    const [cart, setCart] = useState<ServiceCartLine[]>(() =>
+        (invoice?.lines ?? []).map((l) => {
+            lineSeq.current += 1;
+            return {
+                key: `e-${l.branchServiceId}-${lineSeq.current}`,
+                branchServiceId: l.branchServiceId,
+                name: l.name,
+                unitPrice: l.unitPrice,
+                qty: l.qty,
+                discountPct: l.discountPct,
+                maxDiscountPct: l.maxDiscountPct,
+                baseCommissionPct: l.baseCommissionPct,
+                isTahazir: l.isTahazir,
+                isManual: false,
+            };
+        }),
+    );
     // The chosen customer is held in full (fetched on demand) rather than looked up
     // from a preloaded list, so 10k+ customers never ship to the browser.
-    const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(null);
+    const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(invoice?.customer ?? null);
     const customerId = selectedCustomer ? String(selectedCustomer.id) : 'none';
-    const [agentId, setAgentId] = useState<string>('none');
+    const [agentId, setAgentId] = useState<string>(invoice?.agentId ? String(invoice.agentId) : 'none');
     const [walkinName, setWalkinName] = useState('');
     const [walkinPhone, setWalkinPhone] = useState('');
     const [status, setStatus] = useState<InvoiceStatus>(isEmployee ? 'due' : 'paid');
-    const [paymentMethodId, setPaymentMethodId] = useState<number | null>(null);
+    const [paymentMethodId, setPaymentMethodId] = useState<number | null>(invoice?.paymentMethodId ?? null);
     const [receipt, setReceipt] = useState<File | null>(null);
-    const [couponCode, setCouponCode] = useState('');
-    const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+    const [couponCode, setCouponCode] = useState(invoice?.coupon?.code ?? '');
+    const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(
+        invoice?.coupon ? { code: invoice.coupon.code, type: invoice.coupon.type, value: invoice.coupon.value } : null,
+    );
     const [couponLoading, setCouponLoading] = useState(false);
-    const [redeemPoints, setRedeemPoints] = useState('');
+    const [redeemPoints, setRedeemPoints] = useState(invoice?.pointsRedeemed ? String(invoice.pointsRedeemed) : '');
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
-    const lineSeq = useRef(0);
 
     useEffect(() => {
         if (props.success) {
@@ -88,9 +113,15 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         }
     }, [props.success]);
 
-    // Auto-fill the agent from the chosen customer's link; the cashier can still
-    // change or clear it afterwards.
+    // Auto-fill the agent from the chosen customer's link and clear any pending
+    // redemption when the customer changes — but not on the initial mount of an
+    // edit, where both are already seeded from the invoice.
+    const skipCustomerEffect = useRef(isEditing);
     useEffect(() => {
+        if (skipCustomerEffect.current) {
+            skipCustomerEffect.current = false;
+            return;
+        }
         setRedeemPoints('');
         setAgentId(selectedCustomer?.agentId ? String(selectedCustomer.agentId) : 'none');
     }, [selectedCustomer]);
@@ -284,47 +315,63 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             toast.error('اختر خدمة لكل سطر يدوي');
             return;
         }
-        if (requiresReceipt && !receipt) {
+        // A bank-transfer method needs a receipt — unless editing an invoice that
+        // already carries one and keeps the same method.
+        if (requiresReceipt && !receipt && !(isEditing && invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
             toast.error('يجب إرفاق إيصال التحويل لطريقة الدفع المحددة');
             return;
         }
         setSubmitting(true);
         setErrors({});
-        router.post(
-            service.store().url,
-            {
-                customer_id: customerId === 'none' ? null : Number(customerId),
-                agent_id: agentId === 'none' ? null : Number(agentId),
-                walkin_name: customerId === 'none' ? walkinName.trim() || null : null,
-                walkin_phone: customerId === 'none' ? walkinPhone.trim() || null : null,
-                coupon_code: appliedCoupon?.code ?? null,
-                redeem_points: loyaltyOn && Number(redeemPoints) > 0 ? Number(redeemPoints) : null,
-                payment_method_id: paymentMethodId,
-                receipt,
-                status,
-                print,
-                lines: cart.map((l) => ({
-                    branch_service_id: l.branchServiceId,
-                    qty: l.qty,
-                    unit_price: l.unitPrice,
-                    discount_pct: l.discountPct,
-                })),
-            },
-            {
-                forceFormData: true,
-                preserveScroll: true,
-                onSuccess: () => resetForm(),
-                onError: (e) => setErrors(e as Record<string, string>),
-                onFinish: () => setSubmitting(false),
-            },
-        );
+
+        const payload: Record<string, unknown> = {
+            customer_id: customerId === 'none' ? null : Number(customerId),
+            agent_id: agentId === 'none' ? null : Number(agentId),
+            walkin_name: customerId === 'none' ? walkinName.trim() || null : null,
+            walkin_phone: customerId === 'none' ? walkinPhone.trim() || null : null,
+            coupon_code: appliedCoupon?.code ?? null,
+            redeem_points: loyaltyOn && Number(redeemPoints) > 0 ? Number(redeemPoints) : null,
+            payment_method_id: paymentMethodId,
+            receipt,
+            lines: cart.map((l) => ({
+                branch_service_id: l.branchServiceId,
+                qty: l.qty,
+                unit_price: l.unitPrice,
+                discount_pct: l.discountPct,
+            })),
+        };
+
+        // Editing PUTs (spoofed) back onto the same invoice and returns to its
+        // viewer; creating POSTs a new invoice and clears the form to start over.
+        const options = {
+            forceFormData: true,
+            preserveScroll: true,
+            onError: (e: Record<string, string>) => setErrors(e),
+            onFinish: () => setSubmitting(false),
+        };
+
+        if (isEditing && invoice) {
+            router.post(service.update(invoice.id).url, { ...payload, _method: 'put' }, options);
+        } else {
+            router.post(service.store().url, { ...payload, status, print }, { ...options, onSuccess: () => resetForm() });
+        }
     }
 
     const showResults = searchFocused && search.trim() !== '';
 
+    const breadcrumbs: BreadcrumbItem[] = isEditing
+        ? [
+              { title: 'الفواتير', href: '/invoices' },
+              { title: `تعديل ${invoice!.invoiceNumber}`, href: service.edit(invoice!.id).url },
+          ]
+        : [
+              { title: 'نقطة البيع', href: service.create().url },
+              { title: 'فاتورة خدمة', href: service.create().url },
+          ];
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="نقطة البيع — فاتورة خدمة" />
+            <Head title={isEditing ? `تعديل فاتورة ${invoice!.invoiceNumber}` : 'نقطة البيع — فاتورة خدمة'} />
             <Toaster position="top-center" richColors />
 
             <div className="grid gap-4 p-4 lg:grid-cols-3">
@@ -591,18 +638,37 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
 
                     {/* Actions */}
                     <div className="space-y-2">
-                        <Button type="button" className="w-full" disabled={submitting || cart.length === 0} onClick={() => submit(false)}>
-                            <Save className="size-4" /> حفظ الفاتورة
-                        </Button>
-                        <Button
-                            type="button"
-                            variant="outline"
-                            className="w-full"
-                            disabled={submitting || cart.length === 0}
-                            onClick={() => submit(true)}
-                        >
-                            <Printer className="size-4" /> طباعة وحفظ
-                        </Button>
+                        {isEditing ? (
+                            <>
+                                <Button type="button" className="w-full" disabled={submitting || cart.length === 0} onClick={() => submit(false)}>
+                                    <Save className="size-4" /> تحديث الفاتورة
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full"
+                                    disabled={submitting}
+                                    onClick={() => router.get(`/invoices/service/${invoice!.id}`)}
+                                >
+                                    <X className="size-4" /> إلغاء
+                                </Button>
+                            </>
+                        ) : (
+                            <>
+                                <Button type="button" className="w-full" disabled={submitting || cart.length === 0} onClick={() => submit(false)}>
+                                    <Save className="size-4" /> حفظ الفاتورة
+                                </Button>
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full"
+                                    disabled={submitting || cart.length === 0}
+                                    onClick={() => submit(true)}
+                                >
+                                    <Printer className="size-4" /> طباعة وحفظ
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </div>
 

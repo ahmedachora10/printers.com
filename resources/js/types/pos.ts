@@ -62,6 +62,30 @@ export interface PosPaymentMethod {
     requiresAttachment: boolean;
 }
 
+/** A DUE service invoice seeded into the POS form for its owner to re-edit. */
+export interface EditServiceInvoiceLine {
+    branchServiceId: number;
+    name: string;
+    qty: number;
+    unitPrice: number;
+    discountPct: number;
+    maxDiscountPct: number;
+    baseCommissionPct: number;
+    isTahazir: boolean;
+}
+
+export interface EditServiceInvoice {
+    id: number;
+    invoiceNumber: string;
+    customer: PosCustomer | null;
+    agentId: number | null;
+    coupon: { code: string; type: 'percentage' | 'fixed'; value: number } | null;
+    pointsRedeemed: number;
+    paymentMethodId: number | null;
+    hasReceipt: boolean;
+    lines: EditServiceInvoiceLine[];
+}
+
 export interface CartLine {
     key: string;
     productId: number | null;

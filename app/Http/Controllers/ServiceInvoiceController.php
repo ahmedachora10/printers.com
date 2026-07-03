@@ -6,7 +6,9 @@ use App\Actions\Customer\UpdateCustomerAction;
 use App\Actions\ServiceInvoice\AttachServiceInvoiceCustomerAction;
 use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
+use App\Actions\ServiceInvoice\DeleteServiceInvoiceAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
+use App\Actions\ServiceInvoice\UpdateServiceInvoiceAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Enums\Roles;
@@ -14,9 +16,11 @@ use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoicePaymentMethodRequest;
+use App\Http\Requests\ServiceInvoice\UpdateServiceInvoiceRequest;
 use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\BranchService;
+use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
@@ -39,53 +43,58 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('create', ServiceInvoice::class);
 
+        return Inertia::render('pos/service/index', $this->posFormData(Auth::user()));
+    }
+
+    /**
+     * Re-open a DUE invoice in the POS form for its owning employee to edit
+     * (before an accountant approves it). The form is seeded from the invoice.
+     */
+    public function edit(ServiceInvoice $invoice): Response
+    {
+        Gate::authorize('update', $invoice);
+
         $user = Auth::user();
-        $branchId = $user->branchId;
-        $branch = Branch::find($branchId);
+        $branchId = (int) $invoice->branch_id;
 
-        // The logged-in employee's own commission rate per service. A service with
-        // no row earns 0% for them — the preview reflects what will be recorded.
-        $commissionRates = UserService::query()
-            ->where('user_id', $user->id)
-            ->pluck('commission_override_pct', 'branch_service_id');
+        $invoice->load(['lines', 'customer:id,full_name,phone,agent_id,customer_type,points_balance,tier']);
 
-        $services = BranchService::query()
-            ->where('branch_id', $branchId)
-            ->where('is_active', true)
-            ->with('serviceTemplate:id,name')
-            ->get()
-            ->map(fn (BranchService $service) => [
-                'id' => $service->id,
-                'name' => $service->serviceTemplate?->name,
-                'baseCommissionPct' => (float) ($commissionRates[$service->id] ?? 0),
-                'maxDiscountPct' => (float) $service->max_discount_pct,
-                'isTahazir' => $service->is_tahazir,
-            ])
-            ->filter(fn ($service) => $service['name'] !== null)
-            ->values();
+        $loyalty = LoyaltyConfig::forBranch($branchId);
+        $loyaltyActive = (bool) $loyalty->is_active;
 
-        $loyalty = $branchId ? LoyaltyConfig::forBranch($branchId) : null;
-        $loyaltyActive = (bool) ($loyalty?->is_active);
+        $servicesById = $this->branchServiceOptions($branchId, $user->id)->keyBy('id');
 
-        $agents = $this->branchAgents($branchId);
-
-        $paymentMethods = $branch
-            ? $branch->enabledPaymentMethods()->map(fn ($method) => [
-                'id' => $method->id,
-                'name' => $method->name,
-                'requiresAttachment' => (bool) $method->requires_attachment,
-            ])->values()
-            : collect();
+        $coupon = $invoice->coupon_id ? Coupon::find($invoice->coupon_id) : null;
 
         return Inertia::render('pos/service/index', [
-            'services' => $services,
-            'agents' => $agents,
-            'paymentMethods' => $paymentMethods,
-            'vatPct' => (float) ($branch->vat_rate_override ?? 15),
-            'loyalty' => [
-                'active' => $loyaltyActive,
-                'redemptionRate' => (float) ($loyalty?->redemption_rate ?? 0),
-                'minRedemptionPoints' => (int) ($loyalty?->min_redemption_points ?? 0),
+            ...$this->posFormData($user),
+            'invoice' => [
+                'id' => $invoice->id,
+                'invoiceNumber' => $invoice->invoice_number,
+                'customer' => $invoice->customer?->toPosArray($loyalty, $loyaltyActive),
+                'agentId' => $invoice->agent_id,
+                'coupon' => $coupon ? [
+                    'code' => $coupon->code,
+                    'type' => $coupon->discount_type->value,
+                    'value' => (float) $coupon->discount_value,
+                ] : null,
+                'pointsRedeemed' => (int) $invoice->points_redeemed,
+                'paymentMethodId' => $invoice->payment_method_id,
+                'hasReceipt' => $invoice->hasReceipt(),
+                'lines' => $invoice->lines->map(function ($line) use ($servicesById) {
+                    $service = $servicesById->get($line->branch_service_id);
+
+                    return [
+                        'branchServiceId' => $line->branch_service_id,
+                        'name' => $line->service_name,
+                        'qty' => $line->qty,
+                        'unitPrice' => (float) $line->unit_price,
+                        'discountPct' => (float) $line->discount_pct,
+                        'maxDiscountPct' => (float) ($service['maxDiscountPct'] ?? 0),
+                        'baseCommissionPct' => (float) ($service['baseCommissionPct'] ?? $line->commission_pct),
+                        'isTahazir' => (bool) ($service['isTahazir'] ?? false),
+                    ];
+                })->values(),
             ],
         ]);
     }
@@ -110,6 +119,35 @@ class ServiceInvoiceController extends Controller
 
         return to_route('pos.service.create')
             ->with('success', "تم حفظ الفاتورة {$invoice->invoice_number} بنجاح");
+    }
+
+    /**
+     * Persist an employee's in-place edit of their own DUE invoice, then return
+     * to the invoice viewer. The invoice stays DUE for the accountant to review.
+     */
+    public function update(UpdateServiceInvoiceRequest $request, ServiceInvoice $invoice, UpdateServiceInvoiceAction $action): RedirectResponse
+    {
+        Gate::authorize('update', $invoice);
+
+        $action->handle($invoice, $request->validated(), $request->file('receipt'));
+
+        return to_route('invoices.show', ['type' => InvoiceTypeEnum::SERVICE->value, 'id' => $invoice->id])
+            ->with('success', "تم تحديث الفاتورة {$invoice->invoice_number} بنجاح");
+    }
+
+    /**
+     * Soft-delete an employee's own invoice (before or after approval) and unwind
+     * its accruals. Only the invoice's owner may do this — never an accountant.
+     */
+    public function destroy(ServiceInvoice $invoice, DeleteServiceInvoiceAction $action): RedirectResponse
+    {
+        Gate::authorize('delete', $invoice);
+
+        $number = $invoice->invoice_number;
+        $action->handle($invoice);
+
+        return to_route('invoices.index')
+            ->with('success', "تم حذف الفاتورة {$number} بنجاح");
     }
 
     /**
@@ -318,6 +356,68 @@ class ServiceInvoiceController extends Controller
                 'taxNumber' => $invoice->branch?->tax_number,
             ],
         ]);
+    }
+
+    /**
+     * The shared POS form payload (services, agents, payment methods, VAT and
+     * loyalty config) for a user's branch — identical for create and edit.
+     *
+     * @return array<string, mixed>
+     */
+    private function posFormData(User $user): array
+    {
+        $branchId = $user->branchId;
+        $branch = Branch::find($branchId);
+
+        $loyalty = $branchId ? LoyaltyConfig::forBranch($branchId) : null;
+
+        $paymentMethods = $branch
+            ? $branch->enabledPaymentMethods()->map(fn ($method) => [
+                'id' => $method->id,
+                'name' => $method->name,
+                'requiresAttachment' => (bool) $method->requires_attachment,
+            ])->values()
+            : collect();
+
+        return [
+            'services' => $this->branchServiceOptions($branchId, $user->id),
+            'agents' => $this->branchAgents($branchId),
+            'paymentMethods' => $paymentMethods,
+            'vatPct' => (float) ($branch->vat_rate_override ?? 15),
+            'loyalty' => [
+                'active' => (bool) ($loyalty?->is_active),
+                'redemptionRate' => (float) ($loyalty?->redemption_rate ?? 0),
+                'minRedemptionPoints' => (int) ($loyalty?->min_redemption_points ?? 0),
+            ],
+        ];
+    }
+
+    /**
+     * Active branch services shaped for the POS, each carrying the logged-in
+     * employee's own commission rate (a service with no override earns 0%).
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function branchServiceOptions(?int $branchId, int $userId): Collection
+    {
+        $commissionRates = UserService::query()
+            ->where('user_id', $userId)
+            ->pluck('commission_override_pct', 'branch_service_id');
+
+        return BranchService::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->with('serviceTemplate:id,name')
+            ->get()
+            ->map(fn (BranchService $service) => [
+                'id' => $service->id,
+                'name' => $service->serviceTemplate?->name,
+                'baseCommissionPct' => (float) ($commissionRates[$service->id] ?? 0),
+                'maxDiscountPct' => (float) $service->max_discount_pct,
+                'isTahazir' => $service->is_tahazir,
+            ])
+            ->filter(fn ($service) => $service['name'] !== null)
+            ->values();
     }
 
     /**

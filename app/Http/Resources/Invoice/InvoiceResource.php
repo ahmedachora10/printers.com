@@ -45,6 +45,17 @@ class InvoiceResource extends JsonResource
             && $this->status === InvoiceStatusEnum::DUE
             && $user->can('updateStatus', $this->resource);
 
+        // The owning employee may re-edit their invoice while it is still DUE,
+        // and delete it (before or after approval) — but a delete is blocked once
+        // the invoice is refunded or rolled into an agent payment.
+        $isServiceInvoice = $this->resource instanceof ServiceInvoice;
+        $canEdit = $user !== null && $isServiceInvoice && $user->can('update', $this->resource);
+        $canDelete = $user !== null
+            && $isServiceInvoice
+            && $user->can('delete', $this->resource)
+            && $this->agent_payment_id === null
+            && $refundedTotal <= 0;
+
         return [
             'id' => $this->id,
             'type' => $type->value,
@@ -79,6 +90,8 @@ class InvoiceResource extends JsonResource
             'isFullyRefunded' => $refundedTotal > 0 && $refundableRemaining <= 0,
             'canRefund' => $canRefund,
             'canApprovePayment' => $canApprovePayment,
+            'canEdit' => $canEdit,
+            'canDelete' => $canDelete,
             'refunds' => $this->whenLoaded('refunds', fn () => $this->refunds
                 ->map(fn (Refund $refund) => [
                     'id' => $refund->id,

@@ -40,7 +40,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_name, null as employee_name');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_name, null as employee_name, null as user_id');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -162,6 +162,7 @@ class InvoiceController extends Controller
                 DB::raw("'{$type->value}' as type"),
                 'customers.full_name as customer_name',
                 'users.name as employee_name',
+                "{$table}.user_id",
             ]);
     }
 }

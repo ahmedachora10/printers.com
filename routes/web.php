@@ -149,6 +149,11 @@ Route::middleware(['auth'])->group(function () {
             Route::get('service', [ServiceInvoiceController::class, 'create'])->name('service.create');
             Route::post('service', [ServiceInvoiceController::class, 'store'])->name('service.store');
             Route::get('service/{invoice}/print', [ServiceInvoiceController::class, 'print'])->name('service.print');
+            // Owner-employee edit (DUE only) and delete (DUE or PAID) — authorized
+            // per-invoice by ServiceInvoicePolicy, never by an accountant.
+            Route::get('service/{invoice}/edit', [ServiceInvoiceController::class, 'edit'])->name('service.edit');
+            Route::put('service/{invoice}', [ServiceInvoiceController::class, 'update'])->name('service.update');
+            Route::delete('service/{invoice}', [ServiceInvoiceController::class, 'destroy'])->name('service.destroy');
         });
     });
 

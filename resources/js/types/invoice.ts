@@ -60,6 +60,8 @@ export interface Invoice {
     isFullyRefunded: boolean;
     canRefund: boolean;
     canApprovePayment: boolean;
+    canEdit: boolean;
+    canDelete: boolean;
     refunds?: InvoiceRefund[];
     branch: InvoiceBranch;
 }
@@ -75,6 +77,8 @@ export interface InvoiceListItem {
     customerName: string | null;
     employeeName: string | null;
     createdAt: string;
+    canEdit: boolean;
+    canDelete: boolean;
 }
 
 export interface PaginatedInvoice {

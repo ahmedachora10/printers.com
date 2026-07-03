@@ -2,14 +2,17 @@ import { DataTable, TablePagination, type ColumnDef } from '@/components/data-ta
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import posService from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
 import { Link, router } from '@inertiajs/react';
-import { Eye, Printer } from 'lucide-react';
+import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'الفواتير', href: '/invoices' }];
 
@@ -39,7 +42,22 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
     });
     const [dateFrom, setDateFrom] = useState(filters.date_from ?? '');
     const [dateTo, setDateTo] = useState(filters.date_to ?? '');
+    const [deleteItem, setDeleteItem] = useState<InvoiceListItem | null>(null);
+    const [deleting, setDeleting] = useState(false);
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+
+    function confirmDelete() {
+        if (!deleteItem) return;
+        setDeleting(true);
+        router.delete(posService.destroy(deleteItem.id).url, {
+            preserveScroll: true,
+            onError: (e) => toast.error((Object.values(e)[0] as string) ?? 'تعذّر حذف الفاتورة.'),
+            onFinish: () => {
+                setDeleting(false);
+                setDeleteItem(null);
+            },
+        });
+    }
 
     function buildParams(s: string, fv: Record<string, string>, from: string, to: string) {
         return Object.fromEntries(
@@ -140,7 +158,7 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
             {
                 key: 'actions',
                 header: '',
-                headerClassName: 'w-24',
+                headerClassName: 'w-36',
                 cell: (item) => (
                     <div className="flex items-center gap-1.5">
                         <Button variant="outline" size="sm" asChild>
@@ -153,6 +171,24 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
                                 <Printer className="h-3.5 w-3.5" />
                             </a>
                         </Button>
+                        {item.canEdit && (
+                            <Button variant="outline" size="sm" asChild>
+                                <a href={posService.edit(item.id).url} aria-label="تعديل">
+                                    <Pencil className="h-3.5 w-3.5" />
+                                </a>
+                            </Button>
+                        )}
+                        {item.canDelete && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                aria-label="حذف"
+                                onClick={() => setDeleteItem(item)}
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
                     </div>
                 ),
             },
@@ -223,6 +259,29 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
                     }}
                 />
             </div>
+
+            <Dialog open={!!deleteItem} onOpenChange={(open) => !open && setDeleteItem(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>حذف الفاتورة</DialogTitle>
+                        <DialogDescription>
+                            سيتم حذف الفاتورة {deleteItem?.invoiceNumber} نهائياً من القوائم
+                            {deleteItem?.status === 'paid'
+                                ? ' مع عكس العمولة غير المدفوعة وسحب نقاط الولاء المكتسبة واسترجاع أي نقاط مستبدلة.'
+                                : ' مع عكس العمولة غير المدفوعة واسترجاع أي نقاط مستبدلة.'}{' '}
+                            لا يمكن التراجع عن هذا الإجراء.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteItem(null)} disabled={deleting}>
+                            تراجع
+                        </Button>
+                        <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+                            <Trash2 className="size-4" /> تأكيد الحذف
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }
