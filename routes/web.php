@@ -15,6 +15,7 @@ use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\CommissionReportController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ImpersonationController;
@@ -46,9 +47,7 @@ Route::get('/', function () {
 Route::get('catalogue', [CatalogueController::class, 'index'])->name('catalogue.index');
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('dashboard', function () {
-        return Inertia::render('dashboard');
-    })->name('dashboard');
+    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // In-app notifications (available to every authenticated role).
     Route::get('notifications', [NotificationController::class, 'index'])->name('notifications.index');
