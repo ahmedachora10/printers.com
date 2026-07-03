@@ -40,7 +40,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_name, null as employee_name, null as user_id');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_name, null as employee_name, null as service_name, null as user_id');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -139,6 +139,13 @@ class InvoiceController extends Controller
     {
         $table = $type->table();
 
+        // Service invoices carry the actual service names on their lines; surface
+        // them (comma-joined, distinct) so the list can show "بحوث، تصميم…" instead
+        // of the generic type label. Product rows have no equivalent.
+        $serviceNameSelect = $type === InvoiceTypeEnum::SERVICE
+            ? DB::raw("(select group_concat(distinct service_name) from service_invoice_lines where service_invoice_lines.invoice_id = {$table}.id) as service_name")
+            : DB::raw('null as service_name');
+
         return DB::table($table)
             ->leftJoin('customers', 'customers.id', '=', "{$table}.customer_id")
             ->leftJoin('users', 'users.id', '=', "{$table}.user_id")
@@ -162,6 +169,7 @@ class InvoiceController extends Controller
                 DB::raw("'{$type->value}' as type"),
                 'customers.full_name as customer_name',
                 'users.name as employee_name',
+                $serviceNameSelect,
                 "{$table}.user_id",
             ]);
     }

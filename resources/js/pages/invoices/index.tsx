@@ -117,9 +117,20 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
                 key: 'type',
                 header: 'النوع',
                 cell: (item) => (
-                    <Badge variant="outline" className={TYPE_COLORS[item.type]}>
-                        {item.typeLabel}
-                    </Badge>
+                    <div className="flex flex-col items-start gap-1.5">
+                        <Badge variant="outline" className={TYPE_COLORS[item.type]}>
+                            {item.typeLabel}
+                        </Badge>
+                        {item.serviceNames.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                                {item.serviceNames.map((name) => (
+                                    <Badge key={name} variant="outline" className="border-border bg-muted/60 text-muted-foreground">
+                                        {name}
+                                    </Badge>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 ),
             },
             {

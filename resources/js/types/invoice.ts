@@ -70,6 +70,7 @@ export interface InvoiceListItem {
     id: number;
     type: InvoiceType;
     typeLabel: string;
+    serviceNames: string[];
     invoiceNumber: string;
     totalAmount: number;
     status: InvoiceStatus;

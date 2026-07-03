@@ -18,6 +18,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string $total_amount
  * @property string|null $customer_name
  * @property string|null $employee_name
+ * @property string|null $service_name
  * @property string|null $created_at
  * @property int|null $user_id
  */
@@ -42,6 +43,9 @@ class InvoiceListResource extends JsonResource
             'id' => (int) $this->id,
             'type' => $type->value,
             'typeLabel' => $type->label(),
+            'serviceNames' => $this->service_name !== null && $this->service_name !== ''
+                ? array_values(array_filter(array_map('trim', explode(',', $this->service_name))))
+                : [],
             'invoiceNumber' => $this->invoice_number,
             'totalAmount' => (float) $this->total_amount,
             'status' => $status->value,
