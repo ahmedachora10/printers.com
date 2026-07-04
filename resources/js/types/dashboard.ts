@@ -1,9 +1,39 @@
 export interface DashboardKpis {
-    todaySales: number;
-    monthSales: number;
-    outstandingDue: number;
-    pendingCommissions: number;
+    todaySales: number | null;
+    monthSales: number | null;
+    outstandingDue: number | null;
+    pendingCommissions: number | null;
     lowStockCount: number | null;
+}
+
+export interface DashboardTrendPoint {
+    date: string;
+    product: number;
+    service: number;
+}
+
+export interface DashboardSalesByType {
+    product: number;
+    service: number;
+}
+
+export interface DashboardPaymentMethod {
+    name: string;
+    total: number;
+}
+
+export interface DashboardTopService {
+    name: string;
+    count: number;
+    total: number;
+}
+
+export interface DashboardIncentive {
+    target: number;
+    achieved: number;
+    pct: number;
+    bonus: number;
+    status: string;
 }
 
 export interface DashboardRecentInvoice {
@@ -16,14 +46,9 @@ export interface DashboardRecentInvoice {
     createdAt: string | null;
 }
 
-export interface DashboardTopService {
-    name: string;
-    count: number;
-    total: number;
-}
-
 export interface DashboardScope {
     isSuper: boolean;
     isEmployee: boolean;
     userName: string;
+    trendDays: number;
 }

@@ -3,6 +3,8 @@
 use App\Enums\Roles;
 use App\Models\Branch;
 use App\Models\CommissionLedger;
+use App\Models\IncentivePlan;
+use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
@@ -160,9 +162,12 @@ describe('Dashboard', function () {
         dashServiceInvoice($this->branch, $this->employee, ['total_amount' => 230]);
         dashServiceInvoice($this->branch, $coworker, ['total_amount' => 900]);
 
+        // Employees have no today-sales tile; their month tile is their own only.
         $this->actingAs($this->employee)
             ->get(route('dashboard'))
-            ->assertInertia(fn ($page) => $page->where('kpis.todaySales', 230));
+            ->assertInertia(fn ($page) => $page
+                ->where('kpis.todaySales', null)
+                ->where('kpis.monthSales', 230));
     });
 
     // ── LISTS ──────────────────────────────────────────────────────
@@ -176,6 +181,89 @@ describe('Dashboard', function () {
                 ->where('recentInvoices.0.type', 'product')
                 ->where('recentInvoices.0.status', 'paid')
                 ->has('recentInvoices.0.invoiceNumber'));
+    });
+
+    // ── CHARTS (per-role datasets) ─────────────────────────────────
+
+    it('exposes a 30-day revenue trend with today as the last point', function () {
+        dashServiceInvoice($this->branch, $this->branchAdmin, ['paid_at' => now(), 'total_amount' => 230]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->has('revenueTrend', 30)
+                ->where('revenueTrend.29.service', 230));
+    });
+
+    it('splits sales by type for managers but hides it from employees', function () {
+        dashProductInvoice($this->branch, $this->branchAdmin, ['total_amount' => 115]);
+        dashServiceInvoice($this->branch, $this->branchAdmin, ['total_amount' => 230]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('salesByType.product', 115)
+                ->where('salesByType.service', 230));
+
+        $this->actingAs($this->employee)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('salesByType', null)
+                ->where('paymentMethods', null));
+    });
+
+    it('breaks down payment methods for managers', function () {
+        $cash = PaymentMethod::factory()->create(['name' => 'نقدًا']);
+        dashProductInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $cash->id, 'total_amount' => 115]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('paymentMethods.0.name', 'نقدًا')
+                ->where('paymentMethods.0.total', 115));
+    });
+
+    it('shows an employee their incentive progress when a plan exists', function () {
+        IncentivePlan::create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+            'target_amount' => 1000,
+            'bonus_type' => 'fixed',
+            'bonus_value' => 200,
+            'achieved_amount' => 500,
+            'status' => 'active',
+        ]);
+
+        $this->actingAs($this->employee)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('incentive.pct', 50)
+                ->where('incentive.bonus', 200)
+                ->where('incentive.target', 1000));
+    });
+
+    it('returns a null incentive when the employee has no plan', function () {
+        $this->actingAs($this->employee)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page->where('incentive', null));
+    });
+
+    it('gives an accountant finance data but no commissions, low stock or incentive', function () {
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole(Roles::ACCOUNTANT->value);
+
+        dashServiceInvoice($this->branch, $accountant, ['total_amount' => 230]);
+
+        $this->actingAs($accountant)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('kpis.todaySales', 230)
+                ->where('kpis.pendingCommissions', null)
+                ->where('kpis.lowStockCount', null)
+                ->where('incentive', null)
+                ->has('salesByType'));
     });
 
     it('ranks top services this month by revenue', function () {
