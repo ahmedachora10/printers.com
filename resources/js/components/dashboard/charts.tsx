@@ -42,11 +42,14 @@ const VIZ_STYLE = `
 
 const SLOT = (i: number) => `var(--viz-${(i % 8) + 1})`;
 
-/** Compact SAR for axis ticks: 1.2ألف / 3.4م. */
-function compact(v: number): string {
-    if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}م`;
-    if (v >= 1_000) return `${(v / 1_000).toFixed(1)}ألف`;
-    return `${v}`;
+/** Compact SAR for axis ticks & bar labels: 3.4م / 1.2ألف / 669 (rounded, no float noise). */
+function compact(v: number | string): string {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return '';
+    const abs = Math.abs(n);
+    if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}م`;
+    if (abs >= 1_000) return `${(n / 1_000).toFixed(1)}ألف`;
+    return `${Math.round(n)}`;
 }
 
 function shortDate(iso: string): string {
@@ -85,9 +88,12 @@ export function ChartCard({ title, children, className }: { title: string; child
             <CardHeader>
                 <CardTitle>{title}</CardTitle>
             </CardHeader>
+            {/* Recharts lays out in LTR SVG coordinates; forcing dir=ltr keeps the
+                category axis on the left and value labels at the bar tips instead
+                of colliding with RTL-flipped text. Arabic labels still render fine. */}
             <CardContent className="dash-viz">
                 <style dangerouslySetInnerHTML={{ __html: VIZ_STYLE }} />
-                {children}
+                <div dir="ltr">{children}</div>
             </CardContent>
         </Card>
     );
@@ -163,7 +169,7 @@ export function PaymentMethodsChart({ data }: { data: DashboardPaymentMethod[] }
         <ResponsiveContainer width="100%" height={Math.max(180, data.length * 46)}>
             <BarChart data={data} layout="vertical" margin={{ top: 4, right: 56, left: 8, bottom: 4 }}>
                 <XAxis type="number" tickFormatter={compact} tick={{ fill: 'var(--viz-muted)', fontSize: 11 }} stroke="var(--viz-axis)" />
-                <YAxis type="category" dataKey="name" tick={{ fill: 'var(--viz-text)', fontSize: 12 }} stroke="var(--viz-axis)" width={90} />
+                <YAxis type="category" dataKey="name" tick={{ fill: 'var(--viz-text)', fontSize: 12 }} stroke="var(--viz-axis)" width={110} />
                 <Tooltip content={<VizTooltip />} cursor={{ fill: 'var(--viz-border)' }} />
                 <Bar dataKey="total" name="الإجمالي" radius={[0, 4, 4, 0]} barSize={22}>
                     {data.map((_, i) => (
@@ -188,7 +194,7 @@ export function TopServicesChart({ data }: { data: DashboardTopService[] }) {
         <ResponsiveContainer width="100%" height={Math.max(180, data.length * 46)}>
             <BarChart data={data} layout="vertical" margin={{ top: 4, right: 56, left: 8, bottom: 4 }}>
                 <XAxis type="number" tickFormatter={compact} tick={{ fill: 'var(--viz-muted)', fontSize: 11 }} stroke="var(--viz-axis)" />
-                <YAxis type="category" dataKey="name" tick={{ fill: 'var(--viz-text)', fontSize: 12 }} stroke="var(--viz-axis)" width={110} />
+                <YAxis type="category" dataKey="name" tick={{ fill: 'var(--viz-text)', fontSize: 12 }} stroke="var(--viz-axis)" width={120} />
                 <Tooltip content={<VizTooltip />} cursor={{ fill: 'var(--viz-border)' }} />
                 {/* Single measure (magnitude ranking) → one sequential hue. */}
                 <Bar dataKey="total" name="الإيراد" fill="var(--viz-1)" radius={[0, 4, 4, 0]} barSize={22}>
