@@ -50,6 +50,7 @@ class InvoiceController extends Controller
 
         $invoices = DB::query()
             ->fromSub($union, 'invoices')
+            ->when($user->roleName->isEmployee(), fn ($q) => $q->where('user_id', $user->id))
             ->orderByDesc('created_at')
             ->paginate(20)
             ->withQueryString();
