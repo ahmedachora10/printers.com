@@ -28,6 +28,7 @@ export default function CustomerForm({ customer, submitUrl, method, submitLabel,
         email: customer?.email ?? '',
         customer_type: customer?.customerType.value ?? 'individual',
         company_name: customer?.companyName ?? '',
+        tax_number: customer?.taxNumber ?? '',
         credit_limit: customer?.creditLimit !== null && customer?.creditLimit !== undefined
             ? String(customer.creditLimit)
             : '',
@@ -131,6 +132,22 @@ export default function CustomerForm({ customer, submitUrl, method, submitLabel,
                         )}
                     </div>
                 )}
+
+                <div className="space-y-2">
+                    <Label htmlFor="tax_number">الرقم الضريبي</Label>
+                    <Input
+                        id="tax_number"
+                        value={data.tax_number}
+                        onChange={(e) => setData('tax_number', e.target.value)}
+                        placeholder="15 رقماً (اختياري)"
+                        dir="ltr"
+                        inputMode="numeric"
+                        maxLength={15}
+                    />
+                    {errors.tax_number && (
+                        <p className="text-sm text-destructive">{errors.tax_number}</p>
+                    )}
+                </div>
 
                 <div className="space-y-2">
                     <Label htmlFor="credit_limit">

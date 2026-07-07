@@ -16,7 +16,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string $status
  * @property string $invoice_number
  * @property string $total_amount
+ * @property int|null $customer_id
  * @property string|null $customer_name
+ * @property string|null $customer_phone
+ * @property string|null $customer_tax_number
  * @property string|null $employee_name
  * @property string|null $service_name
  * @property string|null $created_at
@@ -39,6 +42,14 @@ class InvoiceListResource extends JsonResource
             && $user->roleName->isEmployee()
             && (int) $this->user_id === $user->id;
 
+        // Inline customer name/phone editing mirrors the review-queue endpoint
+        // (invoices.service.update-customer): service invoices only, and only for
+        // the roles that guard permits — never employees. The server keeps the
+        // final, policy-aware say on the actual update.
+        $canEditCustomer = $user !== null
+            && $type === InvoiceTypeEnum::SERVICE
+            && ($user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin() || $user->roleName->isAccountant());
+
         return [
             'id' => (int) $this->id,
             'type' => $type->value,
@@ -50,11 +61,15 @@ class InvoiceListResource extends JsonResource
             'totalAmount' => (float) $this->total_amount,
             'status' => $status->value,
             'statusLabel' => $status->label(),
+            'customerId' => $this->customer_id !== null ? (int) $this->customer_id : null,
             'customerName' => $this->customer_name,
+            'customerPhone' => $this->customer_phone,
+            'customerTaxNumber' => $this->customer_tax_number,
             'employeeName' => $this->employee_name,
             'createdAt' => $this->created_at,
             'canEdit' => $isOwnerEmployee && $status === InvoiceStatusEnum::DUE,
             'canDelete' => $isOwnerEmployee && $status !== InvoiceStatusEnum::CANCELLED,
+            'canEditCustomer' => $canEditCustomer,
         ];
     }
 }

@@ -1,8 +1,8 @@
+import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
@@ -33,6 +33,7 @@ interface ReviewInvoice {
     customerId: number | null;
     customerName: string | null;
     customerPhone: string | null;
+    customerTaxNumber: string | null;
     branchName: string | null;
     paymentMethod: string | null;
     paymentMethodId: number | null;
@@ -64,9 +65,8 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
     const [savingPaymentId, setSavingPaymentId] = useState<number | null>(null);
     const [expanded, setExpanded] = useState<Record<number, boolean>>({});
     const [editingId, setEditingId] = useState<number | null>(null);
-    const [editName, setEditName] = useState('');
-    const [editPhone, setEditPhone] = useState('');
-    const [editErrors, setEditErrors] = useState<{ full_name?: string; phone?: string }>({});
+    const [editData, setEditData] = useState<InvoiceCustomerFormData>({ full_name: '', phone: '', tax_number: '' });
+    const [editErrors, setEditErrors] = useState<InvoiceCustomerErrors>({});
     const [savingCustomer, setSavingCustomer] = useState(false);
 
     useEffect(() => {
@@ -81,8 +81,11 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
 
     function startEditing(invoice: ReviewInvoice) {
         setEditingId(invoice.id);
-        setEditName(invoice.customerName ?? '');
-        setEditPhone(invoice.customerPhone ?? '');
+        setEditData({
+            full_name: invoice.customerName ?? '',
+            phone: invoice.customerPhone ?? '',
+            tax_number: invoice.customerTaxNumber ?? '',
+        });
         setEditErrors({});
     }
 
@@ -95,10 +98,10 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
         setSavingCustomer(true);
         router.patch(
             serviceInvoice.updateCustomer(invoice.id).url,
-            { full_name: editName.trim(), phone: editPhone.trim() },
+            { full_name: editData.full_name.trim(), phone: editData.phone.trim(), tax_number: editData.tax_number.trim() },
             {
                 preserveScroll: true,
-                onError: (e) => setEditErrors({ full_name: e.full_name, phone: e.phone }),
+                onError: (e) => setEditErrors({ full_name: e.full_name, phone: e.phone, tax_number: e.tax_number }),
                 onSuccess: () => {
                     setEditingId(null);
                     setEditErrors({});
@@ -268,31 +271,14 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
 
                                         {isEditing ? (
                                             <div className="space-y-2">
-                                                <div className="space-y-1">
-                                                    <Label htmlFor={`name-${invoice.id}`} className="text-xs">
-                                                        الاسم
-                                                    </Label>
-                                                    <Input
-                                                        id={`name-${invoice.id}`}
-                                                        value={editName}
-                                                        onChange={(e) => setEditName(e.target.value)}
-                                                        disabled={savingCustomer}
-                                                    />
-                                                    {editErrors.full_name && <p className="text-destructive text-xs">{editErrors.full_name}</p>}
-                                                </div>
-                                                <div className="space-y-1">
-                                                    <Label htmlFor={`phone-${invoice.id}`} className="text-xs">
-                                                        رقم الجوال
-                                                    </Label>
-                                                    <Input
-                                                        id={`phone-${invoice.id}`}
-                                                        value={editPhone}
-                                                        inputMode="tel"
-                                                        onChange={(e) => setEditPhone(e.target.value)}
-                                                        disabled={savingCustomer}
-                                                    />
-                                                    {editErrors.phone && <p className="text-destructive text-xs">{editErrors.phone}</p>}
-                                                </div>
+                                                <InvoiceCustomerFields
+                                                    idPrefix={`review-${invoice.id}`}
+                                                    data={editData}
+                                                    onChange={(field, value) => setEditData((prev) => ({ ...prev, [field]: value }))}
+                                                    errors={editErrors}
+                                                    disabled={savingCustomer}
+                                                    autoFocus
+                                                />
                                                 <div className="flex gap-2 pt-1">
                                                     <Button type="button" size="sm" onClick={() => saveCustomer(invoice)} disabled={savingCustomer}>
                                                         <CheckCircle2 className="size-4" /> حفظ
@@ -306,6 +292,7 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                             <div className="text-muted-foreground space-y-0.5 text-xs">
                                                 <p>الاسم: {invoice.customerName ?? 'عميل عابر'}</p>
                                                 <p>الجوال: {invoice.customerPhone ?? '—'}</p>
+                                                <p>الرقم الضريبي: {invoice.customerTaxNumber ?? '—'}</p>
                                                 {!invoice.customerId && (
                                                     <p className="text-amber-600 dark:text-amber-400">عميل عابر غير مسجَّل — أضف الاسم ورقم الجوال لتسجيله.</p>
                                                 )}

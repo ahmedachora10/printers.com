@@ -46,6 +46,7 @@ export default function CustomerFormModal({ open, onOpenChange, customer, agents
         email: customer?.email ?? '',
         customer_type: customer?.customerType.value ?? 'individual',
         company_name: customer?.companyName ?? '',
+        tax_number: customer?.taxNumber ?? '',
         credit_limit:
             customer?.creditLimit !== null && customer?.creditLimit !== undefined
                 ? String(customer.creditLimit)
@@ -64,6 +65,7 @@ export default function CustomerFormModal({ open, onOpenChange, customer, agents
                 email: customer.email ?? '',
                 customer_type: customer.customerType.value ?? 'individual',
                 company_name: customer.companyName ?? '',
+                tax_number: customer.taxNumber ?? '',
                 credit_limit:
                     customer.creditLimit !== null && customer.creditLimit !== undefined
                         ? String(customer.creditLimit)
@@ -200,6 +202,20 @@ export default function CustomerFormModal({ open, onOpenChange, customer, agents
                                 <InputError message={errors.company_name} />
                             </div>
                         )}
+
+                        <div className="space-y-1">
+                            <Label htmlFor="cf-tax-number">الرقم الضريبي</Label>
+                            <Input
+                                id="cf-tax-number"
+                                value={data.tax_number}
+                                onChange={(e) => setData('tax_number', e.target.value)}
+                                placeholder="15 رقماً (اختياري)"
+                                dir="ltr"
+                                inputMode="numeric"
+                                maxLength={15}
+                            />
+                            <InputError message={errors.tax_number} />
+                        </div>
 
                         <div className="space-y-1">
                             <Label htmlFor="cf-credit-limit">

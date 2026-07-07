@@ -24,6 +24,7 @@ class Customer extends Model
         'branch_id',
         'customer_type',
         'company_name',
+        'tax_number',
         'credit_limit',
         'agent_id',
         'points_balance',

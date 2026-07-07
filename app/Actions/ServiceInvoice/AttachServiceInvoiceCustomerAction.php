@@ -15,7 +15,7 @@ class AttachServiceInvoiceCustomerAction
      * found-or-create-by-phone semantics so a matching phone links the existing
      * customer instead of creating a duplicate.
      *
-     * @param  array{full_name: string, phone: string}  $data
+     * @param  array{full_name: string, phone: string, tax_number?: string|null}  $data
      */
     public function handle(ServiceInvoice $invoice, array $data): ServiceInvoice
     {
@@ -28,6 +28,7 @@ class AttachServiceInvoiceCustomerAction
             $customerId = $existing?->id ?? Customer::create([
                 'full_name' => $data['full_name'],
                 'phone' => $data['phone'],
+                'tax_number' => $data['tax_number'] ?? null,
                 'branch_id' => $invoice->branch_id,
                 'customer_type' => CustomerTypeEnum::Individual,
                 'is_active' => true,

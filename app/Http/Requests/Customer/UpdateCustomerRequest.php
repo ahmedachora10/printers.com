@@ -34,6 +34,7 @@ class UpdateCustomerRequest extends FormRequest
             'email' => ['nullable', 'email', 'max:255'],
             'customer_type' => ['required', Rule::enum(CustomerTypeEnum::class)],
             'company_name' => ['nullable', 'string', 'max:255', 'required_if:customer_type,corporate'],
+            'tax_number' => ['nullable', 'string', 'digits:15'],
             'credit_limit' => ['nullable', 'numeric', 'min:0'],
             'agent_id' => ['nullable', 'integer', 'exists:users,id'],
             'notes' => ['nullable', 'string'],
