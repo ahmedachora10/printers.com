@@ -13,6 +13,16 @@ class UpdateInvoiceCustomerRequest extends FormRequest
         return true;
     }
 
+    protected function prepareForValidation(): void
+    {
+        // Treat a blank tax number as "none" so it clears cleanly and satisfies
+        // the nullable/digits rule instead of failing on an empty string.
+        $tax = $this->input('tax_number');
+        $this->merge([
+            'tax_number' => is_string($tax) && trim($tax) !== '' ? trim($tax) : null,
+        ]);
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
@@ -36,6 +46,7 @@ class UpdateInvoiceCustomerRequest extends FormRequest
         return [
             'full_name' => ['required', 'string', 'max:255'],
             'phone' => $phone,
+            'tax_number' => ['nullable', 'string', 'digits:15'],
         ];
     }
 
@@ -45,6 +56,7 @@ class UpdateInvoiceCustomerRequest extends FormRequest
             'full_name.required' => 'اسم العميل مطلوب.',
             'phone.required' => 'رقم الجوال مطلوب.',
             'phone.unique' => 'رقم الجوال مستخدم لعميل آخر.',
+            'tax_number.digits' => 'الرقم الضريبي يجب أن يكون 15 رقماً.',
         ];
     }
 }

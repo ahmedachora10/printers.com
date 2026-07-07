@@ -241,6 +241,51 @@ describe('Service invoice review', function () {
             ->phone->toBe('0500000002');
     });
 
+    it('updates the customer tax number from the review queue', function () {
+        $customer = Customer::factory()->create([
+            'branch_id' => $this->branch->id,
+            'full_name' => 'عميل',
+            'phone' => '0500000010',
+            'tax_number' => null,
+        ]);
+
+        $invoice = makeDueInvoice(['customer_id' => $customer->id]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => 'عميل',
+            'phone' => '0500000010',
+            'tax_number' => '300000000000003',
+        ])->assertSessionHasNoErrors();
+
+        expect($customer->refresh()->tax_number)->toBe('300000000000003');
+    });
+
+    it('registers a walk-in customer with a tax number', function () {
+        $invoice = makeDueInvoice(['customer_id' => null]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => 'عميل جديد',
+            'phone' => '0500000011',
+            'tax_number' => '300000000000004',
+        ])->assertSessionHasNoErrors();
+
+        $customer = Customer::where('phone', '0500000011')->where('branch_id', $this->branch->id)->first();
+
+        expect($customer)->not->toBeNull()
+            ->and($customer->tax_number)->toBe('300000000000004');
+    });
+
+    it('rejects a tax number that is not 15 digits', function () {
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
+        $invoice = makeDueInvoice(['customer_id' => $customer->id]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => $customer->full_name,
+            'phone' => $customer->phone,
+            'tax_number' => '123',
+        ])->assertSessionHasErrors('tax_number');
+    });
+
     it('validates name and phone when editing the customer', function () {
         $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
         $invoice = makeDueInvoice(['customer_id' => $customer->id]);

@@ -116,6 +116,11 @@ export default function CustomerShow({
                             {customer.companyName && (
                                 <p className="text-muted-foreground">{customer.companyName}</p>
                             )}
+                            {customer.taxNumber && (
+                                <p className="text-sm text-muted-foreground">
+                                    الرقم الضريبي: <span dir="ltr">{customer.taxNumber}</span>
+                                </p>
+                            )}
                             <div className="mt-1 flex items-center gap-3">
                                 <a
                                     href={`https://wa.me/${customer.phone}`}

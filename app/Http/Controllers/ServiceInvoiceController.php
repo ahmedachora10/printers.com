@@ -164,7 +164,7 @@ class ServiceInvoiceController extends Controller
         $dueInvoices = ServiceInvoice::query()
             ->where('status', InvoiceStatusEnum::DUE)
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $user->branchId))
-            ->with(['lines', 'customer:id,full_name,phone', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media'])
+            ->with(['lines', 'customer:id,full_name,phone,tax_number', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media'])
             ->latest()
             ->get();
 
@@ -196,6 +196,7 @@ class ServiceInvoiceController extends Controller
                     'customerId' => $invoice->customer?->id,
                     'customerName' => $invoice->customer?->full_name,
                     'customerPhone' => $invoice->customer?->phone,
+                    'customerTaxNumber' => $invoice->customer?->tax_number,
                     'branchName' => $invoice->branch?->name,
                     'paymentMethod' => $invoice->paymentMethod?->name,
                     'paymentMethodId' => $invoice->payment_method_id,
@@ -254,7 +255,7 @@ class ServiceInvoiceController extends Controller
 
             $attachAction->handle($invoice, $request->validated());
 
-            return to_route('invoices.service.review')
+            return redirect()->back(fallback: route('invoices.service.review'))
                 ->with('success', "تم إضافة بيانات العميل للفاتورة {$invoice->invoice_number}");
         }
 
@@ -262,7 +263,7 @@ class ServiceInvoiceController extends Controller
 
         $updateAction->handle($customer, $request->validated());
 
-        return to_route('invoices.service.review')
+        return redirect()->back(fallback: route('invoices.service.review'))
             ->with('success', "تم تحديث بيانات العميل للفاتورة {$invoice->invoice_number}");
     }
 

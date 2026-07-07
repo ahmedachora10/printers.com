@@ -1,16 +1,18 @@
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
+import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
 import { Link, router } from '@inertiajs/react';
-import { Eye, Pencil, Printer, Trash2 } from 'lucide-react';
+import { Eye, Loader2, Pencil, Printer, Trash2, UserPlus } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -45,6 +47,44 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
     const [deleteItem, setDeleteItem] = useState<InvoiceListItem | null>(null);
     const [deleting, setDeleting] = useState(false);
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+
+    // Customer name/phone/tax editing — service invoices only, gated by
+    // item.canEditCustomer. Reuses the review-queue update-customer endpoint,
+    // which also registers a new customer for cash rows (no customerId). The
+    // form opens in a modal via the shared InvoiceCustomerFields component.
+    const [editingItem, setEditingItem] = useState<InvoiceListItem | null>(null);
+    const [editData, setEditData] = useState<InvoiceCustomerFormData>({ full_name: '', phone: '', tax_number: '' });
+    const [editErrors, setEditErrors] = useState<InvoiceCustomerErrors>({});
+    const [savingCustomer, setSavingCustomer] = useState(false);
+
+    function openCustomerEditor(item: InvoiceListItem) {
+        setEditingItem(item);
+        setEditData({
+            full_name: item.customerName ?? '',
+            phone: item.customerPhone ?? '',
+            tax_number: item.customerTaxNumber ?? '',
+        });
+        setEditErrors({});
+    }
+
+    function saveCustomer() {
+        if (!editingItem) return;
+        setSavingCustomer(true);
+        router.patch(
+            serviceInvoice.updateCustomer(editingItem.id).url,
+            { full_name: editData.full_name.trim(), phone: editData.phone.trim(), tax_number: editData.tax_number.trim() },
+            {
+                preserveScroll: true,
+                onError: (e) => setEditErrors({ full_name: e.full_name, phone: e.phone, tax_number: e.tax_number }),
+                onSuccess: () => {
+                    setEditingItem(null);
+                    setEditErrors({});
+                    toast.success('تم تحديث بيانات العميل.');
+                },
+                onFinish: () => setSavingCustomer(false),
+            },
+        );
+    }
 
     function confirmDelete() {
         if (!deleteItem) return;
@@ -141,7 +181,34 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
             {
                 key: 'customerName',
                 header: 'العميل',
-                cell: (item) => item.customerName ?? <span className="text-muted-foreground">عميل نقدي</span>,
+                cell: (item) => (
+                    <div className="group flex items-start justify-start gap-1.5">
+                        <div className="min-w-0">
+                            {item.customerName ? (
+                                <span>{item.customerName}</span>
+                            ) : (
+                                <span className="text-muted-foreground">عميل نقدي</span>
+                            )}
+                            {item.customerPhone && (
+                                <div className="text-xs text-muted-foreground" dir="ltr">
+                                    {item.customerPhone}
+                                </div>
+                            )}
+                        </div>
+                        {item.canEditCustomer && (
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                aria-label={item.customerId ? 'تعديل بيانات العميل' : 'إضافة عميل'}
+                                title={item.customerId ? 'تعديل بيانات العميل' : 'إضافة عميل'}
+                                onClick={() => openCustomerEditor(item)}
+                            >
+                                {item.customerId ? <Pencil className="h-3.5 w-3.5" /> : <UserPlus className="h-3.5 w-3.5" />}
+                            </Button>
+                        )}
+                    </div>
+                ),
             },
             {
                 key: 'employeeName',
@@ -270,6 +337,36 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
                     }}
                 />
             </div>
+
+            <Dialog open={!!editingItem} onOpenChange={(open) => !open && !savingCustomer && setEditingItem(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{editingItem?.customerId ? 'تعديل بيانات العميل' : 'إضافة عميل للفاتورة'}</DialogTitle>
+                        <DialogDescription>
+                            الفاتورة {editingItem?.invoiceNumber}
+                            {editingItem && !editingItem.customerId
+                                ? ' — عميل نقدي غير مسجَّل، أدخل الاسم ورقم الجوال لتسجيله.'
+                                : ''}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <InvoiceCustomerFields
+                        idPrefix="invoice-customer"
+                        data={editData}
+                        onChange={(field, value) => setEditData((prev) => ({ ...prev, [field]: value }))}
+                        errors={editErrors}
+                        disabled={savingCustomer}
+                        autoFocus
+                    />
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setEditingItem(null)} disabled={savingCustomer}>
+                            إلغاء
+                        </Button>
+                        <Button onClick={saveCustomer} disabled={savingCustomer}>
+                            {savingCustomer && <Loader2 className="size-4 animate-spin" />} حفظ
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={!!deleteItem} onOpenChange={(open) => !open && setDeleteItem(null)}>
                 <DialogContent>

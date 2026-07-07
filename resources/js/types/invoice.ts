@@ -75,11 +75,15 @@ export interface InvoiceListItem {
     totalAmount: number;
     status: InvoiceStatus;
     statusLabel: string;
+    customerId: number | null;
     customerName: string | null;
+    customerPhone: string | null;
+    customerTaxNumber: string | null;
     employeeName: string | null;
     createdAt: string;
     canEdit: boolean;
     canDelete: boolean;
+    canEditCustomer: boolean;
 }
 
 export interface PaginatedInvoice {

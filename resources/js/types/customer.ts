@@ -12,6 +12,7 @@ export interface Customer {
         label: string;
     };
     companyName: string | null;
+    taxNumber: string | null;
     creditLimit: number | null;
     agentId: number | null;
     agent?: { id: number; name: string } | null;

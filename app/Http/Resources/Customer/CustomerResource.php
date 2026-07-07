@@ -25,6 +25,7 @@ class CustomerResource extends JsonResource
                 'label' => $this->customer_type?->label(),
             ],
             'companyName' => $this->company_name,
+            'taxNumber' => $this->tax_number,
             'creditLimit' => $this->credit_limit,
             'agentId' => $this->agent_id,
             'agent' => $this->whenLoaded('agent', fn () => [
