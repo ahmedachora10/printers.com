@@ -21,8 +21,9 @@ import {
     type InvoiceHistoryItem,
     type LoyaltyTransaction,
 } from '@/types/customer';
-import { useForm } from '@inertiajs/react';
+import { Link, useForm } from '@inertiajs/react';
 import {
+    Activity,
     ArrowLeftRight,
     Building2,
     CreditCard,
@@ -139,6 +140,12 @@ export default function CustomerShow({
                     </div>
 
                     <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href={customersRoute.activity(customer.id).url}>
+                                <Activity className="size-4" />
+                                النشاط والتحليلات
+                            </Link>
+                        </Button>
                         <Button variant="outline" size="sm" asChild>
                             <a href={`https://wa.me/${customer.phone}`} target="_blank" rel="noreferrer">
                                 <MessageCircle className="size-4" />

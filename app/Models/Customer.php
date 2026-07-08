@@ -9,12 +9,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Customer extends Model
 {
     /** @use HasFactory<CustomerFactory> */
     use HasFactory;
 
+    use LogsActivity;
     use SoftDeletes;
 
     protected $fillable = [
@@ -41,6 +44,17 @@ class Customer extends Model
         'cumulative_spend' => 'decimal:2',
         'is_active' => 'boolean',
     ];
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        // Dirty-only: loyalty earns touch points/spend on every paid invoice —
+        // logging full snapshots each time would drown the CRM timeline.
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('customers');
+    }
 
     /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
