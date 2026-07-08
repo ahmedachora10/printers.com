@@ -52,6 +52,7 @@ export interface Invoice {
     employeeCommission: number | null;
     customerName: string | null;
     customerPhone: string | null;
+    customerTaxNumber: string | null;
     paymentMethod: string | null;
     receiptUrl: string | null;
     lines: InvoiceLine[];

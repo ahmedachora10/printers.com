@@ -82,6 +82,7 @@ class InvoiceResource extends JsonResource
                 : null,
             'customerName' => $this->customer?->full_name,
             'customerPhone' => $this->customer?->phone,
+            'customerTaxNumber' => $this->customer?->tax_number ?? null,
             'paymentMethod' => $this->paymentMethod?->name,
             'receiptUrl' => $this->receiptUrl(),
             'lines' => InvoiceLineResource::collection($this->whenLoaded('lines')),

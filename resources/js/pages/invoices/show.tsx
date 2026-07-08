@@ -111,6 +111,9 @@ export default function InvoiceShow({ invoice }: Props) {
                                 {invoice.statusLabel}
                             </Badge>
                             <Badge variant="secondary">{invoice.typeLabel}</Badge>
+                            <Badge variant="outline">
+                                {invoice.customerTaxNumber ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة'}
+                            </Badge>
                             {invoice.isFullyRefunded && (
                                 <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
                                     مُرتجعة
@@ -302,6 +305,12 @@ export default function InvoiceShow({ invoice }: Props) {
                             <MetaRow label="العميل" value={invoice.customerName ?? 'عميل نقدي'} />
                             {invoice.customerPhone && (
                                 <MetaRow label="الهاتف" value={<span dir="ltr">{invoice.customerPhone}</span>} />
+                            )}
+                            {invoice.customerTaxNumber && (
+                                <MetaRow
+                                    label="الرقم الضريبي للعميل"
+                                    value={<span dir="ltr">{invoice.customerTaxNumber}</span>}
+                                />
                             )}
                             <MetaRow label="طريقة الدفع" value={invoice.paymentMethod ?? '—'} />
                             {invoice.receiptUrl && (

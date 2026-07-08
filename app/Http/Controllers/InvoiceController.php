@@ -73,12 +73,14 @@ class InvoiceController extends Controller
 
         $invoice->load([
             'lines',
-            'customer:id,full_name,phone',
+            'customer:id,full_name,phone,tax_number',
             'agent:id,name',
             'paymentMethod:id,name',
             'branch',
             'refunds' => fn ($q) => $q->with('user:id,name')->latest(),
         ]);
+
+        // dd(new InvoiceResource($invoice));
 
         return Inertia::render('invoices/show', [
             'invoice' => new InvoiceResource($invoice),
@@ -90,7 +92,7 @@ class InvoiceController extends Controller
         $invoice = $this->resolveInvoice($type, $id);
         Gate::authorize('view', $invoice);
 
-        $invoice->load(['lines', 'customer:id,full_name,phone', 'paymentMethod:id,name', 'branch']);
+        $invoice->load(['lines', 'customer:id,full_name,phone,tax_number', 'paymentMethod:id,name', 'branch']);
 
         $format = $request->input('format') === 'thermal' ? 'thermal' : 'a4';
 

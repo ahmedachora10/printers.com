@@ -11,6 +11,11 @@ interface Props {
     zatcaQr: string;
 }
 
+// فاتورة ضريبية (B2B) عندما يملك العميل رقماً ضريبياً، وإلا فاتورة ضريبية مبسطة (B2C)
+function invoiceTitle(invoice: Invoice): string {
+    return invoice.customerTaxNumber ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة';
+}
+
 function PrintToolbar() {
     return (
         <div className="mb-4 flex items-center justify-end gap-2 print:hidden">
@@ -37,6 +42,7 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                 {invoice.branch.phone && <p className="text-xs">{invoice.branch.phone}</p>}
                 {invoice.branch.address && <p className="text-xs">{invoice.branch.address}</p>}
                 {invoice.branch.taxNumber && <p className="text-xs">الرقم الضريبي: {invoice.branch.taxNumber}</p>}
+                <h2 className="mt-2 text-sm font-bold">{invoiceTitle(invoice)}</h2>
             </div>
 
             <div className="my-3 border-t border-dashed border-black" />
@@ -62,6 +68,12 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                     <div className="flex justify-between">
                         <span>العميل</span>
                         <span>{invoice.customerName}</span>
+                    </div>
+                )}
+                {invoice.customerTaxNumber && (
+                    <div className="flex justify-between">
+                        <span>الرقم الضريبي للعميل</span>
+                        <span dir="ltr">{invoice.customerTaxNumber}</span>
                     </div>
                 )}
                 {invoice.paymentMethod && (
@@ -148,7 +160,7 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) 
                 )}
             </div>
 
-            <h2 className="my-6 text-center text-lg font-bold">فاتورة ضريبية</h2>
+            <h2 className="my-6 text-center text-lg font-bold">{invoiceTitle(invoice)}</h2>
 
             {/* Meta grid */}
             <div className="mb-6 grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
@@ -172,6 +184,12 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) 
                     <span className="text-neutral-500">العميل</span>
                     <span>{invoice.customerName ?? 'عميل نقدي'}</span>
                 </div>
+                {invoice.customerTaxNumber && (
+                    <div className="flex justify-between">
+                        <span className="text-neutral-500">الرقم الضريبي للعميل</span>
+                        <span dir="ltr">{invoice.customerTaxNumber}</span>
+                    </div>
+                )}
                 {invoice.paymentMethod && (
                     <div className="flex justify-between">
                         <span className="text-neutral-500">طريقة الدفع</span>
