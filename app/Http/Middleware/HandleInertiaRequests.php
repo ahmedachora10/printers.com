@@ -275,6 +275,12 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
+                'title' => 'جرد المخزون',
+                'url' => route('inventory.stock-reconciliations.index'),
+                'icon' => 'ClipboardCheck',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
                 'title' => 'الإشعارات',
                 'url' => route('notifications.index'),
                 'icon' => 'Bell',
