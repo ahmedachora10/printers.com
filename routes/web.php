@@ -15,6 +15,7 @@ use App\Http\Controllers\CityController;
 use App\Http\Controllers\CommissionController;
 use App\Http\Controllers\CommissionReportController;
 use App\Http\Controllers\CouponController;
+use App\Http\Controllers\CustomerActivityController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseCategoryController;
@@ -190,6 +191,11 @@ Route::middleware(['auth'])->group(function () {
             ->name('customers.merge');
         Route::patch('customers/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])
             ->name('customers.toggle-status');
+
+        // CRM & customer analytics (M23): unified activity timeline + purchase
+        // analytics; visible to whoever can view the customer profile.
+        Route::get('customers/{customer}/activity', [CustomerActivityController::class, 'show'])
+            ->name('customers.activity');
 
         Route::prefix('invoices')->name('invoices.')->group(function () {
             Route::get('/', [InvoiceController::class, 'index'])->name('index');

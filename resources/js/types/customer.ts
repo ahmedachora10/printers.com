@@ -69,6 +69,79 @@ export interface InvoiceHistoryItem {
     type: 'service' | 'product';
 }
 
+export interface TimelineAuditEvent {
+    id: string;
+    kind: 'audit';
+    event: 'created' | 'updated' | 'deleted' | string;
+    causer: string | null;
+    changedFields: string[];
+    occurredAt: string;
+}
+
+export interface TimelineInvoiceEvent {
+    id: string;
+    kind: 'invoice';
+    invoiceId: number;
+    invoiceType: 'service' | 'product';
+    invoiceNumber: string;
+    amount: number;
+    status: 'paid' | 'due' | 'cancelled';
+    occurredAt: string;
+}
+
+export interface TimelineLoyaltyEvent {
+    id: string;
+    kind: 'loyalty';
+    loyaltyType: 'earn' | 'redeem' | 'manual_adjust' | 'expire';
+    points: number;
+    balanceAfter: number;
+    notes: string | null;
+    occurredAt: string;
+}
+
+export interface TimelineRefundEvent {
+    id: string;
+    kind: 'refund';
+    amount: number;
+    reason: string;
+    occurredAt: string;
+}
+
+export type CustomerTimelineEvent =
+    | TimelineAuditEvent
+    | TimelineInvoiceEvent
+    | TimelineLoyaltyEvent
+    | TimelineRefundEvent;
+
+export interface CustomerMonthlySpendPoint {
+    month: string;
+    service: number;
+    product: number;
+}
+
+export interface CustomerAnalyticsKpis {
+    paidInvoiceCount: number;
+    lifetimeSpend: number;
+    avgInvoiceValue: number;
+    purchasesPerMonth: number;
+    firstPurchaseAt: string | null;
+    lastPurchaseAt: string | null;
+    daysSinceLastPurchase: number | null;
+}
+
+export interface CustomerTopItem {
+    name: string;
+    qty: number;
+    total: number;
+}
+
+export interface CustomerAnalytics {
+    monthlySpend: CustomerMonthlySpendPoint[];
+    kpis: CustomerAnalyticsKpis;
+    topServices: CustomerTopItem[];
+    topProducts: CustomerTopItem[];
+}
+
 export interface OutstandingReportItem {
     id: number;
     fullName: string;
