@@ -35,6 +35,7 @@ use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\ServiceInvoiceController;
 use App\Http\Controllers\ServiceTemplateController;
 use App\Http\Controllers\StockMovementController;
+use App\Http\Controllers\StockReconciliationController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -134,6 +135,11 @@ Route::middleware(['auth'])->group(function () {
         Route::get('inventory/purchase-orders/{purchase_order}', [PurchaseOrderController::class, 'show'])
             ->whereNumber('purchase_order')
             ->name('inventory.purchase-orders.show');
+        Route::get('inventory/stock-reconciliations', [StockReconciliationController::class, 'index'])
+            ->name('inventory.stock-reconciliations.index');
+        Route::get('inventory/stock-reconciliations/{stock_reconciliation}', [StockReconciliationController::class, 'show'])
+            ->whereNumber('stock_reconciliation')
+            ->name('inventory.stock-reconciliations.show');
 
         Route::get('refunds/lookup', [RefundController::class, 'lookup'])->name('refunds.lookup');
         Route::get('refunds', [RefundController::class, 'index'])->name('refunds.index');
@@ -295,6 +301,15 @@ Route::middleware(['auth'])->group(function () {
                 ->name('purchase-orders.receive');
             Route::patch('purchase-orders/{purchase_order}/cancel', [PurchaseOrderController::class, 'cancel'])
                 ->name('purchase-orders.cancel');
+
+            Route::post('stock-reconciliations', [StockReconciliationController::class, 'store'])
+                ->name('stock-reconciliations.store');
+            Route::put('stock-reconciliations/{stock_reconciliation}/counts', [StockReconciliationController::class, 'updateCounts'])
+                ->name('stock-reconciliations.counts');
+            Route::post('stock-reconciliations/{stock_reconciliation}/complete', [StockReconciliationController::class, 'complete'])
+                ->name('stock-reconciliations.complete');
+            Route::delete('stock-reconciliations/{stock_reconciliation}', [StockReconciliationController::class, 'destroy'])
+                ->name('stock-reconciliations.destroy');
         });
     });
 
