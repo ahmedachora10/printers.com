@@ -29,6 +29,7 @@ class StoreServiceInvoiceRequest extends FormRequest
             'agent_id' => ['nullable', 'integer', 'exists:users,id'],
             'walkin_name' => ['nullable', 'string', 'max:255'],
             'walkin_phone' => ['nullable', 'string', 'max:30'],
+            'walkin_tax_number' => ['nullable', 'string', 'digits:15'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             'payment_method_id' => ['nullable', 'integer', 'exists:payment_methods,id'],
@@ -60,6 +61,7 @@ class StoreServiceInvoiceRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'walkin_tax_number.digits' => 'الرقم الضريبي يجب أن يكون 15 رقماً.',
             'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.',
             'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',

@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\CommissionLedger;
 use App\Models\Coupon;
+use App\Models\Customer;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\ServiceTemplate;
@@ -248,6 +249,53 @@ describe('Service POS', function () {
         ]);
 
         expect(ServiceInvoice::firstOrFail()->customer_id)->not->toBeNull();
+    });
+
+    it('saves the walk-in tax number on the created customer', function () {
+        $this->post(route('pos.service.store'), svcPayload([
+            'walkin_name' => 'زائر الناسخ',
+            'walkin_phone' => '0500000001',
+            'walkin_tax_number' => '310123456700003',
+        ]));
+
+        $this->assertDatabaseHas('customers', [
+            'phone' => '0500000001',
+            'tax_number' => '310123456700003',
+        ]);
+    });
+
+    it('fills the tax number of a matched walk-in customer only when empty', function () {
+        $existing = Customer::factory()->create([
+            'branch_id' => $this->branch->id,
+            'phone' => '0500000001',
+            'tax_number' => null,
+        ]);
+
+        $this->post(route('pos.service.store'), svcPayload([
+            'walkin_name' => 'زائر',
+            'walkin_phone' => '0500000001',
+            'walkin_tax_number' => '310123456700003',
+        ]));
+
+        expect($existing->refresh()->tax_number)->toBe('310123456700003');
+
+        // A later invoice with a different tax number must not overwrite it.
+        $this->post(route('pos.service.store'), svcPayload([
+            'walkin_name' => 'زائر',
+            'walkin_phone' => '0500000001',
+            'walkin_tax_number' => '310999999900003',
+        ]));
+
+        expect($existing->refresh()->tax_number)->toBe('310123456700003');
+    });
+
+    it('rejects a walk-in tax number that is not 15 digits', function () {
+        $this->post(route('pos.service.store'), svcPayload([
+            'walkin_name' => 'زائر',
+            'walkin_tax_number' => '12345',
+        ]))->assertSessionHasErrors('walkin_tax_number');
+
+        expect(ServiceInvoice::count())->toBe(0);
     });
 
     it('applies a percentage coupon to the taxable base', function () {

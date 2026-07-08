@@ -185,6 +185,7 @@ class CalculateServiceInvoiceAction
 
         $name = trim((string) ($data['walkin_name'] ?? ''));
         $phone = trim((string) ($data['walkin_phone'] ?? ''));
+        $taxNumber = trim((string) ($data['walkin_tax_number'] ?? ''));
 
         if ($name === '' && $phone === '') {
             return null;
@@ -197,6 +198,12 @@ class CalculateServiceInvoiceAction
                 ->first();
 
             if ($existing) {
+                // Fill the tax number if the customer doesn't have one yet —
+                // never overwrite an already-recorded value.
+                if ($taxNumber !== '' && $existing->tax_number === null) {
+                    $existing->update(['tax_number' => $taxNumber]);
+                }
+
                 return $existing->id;
             }
         }
@@ -204,6 +211,7 @@ class CalculateServiceInvoiceAction
         return Customer::create([
             'full_name' => $name !== '' ? $name : 'عميل عابر',
             'phone' => $phone !== '' ? $phone : null,
+            'tax_number' => $taxNumber !== '' ? $taxNumber : null,
             'branch_id' => $branchId,
             'customer_type' => CustomerTypeEnum::Individual,
             'is_active' => true,

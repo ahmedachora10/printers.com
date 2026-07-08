@@ -95,6 +95,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     const [agentId, setAgentId] = useState<string>(invoice?.agentId ? String(invoice.agentId) : 'none');
     const [walkinName, setWalkinName] = useState('');
     const [walkinPhone, setWalkinPhone] = useState('');
+    const [walkinTaxNumber, setWalkinTaxNumber] = useState('');
     const [status, setStatus] = useState<InvoiceStatus>(isEmployee ? 'due' : 'paid');
     const [paymentMethodId, setPaymentMethodId] = useState<number | null>(invoice?.paymentMethodId ?? null);
     const [receipt, setReceipt] = useState<File | null>(null);
@@ -299,6 +300,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         setSelectedCustomer(null);
         setWalkinName('');
         setWalkinPhone('');
+        setWalkinTaxNumber('');
         setPaymentMethodId(null);
         setReceipt(null);
         setStatus(isEmployee ? 'due' : 'paid');
@@ -329,6 +331,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             agent_id: agentId === 'none' ? null : Number(agentId),
             walkin_name: customerId === 'none' ? walkinName.trim() || null : null,
             walkin_phone: customerId === 'none' ? walkinPhone.trim() || null : null,
+            walkin_tax_number: customerId === 'none' ? walkinTaxNumber.trim() || null : null,
             coupon_code: appliedCoupon?.code ?? null,
             redeem_points: loyaltyOn && Number(redeemPoints) > 0 ? Number(redeemPoints) : null,
             payment_method_id: paymentMethodId,
@@ -406,6 +409,14 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                         placeholder="رقم الهاتف"
                                         inputMode="tel"
                                     />
+                                    <Input
+                                        value={walkinTaxNumber}
+                                        onChange={(e) => setWalkinTaxNumber(e.target.value.replace(/[^0-9]/g, ''))}
+                                        placeholder="الرقم الضريبي (اختياري — 15 رقماً)"
+                                        inputMode="numeric"
+                                        maxLength={15}
+                                    />
+                                    {errors.walkin_tax_number && <p className="text-destructive text-xs">{errors.walkin_tax_number}</p>}
                                 </>
                             )}
                         </CardContent>
