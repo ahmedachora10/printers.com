@@ -3,6 +3,7 @@
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentPaymentController;
 use App\Http\Controllers\AgentPortalController;
+use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AppSettingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchServiceController;
@@ -209,6 +210,11 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.sales.export');
         Route::get('reports/sales', [SalesReportController::class, 'index'])
             ->name('reports.sales');
+
+        // Advanced analytics (M25): Recharts dashboards over paid invoices and
+        // loyalty activity, same audience and scoping as the sales report.
+        Route::get('analytics', [AnalyticsController::class, 'index'])
+            ->name('analytics.index');
     });
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {
