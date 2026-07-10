@@ -1,6 +1,7 @@
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ChartCard, compact, EmptyState, SLOT, VizTooltip } from '@/components/viz';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils';
@@ -16,7 +17,7 @@ import {
     type TimelineLoyaltyEvent,
     type TimelineRefundEvent,
 } from '@/types/customer';
-import { Head, Link } from '@inertiajs/react';
+import { Deferred, Head, Link } from '@inertiajs/react';
 import { ArrowRight, FileText, PencilLine, Star, Undo2, UserPlus } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
@@ -59,8 +60,10 @@ const FIELD_LABELS: Record<string, string> = {
 
 interface Props {
     customer: Customer;
-    timeline: CustomerTimelineEvent[];
-    analytics: CustomerAnalytics;
+    /** Deferred prop — undefined until its follow-up request resolves. */
+    timeline?: CustomerTimelineEvent[];
+    /** Deferred prop — undefined until its follow-up request resolves. */
+    analytics?: CustomerAnalytics;
 }
 
 /** Month tick: "2026-03" → "3/2026". */
@@ -89,7 +92,15 @@ function MonthlySpendChart({ data }: { data: CustomerAnalytics['monthlySpend'] }
                 <Tooltip cursor={{ fill: 'var(--viz-grid)', opacity: 0.4 }} content={<VizTooltip />} labelFormatter={(l) => shortMonth(String(l))} />
                 <Legend wrapperStyle={{ fontSize: 12 }} />
                 <Bar dataKey="service" name="خدمات" stackId="spend" fill={SLOT(1)} stroke="var(--viz-surface)" strokeWidth={1} />
-                <Bar dataKey="product" name="منتجات" stackId="spend" fill={SLOT(0)} stroke="var(--viz-surface)" strokeWidth={1} radius={[3, 3, 0, 0]} />
+                <Bar
+                    dataKey="product"
+                    name="منتجات"
+                    stackId="spend"
+                    fill={SLOT(0)}
+                    stroke="var(--viz-surface)"
+                    strokeWidth={1}
+                    radius={[3, 3, 0, 0]}
+                />
             </BarChart>
         </ResponsiveContainer>
     );
@@ -97,18 +108,18 @@ function MonthlySpendChart({ data }: { data: CustomerAnalytics['monthlySpend'] }
 
 function KpiTile({ label, value, hint }: { label: string; value: React.ReactNode; hint?: string }) {
     return (
-        <div className="rounded-lg bg-muted/40 p-4">
-            <p className="text-sm text-muted-foreground">{label}</p>
+        <div className="bg-muted/40 rounded-lg p-4">
+            <p className="text-muted-foreground text-sm">{label}</p>
             <p className="mt-1 text-xl font-bold tabular-nums" dir="ltr">
                 {value}
             </p>
-            {hint && <p className="mt-0.5 text-xs text-muted-foreground">{hint}</p>}
+            {hint && <p className="text-muted-foreground mt-0.5 text-xs">{hint}</p>}
         </div>
     );
 }
 
-function TopItemsCard({ title, items }: { title: string; items: CustomerAnalytics['topServices'] }) {
-    const max = Math.max(...items.map((i) => i.total), 1);
+function TopItemsCard({ title, items }: { title: string; items?: CustomerAnalytics['topServices'] }) {
+    const max = Math.max(...(items?.map((i) => i.total) ?? []), 1);
 
     return (
         <Card>
@@ -116,31 +127,35 @@ function TopItemsCard({ title, items }: { title: string; items: CustomerAnalytic
                 <CardTitle>{title}</CardTitle>
             </CardHeader>
             <CardContent>
-                {items.length === 0 ? (
-                    <p className="py-6 text-center text-sm text-muted-foreground">لا توجد مشتريات</p>
-                ) : (
-                    <div className="space-y-3">
-                        {items.map((item) => (
-                            <div key={item.name}>
-                                <div className="mb-1 flex items-center justify-between gap-2 text-sm">
-                                    <span className="truncate font-medium">{item.name}</span>
-                                    <span className="shrink-0 tabular-nums text-muted-foreground" dir="ltr">
-                                        {formatCurrency(item.total)}
-                                    </span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                                        <div
-                                            className="h-full rounded-full bg-primary/70"
-                                            style={{ width: `${(item.total / max) * 100}%` }}
-                                        />
+                <Deferred data="analytics" fallback={<TopItemsSkeleton />}>
+                    <>
+                        {!items ? null : items.length === 0 ? (
+                            <p className="text-muted-foreground py-6 text-center text-sm">لا توجد مشتريات</p>
+                        ) : (
+                            <div className="space-y-3">
+                                {items.map((item) => (
+                                    <div key={item.name}>
+                                        <div className="mb-1 flex items-center justify-between gap-2 text-sm">
+                                            <span className="truncate font-medium">{item.name}</span>
+                                            <span className="text-muted-foreground shrink-0 tabular-nums" dir="ltr">
+                                                {formatCurrency(item.total)}
+                                            </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div className="bg-muted h-1.5 flex-1 overflow-hidden rounded-full">
+                                                <div
+                                                    className="bg-primary/70 h-full rounded-full"
+                                                    style={{ width: `${(item.total / max) * 100}%` }}
+                                                />
+                                            </div>
+                                            <span className="text-muted-foreground shrink-0 text-xs tabular-nums">×{formatNumber(item.qty)}</span>
+                                        </div>
                                     </div>
-                                    <span className="shrink-0 text-xs tabular-nums text-muted-foreground">×{formatNumber(item.qty)}</span>
-                                </div>
+                                ))}
                             </div>
-                        ))}
-                    </div>
-                )}
+                        )}
+                    </>
+                </Deferred>
             </CardContent>
         </Card>
     );
@@ -157,10 +172,8 @@ function AuditEntry({ event }: { event: TimelineAuditEvent }) {
             title={isCreated ? 'إنشاء ملف العميل' : 'تحديث بيانات العميل'}
             occurredAt={event.occurredAt}
         >
-            {!isCreated && fields.length > 0 && (
-                <p className="text-xs text-muted-foreground">الحقول المعدّلة: {fields.join('، ')}</p>
-            )}
-            {event.causer && <p className="text-xs text-muted-foreground">بواسطة {event.causer}</p>}
+            {!isCreated && fields.length > 0 && <p className="text-muted-foreground text-xs">الحقول المعدّلة: {fields.join('، ')}</p>}
+            {event.causer && <p className="text-muted-foreground text-xs">بواسطة {event.causer}</p>}
         </TimelineRow>
     );
 }
@@ -209,9 +222,9 @@ function LoyaltyEntry({ event }: { event: TimelineLoyaltyEvent }) {
                     {event.points > 0 ? '+' : ''}
                     {formatNumber(event.points)}
                 </span>{' '}
-                <span className="text-xs text-muted-foreground">(الرصيد: {formatNumber(event.balanceAfter)})</span>
+                <span className="text-muted-foreground text-xs">(الرصيد: {formatNumber(event.balanceAfter)})</span>
             </p>
-            {event.notes && <p className="text-xs text-muted-foreground">{event.notes}</p>}
+            {event.notes && <p className="text-muted-foreground text-xs">{event.notes}</p>}
         </TimelineRow>
     );
 }
@@ -224,10 +237,10 @@ function RefundEntry({ event }: { event: TimelineRefundEvent }) {
             title="استرجاع"
             occurredAt={event.occurredAt}
         >
-            <p className="text-sm font-medium tabular-nums text-destructive" dir="ltr">
+            <p className="text-destructive text-sm font-medium tabular-nums" dir="ltr">
                 −{formatCurrency(event.amount)}
             </p>
-            <p className="text-xs text-muted-foreground">{event.reason}</p>
+            <p className="text-muted-foreground text-xs">{event.reason}</p>
         </TimelineRow>
     );
 }
@@ -248,15 +261,80 @@ function TimelineRow({
     return (
         <div className="relative flex gap-3 pb-6 last:pb-0">
             {/* Connector line */}
-            <div className="absolute top-8 bottom-0 start-4 w-px -translate-x-1/2 bg-border rtl:translate-x-1/2" aria-hidden />
+            <div className="bg-border absolute start-4 top-8 bottom-0 w-px -translate-x-1/2 rtl:translate-x-1/2" aria-hidden />
             <div className={`z-10 flex size-8 shrink-0 items-center justify-center rounded-full ${iconClass}`}>{icon}</div>
             <div className="min-w-0 flex-1 pt-1">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="text-sm font-medium">{title}</div>
-                    <span className="shrink-0 text-xs text-muted-foreground">{formatDate(occurredAt)}</span>
+                    <span className="text-muted-foreground shrink-0 text-xs">{formatDate(occurredAt)}</span>
                 </div>
                 {children}
             </div>
+        </div>
+    );
+}
+
+function KpiGrid({ kpis }: { kpis: CustomerAnalytics['kpis'] }) {
+    return (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <KpiTile
+                label="الإنفاق المحقق"
+                value={formatCurrency(kpis.lifetimeSpend)}
+                hint={`${formatNumber(kpis.paidInvoiceCount)} فاتورة مدفوعة`}
+            />
+            <KpiTile label="متوسط قيمة الفاتورة" value={formatCurrency(kpis.avgInvoiceValue)} />
+            <KpiTile
+                label="معدل الشراء الشهري"
+                value={kpis.purchasesPerMonth}
+                hint={kpis.firstPurchaseAt ? `عميل منذ ${formatDate(kpis.firstPurchaseAt)}` : undefined}
+            />
+            <KpiTile
+                label="آخر عملية شراء"
+                value={kpis.daysSinceLastPurchase !== null ? `${formatNumber(kpis.daysSinceLastPurchase)} يوم` : '—'}
+                hint={kpis.lastPurchaseAt ? formatDate(kpis.lastPurchaseAt) : undefined}
+            />
+        </div>
+    );
+}
+
+function KpiGridSkeleton() {
+    return (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="bg-muted/40 rounded-lg p-4">
+                    <Skeleton className="h-4 w-24" />
+                    <Skeleton className="mt-2 h-6 w-32" />
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function TimelineSkeleton() {
+    return (
+        <div className="space-y-6">
+            {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex gap-3">
+                    <Skeleton className="size-8 shrink-0 rounded-full" />
+                    <div className="flex-1 space-y-2 pt-1">
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-3 w-1/3" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function TopItemsSkeleton() {
+    return (
+        <div className="space-y-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="space-y-2">
+                    <Skeleton className="h-4 w-3/4" />
+                    <Skeleton className="h-1.5 w-full rounded-full" />
+                </div>
+            ))}
         </div>
     );
 }
@@ -268,8 +346,6 @@ export default function CustomerActivity({ customer, timeline, analytics }: Prop
         { title: 'النشاط والتحليلات', href: customersRoute.activity(customer.id).url },
     ];
 
-    const { kpis } = analytics;
-
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={`نشاط ${customer.fullName}`} />
@@ -277,7 +353,7 @@ export default function CustomerActivity({ customer, timeline, analytics }: Prop
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold">نشاط العميل وتحليلاته</h1>
-                        <p className="text-sm text-muted-foreground">{customer.fullName}</p>
+                        <p className="text-muted-foreground text-sm">{customer.fullName}</p>
                     </div>
                     <Button variant="outline" size="sm" asChild>
                         <Link href={customersRoute.show(customer.id).url}>
@@ -287,22 +363,17 @@ export default function CustomerActivity({ customer, timeline, analytics }: Prop
                     </Button>
                 </div>
 
-                {/* Purchase KPIs */}
-                <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    <KpiTile label="الإنفاق المحقق" value={formatCurrency(kpis.lifetimeSpend)} hint={`${formatNumber(kpis.paidInvoiceCount)} فاتورة مدفوعة`} />
-                    <KpiTile label="متوسط قيمة الفاتورة" value={formatCurrency(kpis.avgInvoiceValue)} />
-                    <KpiTile label="معدل الشراء الشهري" value={kpis.purchasesPerMonth} hint={kpis.firstPurchaseAt ? `عميل منذ ${formatDate(kpis.firstPurchaseAt)}` : undefined} />
-                    <KpiTile
-                        label="آخر عملية شراء"
-                        value={kpis.daysSinceLastPurchase !== null ? `${formatNumber(kpis.daysSinceLastPurchase)} يوم` : '—'}
-                        hint={kpis.lastPurchaseAt ? formatDate(kpis.lastPurchaseAt) : undefined}
-                    />
-                </div>
+                {/* Purchase KPIs (deferred with the analytics prop) */}
+                <Deferred data="analytics" fallback={<KpiGridSkeleton />}>
+                    <>{analytics ? <KpiGrid kpis={analytics.kpis} /> : null}</>
+                </Deferred>
 
                 <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
                     <div className="space-y-6 lg:col-span-2">
                         <ChartCard title="الإنفاق الشهري (آخر 12 شهراً — فواتير مدفوعة)">
-                            <MonthlySpendChart data={analytics.monthlySpend} />
+                            <Deferred data="analytics" fallback={<Skeleton className="h-[260px] w-full" />}>
+                                <>{analytics ? <MonthlySpendChart data={analytics.monthlySpend} /> : null}</>
+                            </Deferred>
                         </ChartCard>
 
                         {/* Unified timeline */}
@@ -311,31 +382,35 @@ export default function CustomerActivity({ customer, timeline, analytics }: Prop
                                 <CardTitle>سجل النشاط</CardTitle>
                             </CardHeader>
                             <CardContent>
-                                {timeline.length === 0 ? (
-                                    <p className="py-8 text-center text-sm text-muted-foreground">لا يوجد نشاط مسجّل</p>
-                                ) : (
-                                    <div>
-                                        {timeline.map((event) => {
-                                            switch (event.kind) {
-                                                case 'audit':
-                                                    return <AuditEntry key={event.id} event={event} />;
-                                                case 'invoice':
-                                                    return <InvoiceEntry key={event.id} event={event} />;
-                                                case 'loyalty':
-                                                    return <LoyaltyEntry key={event.id} event={event} />;
-                                                case 'refund':
-                                                    return <RefundEntry key={event.id} event={event} />;
-                                            }
-                                        })}
-                                    </div>
-                                )}
+                                <Deferred data="timeline" fallback={<TimelineSkeleton />}>
+                                    <>
+                                        {!timeline ? null : timeline.length === 0 ? (
+                                            <p className="text-muted-foreground py-8 text-center text-sm">لا يوجد نشاط مسجّل</p>
+                                        ) : (
+                                            <div>
+                                                {timeline.map((event) => {
+                                                    switch (event.kind) {
+                                                        case 'audit':
+                                                            return <AuditEntry key={event.id} event={event} />;
+                                                        case 'invoice':
+                                                            return <InvoiceEntry key={event.id} event={event} />;
+                                                        case 'loyalty':
+                                                            return <LoyaltyEntry key={event.id} event={event} />;
+                                                        case 'refund':
+                                                            return <RefundEntry key={event.id} event={event} />;
+                                                    }
+                                                })}
+                                            </div>
+                                        )}
+                                    </>
+                                </Deferred>
                             </CardContent>
                         </Card>
                     </div>
 
                     <div className="space-y-6">
-                        <TopItemsCard title="أكثر الخدمات شراءً" items={analytics.topServices} />
-                        <TopItemsCard title="أكثر المنتجات شراءً" items={analytics.topProducts} />
+                        <TopItemsCard title="أكثر الخدمات شراءً" items={analytics?.topServices} />
+                        <TopItemsCard title="أكثر المنتجات شراءً" items={analytics?.topProducts} />
                     </div>
                 </div>
             </div>

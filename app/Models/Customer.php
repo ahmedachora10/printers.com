@@ -8,6 +8,7 @@ use Database\Factories\CustomerFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
@@ -91,5 +92,23 @@ class Customer extends Model
             'tierDiscountPct' => $eligible ? $loyalty->discountPctForTier($this->tier) : 0.0,
             'loyaltyEligible' => $eligible,
         ];
+    }
+
+    /** @return HasMany<ProductInvoice, $this> */
+    public function productInvoices(): HasMany
+    {
+        return $this->hasMany(ProductInvoice::class, 'customer_id');
+    }
+
+    /** @return HasMany<ServiceInvoice, $this> */
+    public function serviceInvoices(): HasMany
+    {
+        return $this->hasMany(ServiceInvoice::class, 'customer_id');
+    }
+
+    /** @return HasMany<LoyaltyTransaction, $this> */
+    public function loyaltyTransactions(): HasMany
+    {
+        return $this->hasMany(LoyaltyTransaction::class);
     }
 }

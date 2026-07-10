@@ -249,7 +249,9 @@ class AnalyticsController extends Controller
         $cursor = $scope['from']->copy()->startOfMonth();
         while ($cursor <= $scope['to']) {
             $months[$cursor->format('Y-m')] = ['month' => $cursor->format('Y-m'), 'earned' => 0, 'redeemed' => 0];
-            $cursor->addMonth();
+            // Reassign so the loop also terminates if the scope dates ever
+            // become CarbonImmutable (the app-wide default via Date::use).
+            $cursor = $cursor->addMonth();
         }
 
         // Grouped per day (portable across MySQL/SQLite), bucketed into months here.

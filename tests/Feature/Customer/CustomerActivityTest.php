@@ -7,6 +7,7 @@ use App\Models\ProductInvoice;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 
@@ -48,7 +49,7 @@ function activityProductInvoice(Customer $customer, User $user, array $overrides
 describe('Customer Activity (M23)', function () {
     beforeEach(function () {
         $this->withoutVite();
-        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $this->seed(RolesAndPermissionsSeeder::class);
 
         $this->branchAdmin = User::factory()->create();
         $this->branch = Branch::factory()->create(['owner_id' => $this->branchAdmin->id]);
@@ -63,16 +64,21 @@ describe('Customer Activity (M23)', function () {
     // ── ACCESS ─────────────────────────────────────────────────────
 
     it('renders the activity page for a branch admin', function () {
+        // Timeline and analytics are deferred props: absent on first load,
+        // then fetched via Inertia's follow-up partial reload.
         $this->get(route('customers.activity', $this->customer))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('customers/activity')
                 ->has('customer')
-                ->has('timeline')
-                ->has('analytics.monthlySpend', 12)
-                ->has('analytics.kpis')
-                ->has('analytics.topServices')
-                ->has('analytics.topProducts'));
+                ->missing('timeline')
+                ->missing('analytics')
+                ->loadDeferredProps(fn ($page) => $page
+                    ->has('timeline')
+                    ->has('analytics.monthlySpend', 12)
+                    ->has('analytics.kpis')
+                    ->has('analytics.topServices')
+                    ->has('analytics.topProducts')));
     });
 
     it('allows an employee of the same branch', function () {
@@ -109,9 +115,9 @@ describe('Customer Activity (M23)', function () {
     it('logs customer creation and shows it in the timeline', function () {
         $this->get(route('customers.activity', $this->customer))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn ($page) => $page->loadDeferredProps('timeline', fn ($page) => $page
                 ->where('timeline.0.kind', 'audit')
-                ->where('timeline.0.event', 'created'));
+                ->where('timeline.0.event', 'created')));
     });
 
     it('logs only dirty fields on update', function () {
@@ -158,16 +164,14 @@ describe('Customer Activity (M23)', function () {
 
         $this->get(route('customers.activity', $this->customer))
             ->assertOk()
-            ->assertInertia(function ($page) {
+            ->assertInertia(fn ($page) => $page->loadDeferredProps('timeline', function ($page) {
                 $kinds = collect($page->toArray()['props']['timeline'])->pluck('kind');
 
                 expect($kinds)->toContain('invoice')
                     ->toContain('loyalty')
                     ->toContain('refund')
                     ->toContain('audit');
-
-                return $page;
-            });
+            }));
     });
 
     it('does not leak another customer\'s events into the timeline', function () {
@@ -176,12 +180,10 @@ describe('Customer Activity (M23)', function () {
 
         $this->get(route('customers.activity', $this->customer))
             ->assertOk()
-            ->assertInertia(function ($page) {
+            ->assertInertia(fn ($page) => $page->loadDeferredProps('timeline', function ($page) {
                 $kinds = collect($page->toArray()['props']['timeline'])->pluck('kind');
                 expect($kinds)->not->toContain('invoice');
-
-                return $page;
-            });
+            }));
     });
 
     it('sorts the timeline newest first', function () {
@@ -190,12 +192,10 @@ describe('Customer Activity (M23)', function () {
 
         $this->get(route('customers.activity', $this->customer))
             ->assertOk()
-            ->assertInertia(function ($page) {
+            ->assertInertia(fn ($page) => $page->loadDeferredProps('timeline', function ($page) {
                 $times = collect($page->toArray()['props']['timeline'])->pluck('occurredAt');
                 expect($times->toArray())->toEqual($times->sortDesc()->values()->toArray());
-
-                return $page;
-            });
+            }));
     });
 
     // ── ANALYTICS ──────────────────────────────────────────────────
@@ -211,11 +211,11 @@ describe('Customer Activity (M23)', function () {
 
         $this->get(route('customers.activity', $this->customer))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn ($page) => $page->loadDeferredProps('analytics', fn ($page) => $page
                 ->where('analytics.kpis.paidInvoiceCount', 2)
                 ->where('analytics.kpis.lifetimeSpend', 345)
                 ->where('analytics.kpis.avgInvoiceValue', 172.5)
-                ->where('analytics.kpis.daysSinceLastPurchase', 0));
+                ->where('analytics.kpis.daysSinceLastPurchase', 0)));
     });
 
     it('buckets paid spend into the current month', function () {
@@ -223,10 +223,10 @@ describe('Customer Activity (M23)', function () {
 
         $this->get(route('customers.activity', $this->customer))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn ($page) => $page->loadDeferredProps('analytics', fn ($page) => $page
                 ->where('analytics.monthlySpend.11.month', now()->format('Y-m'))
                 ->where('analytics.monthlySpend.11.service', 230)
-                ->where('analytics.monthlySpend.11.product', 0));
+                ->where('analytics.monthlySpend.11.product', 0)));
     });
 
     it('ranks top purchased services by value and excludes cancelled invoices', function () {
@@ -274,10 +274,10 @@ describe('Customer Activity (M23)', function () {
 
         $this->get(route('customers.activity', $this->customer))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page
+            ->assertInertia(fn ($page) => $page->loadDeferredProps('analytics', fn ($page) => $page
                 ->has('analytics.topServices', 2)
                 ->where('analytics.topServices.0.name', 'تصوير مستندات')
                 ->where('analytics.topServices.0.total', 200)
-                ->where('analytics.topServices.1.name', 'طباعة ملونة'));
+                ->where('analytics.topServices.1.name', 'طباعة ملونة')));
     });
 });

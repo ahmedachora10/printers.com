@@ -2,9 +2,14 @@
 
 namespace App\Actions\Customer;
 
+use App\Enums\InvoiceStatusEnum;
 use App\Models\Customer;
+use App\Models\ProductInvoice;
+use App\Models\ProductInvoiceLine;
+use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceLine;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Per-customer CRM analytics (M23): 12-month spend trend, purchase KPIs and
@@ -18,18 +23,20 @@ class BuildCustomerAnalyticsAction
 
     private const TOP_ITEMS = 5;
 
+    /** Invoice model => spend-trend series key. */
+    private const INVOICE_TYPES = [
+        ServiceInvoice::class => 'service',
+        ProductInvoice::class => 'product',
+    ];
+
     /** @return array<string, mixed> */
     public function handle(Customer $customer): array
     {
         return [
             'monthlySpend' => $this->monthlySpend($customer),
             'kpis' => $this->kpis($customer),
-            'topServices' => $this->topItems(
-                $customer, 'service_invoice_lines', 'service_invoices', 'service_name'
-            ),
-            'topProducts' => $this->topItems(
-                $customer, 'product_invoice_lines', 'product_invoices', 'product_name'
-            ),
+            'topServices' => $this->topItems($customer, ServiceInvoiceLine::class, 'service_name'),
+            'topProducts' => $this->topItems($customer, ProductInvoiceLine::class, 'product_name'),
         ];
     }
 
@@ -49,20 +56,19 @@ class BuildCustomerAnalyticsAction
         $cursor = $start->copy();
         while ($cursor <= now()) {
             $months[$cursor->format('Y-m')] = ['month' => $cursor->format('Y-m'), 'service' => 0.0, 'product' => 0.0];
-            $cursor->addMonth();
+            // now() is CarbonImmutable (Date::use in AppServiceProvider), so
+            // addMonth() returns a new instance — reassign or loop forever.
+            $cursor = $cursor->addMonth();
         }
 
-        foreach (['service_invoices' => 'service', 'product_invoices' => 'product'] as $table => $type) {
-            $rows = DB::table($table)
-                ->where('customer_id', $customer->id)
-                ->where('status', 'paid')
-                ->whereNull('deleted_at')
+        foreach (self::INVOICE_TYPES as $model => $type) {
+            $rows = $model::query()
+                ->whereBelongsTo($customer)
+                ->where('status', InvoiceStatusEnum::PAID)
                 ->where('created_at', '>=', $start)
-                ->groupBy(DB::raw('DATE(created_at)'))
-                ->get([
-                    DB::raw('DATE(created_at) as day'),
-                    DB::raw('COALESCE(SUM(total_amount), 0) as total'),
-                ]);
+                ->groupByRaw('DATE(created_at)')
+                ->selectRaw('DATE(created_at) as day, COALESCE(SUM(total_amount), 0) as total')
+                ->get();
 
             foreach ($rows as $row) {
                 $key = substr((string) $row->day, 0, 7);
@@ -86,11 +92,10 @@ class BuildCustomerAnalyticsAction
         $firstAt = null;
         $lastAt = null;
 
-        foreach (['service_invoices', 'product_invoices'] as $table) {
-            $row = DB::table($table)
-                ->where('customer_id', $customer->id)
-                ->where('status', 'paid')
-                ->whereNull('deleted_at')
+        foreach (array_keys(self::INVOICE_TYPES) as $model) {
+            $row = $model::query()
+                ->whereBelongsTo($customer)
+                ->where('status', InvoiceStatusEnum::PAID)
                 ->selectRaw(
                     'COUNT(*) as cnt,
                     COALESCE(SUM(total_amount), 0) as total,
@@ -130,24 +135,21 @@ class BuildCustomerAnalyticsAction
     /**
      * Top purchased line items by realized value across non-cancelled invoices.
      *
+     * @param  class-string<ServiceInvoiceLine|ProductInvoiceLine>  $lineModel
      * @return array<int, array{name: string, qty: int, total: float}>
      */
-    private function topItems(Customer $customer, string $linesTable, string $invoicesTable, string $nameColumn): array
+    private function topItems(Customer $customer, string $lineModel, string $nameColumn): array
     {
-        return DB::table($linesTable)
-            ->join($invoicesTable, "{$invoicesTable}.id", '=', "{$linesTable}.invoice_id")
-            ->where("{$invoicesTable}.customer_id", $customer->id)
-            ->where("{$invoicesTable}.status", '<>', 'cancelled')
-            ->whereNull("{$invoicesTable}.deleted_at")
-            ->groupBy("{$linesTable}.{$nameColumn}")
+        return $lineModel::query()
+            ->whereHas('invoice', fn (Builder $query) => $query
+                ->whereBelongsTo($customer)
+                ->where('status', '<>', InvoiceStatusEnum::CANCELLED))
+            ->groupBy($nameColumn)
             ->orderByDesc('total')
             ->limit(self::TOP_ITEMS)
-            ->get([
-                DB::raw("{$linesTable}.{$nameColumn} as name"),
-                DB::raw("COALESCE(SUM({$linesTable}.qty), 0) as qty"),
-                DB::raw("COALESCE(SUM({$linesTable}.subtotal), 0) as total"),
-            ])
-            ->map(fn (object $row) => [
+            ->selectRaw("{$nameColumn} as name, COALESCE(SUM(qty), 0) as qty, COALESCE(SUM(subtotal), 0) as total")
+            ->get()
+            ->map(fn ($row) => [
                 'name' => $row->name,
                 'qty' => (int) $row->qty,
                 'total' => (float) $row->total,
