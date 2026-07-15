@@ -60,7 +60,6 @@ class CalculateServiceInvoiceAction
 
         $lines = [];
         $subtotal = 0.0;
-        $totalCommission = 0.0;
 
         foreach ($data['lines'] as $line) {
             /** @var BranchService|null $branchService */
@@ -88,7 +87,6 @@ class CalculateServiceInvoiceAction
             $commissionAmount = round($lineSubtotal * $commissionPct / 100, 2);
 
             $subtotal += $lineSubtotal;
-            $totalCommission += $commissionAmount;
 
             $lines[] = [
                 'branch_service_id' => $branchService->id,
@@ -104,7 +102,6 @@ class CalculateServiceInvoiceAction
         }
 
         $subtotal = round($subtotal, 2);
-        $totalCommission = round($totalCommission, 2);
 
         $customer = $customerId !== null ? Customer::find($customerId) : null;
         $config = LoyaltyConfig::forBranch($branchId);
@@ -169,6 +166,25 @@ class CalculateServiceInvoiceAction
                 $agentRows[$i]['rebate_amount'] = $this->agentAmount($agent['type'], $agent['rate'], $total);
             }
         }
+
+        // Employee commission is earned on the net service value the customer
+        // actually pays — after every invoice-level deduction (tier, coupon,
+        // agent discount, points), pre-VAT. Each line's raw commission is scaled
+        // by the ratio of that final taxable base to the gross subtotal, sharing
+        // the reduction across lines proportionally; the scaled amounts are what
+        // get persisted to the lines and the immutable commission ledger, so the
+        // employee is actually paid the reduced figure. Agent rebate sits on top
+        // of the total and leaves this base untouched.
+        $commissionRatio = $subtotal > 0 ? $taxableBase / $subtotal : 0.0;
+        $totalCommission = 0.0;
+
+        foreach ($lines as $i => $line) {
+            $scaledCommission = round($line['commission_amount'] * $commissionRatio, 2);
+            $lines[$i]['commission_amount'] = $scaledCommission;
+            $totalCommission += $scaledCommission;
+        }
+
+        $totalCommission = round($totalCommission, 2);
 
         return [
             'attributes' => [
