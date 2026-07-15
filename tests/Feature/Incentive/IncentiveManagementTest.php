@@ -27,7 +27,6 @@ function salesInvoice(int $branchId, int $userId, float $total, ?int $year = nul
         'subtotal' => $total,
         'coupon_discount' => 0,
         'agent_discount' => 0,
-        'agent_rebate' => 0,
         'vat_pct' => 15,
         'vat_amount' => 0,
         'total_amount' => $total,

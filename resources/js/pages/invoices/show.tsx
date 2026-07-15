@@ -286,12 +286,15 @@ export default function InvoiceShow({ invoice }: Props) {
                                 <TotalRow label={`الضريبة (${invoice.vatPct}%)`} value={formatCurrency(invoice.vatAmount)} />
                                 <Separator className="my-1" />
                                 <TotalRow label="الإجمالي" value={formatCurrency(invoice.totalAmount)} strong />
-                                {invoice.agentRebate > 0 && (
-                                    <TotalRow
-                                        label={`عمولة الوكيل المرتجعة${invoice.agentName ? ` (${invoice.agentName})` : ''}`}
-                                        value={formatCurrency(invoice.agentRebate)}
-                                    />
-                                )}
+                                {invoice.agents
+                                    .filter((a) => a.rebate > 0)
+                                    .map((a, i) => (
+                                        <TotalRow
+                                            key={i}
+                                            label={`عمولة الوكيل المرتجعة${a.name ? ` (${a.name})` : ''}`}
+                                            value={formatCurrency(a.rebate)}
+                                        />
+                                    ))}
                             </div>
                         </CardContent>
                     </Card>

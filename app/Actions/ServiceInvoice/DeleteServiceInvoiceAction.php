@@ -37,7 +37,7 @@ class DeleteServiceInvoiceAction
             ]);
         }
 
-        if ($invoice->agent_payment_id !== null) {
+        if ($invoice->invoiceAgents()->whereNotNull('agent_payment_id')->exists()) {
             throw ValidationException::withMessages([
                 'invoice' => 'لا يمكن حذف فاتورة مُدرجة ضمن دفعة وكيل.',
             ]);

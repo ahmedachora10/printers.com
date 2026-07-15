@@ -10,7 +10,7 @@ use App\Models\Agent;
 use App\Models\AgentPayment;
 use App\Models\Branch;
 use App\Models\ProductInvoice;
-use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceAgent;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -78,23 +78,34 @@ class AgentPaymentController extends Controller
     {
         $outstanding = [];
 
-        foreach ([ProductInvoice::class, ServiceInvoice::class] as $model) {
-            $rows = $model::query()
-                ->whereNotNull('agent_id')
-                ->whereNull('agent_payment_id')
-                ->where('agent_rebate', '>', 0)
-                ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value)
-                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-                ->groupBy('agent_id')
-                ->selectRaw('agent_id, SUM(agent_rebate) as rebate, COUNT(*) as cnt')
-                ->get();
+        $add = function (int $agentId, float $rebate, int $count) use (&$outstanding) {
+            $outstanding[$agentId]['rebate'] = ($outstanding[$agentId]['rebate'] ?? 0) + $rebate;
+            $outstanding[$agentId]['count'] = ($outstanding[$agentId]['count'] ?? 0) + $count;
+        };
 
-            foreach ($rows as $row) {
-                $id = (int) $row->agent_id;
-                $outstanding[$id]['rebate'] = ($outstanding[$id]['rebate'] ?? 0) + (float) $row->rebate;
-                $outstanding[$id]['count'] = ($outstanding[$id]['count'] ?? 0) + (int) $row->cnt;
-            }
-        }
+        // Product invoices carry a single agent on the invoice row.
+        ProductInvoice::query()
+            ->whereNotNull('agent_id')
+            ->whereNull('agent_payment_id')
+            ->where('agent_rebate', '>', 0)
+            ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->groupBy('agent_id')
+            ->selectRaw('agent_id, SUM(agent_rebate) as rebate, COUNT(*) as cnt')
+            ->get()
+            ->each(fn ($row) => $add((int) $row->agent_id, (float) $row->rebate, (int) $row->cnt));
+
+        // Service invoices settle each agent independently via the pivot.
+        ServiceInvoiceAgent::query()
+            ->whereNull('agent_payment_id')
+            ->where('rebate_amount', '>', 0)
+            ->whereHas('invoice', fn ($q) => $q
+                ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value)
+                ->when($branchId, fn ($qq) => $qq->where('branch_id', $branchId)))
+            ->groupBy('agent_id')
+            ->selectRaw('agent_id, SUM(rebate_amount) as rebate, COUNT(*) as cnt')
+            ->get()
+            ->each(fn ($row) => $add((int) $row->agent_id, (float) $row->rebate, (int) $row->cnt));
 
         return $outstanding;
     }

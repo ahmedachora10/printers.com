@@ -28,6 +28,14 @@ export interface InvoiceRefund {
     createdAt: string | null;
 }
 
+export interface InvoiceAgent {
+    name: string | null;
+    mode: 'discount' | 'rebate';
+    rebate: number;
+    discount: number;
+    isRebatePaid: boolean;
+}
+
 export interface Invoice {
     id: number;
     type: InvoiceType;
@@ -42,8 +50,7 @@ export interface Invoice {
     tierDiscountAmount: number;
     couponDiscount: number;
     agentDiscount: number;
-    agentRebate: number;
-    agentName: string | null;
+    agents: InvoiceAgent[];
     pointsRedeemed: number;
     pointsDiscount: number;
     vatPct: number;

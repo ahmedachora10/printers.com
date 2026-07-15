@@ -2,7 +2,7 @@
 
 namespace App\Actions\ServiceInvoice;
 
-use App\Actions\Agent\ResolveInvoiceAgentAction;
+use App\Actions\Agent\ResolveInvoiceAgentsAction;
 use App\Actions\Loyalty\ApplyLoyaltyDiscountsAction;
 use App\Enums\AgentDiscountModeEnum;
 use App\Enums\AgentDiscountTypeEnum;
@@ -28,13 +28,13 @@ use Illuminate\Validation\ValidationException;
 class CalculateServiceInvoiceAction
 {
     public function __construct(
-        private readonly ResolveInvoiceAgentAction $resolveAgent,
+        private readonly ResolveInvoiceAgentsAction $resolveAgents,
         private readonly ApplyLoyaltyDiscountsAction $loyalty,
     ) {}
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{attributes: array<string, mixed>, lines: list<CalculatedLine>, coupon: ?Coupon, pointsRedeemed: int}
+     * @return array{attributes: array<string, mixed>, lines: list<CalculatedLine>, agents: list<array<string, mixed>>, coupon: ?Coupon, pointsRedeemed: int}
      */
     public function handle(array $data, User $user, int $branchId, float $vatPct): array
     {
@@ -109,15 +109,15 @@ class CalculateServiceInvoiceAction
         $customer = $customerId !== null ? Customer::find($customerId) : null;
         $config = LoyaltyConfig::forBranch($branchId);
 
-        [$agentId, $agentMode, $agentType, $agentRate] = $this->resolveAgent->handle(
-            isset($data['agent_id']) ? (int) $data['agent_id'] : null,
+        $agents = $this->resolveAgents->handle(
+            isset($data['agent_ids']) && is_array($data['agent_ids']) ? $data['agent_ids'] : null,
             $branchId,
         );
 
         // Loyalty benefits (tier discount, redemption) apply only to eligible
         // customers: individual, not agent-linked, on a non-agent invoice —
         // B2B sales are settled via agent terms instead.
-        $loyaltyEligible = $agentId === null
+        $loyaltyEligible = $agents === []
             && $customer !== null
             && $customer->customer_type === CustomerTypeEnum::Individual
             && $customer->agent_id === null;
@@ -129,12 +129,31 @@ class CalculateServiceInvoiceAction
         [$coupon, $couponDiscount] = $this->resolveCoupon($data, $branchId, $afterTier);
         $afterCoupon = round($afterTier - $couponDiscount, 2);
 
-        // discount mode reduces the taxable base; rebate is recorded on the
-        // invoice after the total but never deducted from it. The rate is read
-        // as a percentage or a flat SAR amount per the agent's discount type.
-        $agentDiscount = $agentMode === AgentDiscountModeEnum::Discount
-            ? $this->agentAmount($agentType, $agentRate, $afterCoupon)
-            : 0.0;
+        // discount mode reduces the taxable base; rebate is recorded per agent
+        // after the total but never deducted from it. With several agents the
+        // per-agent discount amounts are summed (capped at the base), each rate
+        // read as a percentage or a flat SAR amount per the agent's type.
+        $agentRows = [];
+        $agentDiscount = 0.0;
+
+        foreach ($agents as $agent) {
+            $discount = $agent['mode'] === AgentDiscountModeEnum::Discount
+                ? $this->agentAmount($agent['type'], $agent['rate'], $afterCoupon)
+                : 0.0;
+
+            $agentDiscount += $discount;
+
+            $agentRows[] = [
+                'agent_id' => $agent['agentId'],
+                'discount_mode' => $agent['mode'],
+                'discount_type' => $agent['type'],
+                'rate' => $agent['rate'],
+                'discount_amount' => round($discount, 2),
+                'rebate_amount' => 0.0, // filled once the total is known
+            ];
+        }
+
+        $agentDiscount = round(min($agentDiscount, $afterCoupon), 2);
         $afterAgent = round($afterCoupon - $agentDiscount, 2);
 
         $requestedPoints = (int) ($data['redeem_points'] ?? 0);
@@ -144,14 +163,16 @@ class CalculateServiceInvoiceAction
         $vatAmount = round($taxableBase * $vatPct / 100, 2);
         $total = round($taxableBase + $vatAmount, 2);
 
-        $agentRebate = $agentMode === AgentDiscountModeEnum::Rebate
-            ? $this->agentAmount($agentType, $agentRate, $total)
-            : 0.0;
+        // Rebate is computed on the final total, independently per agent.
+        foreach ($agents as $i => $agent) {
+            if ($agent['mode'] === AgentDiscountModeEnum::Rebate) {
+                $agentRows[$i]['rebate_amount'] = $this->agentAmount($agent['type'], $agent['rate'], $total);
+            }
+        }
 
         return [
             'attributes' => [
                 'customer_id' => $customerId,
-                'agent_id' => $agentId,
                 'coupon_id' => $coupon?->id,
                 'payment_method_id' => $data['payment_method_id'] ?? null,
                 'subtotal' => $subtotal,
@@ -159,7 +180,6 @@ class CalculateServiceInvoiceAction
                 'tier_discount_amount' => $tierDiscount,
                 'coupon_discount' => $couponDiscount,
                 'agent_discount' => $agentDiscount,
-                'agent_rebate' => $agentRebate,
                 'points_redeemed' => $pointsRedeemed,
                 'points_discount' => $pointsDiscount,
                 'vat_pct' => $vatPct,
@@ -168,6 +188,7 @@ class CalculateServiceInvoiceAction
                 'employee_commission' => $totalCommission,
             ],
             'lines' => $lines,
+            'agents' => $agentRows,
             'coupon' => $coupon,
             'pointsRedeemed' => $pointsRedeemed,
         ];
