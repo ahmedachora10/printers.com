@@ -4,6 +4,7 @@ namespace App\Actions\ServiceInvoice;
 
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
 use App\Actions\ServiceInvoice\Concerns\ReversesServiceInvoiceAccruals;
+use App\Actions\ServiceInvoice\Concerns\SyncsServiceInvoiceAgents;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\Branch;
@@ -21,7 +22,7 @@ use Illuminate\Validation\ValidationException;
  */
 class UpdateServiceInvoiceAction
 {
-    use ReversesServiceInvoiceAccruals, WritesServiceInvoiceLines;
+    use ReversesServiceInvoiceAccruals, SyncsServiceInvoiceAgents, WritesServiceInvoiceLines;
 
     public function __construct(
         private readonly CalculateServiceInvoiceAction $calculator,
@@ -34,6 +35,14 @@ class UpdateServiceInvoiceAction
         if ($invoice->status !== InvoiceStatusEnum::DUE) {
             throw ValidationException::withMessages([
                 'status' => 'لا يمكن تعديل إلا فاتورة آجلة قبل اعتمادها.',
+            ]);
+        }
+
+        // An agent rebate already rolled into a payment would be left dangling if
+        // the invoice were recomputed underneath it.
+        if ($invoice->invoiceAgents()->whereNotNull('agent_payment_id')->exists()) {
+            throw ValidationException::withMessages([
+                'invoice' => 'لا يمكن تعديل فاتورة مُدرجة ضمن دفعة وكيل.',
             ]);
         }
 
@@ -65,6 +74,7 @@ class UpdateServiceInvoiceAction
             }
 
             $this->writeLinesAndLedger($invoice, $calc['lines'], $userId, $branchId);
+            $this->syncInvoiceAgents($invoice, $calc['agents']);
 
             if ($calc['coupon']) {
                 $calc['coupon']->increment('used_count');

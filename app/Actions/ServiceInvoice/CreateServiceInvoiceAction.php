@@ -4,6 +4,7 @@ namespace App\Actions\ServiceInvoice;
 
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
+use App\Actions\ServiceInvoice\Concerns\SyncsServiceInvoiceAgents;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\Branch;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 class CreateServiceInvoiceAction
 {
-    use WritesServiceInvoiceLines;
+    use SyncsServiceInvoiceAgents, WritesServiceInvoiceLines;
 
     public function __construct(
         private readonly CalculateServiceInvoiceAction $calculator,
@@ -48,6 +49,7 @@ class CreateServiceInvoiceAction
             }
 
             $this->writeLinesAndLedger($invoice, $calc['lines'], $user->id, $branchId);
+            $this->syncInvoiceAgents($invoice, $calc['agents']);
 
             if ($calc['coupon']) {
                 $calc['coupon']->increment('used_count');

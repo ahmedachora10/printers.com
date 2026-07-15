@@ -57,7 +57,7 @@ class ServiceInvoiceController extends Controller
         $user = Auth::user();
         $branchId = (int) $invoice->branch_id;
 
-        $invoice->load(['lines', 'customer:id,full_name,phone,agent_id,customer_type,points_balance,tier']);
+        $invoice->load(['lines', 'customer:id,full_name,phone,agent_id,customer_type,points_balance,tier', 'invoiceAgents:id,service_invoice_id,agent_id']);
 
         $loyalty = LoyaltyConfig::forBranch($branchId);
         $loyaltyActive = (bool) $loyalty->is_active;
@@ -72,7 +72,7 @@ class ServiceInvoiceController extends Controller
                 'id' => $invoice->id,
                 'invoiceNumber' => $invoice->invoice_number,
                 'customer' => $invoice->customer?->toPosArray($loyalty, $loyaltyActive),
-                'agentId' => $invoice->agent_id,
+                'agentIds' => $invoice->invoiceAgents->pluck('agent_id')->values(),
                 'coupon' => $coupon ? [
                     'code' => $coupon->code,
                     'type' => $coupon->discount_type->value,

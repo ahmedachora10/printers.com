@@ -6,7 +6,7 @@ use App\Enums\InvoiceStatusEnum;
 use App\Models\Agent;
 use App\Models\AgentPayment;
 use App\Models\ProductInvoice;
-use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceAgent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -21,25 +21,32 @@ class GenerateAgentPaymentAction
         $end = (string) $data['period_end'];
 
         return DB::transaction(function () use ($agent, $start, $end, $data) {
-            $totalRebate = 0.0;
-            $totalInvoices = 0;
-            /** @var array<class-string<ProductInvoice|ServiceInvoice>, array<int, int>> $coveredIds */
-            $coveredIds = [];
+            $window = [$start.' 00:00:00', $end.' 23:59:59'];
 
-            foreach ([ProductInvoice::class, ServiceInvoice::class] as $model) {
-                $rows = $model::query()
-                    ->where('agent_id', $agent->id)
-                    ->whereNull('agent_payment_id')
-                    ->where('agent_rebate', '>', 0)
+            // Product invoices still carry a single agent on the invoice row.
+            $productRows = ProductInvoice::query()
+                ->where('agent_id', $agent->id)
+                ->whereNull('agent_payment_id')
+                ->where('agent_rebate', '>', 0)
+                ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value)
+                ->whereBetween('created_at', $window)
+                ->lockForUpdate()
+                ->get(['id', 'agent_rebate']);
+
+            // Service invoices may list several agents; each shares the rebate via
+            // its own pivot row settled independently.
+            $serviceRows = ServiceInvoiceAgent::query()
+                ->where('agent_id', $agent->id)
+                ->whereNull('agent_payment_id')
+                ->where('rebate_amount', '>', 0)
+                ->whereHas('invoice', fn ($q) => $q
                     ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value)
-                    ->whereBetween('created_at', [$start.' 00:00:00', $end.' 23:59:59'])
-                    ->lockForUpdate()
-                    ->get(['id', 'agent_rebate']);
+                    ->whereBetween('created_at', $window))
+                ->lockForUpdate()
+                ->get(['id', 'rebate_amount']);
 
-                $totalRebate += (float) $rows->sum('agent_rebate');
-                $totalInvoices += $rows->count();
-                $coveredIds[$model] = $rows->pluck('id')->all();
-            }
+            $totalRebate = (float) $productRows->sum('agent_rebate') + (float) $serviceRows->sum('rebate_amount');
+            $totalInvoices = $productRows->count() + $serviceRows->count();
 
             if ($totalInvoices === 0) {
                 throw ValidationException::withMessages([
@@ -59,10 +66,12 @@ class GenerateAgentPaymentAction
                 'notes' => $data['notes'] ?? null,
             ]);
 
-            foreach ($coveredIds as $model => $ids) {
-                if ($ids !== []) {
-                    $model::whereIn('id', $ids)->update(['agent_payment_id' => $payment->id]);
-                }
+            if ($productRows->isNotEmpty()) {
+                ProductInvoice::whereIn('id', $productRows->pluck('id'))->update(['agent_payment_id' => $payment->id]);
+            }
+
+            if ($serviceRows->isNotEmpty()) {
+                ServiceInvoiceAgent::whereIn('id', $serviceRows->pluck('id'))->update(['agent_payment_id' => $payment->id]);
             }
 
             return $payment;

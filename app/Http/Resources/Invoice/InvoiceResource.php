@@ -49,11 +49,34 @@ class InvoiceResource extends JsonResource
         // and delete it (before or after approval) — but a delete is blocked once
         // the invoice is refunded or rolled into an agent payment.
         $isServiceInvoice = $this->resource instanceof ServiceInvoice;
+
+        // The agents on the invoice: several via the pivot for a service invoice,
+        // or the single row-level agent for a product invoice.
+        $agents = $isServiceInvoice
+            ? $this->invoiceAgents->map(fn ($a) => [
+                'name' => $a->agent?->name,
+                'mode' => $a->discount_mode->value,
+                'rebate' => (float) $a->rebate_amount,
+                'discount' => (float) $a->discount_amount,
+                'isRebatePaid' => $a->agent_payment_id !== null,
+            ])->values()->all()
+            : ($this->agent ? [[
+                'name' => $this->agent->name,
+                'mode' => (float) $this->agent_rebate > 0 ? 'rebate' : 'discount',
+                'rebate' => (float) $this->agent_rebate,
+                'discount' => (float) $this->agent_discount,
+                'isRebatePaid' => $this->agent_payment_id !== null,
+            ]] : []);
+
+        $hasSettledAgent = $isServiceInvoice
+            ? $this->invoiceAgents->whereNotNull('agent_payment_id')->isNotEmpty()
+            : $this->agent_payment_id !== null;
+
         $canEdit = $user !== null && $isServiceInvoice && $user->can('update', $this->resource);
         $canDelete = $user !== null
             && $isServiceInvoice
             && $user->can('delete', $this->resource)
-            && $this->agent_payment_id === null
+            && ! $hasSettledAgent
             && $refundedTotal <= 0;
 
         return [
@@ -70,8 +93,7 @@ class InvoiceResource extends JsonResource
             'tierDiscountAmount' => (float) $this->tier_discount_amount,
             'couponDiscount' => (float) $this->coupon_discount,
             'agentDiscount' => (float) $this->agent_discount,
-            'agentRebate' => (float) $this->agent_rebate,
-            'agentName' => $this->agent?->name,
+            'agents' => $agents,
             'pointsRedeemed' => (int) $this->points_redeemed,
             'pointsDiscount' => (float) $this->points_discount,
             'vatPct' => (float) $this->vat_pct,

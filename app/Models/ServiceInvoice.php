@@ -6,6 +6,7 @@ use App\Enums\InvoiceStatusEnum;
 use App\Models\Concerns\HasReceiptMedia;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -23,7 +24,6 @@ class ServiceInvoice extends Model implements HasMedia
         'branch_id',
         'user_id',
         'customer_id',
-        'agent_id',
         'coupon_id',
         'payment_method_id',
         'subtotal',
@@ -31,8 +31,6 @@ class ServiceInvoice extends Model implements HasMedia
         'tier_discount_amount',
         'coupon_discount',
         'agent_discount',
-        'agent_rebate',
-        'agent_payment_id',
         'points_redeemed',
         'points_discount',
         'vat_pct',
@@ -51,7 +49,6 @@ class ServiceInvoice extends Model implements HasMedia
         'tier_discount_amount' => 'decimal:2',
         'coupon_discount' => 'decimal:2',
         'agent_discount' => 'decimal:2',
-        'agent_rebate' => 'decimal:2',
         'points_redeemed' => 'integer',
         'points_discount' => 'decimal:2',
         'vat_pct' => 'decimal:2',
@@ -92,10 +89,22 @@ class ServiceInvoice extends Model implements HasMedia
         return $this->belongsTo(Customer::class);
     }
 
-    /** @return BelongsTo<User, $this> */
-    public function agent(): BelongsTo
+    /**
+     * The agents attached to this invoice (shared rebate), each carrying its own
+     * snapshot of terms and rebate settlement on the pivot.
+     *
+     * @return HasMany<ServiceInvoiceAgent, $this>
+     */
+    public function invoiceAgents(): HasMany
     {
-        return $this->belongsTo(User::class, 'agent_id');
+        return $this->hasMany(ServiceInvoiceAgent::class, 'service_invoice_id');
+    }
+
+    /** @return BelongsToMany<Agent, $this> */
+    public function agents(): BelongsToMany
+    {
+        return $this->belongsToMany(Agent::class, 'service_invoice_agent', 'service_invoice_id', 'agent_id')
+            ->withPivot(['discount_mode', 'discount_type', 'rate', 'discount_amount', 'rebate_amount', 'agent_payment_id']);
     }
 
     /** @return BelongsTo<PaymentMethod, $this> */

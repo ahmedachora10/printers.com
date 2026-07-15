@@ -80,7 +80,7 @@ export interface EditServiceInvoice {
     id: number;
     invoiceNumber: string;
     customer: PosCustomer | null;
-    agentId: number | null;
+    agentIds: number[];
     coupon: { code: string; type: 'percentage' | 'fixed'; value: number } | null;
     pointsRedeemed: number;
     paymentMethodId: number | null;

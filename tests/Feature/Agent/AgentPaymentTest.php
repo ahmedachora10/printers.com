@@ -12,19 +12,17 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /**
- * Create a service invoice carrying a rebate for the given agent.
+ * Create a service invoice carrying a rebate for the given agent (via the pivot).
  */
 function rebateInvoice(int $branchId, int $agentId, float $rebate, array $overrides = []): ServiceInvoice
 {
-    return ServiceInvoice::create(array_merge([
+    $invoice = ServiceInvoice::create(array_merge([
         'invoice_number' => 'SINV-'.fake()->unique()->numerify('######'),
         'branch_id' => $branchId,
         'user_id' => test()->branchAdmin->id,
-        'agent_id' => $agentId,
         'subtotal' => 100,
         'coupon_discount' => 0,
         'agent_discount' => 0,
-        'agent_rebate' => $rebate,
         'vat_pct' => 15,
         'vat_amount' => 15,
         'total_amount' => 115,
@@ -32,6 +30,17 @@ function rebateInvoice(int $branchId, int $agentId, float $rebate, array $overri
         'status' => 'paid',
         'paid_at' => now(),
     ], $overrides));
+
+    $invoice->invoiceAgents()->create([
+        'agent_id' => $agentId,
+        'discount_mode' => 'rebate',
+        'discount_type' => 'percentage',
+        'rate' => 10,
+        'discount_amount' => 0,
+        'rebate_amount' => $rebate,
+    ]);
+
+    return $invoice;
 }
 
 describe('Agent Payments', function () {
@@ -105,8 +114,8 @@ describe('Agent Payments', function () {
         ]);
 
         $paymentId = AgentPayment::firstOrFail()->id;
-        expect($a->fresh()->agent_payment_id)->toBe($paymentId)
-            ->and($b->fresh()->agent_payment_id)->toBe($paymentId);
+        expect($a->invoiceAgents()->first()->agent_payment_id)->toBe($paymentId)
+            ->and($b->invoiceAgents()->first()->agent_payment_id)->toBe($paymentId);
     });
 
     it('does not pay the same rebate twice', function () {

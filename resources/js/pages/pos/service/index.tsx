@@ -92,7 +92,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // from a preloaded list, so 10k+ customers never ship to the browser.
     const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(invoice?.customer ?? null);
     const customerId = selectedCustomer ? String(selectedCustomer.id) : 'none';
-    const [agentId, setAgentId] = useState<string>(invoice?.agentId ? String(invoice.agentId) : 'none');
+    // A service invoice may carry several agents (shared rebate).
+    const [agentIds, setAgentIds] = useState<number[]>(invoice?.agentIds ?? []);
     const [walkinName, setWalkinName] = useState('');
     const [walkinPhone, setWalkinPhone] = useState('');
     const [walkinTaxNumber, setWalkinTaxNumber] = useState('');
@@ -124,7 +125,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             return;
         }
         setRedeemPoints('');
-        setAgentId(selectedCustomer?.agentId ? String(selectedCustomer.agentId) : 'none');
+        setAgentIds(selectedCustomer?.agentId ? [selectedCustomer.agentId] : []);
     }, [selectedCustomer]);
 
     const fetchCustomers = useCallback(fetchCustomerOptions, []);
@@ -135,25 +136,28 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         return services.filter((s) => s.name.toLowerCase().includes(term)).slice(0, 8);
     }, [services, search]);
 
-    // The agent list stays preloaded (small); the walk-in / no-agent sentinel sits
-    // first so the cashier can return to it from the list.
+    // The agent list stays preloaded (small); only agents not yet added appear
+    // in the picker so the cashier can stack several onto one invoice.
     const agentOptions = useMemo<ComboboxOption[]>(
-        () => [
-            { value: 'none', label: '— بدون وكيل —' },
-            ...agents.map((a) => ({ value: String(a.id), label: `${a.name} (${a.discountMode === 'rebate' ? 'عمولة' : 'خصم'} ${a.rate}${a.discountType === 'fixed' ? ' ر.س' : '%'})` })),
-        ],
-        [agents],
+        () =>
+            agents
+                .filter((a) => !agentIds.includes(a.id))
+                .map((a) => ({
+                    value: String(a.id),
+                    label: `${a.name} (${a.discountMode === 'rebate' ? 'عمولة' : 'خصم'} ${a.rate}${a.discountType === 'fixed' ? ' ر.س' : '%'})`,
+                })),
+        [agents, agentIds],
     );
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
     const commission = useMemo(() => round2(cart.reduce((sum, l) => sum + (lineTotal(l) * l.baseCommissionPct) / 100, 0)), [cart]);
-    const selectedAgent = useMemo(() => (agentId === 'none' ? null : (agents.find((a) => String(a.id) === agentId) ?? null)), [agentId, agents]);
+    const selectedAgents = useMemo(() => agents.filter((a) => agentIds.includes(a.id)), [agentIds, agents]);
     const selectedPaymentMethod = useMemo(() => paymentMethods.find((m) => m.id === paymentMethodId) ?? null, [paymentMethods, paymentMethodId]);
     const requiresReceipt = selectedPaymentMethod?.requiresAttachment ?? false;
 
     // Loyalty benefits apply only to an eligible customer with no agent on the
     // invoice. Pipeline mirrors the server: subtotal → tier → coupon → agent → points.
-    const loyaltyOn = loyalty.active && !!selectedCustomer?.loyaltyEligible && agentId === 'none';
+    const loyaltyOn = loyalty.active && !!selectedCustomer?.loyaltyEligible && agentIds.length === 0;
 
     const tierDiscount = useMemo(
         () => (loyaltyOn && selectedCustomer ? round2((subtotal * selectedCustomer.tierDiscountPct) / 100) : 0),
@@ -166,12 +170,19 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         return round2(Math.min(raw, afterTier));
     }, [appliedCoupon, afterTier]);
     const afterCoupon = useMemo(() => round2(afterTier - couponDiscount), [afterTier, couponDiscount]);
+    // Discount-mode agents stack: each rate applied to the post-coupon base, then
+    // summed and capped at that base (mirrors the server).
     const agentDiscount = useMemo(
         () =>
-            selectedAgent?.discountMode === 'discount'
-                ? round2(Math.min(selectedAgent.discountType === 'fixed' ? selectedAgent.rate : (afterCoupon * selectedAgent.rate) / 100, afterCoupon))
-                : 0,
-        [selectedAgent, afterCoupon],
+            round2(
+                Math.min(
+                    selectedAgents
+                        .filter((a) => a.discountMode === 'discount')
+                        .reduce((sum, a) => sum + (a.discountType === 'fixed' ? a.rate : (afterCoupon * a.rate) / 100), 0),
+                    afterCoupon,
+                ),
+            ),
+        [selectedAgents, afterCoupon],
     );
     const afterAgent = useMemo(() => round2(afterCoupon - agentDiscount), [afterCoupon, agentDiscount]);
     const pointsDiscount = useMemo(() => {
@@ -183,12 +194,16 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     const taxableBase = useMemo(() => round2(afterAgent - pointsDiscount), [afterAgent, pointsDiscount]);
     const vatAmount = useMemo(() => round2((taxableBase * vatPct) / 100), [taxableBase, vatPct]);
     const total = useMemo(() => round2(taxableBase + vatAmount), [taxableBase, vatAmount]);
+    // Each rebate-mode agent earns independently on the final total; the preview
+    // shows their combined rebate.
     const agentRebate = useMemo(
         () =>
-            selectedAgent?.discountMode === 'rebate'
-                ? round2(Math.min(selectedAgent.discountType === 'fixed' ? selectedAgent.rate : (total * selectedAgent.rate) / 100, total))
-                : 0,
-        [selectedAgent, total],
+            round2(
+                selectedAgents
+                    .filter((a) => a.discountMode === 'rebate')
+                    .reduce((sum, a) => sum + Math.min(a.discountType === 'fixed' ? a.rate : (total * a.rate) / 100, total), 0),
+            ),
+        [selectedAgents, total],
     );
 
     function addService(s: PosService) {
@@ -304,6 +319,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     function resetForm() {
         setCart([]);
         setSelectedCustomer(null);
+        setAgentIds([]);
         setWalkinName('');
         setWalkinPhone('');
         setWalkinTaxNumber('');
@@ -334,7 +350,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
 
         const payload: Record<string, unknown> = {
             customer_id: customerId === 'none' ? null : Number(customerId),
-            agent_id: agentId === 'none' ? null : Number(agentId),
+            agent_ids: agentIds,
             walkin_name: customerId === 'none' ? walkinName.trim() || null : null,
             walkin_phone: customerId === 'none' ? walkinPhone.trim() || null : null,
             walkin_tax_number: customerId === 'none' ? walkinTaxNumber.trim() || null : null,
@@ -428,31 +444,53 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                         </CardContent>
                     </Card>
 
-                    {/* Agent */}
+                    {/* Agents — several may be attached to one invoice */}
                     {agents.length > 0 && (
                         <Card>
                             <CardHeader className="pb-3">
-                                <CardTitle className="text-base">الوكيل</CardTitle>
+                                <CardTitle className="text-base">الوكلاء</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-2">
                                 <Combobox
                                     options={agentOptions}
-                                    value={agentId === 'none' ? '' : agentId}
-                                    onChange={(v) => setAgentId(v || 'none')}
-                                    placeholder="— بدون وكيل —"
+                                    value=""
+                                    onChange={(v) => {
+                                        const id = Number(v);
+                                        if (id) setAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
+                                    }}
+                                    placeholder="— إضافة وكيل —"
                                     searchPlaceholder="بحث عن وكيل"
                                     emptyText="لا يوجد وكيل مطابق"
                                     triggerClassName="w-full"
                                     className="w-[var(--radix-popover-trigger-width)] min-w-56"
                                 />
-                                {selectedAgent && (
-                                    <p className="text-muted-foreground text-xs">
-                                        {selectedAgent.discountMode === 'rebate'
-                                            ? `عمولة مرتجعة ${selectedAgent.rate}${selectedAgent.discountType === 'fixed' ? ' ر.س' : '%'} تُحتسب على الإجمالي`
-                                            : `خصم ${selectedAgent.rate}${selectedAgent.discountType === 'fixed' ? ' ر.س' : '%'} على الفاتورة`}
-                                    </p>
+                                {selectedAgents.length > 0 && (
+                                    <div className="space-y-1.5">
+                                        {selectedAgents.map((a) => (
+                                            <div
+                                                key={a.id}
+                                                className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-2 py-1.5"
+                                            >
+                                                <div className="min-w-0 text-xs">
+                                                    <p className="truncate font-medium">{a.name}</p>
+                                                    <p className="text-muted-foreground">
+                                                        {a.discountMode === 'rebate'
+                                                            ? `عمولة مرتجعة ${a.rate}${a.discountType === 'fixed' ? ' ر.س' : '%'} على الإجمالي`
+                                                            : `خصم ${a.rate}${a.discountType === 'fixed' ? ' ر.س' : '%'} على الفاتورة`}
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setAgentIds((prev) => prev.filter((id) => id !== a.id))}
+                                                    className="text-muted-foreground hover:text-destructive shrink-0"
+                                                >
+                                                    <X className="size-4" />
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
                                 )}
-                                {errors.agent_id && <p className="text-destructive text-xs">{errors.agent_id}</p>}
+                                {errors.agent_ids && <p className="text-destructive text-xs">{errors.agent_ids}</p>}
                             </CardContent>
                         </Card>
                     )}

@@ -22,7 +22,8 @@ class UpdateServiceInvoiceRequest extends FormRequest
     {
         return [
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
-            'agent_id' => ['nullable', 'integer', 'exists:users,id'],
+            'agent_ids' => ['nullable', 'array'],
+            'agent_ids.*' => ['integer', 'distinct', 'exists:users,id'],
             'walkin_name' => ['nullable', 'string', 'max:255'],
             'walkin_phone' => ['nullable', 'string', 'max:30'],
             'walkin_tax_number' => ['nullable', 'string', 'digits:15'],

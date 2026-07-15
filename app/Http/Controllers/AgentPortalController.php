@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\AgentPayment;
 use App\Models\ProductInvoice;
-use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceAgent;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -26,40 +26,75 @@ class AgentPortalController extends Controller
 
         $invoices = collect();
 
-        foreach ([ProductInvoice::class => 'product', ServiceInvoice::class => 'service'] as $model => $type) {
-            $base = $model::query()
-                ->where('agent_id', $agent->id)
-                ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value);
+        // Product invoices carry a single agent on the invoice row.
+        $productBase = ProductInvoice::query()
+            ->where('agent_id', $agent->id)
+            ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value);
 
-            $row = (clone $base)
-                ->selectRaw('COUNT(*) as cnt')
-                ->selectRaw('COALESCE(SUM(agent_rebate), 0) as rebate')
-                ->selectRaw('COALESCE(SUM(agent_discount), 0) as discount')
-                ->selectRaw('COALESCE(SUM(CASE WHEN agent_payment_id IS NOT NULL THEN agent_rebate ELSE 0 END), 0) as paid')
-                ->first();
+        $productRow = (clone $productBase)
+            ->selectRaw('COUNT(*) as cnt')
+            ->selectRaw('COALESCE(SUM(agent_rebate), 0) as rebate')
+            ->selectRaw('COALESCE(SUM(agent_discount), 0) as discount')
+            ->selectRaw('COALESCE(SUM(CASE WHEN agent_payment_id IS NOT NULL THEN agent_rebate ELSE 0 END), 0) as paid')
+            ->first();
 
-            $summary['invoiceCount'] += (int) $row->cnt;
-            $summary['rebateEarned'] += (float) $row->rebate;
-            $summary['rebatePaid'] += (float) $row->paid;
-            $summary['discountGiven'] += (float) $row->discount;
+        $summary['invoiceCount'] += (int) $productRow->cnt;
+        $summary['rebateEarned'] += (float) $productRow->rebate;
+        $summary['rebatePaid'] += (float) $productRow->paid;
+        $summary['discountGiven'] += (float) $productRow->discount;
 
-            (clone $base)
-                ->orderByDesc('created_at')
-                ->limit(20)
-                ->get(['id', 'invoice_number', 'total_amount', 'agent_rebate', 'agent_discount', 'agent_payment_id', 'status', 'created_at'])
-                ->each(fn ($r) => $invoices->push([
-                    'type' => $type,
-                    'invoiceNumber' => $r->invoice_number,
-                    'totalAmount' => (float) $r->total_amount,
-                    'rebate' => (float) $r->agent_rebate,
-                    'discount' => (float) $r->agent_discount,
-                    'isRebatePaid' => $r->agent_payment_id !== null,
-                    'status' => $r->status->value,
-                    'statusLabel' => $r->status->label(),
-                    'createdAtRaw' => $r->created_at,
-                    'createdAt' => $r->created_at?->format('d/m/Y'),
-                ]));
-        }
+        (clone $productBase)
+            ->orderByDesc('created_at')
+            ->limit(20)
+            ->get(['id', 'invoice_number', 'total_amount', 'agent_rebate', 'agent_discount', 'agent_payment_id', 'status', 'created_at'])
+            ->each(fn ($r) => $invoices->push([
+                'type' => 'product',
+                'invoiceNumber' => $r->invoice_number,
+                'totalAmount' => (float) $r->total_amount,
+                'rebate' => (float) $r->agent_rebate,
+                'discount' => (float) $r->agent_discount,
+                'isRebatePaid' => $r->agent_payment_id !== null,
+                'status' => $r->status->value,
+                'statusLabel' => $r->status->label(),
+                'createdAtRaw' => $r->created_at,
+                'createdAt' => $r->created_at?->format('d/m/Y'),
+            ]));
+
+        // Service invoices settle each agent independently via the pivot; the
+        // invoice may carry several agents but only this one's share is theirs.
+        $serviceBase = ServiceInvoiceAgent::query()
+            ->where('agent_id', $agent->id)
+            ->whereHas('invoice', fn ($q) => $q->where('status', '!=', InvoiceStatusEnum::CANCELLED->value));
+
+        $serviceRow = (clone $serviceBase)
+            ->selectRaw('COUNT(*) as cnt')
+            ->selectRaw('COALESCE(SUM(rebate_amount), 0) as rebate')
+            ->selectRaw('COALESCE(SUM(discount_amount), 0) as discount')
+            ->selectRaw('COALESCE(SUM(CASE WHEN agent_payment_id IS NOT NULL THEN rebate_amount ELSE 0 END), 0) as paid')
+            ->first();
+
+        $summary['invoiceCount'] += (int) $serviceRow->cnt;
+        $summary['rebateEarned'] += (float) $serviceRow->rebate;
+        $summary['rebatePaid'] += (float) $serviceRow->paid;
+        $summary['discountGiven'] += (float) $serviceRow->discount;
+
+        (clone $serviceBase)
+            ->with('invoice:id,invoice_number,total_amount,status,created_at')
+            ->orderByDesc('id')
+            ->limit(20)
+            ->get()
+            ->each(fn (ServiceInvoiceAgent $r) => $invoices->push([
+                'type' => 'service',
+                'invoiceNumber' => $r->invoice?->invoice_number,
+                'totalAmount' => (float) ($r->invoice?->total_amount ?? 0),
+                'rebate' => (float) $r->rebate_amount,
+                'discount' => (float) $r->discount_amount,
+                'isRebatePaid' => $r->agent_payment_id !== null,
+                'status' => $r->invoice?->status->value,
+                'statusLabel' => $r->invoice?->status->label(),
+                'createdAtRaw' => $r->invoice?->created_at,
+                'createdAt' => $r->invoice?->created_at?->format('d/m/Y'),
+            ]));
 
         $summary['rebateEarned'] = round($summary['rebateEarned'], 2);
         $summary['rebatePaid'] = round($summary['rebatePaid'], 2);

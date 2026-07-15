@@ -74,13 +74,18 @@ class InvoiceController extends Controller
         $invoice->load([
             'lines',
             'customer:id,full_name,phone,tax_number',
-            'agent:id,name',
             'paymentMethod:id,name',
             'branch',
             'refunds' => fn ($q) => $q->with('user:id,name')->latest(),
         ]);
 
-        // dd(new InvoiceResource($invoice));
+        // Product invoices carry a single agent on the row; service invoices list
+        // several via the pivot.
+        if ($invoice instanceof ServiceInvoice) {
+            $invoice->load('invoiceAgents.agent:id,name');
+        } else {
+            $invoice->load('agent:id,name');
+        }
 
         return Inertia::render('invoices/show', [
             'invoice' => new InvoiceResource($invoice),
@@ -93,6 +98,12 @@ class InvoiceController extends Controller
         Gate::authorize('view', $invoice);
 
         $invoice->load(['lines', 'customer:id,full_name,phone,tax_number', 'paymentMethod:id,name', 'branch']);
+
+        if ($invoice instanceof ServiceInvoice) {
+            $invoice->load('invoiceAgents.agent:id,name');
+        } else {
+            $invoice->load('agent:id,name');
+        }
 
         $format = $request->input('format') === 'thermal' ? 'thermal' : 'a4';
 

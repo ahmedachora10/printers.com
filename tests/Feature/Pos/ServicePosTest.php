@@ -331,60 +331,65 @@ describe('Service POS', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
         $agent->agentProfile->update(['discount_mode' => 'discount', 'rate' => 10]);
 
-        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]));
+        $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
         $invoice = ServiceInvoice::firstOrFail();
+        $pivot = $invoice->invoiceAgents()->firstOrFail();
         // subtotal 30, agent discount 10% = 3, taxable 27, VAT 15% = 4.05, total 31.05, no rebate
         expect((float) $invoice->subtotal)->toBe(30.00)
             ->and((float) $invoice->agent_discount)->toBe(3.00)
-            ->and((float) $invoice->agent_rebate)->toBe(0.00)
+            ->and((float) $pivot->rebate_amount)->toBe(0.00)
+            ->and((float) $pivot->discount_amount)->toBe(3.00)
             ->and((float) $invoice->total_amount)->toBe(31.05)
-            ->and($invoice->agent_id)->toBe($agent->id);
+            ->and($pivot->agent_id)->toBe($agent->id);
     });
 
     it('records an agent rebate without deducting it from the total', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
         $agent->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
 
-        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]));
+        $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
         $invoice = ServiceInvoice::firstOrFail();
+        $pivot = $invoice->invoiceAgents()->firstOrFail();
         // subtotal 30, no discount, taxable 30, VAT 15% = 4.50, total 34.50, rebate 10% of total = 3.45
         expect((float) $invoice->subtotal)->toBe(30.00)
             ->and((float) $invoice->agent_discount)->toBe(0.00)
             ->and((float) $invoice->total_amount)->toBe(34.50)
-            ->and((float) $invoice->agent_rebate)->toBe(3.45)
-            ->and($invoice->agent_id)->toBe($agent->id);
+            ->and((float) $pivot->rebate_amount)->toBe(3.45)
+            ->and($pivot->agent_id)->toBe($agent->id);
     });
 
     it('applies a fixed agent discount to the taxable base', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
         $agent->agentProfile->update(['discount_mode' => 'discount', 'discount_type' => 'fixed', 'rate' => 5]);
 
-        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]));
+        $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
         $invoice = ServiceInvoice::firstOrFail();
+        $pivot = $invoice->invoiceAgents()->firstOrFail();
         // subtotal 30, fixed agent discount 5, taxable 25, VAT 15% = 3.75, total 28.75, no rebate
         expect((float) $invoice->subtotal)->toBe(30.00)
             ->and((float) $invoice->agent_discount)->toBe(5.00)
-            ->and((float) $invoice->agent_rebate)->toBe(0.00)
+            ->and((float) $pivot->rebate_amount)->toBe(0.00)
             ->and((float) $invoice->total_amount)->toBe(28.75)
-            ->and($invoice->agent_id)->toBe($agent->id);
+            ->and($pivot->agent_id)->toBe($agent->id);
     });
 
     it('records a fixed agent rebate without deducting it from the total', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
         $agent->agentProfile->update(['discount_mode' => 'rebate', 'discount_type' => 'fixed', 'rate' => 8]);
 
-        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]));
+        $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
         $invoice = ServiceInvoice::firstOrFail();
+        $pivot = $invoice->invoiceAgents()->firstOrFail();
         // subtotal 30, no discount, taxable 30, VAT 15% = 4.50, total 34.50, fixed rebate 8
         expect((float) $invoice->subtotal)->toBe(30.00)
             ->and((float) $invoice->agent_discount)->toBe(0.00)
             ->and((float) $invoice->total_amount)->toBe(34.50)
-            ->and((float) $invoice->agent_rebate)->toBe(8.00)
-            ->and($invoice->agent_id)->toBe($agent->id);
+            ->and((float) $pivot->rebate_amount)->toBe(8.00)
+            ->and($pivot->agent_id)->toBe($agent->id);
     });
 
     it('caps a fixed agent discount at the invoice base', function () {
@@ -392,7 +397,7 @@ describe('Service POS', function () {
         // A fixed discount larger than the base must not push the total negative.
         $agent->agentProfile->update(['discount_mode' => 'discount', 'discount_type' => 'fixed', 'rate' => 500]);
 
-        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]));
+        $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
         $invoice = ServiceInvoice::firstOrFail();
         // subtotal 30, discount capped at 30, taxable 0, total 0
@@ -400,12 +405,44 @@ describe('Service POS', function () {
             ->and((float) $invoice->total_amount)->toBe(0.00);
     });
 
+    it('records several agents sharing the rebate on one invoice', function () {
+        $a = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $a->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
+        $b = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $b->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 5]);
+
+        $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$a->id, $b->id]]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+        // subtotal 30, no discount, total 34.50; rebates: 10% = 3.45 and 5% = 1.725→1.73
+        expect((float) $invoice->total_amount)->toBe(34.50)
+            ->and((float) $invoice->agent_discount)->toBe(0.00)
+            ->and($invoice->invoiceAgents()->count())->toBe(2)
+            ->and((float) $invoice->invoiceAgents()->where('agent_id', $a->id)->value('rebate_amount'))->toBe(3.45)
+            ->and((float) $invoice->invoiceAgents()->where('agent_id', $b->id)->value('rebate_amount'))->toBe(1.73);
+    });
+
+    it('sums the discounts of several discount-mode agents', function () {
+        $a = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $a->agentProfile->update(['discount_mode' => 'discount', 'rate' => 10]);
+        $b = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $b->agentProfile->update(['discount_mode' => 'discount', 'rate' => 5]);
+
+        $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$a->id, $b->id]]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+        // subtotal 30, discounts 10% + 5% = 4.50, taxable 25.50, VAT 3.825→3.83, total 29.33
+        expect((float) $invoice->agent_discount)->toBe(4.50)
+            ->and((float) $invoice->total_amount)->toBe(29.33)
+            ->and($invoice->invoiceAgents()->count())->toBe(2);
+    });
+
     it('rejects an agent from another branch', function () {
         $otherBranch = Branch::factory()->create();
         $agent = Agent::factory()->create(['branch_id' => $otherBranch->id]);
 
-        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]))
-            ->assertSessionHasErrors('agent_id');
+        $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]))
+            ->assertSessionHasErrors('agent_ids');
 
         expect(ServiceInvoice::count())->toBe(0);
     });

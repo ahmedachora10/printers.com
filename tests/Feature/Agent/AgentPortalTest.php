@@ -13,15 +13,18 @@ uses(RefreshDatabase::class);
 
 function agentInvoice(string $model, int $branchId, int $agentId, array $attrs): void
 {
+    $rebate = $attrs['agent_rebate'] ?? 0;
+    $discount = $attrs['agent_discount'] ?? 0;
+    $paymentId = $attrs['agent_payment_id'] ?? null;
+    unset($attrs['agent_rebate'], $attrs['agent_discount'], $attrs['agent_payment_id'], $attrs['agent_id']);
+
     $base = [
         'invoice_number' => fake()->unique()->numerify('INV-######'),
         'branch_id' => $branchId,
         'user_id' => test()->branchAdmin->id,
-        'agent_id' => $agentId,
         'subtotal' => 100,
         'coupon_discount' => 0,
-        'agent_discount' => 0,
-        'agent_rebate' => 0,
+        'agent_discount' => $discount,
         'vat_pct' => 15,
         'vat_amount' => 15,
         'total_amount' => 115,
@@ -29,11 +32,29 @@ function agentInvoice(string $model, int $branchId, int $agentId, array $attrs):
         'paid_at' => now(),
     ];
 
+    // Service invoices carry their agents on the pivot; product invoices keep the
+    // single agent columns on the invoice row.
     if ($model === ServiceInvoice::class) {
         $base['employee_commission'] = 0;
+        $invoice = ServiceInvoice::create(array_merge($base, $attrs));
+        $invoice->invoiceAgents()->create([
+            'agent_id' => $agentId,
+            'discount_mode' => 'rebate',
+            'discount_type' => 'percentage',
+            'rate' => 10,
+            'discount_amount' => $discount,
+            'rebate_amount' => $rebate,
+            'agent_payment_id' => $paymentId,
+        ]);
+
+        return;
     }
 
-    $model::create(array_merge($base, $attrs));
+    ProductInvoice::create(array_merge($base, [
+        'agent_id' => $agentId,
+        'agent_rebate' => $rebate,
+        'agent_payment_id' => $paymentId,
+    ], $attrs));
 }
 
 describe('Agent Portal', function () {
