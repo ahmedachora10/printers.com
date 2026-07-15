@@ -150,7 +150,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     );
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
-    const commission = useMemo(() => round2(cart.reduce((sum, l) => sum + (lineTotal(l) * l.baseCommissionPct) / 100, 0)), [cart]);
+    // Gross line commission before invoice-level discounts; scaled down below.
+    const grossCommission = useMemo(() => round2(cart.reduce((sum, l) => sum + (lineTotal(l) * l.baseCommissionPct) / 100, 0)), [cart]);
     const selectedAgents = useMemo(() => agents.filter((a) => agentIds.includes(a.id)), [agentIds, agents]);
     const selectedPaymentMethod = useMemo(() => paymentMethods.find((m) => m.id === paymentMethodId) ?? null, [paymentMethods, paymentMethodId]);
     const requiresReceipt = selectedPaymentMethod?.requiresAttachment ?? false;
@@ -192,6 +193,14 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         return round2(Math.min(pts / loyalty.redemptionRate, afterAgent));
     }, [loyaltyOn, redeemPoints, loyalty.redemptionRate, afterAgent]);
     const taxableBase = useMemo(() => round2(afterAgent - pointsDiscount), [afterAgent, pointsDiscount]);
+    // Employee commission is earned on the net service value after every
+    // invoice-level discount (tier, coupon, agent discount, points), mirroring
+    // the server: scale the gross commission by taxableBase / subtotal. Stays an
+    // estimate — it uses the service base rate, not the employee's own rate.
+    const commission = useMemo(
+        () => (subtotal > 0 ? round2((grossCommission * taxableBase) / subtotal) : 0),
+        [grossCommission, taxableBase, subtotal],
+    );
     const vatAmount = useMemo(() => round2((taxableBase * vatPct) / 100), [taxableBase, vatPct]);
     const total = useMemo(() => round2(taxableBase + vatAmount), [taxableBase, vatAmount]);
     // Each rebate-mode agent earns independently on the final total; the preview

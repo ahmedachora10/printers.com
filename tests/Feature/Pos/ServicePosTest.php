@@ -344,6 +344,34 @@ describe('Service POS', function () {
             ->and($pivot->agent_id)->toBe($agent->id);
     });
 
+    it('reduces employee commission and its ledger row by an agent discount', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->agentProfile->update(['discount_mode' => 'discount', 'rate' => 10]);
+
+        $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+        // subtotal 30, agent discount 10% = 3, taxable base 27. Commission is
+        // scaled by 27/30 = 0.9: raw 3.00 -> 2.70, in the invoice, the line and
+        // the immutable ledger row alike.
+        expect((float) $invoice->employee_commission)->toBe(2.70)
+            ->and((float) $invoice->lines->first()->commission_amount)->toBe(2.70)
+            ->and((float) CommissionLedger::firstOrFail()->amount)->toBe(2.70);
+    });
+
+    it('does not reduce employee commission by an agent rebate', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
+
+        $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+        // Rebate sits on top of the total and never touches the taxable base, so
+        // commission stays at the full 3.00.
+        expect((float) $invoice->employee_commission)->toBe(3.00)
+            ->and((float) CommissionLedger::firstOrFail()->amount)->toBe(3.00);
+    });
+
     it('records an agent rebate without deducting it from the total', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
         $agent->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
