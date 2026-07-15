@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Agent;
 
 use App\Enums\AgentDiscountModeEnum;
+use App\Enums\AgentDiscountTypeEnum;
 use App\Enums\AgentTypeEnum;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
@@ -26,6 +27,10 @@ class StoreAgentRequest extends FormRequest
         if (! $user->roleName?->isSuperAdmin()) {
             $this->merge(['branch_id' => $user->branchId]);
         }
+
+        // Default the discount type so existing callers (and the rate cap) keep
+        // treating the rate as a percentage unless a fixed amount is chosen.
+        $this->merge(['discount_type' => $this->input('discount_type', 'percentage')]);
     }
 
     /** @return array<string, mixed> */
@@ -49,7 +54,9 @@ class StoreAgentRequest extends FormRequest
             // Agent profile fields.
             'agent_type' => ['required', new Enum(AgentTypeEnum::class)],
             'discount_mode' => ['required', new Enum(AgentDiscountModeEnum::class)],
-            'rate' => ['required', 'numeric', 'min:0', 'max:100'],
+            'discount_type' => ['required', new Enum(AgentDiscountTypeEnum::class)],
+            // Percentage rates are capped at 100; fixed SAR amounts are not.
+            'rate' => ['required', 'numeric', 'min:0', Rule::when($this->input('discount_type') !== 'fixed', ['max:100'])],
             'commercial_reg_no' => ['nullable', 'string', 'max:100'],
         ];
     }

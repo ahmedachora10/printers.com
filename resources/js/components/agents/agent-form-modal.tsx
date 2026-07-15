@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { type Agent, type AgentDiscountMode, type AgentType, type EnumOption } from '@/types/agent';
+import { type Agent, type AgentDiscountMode, type AgentDiscountType, type AgentType, type EnumOption } from '@/types/agent';
 import { useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
 import InputError from '../input-error';
@@ -46,6 +46,7 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
         is_active: agent?.isActive ?? true,
         agent_type: (agent?.agentType?.value ?? 'individual') as AgentType,
         discount_mode: (agent?.discountMode?.value ?? 'discount') as AgentDiscountMode,
+        discount_type: (agent?.discountType?.value ?? 'percentage') as AgentDiscountType,
         rate: agent?.rate?.toString() ?? '',
         commercial_reg_no: agent?.commercialRegNo ?? '',
     });
@@ -63,6 +64,7 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                 is_active: agent.isActive ?? true,
                 agent_type: (agent.agentType?.value ?? 'individual') as AgentType,
                 discount_mode: (agent.discountMode?.value ?? 'discount') as AgentDiscountMode,
+                discount_type: (agent.discountType?.value ?? 'percentage') as AgentDiscountType,
                 rate: agent.rate?.toString() ?? '',
                 commercial_reg_no: agent.commercialRegNo ?? '',
             });
@@ -260,20 +262,39 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                         </div>
 
                         <div className="space-y-1">
-                            <Label htmlFor="agent-rate">النسبة (%)</Label>
-                            <Input
-                                id="agent-rate"
-                                type="number"
-                                min="0"
-                                max="100"
-                                step="0.01"
-                                value={data.rate}
-                                onChange={(e) => setData('rate', e.target.value)}
-                                placeholder="0.00"
-                                dir="ltr"
-                            />
-                            <InputError message={errors.rate} />
+                            <Label htmlFor="agent-discount-type">نوع الخصم</Label>
+                            <Select
+                                value={data.discount_type}
+                                onValueChange={(val) => setData('discount_type', val as AgentDiscountType)}
+                            >
+                                <SelectTrigger id="agent-discount-type">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="percentage">نسبة مئوية %</SelectItem>
+                                    <SelectItem value="fixed">مبلغ ثابت ر.س</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <InputError message={errors.discount_type} />
                         </div>
+                    </div>
+
+                    <div className="space-y-1">
+                        <Label htmlFor="agent-rate">
+                            {data.discount_type === 'percentage' ? 'النسبة (%)' : 'المبلغ (ر.س)'}
+                        </Label>
+                        <Input
+                            id="agent-rate"
+                            type="number"
+                            min="0"
+                            max={data.discount_type === 'percentage' ? '100' : undefined}
+                            step="0.01"
+                            value={data.rate}
+                            onChange={(e) => setData('rate', e.target.value)}
+                            placeholder="0.00"
+                            dir="ltr"
+                        />
+                        <InputError message={errors.rate} />
                     </div>
 
                     <div className="flex items-center justify-between rounded-lg border px-4 py-3">

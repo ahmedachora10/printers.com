@@ -21,8 +21,8 @@ class CreateAgentAction
         }
 
         return DB::transaction(function () use ($data) {
-            $profile = Arr::only($data, ['agent_type', 'discount_mode', 'rate', 'commercial_reg_no']);
-            $userData = Arr::except($data, ['agent_type', 'discount_mode', 'rate', 'commercial_reg_no']);
+            $profile = Arr::only($data, ['agent_type', 'discount_mode', 'discount_type', 'rate', 'commercial_reg_no']);
+            $userData = Arr::except($data, ['agent_type', 'discount_mode', 'discount_type', 'rate', 'commercial_reg_no']);
 
             // Password is hashed via the User model's 'hashed' cast.
             $user = User::create($userData);

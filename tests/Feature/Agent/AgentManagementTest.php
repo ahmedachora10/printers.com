@@ -162,6 +162,47 @@ describe('Agent Management', function () {
             ->assertSessionHasErrors(['rate']);
     });
 
+    it('defaults the discount type to percentage when omitted', function () {
+        $this->post(route('agents.store'), validAgentPayload())
+            ->assertRedirect(route('agents.index'));
+
+        $this->assertDatabaseHas('agent_profiles', [
+            'user_id' => User::where('username', 'gold_agent')->value('id'),
+            'discount_type' => 'percentage',
+        ]);
+    });
+
+    it('creates an agent with a fixed discount type', function () {
+        $this->post(route('agents.store'), validAgentPayload([
+            'discount_type' => 'fixed',
+            'rate' => 50,
+        ]))->assertRedirect(route('agents.index'));
+
+        $this->assertDatabaseHas('agent_profiles', [
+            'user_id' => User::where('username', 'gold_agent')->value('id'),
+            'discount_type' => 'fixed',
+            'rate' => 50,
+        ]);
+    });
+
+    it('allows a fixed rate above 100', function () {
+        // A fixed SAR amount is not bound by the percentage 0-100 ceiling.
+        $this->post(route('agents.store'), validAgentPayload([
+            'discount_type' => 'fixed',
+            'rate' => 500,
+        ]))->assertRedirect(route('agents.index'));
+
+        $this->assertDatabaseHas('agent_profiles', [
+            'user_id' => User::where('username', 'gold_agent')->value('id'),
+            'rate' => 500,
+        ]);
+    });
+
+    it('rejects an invalid discount type', function () {
+        $this->post(route('agents.store'), validAgentPayload(['discount_type' => 'nonsense']))
+            ->assertSessionHasErrors(['discount_type']);
+    });
+
     it('enforces a unique username', function () {
         User::factory()->create(['username' => 'gold_agent']);
 

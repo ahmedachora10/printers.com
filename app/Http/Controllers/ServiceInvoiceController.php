@@ -438,6 +438,7 @@ class ServiceInvoiceController extends Controller
                 'id' => $agent->id,
                 'name' => $agent->name,
                 'discountMode' => $agent->agentProfile?->discount_mode?->value,
+                'discountType' => $agent->agentProfile?->discount_type?->value ?? 'percentage',
                 'rate' => (float) ($agent->agentProfile?->rate ?? 0),
             ])
             ->values();

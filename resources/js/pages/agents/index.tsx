@@ -99,8 +99,13 @@ export default function AgentsIndex({ items, agentTypes, discountModes, branches
             },
             {
                 key: 'rate',
-                header: 'النسبة',
-                cell: (item) => <span className="tabular-nums">{item.rate}%</span>,
+                header: 'القيمة',
+                cell: (item) => (
+                    <span className="tabular-nums">
+                        {item.rate}
+                        {item.discountType?.value === 'fixed' ? ' ر.س' : '%'}
+                    </span>
+                ),
             },
             {
                 key: 'status',

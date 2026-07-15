@@ -13,6 +13,7 @@ interface AgentInfo {
     branchName: string | null;
     discountMode: 'discount' | 'rebate' | null;
     discountModeLabel: string | null;
+    discountType: 'percentage' | 'fixed';
     rate: number;
 }
 
@@ -122,7 +123,8 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                     <div>
                         <h1 className="text-2xl font-bold">مرحباً، {agent.name}</h1>
                         <p className="text-muted-foreground text-sm">
-                            {agent.branchName ?? ''} · {agent.discountModeLabel ?? ''} {agent.rate}%
+                            {agent.branchName ?? ''} · {agent.discountModeLabel ?? ''} {agent.rate}
+                            {agent.discountType === 'fixed' ? ' ر.س' : '%'}
                         </p>
                     </div>
                 </div>

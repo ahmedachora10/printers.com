@@ -33,6 +33,10 @@ class AgentResource extends JsonResource
                 'value' => $profile->discount_mode->value,
                 'label' => $profile->discount_mode->label(),
             ] : null,
+            'discountType' => $profile?->discount_type ? [
+                'value' => $profile->discount_type->value,
+                'label' => $profile->discount_type->label(),
+            ] : null,
             'rate' => (float) ($profile?->rate ?? 0),
             'commercialRegNo' => $profile?->commercial_reg_no,
             'createdAt' => $this->created_at?->format('d/m/Y'),
