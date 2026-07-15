@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AgentDiscountModeEnum;
+use App\Enums\AgentDiscountTypeEnum;
 use App\Enums\AgentTypeEnum;
 use Database\Factories\AgentProfileFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,6 +19,7 @@ class AgentProfile extends Model
         'user_id',
         'agent_type',
         'discount_mode',
+        'discount_type',
         'rate',
         'commercial_reg_no',
     ];
@@ -25,6 +27,7 @@ class AgentProfile extends Model
     protected $casts = [
         'agent_type' => AgentTypeEnum::class,
         'discount_mode' => AgentDiscountModeEnum::class,
+        'discount_type' => AgentDiscountTypeEnum::class,
         'rate' => 'decimal:2',
     ];
 

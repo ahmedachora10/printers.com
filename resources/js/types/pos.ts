@@ -48,11 +48,13 @@ export interface PosLoyalty {
 }
 
 export type AgentDiscountMode = 'discount' | 'rebate';
+export type AgentDiscountType = 'percentage' | 'fixed';
 
 export interface PosAgent {
     id: number;
     name: string;
     discountMode: AgentDiscountMode | null;
+    discountType: AgentDiscountType;
     rate: number;
 }
 

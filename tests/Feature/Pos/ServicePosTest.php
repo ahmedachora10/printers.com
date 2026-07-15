@@ -357,6 +357,49 @@ describe('Service POS', function () {
             ->and($invoice->agent_id)->toBe($agent->id);
     });
 
+    it('applies a fixed agent discount to the taxable base', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->agentProfile->update(['discount_mode' => 'discount', 'discount_type' => 'fixed', 'rate' => 5]);
+
+        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+        // subtotal 30, fixed agent discount 5, taxable 25, VAT 15% = 3.75, total 28.75, no rebate
+        expect((float) $invoice->subtotal)->toBe(30.00)
+            ->and((float) $invoice->agent_discount)->toBe(5.00)
+            ->and((float) $invoice->agent_rebate)->toBe(0.00)
+            ->and((float) $invoice->total_amount)->toBe(28.75)
+            ->and($invoice->agent_id)->toBe($agent->id);
+    });
+
+    it('records a fixed agent rebate without deducting it from the total', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->agentProfile->update(['discount_mode' => 'rebate', 'discount_type' => 'fixed', 'rate' => 8]);
+
+        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+        // subtotal 30, no discount, taxable 30, VAT 15% = 4.50, total 34.50, fixed rebate 8
+        expect((float) $invoice->subtotal)->toBe(30.00)
+            ->and((float) $invoice->agent_discount)->toBe(0.00)
+            ->and((float) $invoice->total_amount)->toBe(34.50)
+            ->and((float) $invoice->agent_rebate)->toBe(8.00)
+            ->and($invoice->agent_id)->toBe($agent->id);
+    });
+
+    it('caps a fixed agent discount at the invoice base', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        // A fixed discount larger than the base must not push the total negative.
+        $agent->agentProfile->update(['discount_mode' => 'discount', 'discount_type' => 'fixed', 'rate' => 500]);
+
+        $this->post(route('pos.service.store'), svcPayload(['agent_id' => $agent->id]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+        // subtotal 30, discount capped at 30, taxable 0, total 0
+        expect((float) $invoice->agent_discount)->toBe(30.00)
+            ->and((float) $invoice->total_amount)->toBe(0.00);
+    });
+
     it('rejects an agent from another branch', function () {
         $otherBranch = Branch::factory()->create();
         $agent = Agent::factory()->create(['branch_id' => $otherBranch->id]);

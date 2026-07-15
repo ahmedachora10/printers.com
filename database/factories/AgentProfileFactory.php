@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\AgentDiscountModeEnum;
+use App\Enums\AgentDiscountTypeEnum;
 use App\Enums\AgentTypeEnum;
 use App\Models\AgentProfile;
 use App\Models\User;
@@ -19,6 +20,7 @@ class AgentProfileFactory extends Factory
             'user_id' => User::factory(),
             'agent_type' => fake()->randomElement(AgentTypeEnum::cases())->value,
             'discount_mode' => fake()->randomElement(AgentDiscountModeEnum::cases())->value,
+            'discount_type' => AgentDiscountTypeEnum::Percentage->value,
             'rate' => fake()->randomFloat(2, 1, 25),
             'commercial_reg_no' => fake()->optional()->numerify('##########'),
         ];

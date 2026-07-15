@@ -274,6 +274,34 @@ describe('Product POS', function () {
             ->and((float) $invoice->agent_rebate)->toBe(3.45);
     });
 
+    it('applies a fixed agent discount to the taxable base', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->agentProfile->update(['discount_mode' => 'discount', 'discount_type' => 'fixed', 'rate' => 5]);
+
+        $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
+
+        $invoice = ProductInvoice::firstOrFail();
+        // subtotal 30, fixed agent discount 5, taxable 25, VAT 15% = 3.75, total 28.75
+        expect((float) $invoice->subtotal)->toBe(30.00)
+            ->and((float) $invoice->agent_discount)->toBe(5.00)
+            ->and((float) $invoice->agent_rebate)->toBe(0.00)
+            ->and((float) $invoice->total_amount)->toBe(28.75)
+            ->and($invoice->agent_id)->toBe($agent->id);
+    });
+
+    it('records a fixed agent rebate without deducting it from the total', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->agentProfile->update(['discount_mode' => 'rebate', 'discount_type' => 'fixed', 'rate' => 8]);
+
+        $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
+
+        $invoice = ProductInvoice::firstOrFail();
+        // subtotal 30, taxable 30, VAT 15% = 4.50, total 34.50, fixed rebate 8
+        expect((float) $invoice->total_amount)->toBe(34.50)
+            ->and((float) $invoice->agent_discount)->toBe(0.00)
+            ->and((float) $invoice->agent_rebate)->toBe(8.00);
+    });
+
     it('rejects an agent from another branch', function () {
         $otherBranch = Branch::factory()->create();
         $agent = Agent::factory()->create(['branch_id' => $otherBranch->id]);

@@ -92,6 +92,7 @@ class AgentPortalController extends Controller
                 'branchName' => $agent->branch?->name,
                 'discountMode' => $agent->agentProfile?->discount_mode?->value,
                 'discountModeLabel' => $agent->agentProfile?->discount_mode?->label(),
+                'discountType' => $agent->agentProfile?->discount_type?->value ?? 'percentage',
                 'rate' => (float) ($agent->agentProfile?->rate ?? 0),
             ],
             'summary' => $summary,

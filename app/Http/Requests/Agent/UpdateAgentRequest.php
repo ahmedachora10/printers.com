@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Agent;
 
 use App\Enums\AgentDiscountModeEnum;
+use App\Enums\AgentDiscountTypeEnum;
 use App\Enums\AgentTypeEnum;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -14,6 +15,13 @@ class UpdateAgentRequest extends FormRequest
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        // Default the discount type so the rate cap keeps treating the rate as a
+        // percentage unless a fixed amount is explicitly chosen.
+        $this->merge(['discount_type' => $this->input('discount_type', 'percentage')]);
     }
 
     /** @return array<string, mixed> */
@@ -40,7 +48,9 @@ class UpdateAgentRequest extends FormRequest
             // Agent profile fields.
             'agent_type' => ['required', new Enum(AgentTypeEnum::class)],
             'discount_mode' => ['required', new Enum(AgentDiscountModeEnum::class)],
-            'rate' => ['required', 'numeric', 'min:0', 'max:100'],
+            'discount_type' => ['required', new Enum(AgentDiscountTypeEnum::class)],
+            // Percentage rates are capped at 100; fixed SAR amounts are not.
+            'rate' => ['required', 'numeric', 'min:0', Rule::when($this->input('discount_type') !== 'fixed', ['max:100'])],
             'commercial_reg_no' => ['nullable', 'string', 'max:100'],
         ];
     }

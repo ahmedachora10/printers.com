@@ -140,7 +140,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     const agentOptions = useMemo<ComboboxOption[]>(
         () => [
             { value: 'none', label: '— بدون وكيل —' },
-            ...agents.map((a) => ({ value: String(a.id), label: `${a.name} (${a.discountMode === 'rebate' ? 'عمولة' : 'خصم'} ${a.rate}%)` })),
+            ...agents.map((a) => ({ value: String(a.id), label: `${a.name} (${a.discountMode === 'rebate' ? 'عمولة' : 'خصم'} ${a.rate}${a.discountType === 'fixed' ? ' ر.س' : '%'})` })),
         ],
         [agents],
     );
@@ -167,7 +167,10 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     }, [appliedCoupon, afterTier]);
     const afterCoupon = useMemo(() => round2(afterTier - couponDiscount), [afterTier, couponDiscount]);
     const agentDiscount = useMemo(
-        () => (selectedAgent?.discountMode === 'discount' ? round2((afterCoupon * selectedAgent.rate) / 100) : 0),
+        () =>
+            selectedAgent?.discountMode === 'discount'
+                ? round2(Math.min(selectedAgent.discountType === 'fixed' ? selectedAgent.rate : (afterCoupon * selectedAgent.rate) / 100, afterCoupon))
+                : 0,
         [selectedAgent, afterCoupon],
     );
     const afterAgent = useMemo(() => round2(afterCoupon - agentDiscount), [afterCoupon, agentDiscount]);
@@ -181,7 +184,10 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     const vatAmount = useMemo(() => round2((taxableBase * vatPct) / 100), [taxableBase, vatPct]);
     const total = useMemo(() => round2(taxableBase + vatAmount), [taxableBase, vatAmount]);
     const agentRebate = useMemo(
-        () => (selectedAgent?.discountMode === 'rebate' ? round2((total * selectedAgent.rate) / 100) : 0),
+        () =>
+            selectedAgent?.discountMode === 'rebate'
+                ? round2(Math.min(selectedAgent.discountType === 'fixed' ? selectedAgent.rate : (total * selectedAgent.rate) / 100, total))
+                : 0,
         [selectedAgent, total],
     );
 
@@ -442,8 +448,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 {selectedAgent && (
                                     <p className="text-muted-foreground text-xs">
                                         {selectedAgent.discountMode === 'rebate'
-                                            ? `عمولة مرتجعة ${selectedAgent.rate}% تُحتسب على الإجمالي`
-                                            : `خصم ${selectedAgent.rate}% على الفاتورة`}
+                                            ? `عمولة مرتجعة ${selectedAgent.rate}${selectedAgent.discountType === 'fixed' ? ' ر.س' : '%'} تُحتسب على الإجمالي`
+                                            : `خصم ${selectedAgent.rate}${selectedAgent.discountType === 'fixed' ? ' ر.س' : '%'} على الفاتورة`}
                                     </p>
                                 )}
                                 {errors.agent_id && <p className="text-destructive text-xs">{errors.agent_id}</p>}

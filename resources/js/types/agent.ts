@@ -1,5 +1,6 @@
 export type AgentType = 'individual' | 'company';
 export type AgentDiscountMode = 'discount' | 'rebate';
+export type AgentDiscountType = 'percentage' | 'fixed';
 
 export interface Agent {
     id: number;
@@ -16,6 +17,10 @@ export interface Agent {
     } | null;
     discountMode: {
         value: AgentDiscountMode;
+        label: string;
+    } | null;
+    discountType: {
+        value: AgentDiscountType;
         label: string;
     } | null;
     rate: number;

@@ -8,6 +8,7 @@ use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
 use App\Actions\StockMovement\RecordStockMovementAction;
 use App\Enums\AgentDiscountModeEnum;
+use App\Enums\AgentDiscountTypeEnum;
 use App\Enums\CouponDiscountTypeEnum;
 use App\Enums\CustomerTypeEnum;
 use App\Enums\InvoiceStatusEnum;
@@ -114,7 +115,7 @@ class CreateProductInvoiceAction
             $customer = $customerId !== null ? Customer::find($customerId) : null;
             $config = LoyaltyConfig::forBranch($branchId);
 
-            [$agentId, $agentMode, $agentRate] = $this->resolveAgent->handle(
+            [$agentId, $agentMode, $agentType, $agentRate] = $this->resolveAgent->handle(
                 isset($data['agent_id']) ? (int) $data['agent_id'] : null,
                 $branchId,
             );
@@ -135,9 +136,10 @@ class CreateProductInvoiceAction
             $afterCoupon = round($afterTier - $couponDiscount, 2);
 
             // discount mode reduces the taxable base; rebate is recorded on the
-            // invoice after the total but never deducted from it.
+            // invoice after the total but never deducted from it. The rate is
+            // read as a percentage or a flat SAR amount per the discount type.
             $agentDiscount = $agentMode === AgentDiscountModeEnum::Discount
-                ? round($afterCoupon * $agentRate / 100, 2)
+                ? $this->agentAmount($agentType, $agentRate, $afterCoupon)
                 : 0.0;
             $afterAgent = round($afterCoupon - $agentDiscount, 2);
 
@@ -149,7 +151,7 @@ class CreateProductInvoiceAction
             $total = round($taxableBase + $vatAmount, 2);
 
             $agentRebate = $agentMode === AgentDiscountModeEnum::Rebate
-                ? round($total * $agentRate / 100, 2)
+                ? $this->agentAmount($agentType, $agentRate, $total)
                 : 0.0;
 
             $status = InvoiceStatusEnum::from($data['status']);
@@ -226,6 +228,20 @@ class CreateProductInvoiceAction
 
             return $invoice;
         });
+    }
+
+    /**
+     * Agent discount/rebate amount for a base: a percentage of the base, or a
+     * flat SAR amount capped at the base. Mirrors the coupon fixed/percentage
+     * rule so the two behave the same.
+     */
+    private function agentAmount(AgentDiscountTypeEnum $type, float $rate, float $base): float
+    {
+        $amount = $type === AgentDiscountTypeEnum::Fixed
+            ? $rate
+            : $base * $rate / 100;
+
+        return round(min($amount, $base), 2);
     }
 
     /**
