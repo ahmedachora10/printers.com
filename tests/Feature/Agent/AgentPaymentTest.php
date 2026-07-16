@@ -149,6 +149,29 @@ describe('Agent Payments', function () {
         expect(AgentPayment::count())->toBe(0);
     });
 
+    it('does not pay or count the rebate of a due (unapproved) invoice', function () {
+        // Only the paid invoice is payable; the due one is excluded until approved.
+        rebateInvoice($this->branch->id, $this->agent->id, 10);
+        rebateInvoice($this->branch->id, $this->agent->id, 20, ['status' => 'due', 'paid_at' => null]);
+
+        $this->get(route('agent-payments.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('agents.0.outstandingRebate', 10)
+                ->where('agents.0.outstandingInvoices', 1));
+
+        $this->post(route('agent-payments.store'), [
+            'agent_id' => $this->agent->id,
+            'period_start' => now()->subDay()->toDateString(),
+            'period_end' => now()->addDay()->toDateString(),
+        ])->assertRedirect(route('agent-payments.index'));
+
+        $this->assertDatabaseHas('agent_payments', [
+            'agent_id' => $this->agent->id,
+            'total_invoices' => 1,
+            'total_rebate' => 10,
+        ]);
+    });
+
     it('prevents a branch-admin from paying an agent in another branch', function () {
         $otherBranch = Branch::factory()->create();
         $otherAgent = Agent::factory()->create(['branch_id' => $otherBranch->id]);

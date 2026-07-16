@@ -48,7 +48,15 @@ class CreateServiceInvoiceAction
                 $invoice->addMedia($receipt)->toMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);
             }
 
-            $this->writeLinesAndLedger($invoice, $calc['lines'], $user->id, $branchId);
+            $this->writeLines($invoice, $calc['lines']);
+
+            // Commission is earned only once the invoice is approved (paid). A due
+            // invoice — every employee-raised one — writes no ledger row yet; it is
+            // written when the accountant settles it (MarkServiceInvoicePaidAction).
+            if ($status === InvoiceStatusEnum::PAID) {
+                $this->writeLedgerFromLines($invoice, $user->id, $branchId);
+            }
+
             $this->syncInvoiceAgents($invoice, $calc['agents']);
 
             if ($calc['coupon']) {

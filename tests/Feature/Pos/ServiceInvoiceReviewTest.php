@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\CommissionSourceTypeEnum;
 use App\Enums\CustomerTypeEnum;
 use App\Enums\LoyaltyTransactionTypeEnum;
 use App\Enums\Roles;
@@ -11,7 +10,6 @@ use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
 use App\Models\PaymentMethod;
 use App\Models\ServiceInvoice;
-use App\Models\ServiceInvoiceLine;
 use App\Models\User;
 use App\Notifications\ServiceInvoiceReviewedNotification;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -21,8 +19,9 @@ use Illuminate\Support\Facades\Notification;
 uses(RefreshDatabase::class);
 
 /**
- * Build a due service invoice with one line and its commission ledger row,
- * mirroring what the employee POS produces.
+ * Build a due service invoice with one line, mirroring what the employee POS
+ * produces. A due invoice carries no commission ledger row — commission is
+ * written only when an accountant approves (pays) the invoice.
  */
 function makeDueInvoice(array $overrides = [], ?int $commission = 10): ServiceInvoice
 {
@@ -38,8 +37,7 @@ function makeDueInvoice(array $overrides = [], ?int $commission = 10): ServiceIn
         'status' => 'due',
     ], $overrides));
 
-    /** @var ServiceInvoiceLine $line */
-    $line = $invoice->lines()->create([
+    $invoice->lines()->create([
         'service_name' => 'خدمة اختبار',
         'qty' => 1,
         'unit_price' => 100,
@@ -47,20 +45,8 @@ function makeDueInvoice(array $overrides = [], ?int $commission = 10): ServiceIn
         'subtotal' => 100,
         'commission_pct' => 10,
         'commission_amount' => $commission,
+        'is_tahazir' => false,
     ]);
-
-    if ($commission > 0) {
-        CommissionLedger::create([
-            'user_id' => test()->employee->id,
-            'branch_id' => $invoice->branch_id,
-            'invoice_line_id' => $line->id,
-            'invoice_line_type' => ServiceInvoiceLine::class,
-            'amount' => $commission,
-            'is_tahazir' => false,
-            'source_type' => CommissionSourceTypeEnum::STANDARD,
-            'earned_at' => now(),
-        ]);
-    }
 
     return $invoice;
 }
@@ -95,8 +81,11 @@ describe('Service invoice review', function () {
         $this->get(route('invoices.service.review'))->assertForbidden();
     });
 
-    it('marks a due invoice as paid and stamps paid_at', function () {
+    it('marks a due invoice as paid, stamps paid_at and writes the commission ledger', function () {
         $invoice = makeDueInvoice();
+
+        // No commission is earned while the invoice is due.
+        expect(CommissionLedger::count())->toBe(0);
 
         $this->from(route('invoices.service.review'))
             ->patch(route('invoices.service.pay', $invoice))
@@ -106,6 +95,13 @@ describe('Service invoice review', function () {
         $invoice->refresh();
         expect($invoice->status->value)->toBe('paid')
             ->and($invoice->paid_at)->not->toBeNull();
+
+        // Approval realises the employee's commission: one immutable ledger row.
+        $entry = CommissionLedger::firstOrFail();
+        expect(CommissionLedger::count())->toBe(1)
+            ->and($entry->user_id)->toBe($this->employee->id)
+            ->and((float) $entry->amount)->toBe(10.00)
+            ->and($entry->invoice_line_id)->toBe($invoice->lines()->value('id'));
     });
 
     it('credits loyalty points when settling for an eligible customer', function () {
@@ -133,7 +129,7 @@ describe('Service invoice review', function () {
             ->assertSessionHasErrors('status');
     });
 
-    it('cancels a due invoice and reverses unpaid commission to zero', function () {
+    it('cancels a due invoice without touching the commission ledger', function () {
         $invoice = makeDueInvoice();
 
         $this->patch(route('invoices.service.cancel', $invoice), ['reason' => 'طلب العميل الإلغاء'])
@@ -144,10 +140,10 @@ describe('Service invoice review', function () {
         expect($invoice->status->value)->toBe('cancelled')
             ->and($invoice->cancellation_reason)->toBe('طلب العميل الإلغاء');
 
-        // Original +10 plus a -10 reversal = net 0, with the ledger never mutated.
+        // A due invoice never accrued commission (the ledger is written only on
+        // approval), so there is nothing to reverse — the ledger stays empty.
         $lineIds = $invoice->lines()->pluck('id');
-        expect(CommissionLedger::whereIn('invoice_line_id', $lineIds)->count())->toBe(2)
-            ->and((float) CommissionLedger::whereIn('invoice_line_id', $lineIds)->sum('amount'))->toBe(0.0);
+        expect(CommissionLedger::whereIn('invoice_line_id', $lineIds)->count())->toBe(0);
     });
 
     it('restores redeemed points when cancelling', function () {

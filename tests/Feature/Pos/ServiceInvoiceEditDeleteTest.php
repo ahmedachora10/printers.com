@@ -110,7 +110,12 @@ describe('Service invoice edit/delete', function () {
             ->and((float) $invoice->total_amount)->toBe(57.50)
             ->and($invoice->lines()->count())->toBe(1);
 
-        // Old commission (3) reversed (-3) and new commission (5) added → net 5.
+        // A due invoice carries no ledger yet; approving it writes the recomputed
+        // commission (5.00, not the original 3.00) to the immutable ledger.
+        expect(CommissionLedger::count())->toBe(0);
+
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
+
         expect((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(5.00);
     });
 
@@ -145,13 +150,14 @@ describe('Service invoice edit/delete', function () {
 
     // ---- Delete -----------------------------------------------------------
 
-    it('lets the owner soft-delete a due invoice and reverse commission to zero', function () {
+    it('lets the owner soft-delete a due invoice with no commission to reverse', function () {
         $invoice = makeOwnedDueInvoice();
 
         $this->delete(route('pos.service.destroy', $invoice))
             ->assertRedirect(route('invoices.index'))
             ->assertSessionHas('success');
 
+        // A due invoice never earned commission, so the ledger stays empty.
         expect(ServiceInvoice::withTrashed()->find($invoice->id)->trashed())->toBeTrue()
             ->and(ServiceInvoice::find($invoice->id))->toBeNull()
             ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(0.00);

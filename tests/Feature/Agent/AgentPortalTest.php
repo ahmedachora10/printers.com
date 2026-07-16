@@ -109,6 +109,25 @@ describe('Agent Portal', function () {
                 ->has('recentInvoices', 2));
     });
 
+    it('hides a due (unapproved) invoice and its rebate from the agent', function () {
+        // A paid invoice is visible; a due one must stay hidden until approved.
+        agentInvoice(ServiceInvoice::class, $this->branch->id, $this->agent->id, ['agent_rebate' => 10]);
+        agentInvoice(ServiceInvoice::class, $this->branch->id, $this->agent->id, [
+            'agent_rebate' => 20,
+            'status' => 'due',
+            'paid_at' => null,
+        ]);
+
+        $this->actingAs($this->agent);
+
+        $this->get(route('agent-portal.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('summary.invoiceCount', 1)
+                ->where('summary.rebateEarned', 10)
+                ->where('summary.rebateOutstanding', 10)
+                ->has('recentInvoices', 1));
+    });
+
     it('redirects an agent to the portal on login', function () {
         $this->agent->update(['username' => 'agent_login']);
 

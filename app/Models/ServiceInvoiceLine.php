@@ -17,6 +17,7 @@ class ServiceInvoiceLine extends Model
         'subtotal',
         'commission_pct',
         'commission_amount',
+        'is_tahazir',
         'tier_applied',
     ];
 
@@ -27,6 +28,7 @@ class ServiceInvoiceLine extends Model
         'subtotal' => 'decimal:2',
         'commission_pct' => 'decimal:2',
         'commission_amount' => 'decimal:2',
+        'is_tahazir' => 'boolean',
         'tier_applied' => 'integer',
     ];
 
