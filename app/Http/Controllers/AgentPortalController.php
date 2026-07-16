@@ -26,10 +26,12 @@ class AgentPortalController extends Controller
 
         $invoices = collect();
 
-        // Product invoices carry a single agent on the invoice row.
+        // Product invoices carry a single agent on the invoice row. Only approved
+        // (paid) invoices are visible to the agent — a rebate is earned once the
+        // accountant settles the invoice, never while it is still due.
         $productBase = ProductInvoice::query()
             ->where('agent_id', $agent->id)
-            ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value);
+            ->where('status', InvoiceStatusEnum::PAID->value);
 
         $productRow = (clone $productBase)
             ->selectRaw('COUNT(*) as cnt')
@@ -62,9 +64,10 @@ class AgentPortalController extends Controller
 
         // Service invoices settle each agent independently via the pivot; the
         // invoice may carry several agents but only this one's share is theirs.
+        // As with product invoices, a share surfaces only once the invoice is paid.
         $serviceBase = ServiceInvoiceAgent::query()
             ->where('agent_id', $agent->id)
-            ->whereHas('invoice', fn ($q) => $q->where('status', '!=', InvoiceStatusEnum::CANCELLED->value));
+            ->whereHas('invoice', fn ($q) => $q->where('status', InvoiceStatusEnum::PAID->value));
 
         $serviceRow = (clone $serviceBase)
             ->selectRaw('COUNT(*) as cnt')

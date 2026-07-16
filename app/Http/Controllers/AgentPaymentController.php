@@ -83,12 +83,14 @@ class AgentPaymentController extends Controller
             $outstanding[$agentId]['count'] = ($outstanding[$agentId]['count'] ?? 0) + $count;
         };
 
+        // Only approved (paid) invoices count as outstanding rebate — a due
+        // invoice is not payable, so it must not inflate the agent's balance here.
         // Product invoices carry a single agent on the invoice row.
         ProductInvoice::query()
             ->whereNotNull('agent_id')
             ->whereNull('agent_payment_id')
             ->where('agent_rebate', '>', 0)
-            ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value)
+            ->where('status', InvoiceStatusEnum::PAID->value)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->groupBy('agent_id')
             ->selectRaw('agent_id, SUM(agent_rebate) as rebate, COUNT(*) as cnt')
@@ -100,7 +102,7 @@ class AgentPaymentController extends Controller
             ->whereNull('agent_payment_id')
             ->where('rebate_amount', '>', 0)
             ->whereHas('invoice', fn ($q) => $q
-                ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value)
+                ->where('status', InvoiceStatusEnum::PAID->value)
                 ->when($branchId, fn ($qq) => $qq->where('branch_id', $branchId)))
             ->groupBy('agent_id')
             ->selectRaw('agent_id, SUM(rebate_amount) as rebate, COUNT(*) as cnt')

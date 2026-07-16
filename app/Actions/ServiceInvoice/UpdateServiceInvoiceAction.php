@@ -73,7 +73,9 @@ class UpdateServiceInvoiceAction
                 $invoice->addMedia($receipt)->toMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);
             }
 
-            $this->writeLinesAndLedger($invoice, $calc['lines'], $userId, $branchId);
+            // The invoice stays due here, so no commission ledger is written; it is
+            // deferred until the accountant approves (pays) the invoice.
+            $this->writeLines($invoice, $calc['lines']);
             $this->syncInvoiceAgents($invoice, $calc['agents']);
 
             if ($calc['coupon']) {

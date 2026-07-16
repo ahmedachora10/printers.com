@@ -8,20 +8,30 @@ use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 
 /**
- * Persists calculated line rows and their immutable commission-ledger entries
- * for a service invoice. Shared by create and edit so a line always earns an
- * identically-shaped ledger row. Call inside the surrounding transaction.
+ * Persists a service invoice's calculated line rows and, once the invoice is
+ * approved (paid), their immutable commission-ledger entries. Shared by create
+ * and edit so a line is always shaped identically. Call inside the surrounding
+ * transaction.
+ *
+ * Line rows are written up front (they exist the moment the invoice does), but
+ * the commission ledger is deferred until the invoice is paid — an employee's
+ * commission is only earned once the accountant approves the invoice, mirroring
+ * how loyalty points are credited only on paid invoices. So a due invoice never
+ * writes a ledger row (nothing to reverse if it is later cancelled), and payment
+ * writes the ledger from the persisted lines.
  */
 trait WritesServiceInvoiceLines
 {
     /**
+     * Persist the invoice's line rows (no ledger). The tahazir flag is snapshotted
+     * onto the line so the ledger can be written faithfully later, at payment time.
+     *
      * @param  list<array<string, mixed>>  $lines  rows from CalculateServiceInvoiceAction
      */
-    protected function writeLinesAndLedger(ServiceInvoice $invoice, array $lines, int $userId, int $branchId): void
+    protected function writeLines(ServiceInvoice $invoice, array $lines): void
     {
         foreach ($lines as $line) {
-            /** @var ServiceInvoiceLine $invoiceLine */
-            $invoiceLine = $invoice->lines()->create([
+            $invoice->lines()->create([
                 'branch_service_id' => $line['branch_service_id'],
                 'service_name' => $line['service_name'],
                 'qty' => $line['qty'],
@@ -30,17 +40,28 @@ trait WritesServiceInvoiceLines
                 'subtotal' => $line['subtotal'],
                 'commission_pct' => $line['commission_pct'],
                 'commission_amount' => $line['commission_amount'],
+                'is_tahazir' => $line['is_tahazir'],
             ]);
+        }
+    }
 
-            // One immutable ledger row per line. Tier resolution will populate
-            // tier_applied once commission tiers are built (M07/M15).
+    /**
+     * Write one immutable commission-ledger row per persisted line. Called only
+     * when the invoice is (or becomes) paid — never for a due invoice.
+     */
+    protected function writeLedgerFromLines(ServiceInvoice $invoice, int $userId, int $branchId): void
+    {
+        foreach ($invoice->lines()->get() as $line) {
+            /** @var ServiceInvoiceLine $line */
+            // Tier resolution will populate tier_applied once commission tiers are
+            // built (M07/M15).
             CommissionLedger::create([
                 'user_id' => $userId,
                 'branch_id' => $branchId,
-                'invoice_line_id' => $invoiceLine->id,
+                'invoice_line_id' => $line->id,
                 'invoice_line_type' => ServiceInvoiceLine::class,
-                'amount' => $line['commission_amount'],
-                'is_tahazir' => $line['is_tahazir'],
+                'amount' => $line->commission_amount,
+                'is_tahazir' => $line->is_tahazir,
                 'tier_applied' => null,
                 'source_type' => CommissionSourceTypeEnum::STANDARD,
                 'earned_at' => now(),

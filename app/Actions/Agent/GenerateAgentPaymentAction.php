@@ -23,24 +23,26 @@ class GenerateAgentPaymentAction
         return DB::transaction(function () use ($agent, $start, $end, $data) {
             $window = [$start.' 00:00:00', $end.' 23:59:59'];
 
-            // Product invoices still carry a single agent on the invoice row.
+            // Product invoices still carry a single agent on the invoice row. Only
+            // approved (paid) invoices are settled — a rebate is not payable while
+            // the invoice is still due.
             $productRows = ProductInvoice::query()
                 ->where('agent_id', $agent->id)
                 ->whereNull('agent_payment_id')
                 ->where('agent_rebate', '>', 0)
-                ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value)
+                ->where('status', InvoiceStatusEnum::PAID->value)
                 ->whereBetween('created_at', $window)
                 ->lockForUpdate()
                 ->get(['id', 'agent_rebate']);
 
             // Service invoices may list several agents; each shares the rebate via
-            // its own pivot row settled independently.
+            // its own pivot row settled independently — again, paid invoices only.
             $serviceRows = ServiceInvoiceAgent::query()
                 ->where('agent_id', $agent->id)
                 ->whereNull('agent_payment_id')
                 ->where('rebate_amount', '>', 0)
                 ->whereHas('invoice', fn ($q) => $q
-                    ->where('status', '!=', InvoiceStatusEnum::CANCELLED->value)
+                    ->where('status', InvoiceStatusEnum::PAID->value)
                     ->whereBetween('created_at', $window))
                 ->lockForUpdate()
                 ->get(['id', 'rebate_amount']);

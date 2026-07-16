@@ -60,6 +60,18 @@ function svcPayload(array $overrides = []): array
     ], $overrides);
 }
 
+// Approve (pay) a due invoice as the branch admin — the accountant's approval
+// is what realises the employee's commission ledger. Restores the acting
+// employee afterwards so the rest of the test continues as before.
+function approveInvoice(ServiceInvoice $invoice): void
+{
+    test()->actingAs(test()->branchAdmin)
+        ->patch(route('invoices.service.pay', $invoice))
+        ->assertRedirect();
+
+    test()->actingAs(test()->employee);
+}
+
 describe('Service POS', function () {
     beforeEach(function () {
         $this->withoutVite();
@@ -120,11 +132,25 @@ describe('Service POS', function () {
             ->and((float) $line->commission_amount)->toBe(3.00);
     });
 
-    it('writes one immutable commission ledger row per line', function () {
+    it('does not write a commission ledger row until the invoice is approved', function () {
+        $this->post(route('pos.service.store'), svcPayload());
+
+        // The employee's due invoice earns nothing yet — the ledger stays empty
+        // until an accountant approves (pays) it.
+        expect(CommissionLedger::count())->toBe(0);
+
+        approveInvoice(ServiceInvoice::firstOrFail());
+
+        expect(CommissionLedger::count())->toBe(1);
+    });
+
+    it('writes one immutable commission ledger row per line once approved', function () {
         $this->post(route('pos.service.store'), svcPayload());
 
         $invoice = ServiceInvoice::firstOrFail();
         $line = $invoice->lines->first();
+
+        approveInvoice($invoice);
 
         expect(CommissionLedger::count())->toBe(1);
 
@@ -149,6 +175,8 @@ describe('Service POS', function () {
                 ['branch_service_id' => $tahazir->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],
             ],
         ]));
+
+        approveInvoice(ServiceInvoice::firstOrFail());
 
         $entry = CommissionLedger::firstOrFail();
         expect($entry->is_tahazir)->toBeTrue()
@@ -351,6 +379,8 @@ describe('Service POS', function () {
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
         $invoice = ServiceInvoice::firstOrFail();
+        approveInvoice($invoice);
+
         // subtotal 30, agent discount 10% = 3, taxable base 27. Commission is
         // scaled by 27/30 = 0.9: raw 3.00 -> 2.70, in the invoice, the line and
         // the immutable ledger row alike.
@@ -366,6 +396,8 @@ describe('Service POS', function () {
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
         $invoice = ServiceInvoice::firstOrFail();
+        approveInvoice($invoice);
+
         // Rebate sits on top of the total and never touches the taxable base, so
         // commission stays at the full 3.00.
         expect((float) $invoice->employee_commission)->toBe(3.00)
