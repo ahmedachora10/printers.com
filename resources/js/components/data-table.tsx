@@ -1,12 +1,12 @@
 import * as React from 'react';
-import { useState, useMemo } from 'react';
+import { Fragment, useState, useMemo } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ChevronsUpDown, Inbox } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn } from '@/lib/utils';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -39,6 +39,10 @@ export interface DataTableProps<T extends object> {
     onSelectionChange?: (selectedKeys: Array<string | number>, selectedRows: T[]) => void;
     caption?: string;
     className?: string;
+    /** Footer content, rendered inside a <TableFooter>. Provide <TableRow>…</TableRow>. */
+    footer?: React.ReactNode;
+    /** When provided, rows become expandable; returns the content shown in a full-width sub-row. */
+    renderSubRow?: (row: T) => React.ReactNode;
 }
 
 interface SortState {
@@ -143,9 +147,22 @@ export function DataTable<T extends object>({
     onSelectionChange,
     caption,
     className,
+    footer,
+    renderSubRow,
 }: DataTableProps<T>) {
     const [sort, setSort] = useState<SortState | null>(null);
     const [selectedKeys, setSelectedKeys] = useState<Set<string | number>>(new Set());
+    const [expandedKeys, setExpandedKeys] = useState<Set<string | number>>(new Set());
+    const expandable = !!renderSubRow;
+
+    const toggleExpand = (key: string | number) => {
+        setExpandedKeys((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key);
+            else next.add(key);
+            return next;
+        });
+    };
 
     // ── Sort ──────────────────────────────────────────────────────────────────
     const sorted = useMemo(() => {
@@ -192,7 +209,7 @@ export function DataTable<T extends object>({
         onSelectionChange?.([...next], data.filter((r) => next.has(keyExtractor(r))));
     };
 
-    const colSpan = columns.length + (selectable ? 1 : 0);
+    const colSpan = columns.length + (selectable ? 1 : 0) + (expandable ? 1 : 0);
 
     return (
         <Card className={cn('flex flex-col overflow-hidden rounded-md', className)}>
@@ -209,6 +226,7 @@ export function DataTable<T extends object>({
                                 />
                             </TableHead>
                         )}
+                        {expandable && <TableHead className="w-8 px-4" />}
                         {columns.map((col) => (
                             <TableHead
                                 key={col.key}
@@ -262,36 +280,58 @@ export function DataTable<T extends object>({
                         sorted.map((row, idx) => {
                             const key = keyExtractor(row);
                             const selected = selectedKeys.has(key);
+                            const isExpanded = expandable && expandedKeys.has(key);
                             return (
-                                <TableRow
-                                    key={key}
-                                    data-state={selected ? 'selected' : undefined}
-                                    className={cn(
-                                        'border-b border-border/50 transition-colors hover:bg-muted/30',
-                                        selected && 'bg-primary/5 hover:bg-primary/[0.08]',
+                                <Fragment key={key}>
+                                    <TableRow
+                                        data-state={selected ? 'selected' : undefined}
+                                        onClick={expandable ? () => toggleExpand(key) : undefined}
+                                        className={cn(
+                                            'border-b border-border/50 transition-colors hover:bg-muted/30',
+                                            selected && 'bg-primary/5 hover:bg-primary/[0.08]',
+                                            expandable && 'cursor-pointer',
+                                        )}
+                                    >
+                                        {selectable && (
+                                            <TableCell className="w-10 px-4" onClick={(e) => e.stopPropagation()}>
+                                                <Checkbox
+                                                    checked={selected}
+                                                    onCheckedChange={() => toggleRow(key)}
+                                                    aria-label={`تحديد الصف ${idx + 1}`}
+                                                />
+                                            </TableCell>
+                                        )}
+                                        {expandable && (
+                                            <TableCell className="w-8 px-4">
+                                                {isExpanded ? (
+                                                    <ChevronDown className="size-4 text-muted-foreground" />
+                                                ) : (
+                                                    <ChevronLeft className="size-4 text-muted-foreground" />
+                                                )}
+                                            </TableCell>
+                                        )}
+                                        {columns.map((col) => (
+                                            <TableCell key={col.key} className={cn('px-4 py-3.5 text-sm', col.className)}>
+                                                {col.cell
+                                                    ? col.cell(row, idx)
+                                                    : String((row as Record<string, unknown>)[col.key] ?? '')}
+                                            </TableCell>
+                                        ))}
+                                    </TableRow>
+                                    {isExpanded && (
+                                        <TableRow className="bg-muted/30 hover:bg-muted/30">
+                                            <TableCell colSpan={colSpan} className="p-0">
+                                                {renderSubRow!(row)}
+                                            </TableCell>
+                                        </TableRow>
                                     )}
-                                >
-                                    {selectable && (
-                                        <TableCell className="w-10 px-4">
-                                            <Checkbox
-                                                checked={selected}
-                                                onCheckedChange={() => toggleRow(key)}
-                                                aria-label={`تحديد الصف ${idx + 1}`}
-                                            />
-                                        </TableCell>
-                                    )}
-                                    {columns.map((col) => (
-                                        <TableCell key={col.key} className={cn('px-4 py-3.5 text-sm', col.className)}>
-                                            {col.cell
-                                                ? col.cell(row, idx)
-                                                : String((row as Record<string, unknown>)[col.key] ?? '')}
-                                        </TableCell>
-                                    ))}
-                                </TableRow>
+                                </Fragment>
                             );
                         })
                     )}
                 </TableBody>
+
+                {footer && !loading && sorted.length > 0 && <TableFooter>{footer}</TableFooter>}
             </Table>
 
             {/* ── Caption ───────────────────────────────────────────────────── */}

@@ -1,9 +1,10 @@
+import { DataTable, type ColumnDef } from '@/components/data-table';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { TableCell, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
@@ -23,6 +24,29 @@ import { useMemo, useState } from 'react';
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير المبيعات', href: '/reports/sales' }];
 
 const REPORT_URL = '/reports/sales';
+
+const EMPTY_STATE = <span className="text-muted-foreground">لا توجد بيانات مطابقة للتصفية</span>;
+
+const typeColumns: ColumnDef<SalesReportTypeRow>[] = [
+    { key: 'label', header: 'النوع', className: 'font-medium', cell: (row) => row.label },
+    { key: 'count', header: 'عدد الفواتير', cell: (row) => row.count },
+    { key: 'subtotal', header: 'قبل الخصم', cell: (row) => formatCurrency(row.subtotal) },
+    { key: 'discounts', header: 'الخصومات', className: 'text-amber-600', cell: (row) => formatCurrency(row.discounts) },
+    { key: 'vat', header: 'الضريبة', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.vat) },
+    { key: 'total', header: 'الإجمالي', className: 'font-semibold text-green-600', cell: (row) => formatCurrency(row.total) },
+];
+
+const breakdownColumns = (nameHeader: string): ColumnDef<BreakdownRow>[] => [
+    { key: 'name', header: nameHeader, className: 'font-medium', cell: (row) => row.name },
+    { key: 'count', header: 'عدد الفواتير', cell: (row) => row.count },
+    { key: 'total', header: 'الإجمالي', className: 'font-medium', cell: (row) => formatCurrency(row.total) },
+];
+
+const dayColumns: ColumnDef<SalesReportDayRow>[] = [
+    { key: 'date', header: 'التاريخ', cell: (row) => formatDate(row.date) },
+    { key: 'count', header: 'عدد الفواتير', cell: (row) => row.count },
+    { key: 'total', header: 'الإجمالي', className: 'font-medium', cell: (row) => formatCurrency(row.total) },
+];
 
 interface Props {
     totals: SalesReportTotals;
@@ -158,44 +182,24 @@ export default function SalesReportIndex({
                     <CardHeader>
                         <CardTitle>المبيعات حسب النوع</CardTitle>
                     </CardHeader>
-                    <CardContent className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
+                    <CardContent className="p-0">
+                        <DataTable
+                            className="rounded-none bg-transparent shadow-none"
+                            columns={typeColumns}
+                            data={byType}
+                            keyExtractor={(row) => row.type}
+                            emptyState={EMPTY_STATE}
+                            footer={
                                 <TableRow>
-                                    <TableHead>النوع</TableHead>
-                                    <TableHead>عدد الفواتير</TableHead>
-                                    <TableHead>قبل الخصم</TableHead>
-                                    <TableHead>الخصومات</TableHead>
-                                    <TableHead>الضريبة</TableHead>
-                                    <TableHead>الإجمالي</TableHead>
+                                    <TableCell className="font-bold">الإجمالي</TableCell>
+                                    <TableCell className="font-bold">{totals.invoiceCount}</TableCell>
+                                    <TableCell className="font-bold">{formatCurrency(totals.subtotal)}</TableCell>
+                                    <TableCell className="font-bold text-amber-600">{formatCurrency(totals.discounts)}</TableCell>
+                                    <TableCell className="font-bold text-muted-foreground">{formatCurrency(totals.vat)}</TableCell>
+                                    <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
                                 </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {byType.length === 0 && <EmptyRow span={6} />}
-                                {byType.map((row) => (
-                                    <TableRow key={row.type}>
-                                        <TableCell className="font-medium">{row.label}</TableCell>
-                                        <TableCell>{row.count}</TableCell>
-                                        <TableCell>{formatCurrency(row.subtotal)}</TableCell>
-                                        <TableCell className="text-amber-600">{formatCurrency(row.discounts)}</TableCell>
-                                        <TableCell className="text-muted-foreground">{formatCurrency(row.vat)}</TableCell>
-                                        <TableCell className="font-semibold text-green-600">{formatCurrency(row.total)}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                            {byType.length > 0 && (
-                                <TableFooter>
-                                    <TableRow>
-                                        <TableCell className="font-bold">الإجمالي</TableCell>
-                                        <TableCell className="font-bold">{totals.invoiceCount}</TableCell>
-                                        <TableCell className="font-bold">{formatCurrency(totals.subtotal)}</TableCell>
-                                        <TableCell className="font-bold text-amber-600">{formatCurrency(totals.discounts)}</TableCell>
-                                        <TableCell className="font-bold text-muted-foreground">{formatCurrency(totals.vat)}</TableCell>
-                                        <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
-                                    </TableRow>
-                                </TableFooter>
-                            )}
-                        </Table>
+                            }
+                        />
                     </CardContent>
                 </Card>
 
@@ -224,26 +228,14 @@ export default function SalesReportIndex({
                     <CardHeader>
                         <CardTitle>المبيعات اليومية</CardTitle>
                     </CardHeader>
-                    <CardContent className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>التاريخ</TableHead>
-                                    <TableHead>عدد الفواتير</TableHead>
-                                    <TableHead>الإجمالي</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {byDay.length === 0 && <EmptyRow span={3} />}
-                                {byDay.map((row) => (
-                                    <TableRow key={row.date}>
-                                        <TableCell>{formatDate(row.date)}</TableCell>
-                                        <TableCell>{row.count}</TableCell>
-                                        <TableCell className="font-medium">{formatCurrency(row.total)}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                    <CardContent className="p-0">
+                        <DataTable
+                            className="rounded-none bg-transparent shadow-none"
+                            columns={dayColumns}
+                            data={byDay}
+                            keyExtractor={(row) => row.date}
+                            emptyState={EMPTY_STATE}
+                        />
                     </CardContent>
                 </Card>
             </div>
@@ -281,46 +273,22 @@ function BreakdownCard({ title, nameHeader, rows }: { title: string; nameHeader:
             <CardHeader>
                 <CardTitle>{title}</CardTitle>
             </CardHeader>
-            <CardContent className="overflow-x-auto">
-                <Table>
-                    <TableHeader>
+            <CardContent className="p-0">
+                <DataTable
+                    className="rounded-none bg-transparent shadow-none"
+                    columns={breakdownColumns(nameHeader)}
+                    data={rows}
+                    keyExtractor={(row) => row.key}
+                    emptyState={EMPTY_STATE}
+                    footer={
                         <TableRow>
-                            <TableHead>{nameHeader}</TableHead>
-                            <TableHead>عدد الفواتير</TableHead>
-                            <TableHead>الإجمالي</TableHead>
+                            <TableCell className="font-bold">الإجمالي</TableCell>
+                            <TableCell />
+                            <TableCell className="font-bold text-green-600">{formatCurrency(total)}</TableCell>
                         </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {rows.length === 0 && <EmptyRow span={3} />}
-                        {rows.map((row) => (
-                            <TableRow key={row.key}>
-                                <TableCell className="font-medium">{row.name}</TableCell>
-                                <TableCell>{row.count}</TableCell>
-                                <TableCell className="font-medium">{formatCurrency(row.total)}</TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                    {rows.length > 0 && (
-                        <TableFooter>
-                            <TableRow>
-                                <TableCell className="font-bold">الإجمالي</TableCell>
-                                <TableCell />
-                                <TableCell className="font-bold text-green-600">{formatCurrency(total)}</TableCell>
-                            </TableRow>
-                        </TableFooter>
-                    )}
-                </Table>
+                    }
+                />
             </CardContent>
         </Card>
-    );
-}
-
-function EmptyRow({ span }: { span: number }) {
-    return (
-        <TableRow>
-            <TableCell colSpan={span} className="py-8 text-center text-muted-foreground">
-                لا توجد بيانات مطابقة للتصفية
-            </TableCell>
-        </TableRow>
     );
 }

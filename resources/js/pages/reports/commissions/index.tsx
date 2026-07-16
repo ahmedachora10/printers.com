@@ -1,10 +1,11 @@
+import { DataTable, type ColumnDef } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { TableCell, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
@@ -15,8 +16,8 @@ import {
     type CommissionReportTotals,
 } from '@/types/report';
 import { router } from '@inertiajs/react';
-import { Banknote, ChevronDown, ChevronLeft, Download, TrendingUp, Wallet } from 'lucide-react';
-import { Fragment, useMemo, useState } from 'react';
+import { Banknote, Download, TrendingUp, Wallet } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير العمولات', href: '/reports/commissions' }];
 
@@ -32,13 +33,69 @@ interface Props {
 
 const REPORT_URL = '/reports/commissions';
 
+const summaryColumns: ColumnDef<CommissionReportSummaryRow>[] = [
+    { key: 'userName', header: 'الموظف', className: 'font-medium', cell: (row) => row.userName },
+    { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
+    { key: 'earned', header: 'إجمالي العمولة', cell: (row) => formatCurrency(row.earned) },
+    { key: 'tahazir', header: 'منها تحضير', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.tahazir) },
+    { key: 'paid', header: 'المصروف', className: 'text-green-600', cell: (row) => formatCurrency(row.paid) },
+    {
+        key: 'pending',
+        header: 'المستحق',
+        cell: (row) =>
+            row.pending > 0 ? (
+                <span className="font-semibold text-amber-600">{formatCurrency(row.pending)}</span>
+            ) : (
+                <span className="text-muted-foreground">—</span>
+            ),
+    },
+];
+
+const detailColumns: ColumnDef<CommissionReportLine>[] = [
+    {
+        key: 'invoiceNumber',
+        header: 'رقم الفاتورة',
+        className: 'font-mono text-xs',
+        cell: (line) => <span dir="ltr">{line.invoiceNumber}</span>,
+    },
+    {
+        key: 'serviceName',
+        header: 'الخدمة',
+        cell: (line) => (
+            <>
+                {line.serviceName}
+                {line.isTahazir && (
+                    <Badge variant="secondary" className="ms-2">
+                        تحضير
+                    </Badge>
+                )}
+            </>
+        ),
+    },
+    { key: 'sourceLabel', header: 'المصدر', className: 'text-sm text-muted-foreground', cell: (line) => line.sourceLabel },
+    { key: 'tierApplied', header: 'الشريحة', cell: (line) => line.tierApplied ?? '—' },
+    { key: 'amount', header: 'المبلغ', cell: (line) => formatCurrency(line.amount) },
+    {
+        key: 'status',
+        header: 'الحالة',
+        cell: (line) =>
+            line.paidAt ? (
+                <Badge className="bg-green-600">مصروفة</Badge>
+            ) : (
+                <Badge variant="outline" className="text-amber-600">
+                    معلقة
+                </Badge>
+            ),
+    },
+    { key: 'earnedAt', header: 'تاريخ الاستحقاق', className: 'text-sm', cell: (line) => (line.earnedAt ? formatDate(line.earnedAt) : '—') },
+];
+
 export default function CommissionReportIndex({ summary, lines, totals, filters, employees, branches, isSuperAdmin }: Props) {
     const [from, setFrom] = useState(filters.from ?? '');
     const [to, setTo] = useState(filters.to ?? '');
     const [employee, setEmployee] = useState(filters.employee ?? 'all');
     const [branch, setBranch] = useState(filters.branch ?? 'all');
     const [status, setStatus] = useState(filters.status ?? 'all');
-    const [expanded, setExpanded] = useState<number | null>(null);
 
     const canPickEmployee = employees.length > 0;
     const canPickBranch = isSuperAdmin && branches.length > 0;
@@ -175,84 +232,26 @@ export default function CommissionReportIndex({ summary, lines, totals, filters,
                     <CardHeader>
                         <CardTitle>العمولات حسب الموظف</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        <div className="overflow-x-auto">
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-8" />
-                                        <TableHead>الموظف</TableHead>
-                                        <TableHead>عدد البنود</TableHead>
-                                        <TableHead>إجمالي العمولة</TableHead>
-                                        <TableHead>منها تحضير</TableHead>
-                                        <TableHead>المصروف</TableHead>
-                                        <TableHead>المستحق</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {summary.length === 0 && (
-                                        <TableRow>
-                                            <TableCell colSpan={7} className="py-8 text-center text-muted-foreground">
-                                                لا توجد عمولات مطابقة للتصفية
-                                            </TableCell>
-                                        </TableRow>
-                                    )}
-                                    {summary.map((row) => {
-                                        const isOpen = expanded === row.userId;
-                                        const detail = linesByUser.get(row.userId) ?? [];
-
-                                        return (
-                                            <Fragment key={row.userId}>
-                                                <TableRow
-                                                    className="cursor-pointer"
-                                                    onClick={() => setExpanded(isOpen ? null : row.userId)}
-                                                >
-                                                    <TableCell>
-                                                        {isOpen ? (
-                                                            <ChevronDown className="size-4 text-muted-foreground" />
-                                                        ) : (
-                                                            <ChevronLeft className="size-4 text-muted-foreground" />
-                                                        )}
-                                                    </TableCell>
-                                                    <TableCell className="font-medium">{row.userName}</TableCell>
-                                                    <TableCell>{row.lineCount}</TableCell>
-                                                    <TableCell>{formatCurrency(row.earned)}</TableCell>
-                                                    <TableCell className="text-muted-foreground">{formatCurrency(row.tahazir)}</TableCell>
-                                                    <TableCell className="text-green-600">{formatCurrency(row.paid)}</TableCell>
-                                                    <TableCell>
-                                                        {row.pending > 0 ? (
-                                                            <span className="font-semibold text-amber-600">{formatCurrency(row.pending)}</span>
-                                                        ) : (
-                                                            <span className="text-muted-foreground">—</span>
-                                                        )}
-                                                    </TableCell>
-                                                </TableRow>
-                                                {isOpen && (
-                                                    <TableRow key={`${row.userId}-detail`} className="bg-muted/30 hover:bg-muted/30">
-                                                        <TableCell colSpan={7} className="p-0">
-                                                            <DetailLines lines={detail} />
-                                                        </TableCell>
-                                                    </TableRow>
-                                                )}
-                                            </Fragment>
-                                        );
-                                    })}
-                                </TableBody>
-                                {summary.length > 0 && (
-                                    <TableFooter>
-                                        <TableRow>
-                                            <TableCell />
-                                            <TableCell className="font-bold">الإجمالي</TableCell>
-                                            <TableCell className="font-bold">{totals.lineCount}</TableCell>
-                                            <TableCell className="font-bold">{formatCurrency(totals.earned)}</TableCell>
-                                            <TableCell className="font-bold">{formatCurrency(totals.tahazir)}</TableCell>
-                                            <TableCell className="font-bold text-green-600">{formatCurrency(totals.paid)}</TableCell>
-                                            <TableCell className="font-bold text-amber-600">{formatCurrency(totals.pending)}</TableCell>
-                                        </TableRow>
-                                    </TableFooter>
-                                )}
-                            </Table>
-                        </div>
+                    <CardContent className="p-0">
+                        <DataTable
+                            className="rounded-none bg-transparent shadow-none"
+                            columns={summaryColumns}
+                            data={summary}
+                            keyExtractor={(row) => row.userId}
+                            emptyState={<span className="text-muted-foreground">لا توجد عمولات مطابقة للتصفية</span>}
+                            renderSubRow={(row) => <DetailLines lines={linesByUser.get(row.userId) ?? []} />}
+                            footer={
+                                <TableRow>
+                                    <TableCell />
+                                    <TableCell className="font-bold">الإجمالي</TableCell>
+                                    <TableCell className="font-bold">{totals.lineCount}</TableCell>
+                                    <TableCell className="font-bold">{formatCurrency(totals.earned)}</TableCell>
+                                    <TableCell className="font-bold">{formatCurrency(totals.tahazir)}</TableCell>
+                                    <TableCell className="font-bold text-green-600">{formatCurrency(totals.paid)}</TableCell>
+                                    <TableCell className="font-bold text-amber-600">{formatCurrency(totals.pending)}</TableCell>
+                                </TableRow>
+                            }
+                        />
                     </CardContent>
                 </Card>
             </div>
@@ -276,53 +275,13 @@ function SummaryCard({ icon, label, value, valueClass }: { icon: React.ReactNode
 }
 
 function DetailLines({ lines }: { lines: CommissionReportLine[] }) {
-    if (lines.length === 0) {
-        return <p className="p-4 text-sm text-muted-foreground">لا توجد بنود.</p>;
-    }
-
     return (
-        <Table>
-            <TableHeader>
-                <TableRow>
-                    <TableHead>رقم الفاتورة</TableHead>
-                    <TableHead>الخدمة</TableHead>
-                    <TableHead>المصدر</TableHead>
-                    <TableHead>الشريحة</TableHead>
-                    <TableHead>المبلغ</TableHead>
-                    <TableHead>الحالة</TableHead>
-                    <TableHead>تاريخ الاستحقاق</TableHead>
-                </TableRow>
-            </TableHeader>
-            <TableBody>
-                {lines.map((line) => (
-                    <TableRow key={line.id}>
-                        <TableCell className="font-mono text-xs" dir="ltr">
-                            {line.invoiceNumber}
-                        </TableCell>
-                        <TableCell>
-                            {line.serviceName}
-                            {line.isTahazir && (
-                                <Badge variant="secondary" className="ms-2">
-                                    تحضير
-                                </Badge>
-                            )}
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{line.sourceLabel}</TableCell>
-                        <TableCell>{line.tierApplied ?? '—'}</TableCell>
-                        <TableCell>{formatCurrency(line.amount)}</TableCell>
-                        <TableCell>
-                            {line.paidAt ? (
-                                <Badge className="bg-green-600">مصروفة</Badge>
-                            ) : (
-                                <Badge variant="outline" className="text-amber-600">
-                                    معلقة
-                                </Badge>
-                            )}
-                        </TableCell>
-                        <TableCell className="text-sm">{line.earnedAt ? formatDate(line.earnedAt) : '—'}</TableCell>
-                    </TableRow>
-                ))}
-            </TableBody>
-        </Table>
+        <DataTable
+            className="rounded-none border-0 bg-transparent shadow-none"
+            columns={detailColumns}
+            data={lines}
+            keyExtractor={(line) => line.id}
+            emptyState={<span className="p-4 text-sm text-muted-foreground">لا توجد بنود.</span>}
+        />
     );
 }
