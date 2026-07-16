@@ -1,7 +1,7 @@
 import { ChartCard, PaymentMethodsChart, RevenueTrendChart, SalesByTypeChart, TopServicesChart } from '@/components/dashboard/charts';
+import { DataTable, type ColumnDef } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
@@ -36,6 +36,22 @@ const STATUS: Record<DashboardRecentInvoice['status'], { label: string; classNam
     due: { label: 'آجلة', className: 'bg-amber-500' },
     cancelled: { label: 'ملغاة', className: 'bg-muted text-muted-foreground' },
 };
+
+const recentInvoiceColumns: ColumnDef<DashboardRecentInvoice>[] = [
+    {
+        key: 'invoiceNumber',
+        header: 'رقم الفاتورة',
+        cell: (inv) => (
+            <Link href={`/invoices/${inv.type}/${inv.id}`} className="font-mono text-xs text-primary hover:underline" dir="ltr">
+                {inv.invoiceNumber}
+            </Link>
+        ),
+    },
+    { key: 'customerName', header: 'العميل', cell: (inv) => inv.customerName ?? <span className="text-muted-foreground">—</span> },
+    { key: 'total', header: 'الإجمالي', className: 'font-medium', cell: (inv) => formatCurrency(inv.total) },
+    { key: 'status', header: 'الحالة', cell: (inv) => <Badge className={STATUS[inv.status].className}>{STATUS[inv.status].label}</Badge> },
+    { key: 'createdAt', header: 'التاريخ', className: 'text-sm', cell: (inv) => (inv.createdAt ? formatDate(inv.createdAt) : '—') },
+];
 
 export default function Dashboard({ kpis, revenueTrend, salesByType, paymentMethods, topServices, recentInvoices, incentive, scope }: Props) {
     const salesLabel = scope.isEmployee ? 'مبيعاتي' : 'المبيعات';
@@ -116,42 +132,14 @@ export default function Dashboard({ kpis, revenueTrend, salesByType, paymentMeth
                     <CardHeader>
                         <CardTitle>أحدث الفواتير</CardTitle>
                     </CardHeader>
-                    <CardContent className="overflow-x-auto">
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>رقم الفاتورة</TableHead>
-                                    <TableHead>العميل</TableHead>
-                                    <TableHead>الإجمالي</TableHead>
-                                    <TableHead>الحالة</TableHead>
-                                    <TableHead>التاريخ</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {recentInvoices.length === 0 && (
-                                    <TableRow>
-                                        <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
-                                            لا توجد فواتير بعد
-                                        </TableCell>
-                                    </TableRow>
-                                )}
-                                {recentInvoices.map((inv) => (
-                                    <TableRow key={`${inv.type}-${inv.id}`}>
-                                        <TableCell>
-                                            <Link href={`/invoices/${inv.type}/${inv.id}`} className="font-mono text-xs text-primary hover:underline" dir="ltr">
-                                                {inv.invoiceNumber}
-                                            </Link>
-                                        </TableCell>
-                                        <TableCell>{inv.customerName ?? <span className="text-muted-foreground">—</span>}</TableCell>
-                                        <TableCell className="font-medium">{formatCurrency(inv.total)}</TableCell>
-                                        <TableCell>
-                                            <Badge className={STATUS[inv.status].className}>{STATUS[inv.status].label}</Badge>
-                                        </TableCell>
-                                        <TableCell className="text-sm">{inv.createdAt ? formatDate(inv.createdAt) : '—'}</TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                    <CardContent className="p-0">
+                        <DataTable
+                            className="rounded-none bg-transparent shadow-none"
+                            columns={recentInvoiceColumns}
+                            data={recentInvoices}
+                            keyExtractor={(inv) => `${inv.type}-${inv.id}`}
+                            emptyState={<span className="text-sm text-muted-foreground">لا توجد فواتير بعد</span>}
+                        />
                     </CardContent>
                 </Card>
             </div>

@@ -1,3 +1,4 @@
+import { DataTable, type ColumnDef } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,6 +34,35 @@ const STATUS_LABELS: Record<string, string> = {
     due: 'مستحق',
     cancelled: 'ملغي',
 };
+
+const invoiceHistoryColumns: ColumnDef<UserInvoiceHistoryItem>[] = [
+    { key: 'invoice_number', header: 'رقم الفاتورة', className: 'font-mono text-xs', cell: (inv) => inv.invoice_number },
+    {
+        key: 'type',
+        header: 'النوع',
+        cell: (inv) => (
+            <Badge variant="secondary" className="text-xs">
+                {inv.type === 'service' ? 'خدمة' : 'منتج'}
+            </Badge>
+        ),
+    },
+    {
+        key: 'total_amount',
+        header: 'المبلغ',
+        className: 'tabular-nums',
+        cell: (inv) => <span dir="ltr">{formatCurrency(Number(inv.total_amount))}</span>,
+    },
+    {
+        key: 'status',
+        header: 'الحالة',
+        cell: (inv) => (
+            <Badge variant="outline" className={STATUS_COLORS[inv.status]}>
+                {STATUS_LABELS[inv.status] ?? inv.status}
+            </Badge>
+        ),
+    },
+    { key: 'created_at', header: 'التاريخ', className: 'text-muted-foreground', cell: (inv) => formatDate(inv.created_at) },
+];
 
 interface Props {
     user: ManagedUser;
@@ -210,45 +240,14 @@ export default function UserShow({
                             <CardHeader>
                                 <CardTitle>أحدث الفواتير</CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                {invoiceHistory.length === 0 ? (
-                                    <p className="text-muted-foreground py-8 text-center text-sm">لا توجد فواتير مسجّلة</p>
-                                ) : (
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-sm">
-                                            <thead>
-                                                <tr className="border-b">
-                                                    <th className="text-muted-foreground pb-2 text-start font-medium">رقم الفاتورة</th>
-                                                    <th className="text-muted-foreground pb-2 text-start font-medium">النوع</th>
-                                                    <th className="text-muted-foreground pb-2 text-start font-medium">المبلغ</th>
-                                                    <th className="text-muted-foreground pb-2 text-start font-medium">الحالة</th>
-                                                    <th className="text-muted-foreground pb-2 text-start font-medium">التاريخ</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y">
-                                                {invoiceHistory.map((inv) => (
-                                                    <tr key={`${inv.type}-${inv.id}`}>
-                                                        <td className="py-2 font-mono text-xs">{inv.invoice_number}</td>
-                                                        <td className="py-2">
-                                                            <Badge variant="secondary" className="text-xs">
-                                                                {inv.type === 'service' ? 'خدمة' : 'منتج'}
-                                                            </Badge>
-                                                        </td>
-                                                        <td className="py-2 tabular-nums" dir="ltr">
-                                                            {formatCurrency(Number(inv.total_amount))}
-                                                        </td>
-                                                        <td className="py-2">
-                                                            <Badge variant="outline" className={STATUS_COLORS[inv.status]}>
-                                                                {STATUS_LABELS[inv.status] ?? inv.status}
-                                                            </Badge>
-                                                        </td>
-                                                        <td className="text-muted-foreground py-2">{formatDate(inv.created_at)}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                )}
+                            <CardContent className="p-0">
+                                <DataTable
+                                    className="rounded-none bg-transparent shadow-none"
+                                    columns={invoiceHistoryColumns}
+                                    data={invoiceHistory}
+                                    keyExtractor={(inv) => `${inv.type}-${inv.id}`}
+                                    emptyState={<span className="text-muted-foreground text-sm">لا توجد فواتير مسجّلة</span>}
+                                />
                             </CardContent>
                         </Card>
                     </div>
