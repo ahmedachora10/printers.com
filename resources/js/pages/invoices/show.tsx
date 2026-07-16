@@ -2,9 +2,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DataTable, type ColumnDef } from '@/components/data-table';
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
@@ -26,6 +26,48 @@ const STATUS_COLORS: Record<string, string> = {
 interface Props {
     invoice: Invoice;
 }
+
+type InvoiceLine = Invoice['lines'][number];
+
+const lineColumns: ColumnDef<InvoiceLine>[] = [
+    {
+        key: 'name',
+        header: 'الصنف',
+        className: 'font-medium',
+        cell: (line) => (
+            <>
+                {line.name}
+                {line.sku && (
+                    <span className="block text-xs text-muted-foreground" dir="ltr">
+                        {line.sku}
+                    </span>
+                )}
+            </>
+        ),
+    },
+    { key: 'qty', header: 'الكمية', headerClassName: 'text-center', className: 'text-center tabular-nums', cell: (line) => line.qty },
+    {
+        key: 'unitPrice',
+        header: 'السعر',
+        headerClassName: 'text-center',
+        className: 'text-center tabular-nums',
+        cell: (line) => <span dir="ltr">{formatCurrency(line.unitPrice)}</span>,
+    },
+    {
+        key: 'discountPct',
+        header: 'الخصم',
+        headerClassName: 'text-center',
+        className: 'text-center tabular-nums',
+        cell: (line) => (line.discountPct > 0 ? `${line.discountPct}%` : '—'),
+    },
+    {
+        key: 'subtotal',
+        header: 'الإجمالي',
+        headerClassName: 'text-end',
+        className: 'text-end tabular-nums font-medium',
+        cell: (line) => <span dir="ltr">{formatCurrency(line.subtotal)}</span>,
+    },
+];
 
 function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
     return (
@@ -231,41 +273,12 @@ export default function InvoiceShow({ invoice }: Props) {
                             <CardTitle>بنود الفاتورة</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="text-start">الصنف</TableHead>
-                                        <TableHead className="text-center">الكمية</TableHead>
-                                        <TableHead className="text-center">السعر</TableHead>
-                                        <TableHead className="text-center">الخصم</TableHead>
-                                        <TableHead className="text-end">الإجمالي</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {invoice.lines.map((line, i) => (
-                                        <TableRow key={i}>
-                                            <TableCell className="font-medium">
-                                                {line.name}
-                                                {line.sku && (
-                                                    <span className="block text-xs text-muted-foreground" dir="ltr">
-                                                        {line.sku}
-                                                    </span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell className="text-center tabular-nums">{line.qty}</TableCell>
-                                            <TableCell className="text-center tabular-nums" dir="ltr">
-                                                {formatCurrency(line.unitPrice)}
-                                            </TableCell>
-                                            <TableCell className="text-center tabular-nums">
-                                                {line.discountPct > 0 ? `${line.discountPct}%` : '—'}
-                                            </TableCell>
-                                            <TableCell className="text-end tabular-nums font-medium" dir="ltr">
-                                                {formatCurrency(line.subtotal)}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
+                            <DataTable
+                                className="rounded-none border-0 bg-transparent shadow-none"
+                                columns={lineColumns}
+                                data={invoice.lines}
+                                keyExtractor={(line) => invoice.lines.indexOf(line)}
+                            />
 
                             <Separator className="my-4" />
 

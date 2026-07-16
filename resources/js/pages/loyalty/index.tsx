@@ -1,6 +1,6 @@
+import { DataTable, type ColumnDef } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { formatNumber } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
@@ -35,6 +35,34 @@ interface Props {
     tierDistribution: TierRow[];
     transactions: LoyaltyTxRow[];
 }
+
+const transactionColumns: ColumnDef<LoyaltyTxRow>[] = [
+    {
+        key: 'customer',
+        header: 'العميل',
+        cell: (tx) => (
+            <div>
+                <div className="font-medium">{tx.customerName ?? '—'}</div>
+                <div className="text-muted-foreground text-xs">{tx.customerPhone}</div>
+            </div>
+        ),
+    },
+    { key: 'type', header: 'النوع', cell: (tx) => <Badge variant="secondary">{tx.typeLabel}</Badge> },
+    {
+        key: 'points',
+        header: 'النقاط',
+        headerClassName: 'text-center',
+        cell: (tx) => (
+            <span className={`text-center font-medium ${tx.points >= 0 ? 'text-green-600' : 'text-destructive'}`}>
+                {tx.points >= 0 ? '+' : ''}
+                {formatNumber(tx.points)}
+            </span>
+        ),
+        className: 'text-center',
+    },
+    { key: 'balanceAfter', header: 'الرصيد بعدها', headerClassName: 'text-center', className: 'text-center', cell: (tx) => formatNumber(tx.balanceAfter) },
+    { key: 'createdAt', header: 'التاريخ', headerClassName: 'text-center', className: 'text-muted-foreground text-center text-xs', cell: (tx) => tx.createdAt },
+];
 
 export default function LoyaltyIndex({
     active,
@@ -113,43 +141,14 @@ export default function LoyaltyIndex({
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base">آخر حركات النقاط</CardTitle>
                     </CardHeader>
-                    <CardContent>
-                        {transactions.length === 0 ? (
-                            <p className="text-muted-foreground py-8 text-center text-sm">لا توجد حركات بعد</p>
-                        ) : (
-                            <Table>
-                                <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="text-right">العميل</TableHead>
-                                        <TableHead className="text-right">النوع</TableHead>
-                                        <TableHead className="text-center">النقاط</TableHead>
-                                        <TableHead className="text-center">الرصيد بعدها</TableHead>
-                                        <TableHead className="text-center">التاريخ</TableHead>
-                                    </TableRow>
-                                </TableHeader>
-                                <TableBody>
-                                    {transactions.map((tx) => (
-                                        <TableRow key={tx.id}>
-                                            <TableCell>
-                                                <div className="font-medium">{tx.customerName ?? '—'}</div>
-                                                <div className="text-muted-foreground text-xs">{tx.customerPhone}</div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <Badge variant="secondary">{tx.typeLabel}</Badge>
-                                            </TableCell>
-                                            <TableCell
-                                                className={`text-center font-medium ${tx.points >= 0 ? 'text-green-600' : 'text-destructive'}`}
-                                            >
-                                                {tx.points >= 0 ? '+' : ''}
-                                                {formatNumber(tx.points)}
-                                            </TableCell>
-                                            <TableCell className="text-center">{formatNumber(tx.balanceAfter)}</TableCell>
-                                            <TableCell className="text-muted-foreground text-center text-xs">{tx.createdAt}</TableCell>
-                                        </TableRow>
-                                    ))}
-                                </TableBody>
-                            </Table>
-                        )}
+                    <CardContent className="p-0">
+                        <DataTable
+                            className="rounded-none bg-transparent shadow-none"
+                            columns={transactionColumns}
+                            data={transactions}
+                            keyExtractor={(tx) => tx.id}
+                            emptyState={<span className="text-muted-foreground text-sm">لا توجد حركات بعد</span>}
+                        />
                     </CardContent>
                 </Card>
             </div>

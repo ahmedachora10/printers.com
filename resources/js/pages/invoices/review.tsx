@@ -5,9 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { DataTable, type ColumnDef } from '@/components/data-table';
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
@@ -49,6 +49,13 @@ interface Props {
     invoices: ReviewInvoice[];
     isSuperAdmin: boolean;
 }
+
+const reviewLineColumns: ColumnDef<ReviewLine>[] = [
+    { key: 'name', header: 'الخدمة', cell: (line) => line.name },
+    { key: 'qty', header: 'الكمية', headerClassName: 'text-center', className: 'text-center', cell: (line) => line.qty },
+    { key: 'unitPrice', header: 'السعر', headerClassName: 'text-center', className: 'text-center', cell: (line) => formatCurrency(line.unitPrice) },
+    { key: 'subtotal', header: 'الإجمالي', headerClassName: 'text-start', className: 'text-start', cell: (line) => formatCurrency(line.subtotal) },
+];
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'مراجعة الفواتير الآجلة', href: serviceInvoice.review().url }];
 
@@ -305,26 +312,12 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                         <p>الموظف: {invoice.employeeName ?? '—'}</p>
                                     </div>
 
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead className="text-right">الخدمة</TableHead>
-                                                <TableHead className="text-center">الكمية</TableHead>
-                                                <TableHead className="text-center">السعر</TableHead>
-                                                <TableHead className="text-left">الإجمالي</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {invoice.lines.map((line, i) => (
-                                                <TableRow key={i}>
-                                                    <TableCell className="text-right">{line.name}</TableCell>
-                                                    <TableCell className="text-center">{line.qty}</TableCell>
-                                                    <TableCell className="text-center">{formatCurrency(line.unitPrice)}</TableCell>
-                                                    <TableCell className="text-left">{formatCurrency(line.subtotal)}</TableCell>
-                                                </TableRow>
-                                            ))}
-                                        </TableBody>
-                                    </Table>
+                                    <DataTable
+                                        className="rounded-none border-0 bg-transparent shadow-none"
+                                        columns={reviewLineColumns}
+                                        data={invoice.lines}
+                                        keyExtractor={(line) => invoice.lines.indexOf(line)}
+                                    />
 
                                     <Separator />
 
