@@ -1,11 +1,10 @@
 import { ExportChartCard, PointsMonthlyChart, TierDistributionChart } from '@/components/analytics/charts';
 import { RevenueTrendChart, SalesByTypeChart, TopServicesChart } from '@/components/dashboard/charts';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
+import { DateRangeFields, FilterSelect } from '@/components/reports/filter-fields';
+import { FilterModal } from '@/components/reports/filter-modal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import {
@@ -15,8 +14,7 @@ import {
     type AnalyticsSalesByType,
     type AnalyticsTrendPoint,
 } from '@/types/analytics';
-import { Head, router } from '@inertiajs/react';
-import { useMemo, useState } from 'react';
+import { Head } from '@inertiajs/react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'التحليلات المتقدمة', href: '/analytics' }];
 
@@ -62,75 +60,58 @@ export default function AnalyticsIndex({
     branches,
     isSuperAdmin,
 }: Props) {
-    const [from, setFrom] = useState(filters.from);
-    const [to, setTo] = useState(filters.to);
-    const [branch, setBranch] = useState(filters.branch ?? 'all');
-
     const canPickBranch = isSuperAdmin && branches.length > 0;
 
-    const query = useMemo(() => {
-        const params: Record<string, string> = {};
-        if (from) params.from = from;
-        if (to) params.to = to;
-        if (canPickBranch && branch !== 'all') params.branch = branch;
-        return params;
-    }, [from, to, branch, canPickBranch]);
+    // The date range is always populated (server-defaulted), so only the branch
+    // is an optional filter — it alone drives the active count and the chips.
+    const applied: FilterValues = {
+        from: filters.from,
+        to: filters.to,
+        branch: filters.branch ?? 'all',
+    };
+    const f = useReportFilters(PAGE_URL, applied, { from: '', to: '', branch: 'all' });
 
-    function applyFilters() {
-        router.get(PAGE_URL, query, { preserveState: true, preserveScroll: true, replace: true });
-    }
-
-    function resetFilters() {
-        setBranch('all');
-        router.get(PAGE_URL, {}, { preserveScroll: true, replace: true });
+    const chips: FilterChip[] = [];
+    if (f.isActive('branch')) {
+        const name = branches.find((b) => b.id.toString() === applied.branch)?.name ?? applied.branch;
+        chips.push({ key: 'branch', label: `الفرع: ${name}`, onRemove: () => f.remove('branch') });
     }
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="التحليلات المتقدمة" />
             <div className="flex flex-col gap-6 p-6">
-                <div>
-                    <h1 className="text-2xl font-bold">التحليلات المتقدمة</h1>
-                    <p className="text-sm text-muted-foreground">رسوم بيانية تفاعلية للمبيعات والولاء — يمكن تصدير كل رسم كصورة PNG</p>
+                <div className="flex items-start justify-between gap-4">
+                    <div>
+                        <h1 className="text-2xl font-bold">التحليلات المتقدمة</h1>
+                        <p className="text-muted-foreground text-sm">رسوم بيانية تفاعلية للمبيعات والولاء — يمكن تصدير كل رسم كصورة PNG</p>
+                    </div>
+                    <FilterModal
+                        open={f.open}
+                        onOpenChange={f.onOpenChange}
+                        onApply={f.apply}
+                        onReset={f.reset}
+                        activeCount={f.isActive('branch') ? 1 : 0}
+                    >
+                        <DateRangeFields
+                            from={f.draft.from}
+                            to={f.draft.to}
+                            onFromChange={(v) => f.setField('from', v)}
+                            onToChange={(v) => f.setField('to', v)}
+                        />
+                        {canPickBranch && (
+                            <FilterSelect
+                                label="الفرع"
+                                value={f.draft.branch}
+                                onChange={(v) => f.setField('branch', v)}
+                                allLabel="كل الفروع"
+                                options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                            />
+                        )}
+                    </FilterModal>
                 </div>
 
-                {/* Date range + branch filters, applied to every chart */}
-                <Card>
-                    <CardContent className="grid grid-cols-1 gap-4 pt-6 sm:grid-cols-2 lg:grid-cols-4">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="from">من تاريخ</Label>
-                            <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label htmlFor="to">إلى تاريخ</Label>
-                            <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-                        </div>
-                        {canPickBranch && (
-                            <div className="space-y-1.5">
-                                <Label>الفرع</Label>
-                                <Select value={branch} onValueChange={setBranch}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="كل الفروع" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">كل الفروع</SelectItem>
-                                        {branches.map((b) => (
-                                            <SelectItem key={b.id} value={b.id.toString()}>
-                                                {b.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
-                        <div className="flex items-end gap-2">
-                            <Button onClick={applyFilters}>تطبيق</Button>
-                            <Button variant="ghost" onClick={resetFilters}>
-                                إعادة تعيين
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                <ActiveFilterChips chips={chips} />
 
                 <Tabs defaultValue="sales">
                     <TabsList>
