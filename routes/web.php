@@ -17,6 +17,7 @@ use App\Http\Controllers\CommissionReportController;
 use App\Http\Controllers\CouponController;
 use App\Http\Controllers\CustomerActivityController;
 use App\Http\Controllers\CustomerController;
+use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
@@ -222,6 +223,13 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.sales.export');
         Route::get('reports/sales', [SalesReportController::class, 'index'])
             ->name('reports.sales');
+
+        // Daily report: per-day product/service sales, commission, purchases,
+        // VAT and net remaining. Same audience and branch scoping as sales.
+        Route::get('reports/daily/export', [DailyReportController::class, 'export'])
+            ->name('reports.daily.export');
+        Route::get('reports/daily', [DailyReportController::class, 'index'])
+            ->name('reports.daily');
 
         // Advanced analytics (M25): Recharts dashboards over paid invoices and
         // loyalty activity, same audience and scoping as the sales report.
