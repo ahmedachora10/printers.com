@@ -1,10 +1,11 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
+import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
+import { DateRangeFields, FilterSelect } from '@/components/reports/filter-fields';
+import { FilterModal } from '@/components/reports/filter-modal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
@@ -17,13 +18,16 @@ import {
     type SalesReportTotals,
     type SalesReportTypeRow,
 } from '@/types/sales-report';
-import { Head, router } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { CreditCard, Download, Percent, Receipt, TrendingUp, Wallet } from 'lucide-react';
-import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير المبيعات', href: '/reports/sales' }];
 
 const REPORT_URL = '/reports/sales';
+
+const DEFAULTS: FilterValues = { from: '', to: '', branch: 'all', type: 'all' };
+
+const TYPE_LABELS: Record<string, string> = { product: 'منتجات', service: 'خدمات' };
 
 const EMPTY_STATE = <span className="text-muted-foreground">لا توجد بيانات مطابقة للتصفية</span>;
 
@@ -60,49 +64,29 @@ interface Props {
     isSuperAdmin: boolean;
 }
 
-export default function SalesReportIndex({
-    totals,
-    byType,
-    byDay,
-    byEmployee,
-    byPaymentMethod,
-    byBranch,
-    filters,
-    branches,
-    isSuperAdmin,
-}: Props) {
-    const [from, setFrom] = useState(filters.from ?? '');
-    const [to, setTo] = useState(filters.to ?? '');
-    const [branch, setBranch] = useState(filters.branch ?? 'all');
-    const [type, setType] = useState<SalesReportFilters['type']>(filters.type ?? 'all');
-
+export default function SalesReportIndex({ totals, byType, byDay, byEmployee, byPaymentMethod, byBranch, filters, branches, isSuperAdmin }: Props) {
     const canPickBranch = isSuperAdmin && branches.length > 0;
 
-    const query = useMemo(() => {
-        const params: Record<string, string> = {};
-        if (from) params.from = from;
-        if (to) params.to = to;
-        if (canPickBranch && branch !== 'all') params.branch = branch;
-        if (type !== 'all') params.type = type;
-        return params;
-    }, [from, to, branch, type, canPickBranch]);
+    const applied: FilterValues = {
+        from: filters.from ?? '',
+        to: filters.to ?? '',
+        branch: filters.branch ?? 'all',
+        type: filters.type ?? 'all',
+    };
+    const f = useReportFilters(REPORT_URL, applied, DEFAULTS);
 
-    function applyFilters() {
-        router.get(REPORT_URL, query, { preserveState: true, preserveScroll: true, replace: true });
+    const qs = new URLSearchParams(f.appliedQuery).toString();
+    const exportUrl = `${REPORT_URL}/export${qs ? `?${qs}` : ''}`;
+
+    const chips: FilterChip[] = [];
+    if (f.isActive('from')) chips.push({ key: 'from', label: `من: ${formatDate(applied.from)}`, onRemove: () => f.remove('from') });
+    if (f.isActive('to')) chips.push({ key: 'to', label: `إلى: ${formatDate(applied.to)}`, onRemove: () => f.remove('to') });
+    if (f.isActive('branch')) {
+        const name = branches.find((b) => b.id.toString() === applied.branch)?.name ?? applied.branch;
+        chips.push({ key: 'branch', label: `الفرع: ${name}`, onRemove: () => f.remove('branch') });
     }
-
-    function resetFilters() {
-        setFrom('');
-        setTo('');
-        setBranch('all');
-        setType('all');
-        router.get(REPORT_URL, {}, { preserveScroll: true, replace: true });
-    }
-
-    const exportUrl = useMemo(() => {
-        const qs = new URLSearchParams(query).toString();
-        return `${REPORT_URL}/export${qs ? `?${qs}` : ''}`;
-    }, [query]);
+    if (f.isActive('type'))
+        chips.push({ key: 'type', label: `النوع: ${TYPE_LABELS[applied.type] ?? applied.type}`, onRemove: () => f.remove('type') });
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -110,71 +94,65 @@ export default function SalesReportIndex({
             <div className="p-6">
                 <div className="mb-6 flex items-center justify-between">
                     <h1 className="text-2xl font-bold">تقرير المبيعات</h1>
-                    <Button asChild variant="outline" disabled={totals.invoiceCount === 0}>
-                        <a href={exportUrl}>
-                            <Download className="size-4" /> تصدير Excel
-                        </a>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
+                            <DateRangeFields
+                                from={f.draft.from}
+                                to={f.draft.to}
+                                onFromChange={(v) => f.setField('from', v)}
+                                onToChange={(v) => f.setField('to', v)}
+                            />
+                            {canPickBranch && (
+                                <FilterSelect
+                                    label="الفرع"
+                                    value={f.draft.branch}
+                                    onChange={(v) => f.setField('branch', v)}
+                                    allLabel="كل الفروع"
+                                    options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                                />
+                            )}
+                            <FilterSelect
+                                label="النوع"
+                                value={f.draft.type}
+                                onChange={(v) => f.setField('type', v)}
+                                options={[
+                                    { value: 'product', label: 'منتجات' },
+                                    { value: 'service', label: 'خدمات' },
+                                ]}
+                            />
+                        </FilterModal>
+                        <Button asChild variant="outline" disabled={totals.invoiceCount === 0}>
+                            <a href={exportUrl}>
+                                <Download className="size-4" /> تصدير Excel
+                            </a>
+                        </Button>
+                    </div>
                 </div>
 
-                {/* Filters */}
-                <Card className="mb-6">
-                    <CardContent className="grid grid-cols-1 gap-4 pt-6 sm:grid-cols-2 lg:grid-cols-5">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="from">من تاريخ</Label>
-                            <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label htmlFor="to">إلى تاريخ</Label>
-                            <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-                        </div>
-                        {canPickBranch && (
-                            <div className="space-y-1.5">
-                                <Label>الفرع</Label>
-                                <Select value={branch} onValueChange={setBranch}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="كل الفروع" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">كل الفروع</SelectItem>
-                                        {branches.map((b) => (
-                                            <SelectItem key={b.id} value={b.id.toString()}>
-                                                {b.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
-                        <div className="space-y-1.5">
-                            <Label>النوع</Label>
-                            <Select value={type} onValueChange={(v) => setType(v as SalesReportFilters['type'])}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">الكل</SelectItem>
-                                    <SelectItem value="product">منتجات</SelectItem>
-                                    <SelectItem value="service">خدمات</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-5">
-                            <Button onClick={applyFilters}>تطبيق</Button>
-                            <Button variant="ghost" onClick={resetFilters}>
-                                إعادة تعيين
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                <ActiveFilterChips chips={chips} />
 
                 {/* Summary tiles */}
                 <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
                     <SummaryCard icon={<Receipt className="size-4" />} label="عدد الفواتير" value={totals.invoiceCount.toLocaleString('ar')} />
                     <SummaryCard icon={<TrendingUp className="size-4" />} label="قبل الخصم" value={formatCurrency(totals.subtotal)} />
-                    <SummaryCard icon={<Percent className="size-4" />} label="الخصومات" value={formatCurrency(totals.discounts)} valueClass="text-amber-600" />
-                    <SummaryCard icon={<CreditCard className="size-4" />} label="الضريبة" value={formatCurrency(totals.vat)} valueClass="text-muted-foreground" />
-                    <SummaryCard icon={<Wallet className="size-4" />} label="صافي المبيعات" value={formatCurrency(totals.total)} valueClass="text-green-600" />
+                    <SummaryCard
+                        icon={<Percent className="size-4" />}
+                        label="الخصومات"
+                        value={formatCurrency(totals.discounts)}
+                        valueClass="text-amber-600"
+                    />
+                    <SummaryCard
+                        icon={<CreditCard className="size-4" />}
+                        label="الضريبة"
+                        value={formatCurrency(totals.vat)}
+                        valueClass="text-muted-foreground"
+                    />
+                    <SummaryCard
+                        icon={<Wallet className="size-4" />}
+                        label="صافي المبيعات"
+                        value={formatCurrency(totals.total)}
+                        valueClass="text-green-600"
+                    />
                 </div>
 
                 {/* By type */}
@@ -195,7 +173,7 @@ export default function SalesReportIndex({
                                     <TableCell className="font-bold">{totals.invoiceCount}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.subtotal)}</TableCell>
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.discounts)}</TableCell>
-                                    <TableCell className="font-bold text-muted-foreground">{formatCurrency(totals.vat)}</TableCell>
+                                    <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.vat)}</TableCell>
                                     <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
                                 </TableRow>
                             }
@@ -247,7 +225,7 @@ function SummaryCard({ icon, label, value, valueClass }: { icon: React.ReactNode
     return (
         <Card>
             <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <CardTitle className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
                     {icon} {label}
                 </CardTitle>
             </CardHeader>
