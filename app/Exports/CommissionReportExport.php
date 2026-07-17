@@ -34,10 +34,23 @@ class CommissionReportExport implements FromCollection, ShouldAutoSize, WithHead
             $line['tierApplied'] !== null ? (string) $line['tierApplied'] : '—',
             $line['sourceLabel'],
             number_format((float) $line['amount'], 2),
-            $line['paidAt'] ? 'مصروفة' : 'معلقة',
+            $this->invoiceStatusLabel((string) $line['invoiceStatus']),
             $line['earnedAt'] ? Carbon::parse($line['earnedAt'])->format('d/m/Y') : '—',
             $line['paidAt'] ? Carbon::parse($line['paidAt'])->format('d/m/Y') : '—',
         ]);
+    }
+
+    /**
+     * Map a service-invoice status to its Arabic label as shown in the report's
+     * "الحالة" column (invoice approval state, not commission-disbursement state).
+     */
+    private function invoiceStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'cancelled' => 'ملغاة',
+            'due' => 'غير مسددة',
+            default => 'معتمدة',
+        };
     }
 
     /** @return array<int, array<string, mixed>> */
