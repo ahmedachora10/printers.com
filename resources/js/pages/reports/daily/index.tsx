@@ -1,21 +1,24 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
+import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
+import { DateRangeFields, FilterSelect } from '@/components/reports/filter-fields';
+import { FilterModal } from '@/components/reports/filter-modal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { type DailyReportFilters, type DailyReportRow, type DailyReportTotals } from '@/types/daily-report';
-import { Head, router } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { CalendarDays, CreditCard, Download, ShoppingCart, TrendingUp, Wallet } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'التقرير اليومي', href: '/reports/daily' }];
 
 const REPORT_URL = '/reports/daily';
+
+const DEFAULTS: FilterValues = { from: '', to: '', branch: 'all', employee: 'all' };
 
 const EMPTY_STATE = <span className="text-muted-foreground">لا توجد بيانات مطابقة للتصفية</span>;
 
@@ -30,38 +33,30 @@ interface Props {
 }
 
 export default function DailyReportIndex({ rows, totals, showPurchases, filters, branches, employees, isSuperAdmin }: Props) {
-    const [from, setFrom] = useState(filters.from ?? '');
-    const [to, setTo] = useState(filters.to ?? '');
-    const [branch, setBranch] = useState(filters.branch ?? 'all');
-    const [employee, setEmployee] = useState(filters.employee ?? 'all');
-
     const canPickBranch = isSuperAdmin && branches.length > 0;
 
-    const query = useMemo(() => {
-        const params: Record<string, string> = {};
-        if (from) params.from = from;
-        if (to) params.to = to;
-        if (canPickBranch && branch !== 'all') params.branch = branch;
-        if (employee !== 'all') params.employee = employee;
-        return params;
-    }, [from, to, branch, employee, canPickBranch]);
+    const applied: FilterValues = {
+        from: filters.from ?? '',
+        to: filters.to ?? '',
+        branch: filters.branch ?? 'all',
+        employee: filters.employee ?? 'all',
+    };
+    const f = useReportFilters(REPORT_URL, applied, DEFAULTS);
 
-    function applyFilters() {
-        router.get(REPORT_URL, query, { preserveState: true, preserveScroll: true, replace: true });
+    const qs = new URLSearchParams(f.appliedQuery).toString();
+    const exportUrl = `${REPORT_URL}/export${qs ? `?${qs}` : ''}`;
+
+    const chips: FilterChip[] = [];
+    if (f.isActive('from')) chips.push({ key: 'from', label: `من: ${formatDate(applied.from)}`, onRemove: () => f.remove('from') });
+    if (f.isActive('to')) chips.push({ key: 'to', label: `إلى: ${formatDate(applied.to)}`, onRemove: () => f.remove('to') });
+    if (f.isActive('branch')) {
+        const name = branches.find((b) => b.id.toString() === applied.branch)?.name ?? applied.branch;
+        chips.push({ key: 'branch', label: `الفرع: ${name}`, onRemove: () => f.remove('branch') });
     }
-
-    function resetFilters() {
-        setFrom('');
-        setTo('');
-        setBranch('all');
-        setEmployee('all');
-        router.get(REPORT_URL, {}, { preserveScroll: true, replace: true });
+    if (f.isActive('employee')) {
+        const name = employees.find((e) => e.id.toString() === applied.employee)?.name ?? applied.employee;
+        chips.push({ key: 'employee', label: `الموظف: ${name}`, onRemove: () => f.remove('employee') });
     }
-
-    const exportUrl = useMemo(() => {
-        const qs = new URLSearchParams(query).toString();
-        return `${REPORT_URL}/export${qs ? `?${qs}` : ''}`;
-    }, [query]);
 
     const columns = useMemo<ColumnDef<DailyReportRow>[]>(() => {
         const cols: ColumnDef<DailyReportRow>[] = [
@@ -88,78 +83,72 @@ export default function DailyReportIndex({ rows, totals, showPurchases, filters,
             <div className="p-6">
                 <div className="mb-6 flex items-center justify-between">
                     <h1 className="text-2xl font-bold">التقرير اليومي</h1>
-                    <Button asChild variant="outline" disabled={totals.dayCount === 0}>
-                        <a href={exportUrl}>
-                            <Download className="size-4" /> تصدير Excel
-                        </a>
-                    </Button>
+                    <div className="flex items-center gap-2">
+                        <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
+                            <DateRangeFields
+                                from={f.draft.from}
+                                to={f.draft.to}
+                                onFromChange={(v) => f.setField('from', v)}
+                                onToChange={(v) => f.setField('to', v)}
+                            />
+                            {canPickBranch && (
+                                <FilterSelect
+                                    label="الفرع"
+                                    value={f.draft.branch}
+                                    onChange={(v) => f.setField('branch', v)}
+                                    allLabel="كل الفروع"
+                                    options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                                />
+                            )}
+                            <FilterSelect
+                                label="الموظف"
+                                value={f.draft.employee}
+                                onChange={(v) => f.setField('employee', v)}
+                                allLabel="كل الموظفين"
+                                options={employees.map((e) => ({ value: e.id.toString(), label: e.name }))}
+                            />
+                        </FilterModal>
+                        <Button asChild variant="outline" disabled={totals.dayCount === 0}>
+                            <a href={exportUrl}>
+                                <Download className="size-4" /> تصدير Excel
+                            </a>
+                        </Button>
+                    </div>
                 </div>
 
-                {/* Filters */}
-                <Card className="mb-6">
-                    <CardContent className="grid grid-cols-1 gap-4 pt-6 sm:grid-cols-2 lg:grid-cols-5">
-                        <div className="space-y-1.5">
-                            <Label htmlFor="from">من تاريخ</Label>
-                            <Input id="from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-                        </div>
-                        <div className="space-y-1.5">
-                            <Label htmlFor="to">إلى تاريخ</Label>
-                            <Input id="to" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-                        </div>
-                        {canPickBranch && (
-                            <div className="space-y-1.5">
-                                <Label>الفرع</Label>
-                                <Select value={branch} onValueChange={setBranch}>
-                                    <SelectTrigger>
-                                        <SelectValue placeholder="كل الفروع" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="all">كل الفروع</SelectItem>
-                                        {branches.map((b) => (
-                                            <SelectItem key={b.id} value={b.id.toString()}>
-                                                {b.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                        )}
-                        <div className="space-y-1.5">
-                            <Label>الموظف</Label>
-                            <Select value={employee} onValueChange={setEmployee}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="كل الموظفين" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">كل الموظفين</SelectItem>
-                                    {employees.map((e) => (
-                                        <SelectItem key={e.id} value={e.id.toString()}>
-                                            {e.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-5">
-                            <Button onClick={applyFilters}>تطبيق</Button>
-                            <Button variant="ghost" onClick={resetFilters}>
-                                إعادة تعيين
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+                <ActiveFilterChips chips={chips} />
 
                 {/* Summary tiles */}
                 <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    <SummaryCard icon={<TrendingUp className="size-4" />} label="إجمالي المبيعات" value={formatCurrency(totals.total)} valueClass="text-green-600" />
-                    <SummaryCard icon={<Wallet className="size-4" />} label="عمولة الموظفين" value={formatCurrency(totals.commission)} valueClass="text-amber-600" />
+                    <SummaryCard
+                        icon={<TrendingUp className="size-4" />}
+                        label="إجمالي المبيعات"
+                        value={formatCurrency(totals.total)}
+                        valueClass="text-green-600"
+                    />
+                    <SummaryCard
+                        icon={<Wallet className="size-4" />}
+                        label="عمولة الموظفين"
+                        value={formatCurrency(totals.commission)}
+                        valueClass="text-amber-600"
+                    />
                     {showPurchases && (
-                        <SummaryCard icon={<ShoppingCart className="size-4" />} label="المشتريات" value={formatCurrency(totals.purchases)} valueClass="text-rose-600" />
+                        <SummaryCard
+                            icon={<ShoppingCart className="size-4" />}
+                            label="المشتريات"
+                            value={formatCurrency(totals.purchases)}
+                            valueClass="text-rose-600"
+                        />
                     )}
                     {showPurchases && (
                         <SummaryCard icon={<CalendarDays className="size-4" />} label="المبلغ المتبقي" value={formatCurrency(totals.remaining)} />
                     )}
-                    <SummaryCard icon={<CreditCard className="size-4" />} label="الضريبة" value={formatCurrency(totals.vat)} valueClass="text-muted-foreground" />
+                    <SummaryCard
+                        icon={<CreditCard className="size-4" />}
+                        label="الضريبة"
+                        value={formatCurrency(totals.vat)}
+                        valueClass="text-muted-foreground"
+                    />
                 </div>
 
                 {/* Daily table */}
@@ -183,7 +172,7 @@ export default function DailyReportIndex({ rows, totals, showPurchases, filters,
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.commission)}</TableCell>
                                     {showPurchases && <TableCell className="font-bold text-rose-600">{formatCurrency(totals.purchases)}</TableCell>}
                                     {showPurchases && <TableCell className="font-bold">{formatCurrency(totals.remaining)}</TableCell>}
-                                    <TableCell className="font-bold text-muted-foreground">{formatCurrency(totals.vat)}</TableCell>
+                                    <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.vat)}</TableCell>
                                 </TableRow>
                             }
                         />
@@ -198,7 +187,7 @@ function SummaryCard({ icon, label, value, valueClass }: { icon: React.ReactNode
     return (
         <Card>
             <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                <CardTitle className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
                     {icon} {label}
                 </CardTitle>
             </CardHeader>
