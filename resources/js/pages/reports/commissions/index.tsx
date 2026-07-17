@@ -78,14 +78,7 @@ const detailColumns: ColumnDef<CommissionReportLine>[] = [
     {
         key: 'status',
         header: 'الحالة',
-        cell: (line) =>
-            line.paidAt ? (
-                <Badge className="bg-green-600">مصروفة</Badge>
-            ) : (
-                <Badge variant="outline" className="text-amber-600">
-                    معلقة
-                </Badge>
-            ),
+        cell: (line) => <InvoiceStatusBadge status={line.invoiceStatus} />,
     },
     { key: 'earnedAt', header: 'تاريخ الاستحقاق', className: 'text-sm', cell: (line) => (line.earnedAt ? formatDate(line.earnedAt) : '—') },
 ];
@@ -272,6 +265,20 @@ function SummaryCard({ icon, label, value, valueClass }: { icon: React.ReactNode
             </CardContent>
         </Card>
     );
+}
+
+function InvoiceStatusBadge({ status }: { status: CommissionReportLine['invoiceStatus'] }) {
+    if (status === 'cancelled') {
+        return <Badge variant="destructive">ملغاة</Badge>;
+    }
+    if (status === 'due') {
+        return (
+            <Badge variant="outline" className="text-amber-600">
+                غير مسددة
+            </Badge>
+        );
+    }
+    return <Badge className="bg-green-600">معتمدة</Badge>;
 }
 
 function DetailLines({ lines }: { lines: CommissionReportLine[] }) {

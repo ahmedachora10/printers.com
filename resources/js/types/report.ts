@@ -13,6 +13,7 @@ export interface CommissionReportLine {
     userId: number;
     userName: string;
     invoiceNumber: string;
+    invoiceStatus: 'paid' | 'due' | 'cancelled';
     serviceName: string;
     amount: number;
     isTahazir: boolean;

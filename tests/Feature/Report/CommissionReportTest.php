@@ -125,7 +125,24 @@ describe('Employee Commission Report', function () {
                 ->where('totals.lineCount', 1)
                 ->where('lines.0.serviceName', 'تصميم شعار')
                 ->where('lines.0.amount', 55)
+                ->where('lines.0.invoiceStatus', 'paid')
                 ->has('lines.0.invoiceNumber'));
+    });
+
+    it('surfaces the invoice approval status on each detail line', function () {
+        ledgerLine($this->employee, $this->branch, ['amount' => 20]);
+        $cancelled = ledgerLine($this->employee, $this->branch, ['amount' => 30]);
+
+        // Flip the second line's invoice to cancelled to prove the column tracks
+        // the invoice's real approval state, not the commission-payout state.
+        ServiceInvoiceLine::find($cancelled->invoice_line_id)->invoice->update(['status' => 'cancelled']);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.lineCount', 2)
+                ->where('lines', fn ($lines) => collect($lines)->pluck('invoiceStatus')->sort()->values()->all() === ['cancelled', 'paid'])
+            );
     });
 
     // ── SCOPING ────────────────────────────────────────────────────
