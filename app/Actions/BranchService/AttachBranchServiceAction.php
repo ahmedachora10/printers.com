@@ -17,6 +17,9 @@ class AttachBranchServiceAction
             $serviceTemplate->branches()->attach($data['branch_id'], [
                 'base_commission_pct' => $data['base_commission_pct'],
                 'max_discount_pct' => $data['max_discount_pct'],
+                'pricing_type' => $data['pricing_type'] ?? 'unit',
+                'price_per_sqm' => $data['price_per_sqm'] ?? 0,
+                'agent_commission_per_sqm' => $data['agent_commission_per_sqm'] ?? 0,
                 'is_tahazir' => $data['is_tahazir'] ?? false,
                 'is_active' => $data['is_active'] ?? true,
             ]);

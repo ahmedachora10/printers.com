@@ -30,6 +30,7 @@ interface InvoiceRow {
     invoiceNumber: string;
     totalAmount: number;
     rebate: number;
+    lineCommission: number;
     discount: number;
     isRebatePaid: boolean;
     status: string;
@@ -66,36 +67,67 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
 
 export default function AgentPortalIndex({ agent, summary, recentInvoices, payments }: Props) {
     const isRebate = agent.discountMode === 'rebate';
+    // Per-line commissions can accrue to any agent, whatever their invoice-level mode.
+    const hasLineCommission = recentInvoices.some((i) => i.lineCommission > 0);
 
     const invoiceColumns = useMemo<ColumnDef<InvoiceRow>[]>(
         () => [
-            { key: 'number', header: 'رقم الفاتورة', cell: (i) => <span className="tabular-nums" dir="ltr">{i.invoiceNumber}</span> },
+            {
+                key: 'number',
+                header: 'رقم الفاتورة',
+                cell: (i) => (
+                    <span className="tabular-nums" dir="ltr">
+                        {i.invoiceNumber}
+                    </span>
+                ),
+            },
             { key: 'type', header: 'النوع', cell: (i) => (i.type === 'service' ? 'خدمة' : 'منتجات') },
-            { key: 'date', header: 'التاريخ', cell: (i) => <span className="tabular-nums" dir="ltr">{i.createdAt}</span> },
+            {
+                key: 'date',
+                header: 'التاريخ',
+                cell: (i) => (
+                    <span className="tabular-nums" dir="ltr">
+                        {i.createdAt}
+                    </span>
+                ),
+            },
             { key: 'total', header: 'إجمالي الفاتورة', cell: (i) => <span className="tabular-nums">{formatCurrency(i.totalAmount)}</span> },
             {
                 key: 'amount',
                 header: isRebate ? 'العمولة' : 'الخصم',
                 cell: (i) => <span className="font-semibold tabular-nums">{formatCurrency(isRebate ? i.rebate : i.discount)}</span>,
             },
-            ...(isRebate
+            ...(hasLineCommission
+                ? [
+                      {
+                          key: 'lineCommission',
+                          header: 'عمولة البنود',
+                          cell: (i: InvoiceRow) => (
+                              <span className="font-semibold tabular-nums">{i.lineCommission > 0 ? formatCurrency(i.lineCommission) : '—'}</span>
+                          ),
+                      },
+                  ]
+                : []),
+            ...(isRebate || hasLineCommission
                 ? [
                       {
                           key: 'paid',
                           header: 'حالة العمولة',
                           cell: (i: InvoiceRow) =>
-                              i.rebate <= 0 ? (
+                              i.rebate + i.lineCommission <= 0 ? (
                                   <span className="text-muted-foreground">—</span>
                               ) : i.isRebatePaid ? (
                                   <Badge variant="secondary">مدفوعة</Badge>
                               ) : (
-                                  <Badge variant="outline" className="text-muted-foreground">معلقة</Badge>
+                                  <Badge variant="outline" className="text-muted-foreground">
+                                      معلقة
+                                  </Badge>
                               ),
                       },
                   ]
                 : []),
         ],
-        [isRebate],
+        [isRebate, hasLineCommission],
     );
 
     const paymentColumns = useMemo<ColumnDef<PaymentRow>[]>(
@@ -111,7 +143,15 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
             },
             { key: 'invoices', header: 'الفواتير', cell: (p) => <span className="tabular-nums">{p.totalInvoices}</span> },
             { key: 'total', header: 'الإجمالي', cell: (p) => <span className="font-semibold tabular-nums">{formatCurrency(p.totalRebate)}</span> },
-            { key: 'paidAt', header: 'تاريخ الدفع', cell: (p) => <span className="tabular-nums" dir="ltr">{p.paidAt}</span> },
+            {
+                key: 'paidAt',
+                header: 'تاريخ الدفع',
+                cell: (p) => (
+                    <span className="tabular-nums" dir="ltr">
+                        {p.paidAt}
+                    </span>
+                ),
+            },
         ],
         [],
     );

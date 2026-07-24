@@ -79,6 +79,39 @@ describe('BranchService Management', function () {
         ]);
     });
 
+    it('stores square-meter pricing settings on a branch service', function () {
+        $this->post(route('branch-services.store'), [
+            'service_template_id' => $this->template->id,
+            'branch_id'           => $this->branch->id,
+            'base_commission_pct' => 8.00,
+            'max_discount_pct'    => 3.00,
+            'pricing_type'        => 'sqm',
+            'price_per_sqm'       => 120.50,
+            'agent_commission_per_sqm' => 4.25,
+            'is_tahazir'          => false,
+            'is_active'           => true,
+        ])->assertRedirect(route('branch-services.index'));
+
+        $this->assertDatabaseHas('branch_services', [
+            'service_template_id' => $this->template->id,
+            'pricing_type'        => 'sqm',
+            'price_per_sqm'       => 120.50,
+            'agent_commission_per_sqm' => 4.25,
+        ]);
+    });
+
+    it('requires the price per sqm when the pricing type is sqm', function () {
+        $this->post(route('branch-services.store'), [
+            'service_template_id' => $this->template->id,
+            'branch_id'           => $this->branch->id,
+            'base_commission_pct' => 8.00,
+            'max_discount_pct'    => 3.00,
+            'pricing_type'        => 'sqm',
+            'is_tahazir'          => false,
+            'is_active'           => true,
+        ])->assertSessionHasErrors('price_per_sqm');
+    });
+
     it('prevents employee from attaching a branch service', function () {
         $employee = User::factory()->create();
         $employee->addRole('employee');

@@ -7,11 +7,19 @@ export interface PosProduct {
     unitName: string | null;
 }
 
+export type ServicePricingType = 'unit' | 'sqm';
+
+/** How a line's commission-owner (agent) share is computed. */
+export type LineAgentCommissionType = 'percentage' | 'fixed' | 'per_sqm';
+
 export interface PosService {
     id: number;
     name: string;
     baseCommissionPct: number;
     maxDiscountPct: number;
+    pricingType: ServicePricingType;
+    pricePerSqm: number;
+    agentCommissionPerSqm: number;
     isTahazir: boolean;
 }
 
@@ -27,6 +35,15 @@ export interface ServiceCartLine {
     baseCommissionPct: number;
     isTahazir: boolean;
     isManual: boolean;
+    pricingType: ServicePricingType;
+    pricePerSqm: number;
+    agentCommissionPerSqm: number;
+    widthCm: number | null;
+    heightCm: number | null;
+    /** per-line commission owner (صاحب العمولة) — optional */
+    agentId: number | null;
+    agentCommissionType: LineAgentCommissionType | null;
+    agentCommissionValue: number;
 }
 
 export interface PosCustomer {
@@ -74,6 +91,14 @@ export interface EditServiceInvoiceLine {
     maxDiscountPct: number;
     baseCommissionPct: number;
     isTahazir: boolean;
+    pricingType: ServicePricingType;
+    pricePerSqm: number;
+    agentCommissionPerSqm: number;
+    widthCm: number | null;
+    heightCm: number | null;
+    agentId: number | null;
+    agentCommissionType: LineAgentCommissionType | null;
+    agentCommissionValue: number | null;
 }
 
 export interface EditServiceInvoice {
@@ -107,6 +132,8 @@ export interface PosInvoiceLine {
     sku: string | null;
     qty: number;
     unitPrice: number;
+    widthCm?: number | null;
+    heightCm?: number | null;
     discountPct: number;
     subtotal: number;
 }

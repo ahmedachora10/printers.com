@@ -15,6 +15,7 @@ import service from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import {
     type EditServiceInvoice,
+    type LineAgentCommissionType,
     type PosAgent,
     type PosCustomer,
     type PosLoyalty,
@@ -61,6 +62,25 @@ const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const lineTotal = (line: ServiceCartLine) => round2(line.qty * line.unitPrice * (1 - line.discountPct / 100));
 
+/** Area of one piece in m² from the entered cm dimensions. */
+const lineAreaSqm = (line: ServiceCartLine) => ((line.widthCm ?? 0) / 100) * ((line.heightCm ?? 0) / 100);
+
+/** Per-piece price of a sqm line — mirrors the server (rounded before qty). */
+const sqmUnitPrice = (line: ServiceCartLine) => round2(lineAreaSqm(line) * line.pricePerSqm);
+
+/** The line's commission-owner share — mirrors the server formulas. */
+function lineAgentCommission(line: ServiceCartLine): number {
+    if (!line.agentId || !line.agentCommissionType) return 0;
+    switch (line.agentCommissionType) {
+        case 'percentage':
+            return round2((lineTotal(line) * line.agentCommissionValue) / 100);
+        case 'fixed':
+            return round2(line.agentCommissionValue * line.qty);
+        case 'per_sqm':
+            return round2(line.qty * lineAreaSqm(line) * line.agentCommissionValue);
+    }
+}
+
 export default function ServicePos({ services, agents, paymentMethods, vatPct, loyalty, invoice }: Props) {
     const { props } = usePage<SharedData>();
     // Employees may only raise DUE (معلق) invoices for an accountant to review;
@@ -85,6 +105,14 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 baseCommissionPct: l.baseCommissionPct,
                 isTahazir: l.isTahazir,
                 isManual: false,
+                pricingType: l.pricingType ?? 'unit',
+                pricePerSqm: l.pricePerSqm ?? 0,
+                agentCommissionPerSqm: l.agentCommissionPerSqm ?? 0,
+                widthCm: l.widthCm,
+                heightCm: l.heightCm,
+                agentId: l.agentId,
+                agentCommissionType: l.agentCommissionType,
+                agentCommissionValue: l.agentCommissionValue ?? 0,
             };
         }),
     );
@@ -214,6 +242,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             ),
         [selectedAgents, total],
     );
+    // Per-line commission owners' shares — informational: paid to the agents
+    // later, never deducted from the customer's total.
+    const lineAgentsCommission = useMemo(() => round2(cart.reduce((sum, l) => sum + lineAgentCommission(l), 0)), [cart]);
 
     function addService(s: PosService) {
         setCart((prev) => {
@@ -235,6 +266,14 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     baseCommissionPct: s.baseCommissionPct,
                     isTahazir: s.isTahazir,
                     isManual: false,
+                    pricingType: s.pricingType,
+                    pricePerSqm: s.pricePerSqm,
+                    agentCommissionPerSqm: s.agentCommissionPerSqm,
+                    widthCm: null,
+                    heightCm: null,
+                    agentId: null,
+                    agentCommissionType: null,
+                    agentCommissionValue: 0,
                 },
             ];
         });
@@ -256,6 +295,14 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 baseCommissionPct: 0,
                 isTahazir: false,
                 isManual: true,
+                pricingType: 'unit',
+                pricePerSqm: 0,
+                agentCommissionPerSqm: 0,
+                widthCm: null,
+                heightCm: null,
+                agentId: null,
+                agentCommissionType: null,
+                agentCommissionValue: 0,
             },
         ]);
     }
@@ -275,7 +322,47 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             baseCommissionPct: s.baseCommissionPct,
             isTahazir: s.isTahazir,
             discountPct: Math.min(cap, line.discountPct),
+            pricingType: s.pricingType,
+            pricePerSqm: s.pricePerSqm,
+            agentCommissionPerSqm: s.agentCommissionPerSqm,
+            // A sqm service derives its price from dimensions; reset until entered.
+            ...(s.pricingType === 'sqm' ? { unitPrice: 0, widthCm: null, heightCm: null } : { widthCm: null, heightCm: null }),
+            // A per_sqm commission type no longer applies on a unit service.
+            ...(s.pricingType !== 'sqm' && line.agentCommissionType === 'per_sqm'
+                ? { agentCommissionType: 'percentage' as LineAgentCommissionType, agentCommissionValue: 0 }
+                : {}),
         });
+    }
+
+    /** Update a sqm line's dimensions and re-derive its per-piece price. */
+    function setDimensions(line: ServiceCartLine, patch: { widthCm?: number | null; heightCm?: number | null }) {
+        const next = { ...line, ...patch };
+        updateLine(line.key, {
+            ...patch,
+            unitPrice: sqmUnitPrice(next),
+        });
+    }
+
+    /** Attach/replace a line's commission owner, prefilling their saved terms. */
+    function setLineAgent(line: ServiceCartLine, agentId: number | null) {
+        if (agentId === null) {
+            updateLine(line.key, { agentId: null, agentCommissionType: null, agentCommissionValue: 0 });
+            return;
+        }
+        const agent = agents.find((a) => a.id === agentId);
+        if (!agent) return;
+        // Sqm services default to the per-sqm rate from the service settings;
+        // otherwise the agent's saved profile terms are the suggestion. Both stay
+        // editable — the server recomputes the amount from what is submitted.
+        if (line.pricingType === 'sqm' && line.agentCommissionPerSqm > 0) {
+            updateLine(line.key, { agentId, agentCommissionType: 'per_sqm', agentCommissionValue: line.agentCommissionPerSqm });
+        } else {
+            updateLine(line.key, {
+                agentId,
+                agentCommissionType: agent.discountType === 'fixed' ? 'fixed' : 'percentage',
+                agentCommissionValue: agent.rate,
+            });
+        }
     }
 
     function changeQty(line: ServiceCartLine, delta: number) {
@@ -348,6 +435,10 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             toast.error('اختر خدمة لكل سطر يدوي');
             return;
         }
+        if (cart.some((l) => l.pricingType === 'sqm' && (!l.widthCm || !l.heightCm))) {
+            toast.error('أدخل العرض والطول لخدمات المتر المربع');
+            return;
+        }
         // A bank-transfer method needs a receipt — unless editing an invoice that
         // already carries one and keeps the same method.
         if (requiresReceipt && !receipt && !(isEditing && invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
@@ -372,6 +463,11 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 qty: l.qty,
                 unit_price: l.unitPrice,
                 discount_pct: l.discountPct,
+                width_cm: l.pricingType === 'sqm' ? l.widthCm : null,
+                height_cm: l.pricingType === 'sqm' ? l.heightCm : null,
+                agent_id: l.agentId,
+                agent_commission_type: l.agentId ? l.agentCommissionType : null,
+                agent_commission_value: l.agentId ? l.agentCommissionValue : null,
             })),
         };
 
@@ -478,7 +574,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                         {selectedAgents.map((a) => (
                                             <div
                                                 key={a.id}
-                                                className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-2 py-1.5"
+                                                className="bg-muted/40 flex items-center justify-between gap-2 rounded-md border px-2 py-1.5"
                                             >
                                                 <div className="min-w-0 text-xs">
                                                     <p className="truncate font-medium">{a.name}</p>
@@ -644,6 +740,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 <div className="text-muted-foreground flex justify-between text-xs">
                                     <span>عمولة الوكيل المرتجعة</span>
                                     <span>{formatCurrency(agentRebate)}</span>
+                                </div>
+                            )}
+                            {lineAgentsCommission > 0 && (
+                                <div className="text-muted-foreground flex justify-between text-xs">
+                                    <span>عمولات أصحاب العمولة (البنود)</span>
+                                    <span>{formatCurrency(lineAgentsCommission)}</span>
                                 </div>
                             )}
                             <div className="text-muted-foreground flex justify-between text-xs">
@@ -827,8 +929,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                         </SelectContent>
                                     </Select>
                                 )}
-                                renderLineMeta={(line) => `عمولة ${line.baseCommissionPct}%`}
-                                isPriceEditable={() => true}
+                                renderLineMeta={(line) =>
+                                    line.pricingType === 'sqm'
+                                        ? `عمولة ${line.baseCommissionPct}% • بالمتر المربع`
+                                        : `عمولة ${line.baseCommissionPct}%`
+                                }
+                                isPriceEditable={(line) => line.pricingType !== 'sqm'}
                                 getMaxDiscount={(line) => (line.maxDiscountPct > 0 ? line.maxDiscountPct : 100)}
                                 getLineTotal={lineTotal}
                                 onQtyChange={changeQty}
@@ -836,6 +942,130 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 onDiscountChange={setDiscount}
                                 onRemove={removeLine}
                                 onAddManual={addManualLine}
+                                renderLineDetails={(line) => {
+                                    if (!line.branchServiceId) return null;
+                                    const isSqm = line.pricingType === 'sqm';
+                                    if (!isSqm && agents.length === 0) return null;
+                                    const commissionPreview = lineAgentCommission(line);
+
+                                    return (
+                                        <div className="flex flex-wrap items-end gap-3">
+                                            {isSqm && (
+                                                <>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-muted-foreground text-xs">العرض (سم)</Label>
+                                                        <Input
+                                                            type="number"
+                                                            min={1}
+                                                            step="0.1"
+                                                            value={line.widthCm ?? ''}
+                                                            onChange={(e) =>
+                                                                setDimensions(line, {
+                                                                    widthCm: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                                                                })
+                                                            }
+                                                            className="h-8 w-24 text-center"
+                                                            placeholder="100"
+                                                        />
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-muted-foreground text-xs">الطول (سم)</Label>
+                                                        <Input
+                                                            type="number"
+                                                            min={1}
+                                                            step="0.1"
+                                                            value={line.heightCm ?? ''}
+                                                            onChange={(e) =>
+                                                                setDimensions(line, {
+                                                                    heightCm: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                                                                })
+                                                            }
+                                                            className="h-8 w-24 text-center"
+                                                            placeholder="70"
+                                                        />
+                                                    </div>
+                                                    <p className="text-muted-foreground pb-1.5 text-xs">
+                                                        {line.widthCm && line.heightCm
+                                                            ? `المساحة: ${round2(lineAreaSqm(line))} م² × ${formatCurrency(line.pricePerSqm)} = ${formatCurrency(sqmUnitPrice(line))} للقطعة`
+                                                            : `سعر المتر: ${formatCurrency(line.pricePerSqm)}`}
+                                                    </p>
+                                                </>
+                                            )}
+
+                                            {agents.length > 0 && (
+                                                <>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-muted-foreground text-xs">صاحب العمولة</Label>
+                                                        <Select
+                                                            value={line.agentId ? String(line.agentId) : 'none'}
+                                                            onValueChange={(v) => setLineAgent(line, v === 'none' ? null : Number(v))}
+                                                        >
+                                                            <SelectTrigger className="h-8 w-40">
+                                                                <SelectValue placeholder="— بدون —" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="none">— بدون —</SelectItem>
+                                                                {agents.map((a) => (
+                                                                    <SelectItem key={a.id} value={String(a.id)}>
+                                                                        {a.name}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
+                                                    {line.agentId && (
+                                                        <>
+                                                            <div className="space-y-1">
+                                                                <Label className="text-muted-foreground text-xs">نوع العمولة</Label>
+                                                                <Select
+                                                                    value={line.agentCommissionType ?? 'percentage'}
+                                                                    onValueChange={(v) =>
+                                                                        updateLine(line.key, { agentCommissionType: v as LineAgentCommissionType })
+                                                                    }
+                                                                >
+                                                                    <SelectTrigger className="h-8 w-32">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="percentage">نسبة %</SelectItem>
+                                                                        <SelectItem value="fixed">مبلغ ثابت</SelectItem>
+                                                                        {isSqm && <SelectItem value="per_sqm">لكل م²</SelectItem>}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </div>
+                                                            <div className="space-y-1">
+                                                                <Label className="text-muted-foreground text-xs">
+                                                                    {line.agentCommissionType === 'percentage'
+                                                                        ? 'النسبة (%)'
+                                                                        : line.agentCommissionType === 'per_sqm'
+                                                                          ? 'ر.س / م²'
+                                                                          : 'المبلغ (ر.س)'}
+                                                                </Label>
+                                                                <Input
+                                                                    type="number"
+                                                                    min={0}
+                                                                    step="0.01"
+                                                                    max={line.agentCommissionType === 'percentage' ? 100 : undefined}
+                                                                    value={line.agentCommissionValue}
+                                                                    onChange={(e) =>
+                                                                        updateLine(line.key, {
+                                                                            agentCommissionValue: Math.max(0, Number(e.target.value) || 0),
+                                                                        })
+                                                                    }
+                                                                    className="h-8 w-24 text-center"
+                                                                />
+                                                            </div>
+                                                            <p className="pb-1.5 text-xs font-medium text-sky-700 dark:text-sky-400">
+                                                                العمولة: {formatCurrency(commissionPreview)}
+                                                            </p>
+                                                        </>
+                                                    )}
+                                                </>
+                                            )}
+                                        </div>
+                                    );
+                                }}
                             />
                         </CardContent>
                     </Card>

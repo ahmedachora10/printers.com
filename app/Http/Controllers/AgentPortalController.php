@@ -54,6 +54,7 @@ class AgentPortalController extends Controller
                 'invoiceNumber' => $r->invoice_number,
                 'totalAmount' => (float) $r->total_amount,
                 'rebate' => (float) $r->agent_rebate,
+                'lineCommission' => 0.0,
                 'discount' => (float) $r->agent_discount,
                 'isRebatePaid' => $r->agent_payment_id !== null,
                 'status' => $r->status->value,
@@ -69,11 +70,13 @@ class AgentPortalController extends Controller
             ->where('agent_id', $agent->id)
             ->whereHas('invoice', fn ($q) => $q->where('status', InvoiceStatusEnum::PAID->value));
 
+        // Earned = invoice-level rebate plus per-line commissions; both are
+        // settled together by the same agent_payment_id stamp.
         $serviceRow = (clone $serviceBase)
             ->selectRaw('COUNT(*) as cnt')
-            ->selectRaw('COALESCE(SUM(rebate_amount), 0) as rebate')
+            ->selectRaw('COALESCE(SUM(rebate_amount + line_commission_amount), 0) as rebate')
             ->selectRaw('COALESCE(SUM(discount_amount), 0) as discount')
-            ->selectRaw('COALESCE(SUM(CASE WHEN agent_payment_id IS NOT NULL THEN rebate_amount ELSE 0 END), 0) as paid')
+            ->selectRaw('COALESCE(SUM(CASE WHEN agent_payment_id IS NOT NULL THEN rebate_amount + line_commission_amount ELSE 0 END), 0) as paid')
             ->first();
 
         $summary['invoiceCount'] += (int) $serviceRow->cnt;
@@ -91,6 +94,7 @@ class AgentPortalController extends Controller
                 'invoiceNumber' => $r->invoice?->invoice_number,
                 'totalAmount' => (float) ($r->invoice?->total_amount ?? 0),
                 'rebate' => (float) $r->rebate_amount,
+                'lineCommission' => (float) $r->line_commission_amount,
                 'discount' => (float) $r->discount_amount,
                 'isRebatePaid' => $r->agent_payment_id !== null,
                 'status' => $r->invoice?->status->value,

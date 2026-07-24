@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency } from '@/lib/utils';
 import { FileText, Minus, Plus, Trash2 } from 'lucide-react';
-import { type ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 
 export interface PosCartLineBase {
     key: string;
@@ -38,6 +38,8 @@ interface PosCartTableProps<T extends PosCartLineBase> {
     onDiscountChange: (line: T, value: number) => void;
     onRemove: (key: string) => void;
     onAddManual: () => void;
+    /** optional full-width detail row rendered under a line (dimensions, commission owner …) */
+    renderLineDetails?: (line: T) => ReactNode;
 }
 
 function QuantityStepper({ qty, onChange }: { qty: number; onChange: (delta: number) => void }) {
@@ -70,6 +72,7 @@ export function PosCartTable<T extends PosCartLineBase>({
     onDiscountChange,
     onRemove,
     onAddManual,
+    renderLineDetails,
 }: PosCartTableProps<T>) {
     return (
         <div className="space-y-3">
@@ -98,66 +101,79 @@ export function PosCartTable<T extends PosCartLineBase>({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {lines.map((line) => (
-                                    <TableRow key={line.key}>
-                                        <TableCell className="p-2 align-top">
-                                            {isLineSelectable(line) ? (
-                                                renderLineSelect(line)
-                                            ) : (
-                                                <div className="min-w-0">
-                                                    <p className="truncate text-sm font-medium">{line.name}</p>
-                                                    <p className="text-muted-foreground text-xs">{renderLineMeta(line)}</p>
-                                                </div>
+                                {lines.map((line) => {
+                                    const details = renderLineDetails?.(line);
+
+                                    return (
+                                        <Fragment key={line.key}>
+                                            <TableRow>
+                                                <TableCell className="p-2 align-top">
+                                                    {isLineSelectable(line) ? (
+                                                        renderLineSelect(line)
+                                                    ) : (
+                                                        <div className="min-w-0">
+                                                            <p className="truncate text-sm font-medium">{line.name}</p>
+                                                            <p className="text-muted-foreground text-xs">{renderLineMeta(line)}</p>
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+
+                                                <TableCell className="p-2 text-center">
+                                                    <QuantityStepper qty={line.qty} onChange={(delta) => onQtyChange(line, delta)} />
+                                                </TableCell>
+
+                                                <TableCell className="p-2 text-center">
+                                                    {isPriceEditable(line) ? (
+                                                        <Input
+                                                            type="number"
+                                                            min={0}
+                                                            step="0.01"
+                                                            value={line.unitPrice}
+                                                            onChange={(e) => onPriceChange(line, Math.max(0, Number(e.target.value) || 0))}
+                                                            className="h-8 text-center"
+                                                        />
+                                                    ) : (
+                                                        <span className="text-sm tabular-nums">{formatCurrency(line.unitPrice)}</span>
+                                                    )}
+                                                </TableCell>
+
+                                                <TableCell className="p-2 text-center">
+                                                    <Input
+                                                        type="number"
+                                                        min={0}
+                                                        max={getMaxDiscount(line)}
+                                                        value={line.discountPct}
+                                                        onChange={(e) => onDiscountChange(line, Number(e.target.value))}
+                                                        className="h-8 text-center"
+                                                    />
+                                                </TableCell>
+
+                                                <TableCell className="p-2 text-center text-sm font-semibold tabular-nums">
+                                                    {formatCurrency(getLineTotal(line))}
+                                                </TableCell>
+
+                                                <TableCell className="p-2 text-center">
+                                                    <Button
+                                                        type="button"
+                                                        size="icon"
+                                                        variant="ghost"
+                                                        className="text-muted-foreground hover:text-destructive size-7"
+                                                        onClick={() => onRemove(line.key)}
+                                                    >
+                                                        <Trash2 className="size-4" />
+                                                    </Button>
+                                                </TableCell>
+                                            </TableRow>
+                                            {details && (
+                                                <TableRow className="hover:bg-transparent">
+                                                    <TableCell colSpan={6} className="bg-muted/30 p-2 pt-0">
+                                                        {details}
+                                                    </TableCell>
+                                                </TableRow>
                                             )}
-                                        </TableCell>
-
-                                        <TableCell className="p-2 text-center">
-                                            <QuantityStepper qty={line.qty} onChange={(delta) => onQtyChange(line, delta)} />
-                                        </TableCell>
-
-                                        <TableCell className="p-2 text-center">
-                                            {isPriceEditable(line) ? (
-                                                <Input
-                                                    type="number"
-                                                    min={0}
-                                                    step="0.01"
-                                                    value={line.unitPrice}
-                                                    onChange={(e) => onPriceChange(line, Math.max(0, Number(e.target.value) || 0))}
-                                                    className="h-8 text-center"
-                                                />
-                                            ) : (
-                                                <span className="text-sm tabular-nums">{formatCurrency(line.unitPrice)}</span>
-                                            )}
-                                        </TableCell>
-
-                                        <TableCell className="p-2 text-center">
-                                            <Input
-                                                type="number"
-                                                min={0}
-                                                max={getMaxDiscount(line)}
-                                                value={line.discountPct}
-                                                onChange={(e) => onDiscountChange(line, Number(e.target.value))}
-                                                className="h-8 text-center"
-                                            />
-                                        </TableCell>
-
-                                        <TableCell className="p-2 text-center text-sm font-semibold tabular-nums">
-                                            {formatCurrency(getLineTotal(line))}
-                                        </TableCell>
-
-                                        <TableCell className="p-2 text-center">
-                                            <Button
-                                                type="button"
-                                                size="icon"
-                                                variant="ghost"
-                                                className="text-muted-foreground hover:text-destructive size-7"
-                                                onClick={() => onRemove(line.key)}
-                                            >
-                                                <Trash2 className="size-4" />
-                                            </Button>
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
+                                        </Fragment>
+                                    );
+                                })}
                             </TableBody>
                         </Table>
                     </div>

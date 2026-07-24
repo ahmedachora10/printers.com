@@ -80,9 +80,9 @@ class InvoiceController extends Controller
         ]);
 
         // Product invoices carry a single agent on the row; service invoices list
-        // several via the pivot.
+        // several via the pivot, plus the per-line commission owners.
         if ($invoice instanceof ServiceInvoice) {
-            $invoice->load('invoiceAgents.agent:id,name');
+            $invoice->load('invoiceAgents.agent:id,name', 'lines.lineAgent:id,name');
         } else {
             $invoice->load('agent:id,name');
         }
@@ -100,7 +100,7 @@ class InvoiceController extends Controller
         $invoice->load(['lines', 'customer:id,full_name,phone,tax_number', 'paymentMethod:id,name', 'branch']);
 
         if ($invoice instanceof ServiceInvoice) {
-            $invoice->load('invoiceAgents.agent:id,name');
+            $invoice->load('invoiceAgents.agent:id,name', 'lines.lineAgent:id,name');
         } else {
             $invoice->load('agent:id,name');
         }

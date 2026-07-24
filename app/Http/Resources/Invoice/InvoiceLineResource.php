@@ -23,15 +23,27 @@ class InvoiceLineResource extends JsonResource
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
+        $isService = $this->resource instanceof ServiceInvoiceLine;
+
         return [
             'name' => $this->product_name ?? $this->service_name,
             'sku' => $this->sku,
             'qty' => $this->qty,
             'unitPrice' => (float) $this->unit_price,
+            'widthCm' => $isService && $this->resource->width_cm !== null
+                ? (float) $this->resource->width_cm
+                : null,
+            'heightCm' => $isService && $this->resource->height_cm !== null
+                ? (float) $this->resource->height_cm
+                : null,
             'discountPct' => (float) $this->discount_pct,
             'subtotal' => (float) $this->subtotal,
             'commissionAmount' => $this->commission_amount !== null
                 ? (float) $this->commission_amount
+                : null,
+            'lineAgentName' => $isService ? $this->resource->lineAgent?->name : null,
+            'lineAgentCommissionAmount' => $isService && $this->resource->agent_id !== null
+                ? (float) $this->resource->agent_commission_amount
                 : null,
         ];
     }

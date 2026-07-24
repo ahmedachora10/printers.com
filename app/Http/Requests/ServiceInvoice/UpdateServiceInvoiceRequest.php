@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\ServiceInvoice;
 
+use App\Enums\LineAgentCommissionTypeEnum;
 use App\Models\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Validates an employee's in-place edit of their own DUE service invoice. The
@@ -39,6 +41,11 @@ class UpdateServiceInvoiceRequest extends FormRequest
             'lines.*.qty' => ['required', 'integer', 'min:1'],
             'lines.*.unit_price' => ['required', 'numeric', 'min:0'],
             'lines.*.discount_pct' => ['nullable', 'numeric', 'between:0,100'],
+            'lines.*.width_cm' => ['nullable', 'numeric', 'min:1', 'max:99999'],
+            'lines.*.height_cm' => ['nullable', 'numeric', 'min:1', 'max:99999'],
+            'lines.*.agent_id' => ['nullable', 'integer', 'exists:users,id'],
+            'lines.*.agent_commission_type' => ['nullable', 'required_with:lines.*.agent_id', Rule::enum(LineAgentCommissionTypeEnum::class)],
+            'lines.*.agent_commission_value' => ['nullable', 'required_with:lines.*.agent_id', 'numeric', 'min:0'],
         ];
     }
 
@@ -67,6 +74,10 @@ class UpdateServiceInvoiceRequest extends FormRequest
             'lines.*.branch_service_id.required' => 'يجب اختيار خدمة لكل سطر.',
             'lines.*.branch_service_id.exists' => 'الخدمة المحددة غير موجودة.',
             'lines.*.qty.min' => 'الكمية يجب أن تكون 1 على الأقل.',
+            'lines.*.width_cm.min' => 'العرض يجب أن يكون 1 سم على الأقل.',
+            'lines.*.height_cm.min' => 'الطول يجب أن يكون 1 سم على الأقل.',
+            'lines.*.agent_commission_type.required_with' => 'حدد نوع عمولة صاحب العمولة.',
+            'lines.*.agent_commission_value.required_with' => 'أدخل قيمة عمولة صاحب العمولة.',
         ];
     }
 }

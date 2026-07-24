@@ -45,6 +45,9 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         branch_id: 0,
         base_commission_pct: 0,
         max_discount_pct: 0,
+        pricing_type: 'unit',
+        price_per_sqm: 0,
+        agent_commission_per_sqm: 0,
         is_tahazir: false,
         is_active: true,
     });
@@ -52,6 +55,9 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
     const editForm = useForm<BranchServiceUpdateData>({
         base_commission_pct: 0,
         max_discount_pct: 0,
+        pricing_type: 'unit',
+        price_per_sqm: 0,
+        agent_commission_per_sqm: 0,
         is_tahazir: false,
         is_active: true,
     });
@@ -72,6 +78,9 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
             branch_id: branchId,
             base_commission_pct: 0,
             max_discount_pct: 0,
+            pricing_type: 'unit',
+            price_per_sqm: 0,
+            agent_commission_per_sqm: 0,
             is_tahazir: false,
             is_active: true,
         });
@@ -82,6 +91,9 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         editForm.setData({
             base_commission_pct: service.baseCommissionPct,
             max_discount_pct: service.maxDiscountPct,
+            pricing_type: service.pricingType ?? 'unit',
+            price_per_sqm: service.pricePerSqm ?? 0,
+            agent_commission_per_sqm: service.agentCommissionPerSqm ?? 0,
             is_tahazir: service.isTahazir,
             is_active: service.isActive,
         });
@@ -150,6 +162,11 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                                                 <>
                                                     <span className="text-muted-foreground text-xs">
                                                         {service.baseCommissionPct}% عمولة • {service.maxDiscountPct}% خصم
+                                                        {service.pricingType === 'sqm' && (
+                                                            <span className="ms-1 rounded bg-sky-100 px-1 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
+                                                                م² {service.pricePerSqm} ر.س
+                                                            </span>
+                                                        )}
                                                         {service.isTahazir && (
                                                             <span className="ms-1 rounded bg-violet-100 px-1 text-violet-700 dark:bg-violet-950 dark:text-violet-300">
                                                                 تحاضر
@@ -211,7 +228,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                                         <BranchServiceFields
                                             data={editForm.data}
                                             errors={editForm.errors}
-                                            setData={editForm.setData as (key: string, value: number | boolean) => void}
+                                            setData={editForm.setData as (key: string, value: number | boolean | string) => void}
                                         />
                                         <div className="flex justify-end gap-2">
                                             <Button type="button" size="sm" variant="outline" onClick={cancelAction} disabled={editForm.processing}>
@@ -230,7 +247,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                                         <BranchServiceFields
                                             data={attachForm.data}
                                             errors={attachForm.errors}
-                                            setData={attachForm.setData as (key: string, value: number | boolean) => void}
+                                            setData={attachForm.setData as (key: string, value: number | boolean | string) => void}
                                         />
                                         <div className="flex justify-end gap-2">
                                             <Button type="button" size="sm" variant="outline" onClick={cancelAction} disabled={attachForm.processing}>
@@ -263,9 +280,17 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
 }
 
 interface FieldsProps {
-    data: { base_commission_pct: number; max_discount_pct: number; is_tahazir: boolean; is_active: boolean };
+    data: {
+        base_commission_pct: number;
+        max_discount_pct: number;
+        pricing_type: 'unit' | 'sqm';
+        price_per_sqm: number;
+        agent_commission_per_sqm: number;
+        is_tahazir: boolean;
+        is_active: boolean;
+    };
     errors: Partial<Record<string, string>>;
-    setData: (key: string, value: number | boolean) => void;
+    setData: (key: string, value: number | boolean | string) => void;
 }
 
 function BranchServiceFields({ data, errors, setData }: FieldsProps) {
@@ -306,6 +331,57 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                     <InputError message={errors.max_discount_pct} />
                 </div>
             </div>
+
+            <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                    <Label className="text-xs">نوع التسعير</Label>
+                    <select
+                        className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+                        value={data.pricing_type}
+                        onChange={(e) => setData('pricing_type', e.target.value)}
+                    >
+                        <option value="unit">بالوحدة</option>
+                        <option value="sqm">بالمتر المربع</option>
+                    </select>
+                    <InputError message={errors.pricing_type} />
+                </div>
+
+                {data.pricing_type === 'sqm' && (
+                    <div className="space-y-1">
+                        <Label className="text-xs">
+                            سعر المتر المربع (ر.س) <span className="text-destructive">*</span>
+                        </Label>
+                        <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="h-8 text-sm"
+                            value={data.price_per_sqm}
+                            onChange={(e) => setData('price_per_sqm', parseFloat(e.target.value) || 0)}
+                            dir="ltr"
+                        />
+                        <InputError message={errors.price_per_sqm} />
+                    </div>
+                )}
+            </div>
+
+            {data.pricing_type === 'sqm' && (
+                <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                        <Label className="text-xs">عمولة الوكيل للمتر (ر.س)</Label>
+                        <Input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            className="h-8 text-sm"
+                            value={data.agent_commission_per_sqm}
+                            onChange={(e) => setData('agent_commission_per_sqm', parseFloat(e.target.value) || 0)}
+                            dir="ltr"
+                        />
+                        <InputError message={errors.agent_commission_per_sqm} />
+                    </div>
+                </div>
+            )}
 
             <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">

@@ -172,6 +172,62 @@ describe('Agent Payments', function () {
         ]);
     });
 
+    it('counts per-line commissions in the outstanding balance and the payment total', function () {
+        // rebate 10 plus line commissions 5 on the same pivot row.
+        $invoice = rebateInvoice($this->branch->id, $this->agent->id, 10);
+        $invoice->invoiceAgents()->update(['line_commission_amount' => 5]);
+
+        $this->get(route('agent-payments.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('agents.0.outstandingRebate', 15)
+                ->where('agents.0.outstandingInvoices', 1));
+
+        $this->post(route('agent-payments.store'), [
+            'agent_id' => $this->agent->id,
+            'period_start' => now()->subDay()->toDateString(),
+            'period_end' => now()->addDay()->toDateString(),
+        ])->assertRedirect(route('agent-payments.index'));
+
+        $this->assertDatabaseHas('agent_payments', [
+            'agent_id' => $this->agent->id,
+            'total_invoices' => 1,
+            'total_rebate' => 15,
+        ]);
+    });
+
+    it('settles a pivot row carrying only line commissions (no rebate)', function () {
+        $invoice = rebateInvoice($this->branch->id, $this->agent->id, 0);
+        $invoice->invoiceAgents()->update(['line_commission_amount' => 8]);
+
+        $this->get(route('agent-payments.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('agents.0.outstandingRebate', 8)
+                ->where('agents.0.outstandingInvoices', 1));
+
+        $this->post(route('agent-payments.store'), [
+            'agent_id' => $this->agent->id,
+            'period_start' => now()->subDay()->toDateString(),
+            'period_end' => now()->addDay()->toDateString(),
+        ])->assertRedirect(route('agent-payments.index'));
+
+        $this->assertDatabaseHas('agent_payments', [
+            'agent_id' => $this->agent->id,
+            'total_rebate' => 8,
+        ]);
+
+        expect($invoice->invoiceAgents()->first()->agent_payment_id)->not->toBeNull();
+    });
+
+    it('excludes the line commission of a due invoice from the outstanding balance', function () {
+        $due = rebateInvoice($this->branch->id, $this->agent->id, 0, ['status' => 'due', 'paid_at' => null]);
+        $due->invoiceAgents()->update(['line_commission_amount' => 9]);
+
+        $this->get(route('agent-payments.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('agents.0.outstandingRebate', 0)
+                ->where('agents.0.outstandingInvoices', 0));
+    });
+
     it('prevents a branch-admin from paying an agent in another branch', function () {
         $otherBranch = Branch::factory()->create();
         $otherAgent = Agent::factory()->create(['branch_id' => $otherBranch->id]);

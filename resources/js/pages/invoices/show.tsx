@@ -1,8 +1,9 @@
+import { DataTable, type ColumnDef } from '@/components/data-table';
+import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { DataTable, type ColumnDef } from '@/components/data-table';
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
@@ -10,7 +11,6 @@ import { formatCurrency, formatDateTime } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { type Invoice } from '@/types/invoice';
 import { Head, router, usePage } from '@inertiajs/react';
 import { CheckCircle2, Paperclip, Pencil, Printer, ReceiptText, Trash2, Undo2 } from 'lucide-react';
@@ -38,8 +38,22 @@ const lineColumns: ColumnDef<InvoiceLine>[] = [
             <>
                 {line.name}
                 {line.sku && (
-                    <span className="block text-xs text-muted-foreground" dir="ltr">
+                    <span className="text-muted-foreground block text-xs" dir="ltr">
                         {line.sku}
+                    </span>
+                )}
+                {line.widthCm != null && line.heightCm != null && (
+                    <span className="text-muted-foreground block text-xs">
+                        الأبعاد: {line.widthCm}×{line.heightCm} سم (
+                        {Math.round(((line.widthCm / 100) * (line.heightCm / 100) + Number.EPSILON) * 100) / 100} م²)
+                    </span>
+                )}
+                {line.lineAgentName && (
+                    <span className="block text-xs text-sky-700 dark:text-sky-400">
+                        صاحب العمولة: {line.lineAgentName}
+                        {line.lineAgentCommissionAmount != null && line.lineAgentCommissionAmount > 0 && (
+                            <> — {formatCurrency(line.lineAgentCommissionAmount)}</>
+                        )}
                     </span>
                 )}
             </>
@@ -72,7 +86,7 @@ const lineColumns: ColumnDef<InvoiceLine>[] = [
 function MetaRow({ label, value }: { label: string; value: React.ReactNode }) {
     return (
         <div className="flex items-center justify-between gap-4 py-1">
-            <span className="text-sm text-muted-foreground">{label}</span>
+            <span className="text-muted-foreground text-sm">{label}</span>
             <span className="text-sm font-medium">{value}</span>
         </div>
     );
@@ -153,25 +167,18 @@ export default function InvoiceShow({ invoice }: Props) {
                                 {invoice.statusLabel}
                             </Badge>
                             <Badge variant="secondary">{invoice.typeLabel}</Badge>
-                            <Badge variant="outline">
-                                {invoice.customerTaxNumber ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة'}
-                            </Badge>
+                            <Badge variant="outline">{invoice.customerTaxNumber ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة'}</Badge>
                             {invoice.isFullyRefunded && (
                                 <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
                                     مُرتجعة
                                 </Badge>
                             )}
                         </div>
-                        {invoice.createdAt && (
-                            <p className="text-sm text-muted-foreground">{formatDateTime(invoice.createdAt)}</p>
-                        )}
+                        {invoice.createdAt && <p className="text-muted-foreground text-sm">{formatDateTime(invoice.createdAt)}</p>}
                     </div>
                     <div className="flex gap-2">
                         {invoice.canApprovePayment && (
-                            <Button
-                                className="bg-emerald-600 text-white hover:bg-emerald-700"
-                                onClick={() => setApproveOpen(true)}
-                            >
+                            <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setApproveOpen(true)}>
                                 <CheckCircle2 className="size-4" /> اعتماد الفاتورة
                             </Button>
                         )}
@@ -188,11 +195,7 @@ export default function InvoiceShow({ invoice }: Props) {
                             </Button>
                         )}
                         {invoice.canDelete && (
-                            <Button
-                                variant="outline"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => setDeleteOpen(true)}
-                            >
+                            <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}>
                                 <Trash2 className="size-4" /> حذف
                             </Button>
                         )}
@@ -219,7 +222,7 @@ export default function InvoiceShow({ invoice }: Props) {
                                 <span className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm font-normal">
                                     <span className="text-muted-foreground">
                                         إجمالي المرتجع:{' '}
-                                        <span className="font-semibold tabular-nums text-destructive" dir="ltr">
+                                        <span className="text-destructive font-semibold tabular-nums" dir="ltr">
                                             −{formatCurrency(invoice.refundedTotal)}
                                         </span>
                                     </span>
@@ -235,26 +238,20 @@ export default function InvoiceShow({ invoice }: Props) {
                         <CardContent>
                             <div className="divide-y divide-amber-100">
                                 {invoice.refunds.map((refund) => (
-                                    <div
-                                        key={refund.id}
-                                        className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
-                                    >
+                                    <div key={refund.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                                         <div className="flex flex-wrap items-center gap-3">
-                                            <span className="tabular-nums text-muted-foreground" dir="ltr">
+                                            <span className="text-muted-foreground tabular-nums" dir="ltr">
                                                 {refund.createdAt ? formatDateTime(refund.createdAt) : '—'}
                                             </span>
                                             <span>{refund.reason}</span>
                                             {refund.stockReversed && (
-                                                <Badge
-                                                    variant="outline"
-                                                    className="border-green-200 bg-green-50 text-green-700"
-                                                >
+                                                <Badge variant="outline" className="border-green-200 bg-green-50 text-green-700">
                                                     أُرجع المخزون
                                                 </Badge>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-3">
-                                            <span className="font-semibold tabular-nums text-destructive" dir="ltr">
+                                            <span className="text-destructive font-semibold tabular-nums" dir="ltr">
                                                 −{formatCurrency(refund.amount)}
                                             </span>
                                             <span className="text-muted-foreground">{refund.userName ?? '—'}</span>
@@ -287,15 +284,9 @@ export default function InvoiceShow({ invoice }: Props) {
                                 {invoice.tierDiscountAmount > 0 && (
                                     <TotalRow label="خصم المستوى" value={`−${formatCurrency(invoice.tierDiscountAmount)}`} />
                                 )}
-                                {invoice.couponDiscount > 0 && (
-                                    <TotalRow label="خصم الكوبون" value={`−${formatCurrency(invoice.couponDiscount)}`} />
-                                )}
-                                {invoice.agentDiscount > 0 && (
-                                    <TotalRow label="خصم الوكيل" value={`−${formatCurrency(invoice.agentDiscount)}`} />
-                                )}
-                                {invoice.pointsDiscount > 0 && (
-                                    <TotalRow label="خصم النقاط" value={`−${formatCurrency(invoice.pointsDiscount)}`} />
-                                )}
+                                {invoice.couponDiscount > 0 && <TotalRow label="خصم الكوبون" value={`−${formatCurrency(invoice.couponDiscount)}`} />}
+                                {invoice.agentDiscount > 0 && <TotalRow label="خصم الوكيل" value={`−${formatCurrency(invoice.agentDiscount)}`} />}
+                                {invoice.pointsDiscount > 0 && <TotalRow label="خصم النقاط" value={`−${formatCurrency(invoice.pointsDiscount)}`} />}
                                 <TotalRow label={`الضريبة (${invoice.vatPct}%)`} value={formatCurrency(invoice.vatAmount)} />
                                 <Separator className="my-1" />
                                 <TotalRow label="الإجمالي" value={formatCurrency(invoice.totalAmount)} strong />
@@ -306,6 +297,15 @@ export default function InvoiceShow({ invoice }: Props) {
                                             key={i}
                                             label={`عمولة الوكيل المرتجعة${a.name ? ` (${a.name})` : ''}`}
                                             value={formatCurrency(a.rebate)}
+                                        />
+                                    ))}
+                                {invoice.agents
+                                    .filter((a) => a.lineCommission > 0)
+                                    .map((a, i) => (
+                                        <TotalRow
+                                            key={`lc-${i}`}
+                                            label={`عمولة البنود${a.name ? ` (${a.name})` : ''}`}
+                                            value={formatCurrency(a.lineCommission)}
                                         />
                                     ))}
                             </div>
@@ -319,14 +319,9 @@ export default function InvoiceShow({ invoice }: Props) {
                         </CardHeader>
                         <CardContent>
                             <MetaRow label="العميل" value={invoice.customerName ?? 'عميل نقدي'} />
-                            {invoice.customerPhone && (
-                                <MetaRow label="الهاتف" value={<span dir="ltr">{invoice.customerPhone}</span>} />
-                            )}
+                            {invoice.customerPhone && <MetaRow label="الهاتف" value={<span dir="ltr">{invoice.customerPhone}</span>} />}
                             {invoice.customerTaxNumber && (
-                                <MetaRow
-                                    label="الرقم الضريبي للعميل"
-                                    value={<span dir="ltr">{invoice.customerTaxNumber}</span>}
-                                />
+                                <MetaRow label="الرقم الضريبي للعميل" value={<span dir="ltr">{invoice.customerTaxNumber}</span>} />
                             )}
                             <MetaRow label="طريقة الدفع" value={invoice.paymentMethod ?? '—'} />
                             {invoice.receiptUrl && (
@@ -346,16 +341,11 @@ export default function InvoiceShow({ invoice }: Props) {
                             )}
                             {invoice.paidAt && <MetaRow label="تاريخ الدفع" value={formatDateTime(invoice.paidAt)} />}
                             {invoice.employeeCommission !== null && (
-                                <MetaRow
-                                    label="عمولة الموظف"
-                                    value={<span dir="ltr">{formatCurrency(invoice.employeeCommission)}</span>}
-                                />
+                                <MetaRow label="عمولة الموظف" value={<span dir="ltr">{formatCurrency(invoice.employeeCommission)}</span>} />
                             )}
                             <Separator className="my-3" />
                             <MetaRow label="الفرع" value={invoice.branch.name ?? '—'} />
-                            {invoice.branch.taxNumber && (
-                                <MetaRow label="الرقم الضريبي" value={<span dir="ltr">{invoice.branch.taxNumber}</span>} />
-                            )}
+                            {invoice.branch.taxNumber && <MetaRow label="الرقم الضريبي" value={<span dir="ltr">{invoice.branch.taxNumber}</span>} />}
                         </CardContent>
                     </Card>
                 </div>
@@ -376,8 +366,8 @@ export default function InvoiceShow({ invoice }: Props) {
                     <DialogHeader>
                         <DialogTitle>اعتماد دفع الفاتورة</DialogTitle>
                         <DialogDescription>
-                            سيتم تحويل الفاتورة {invoice.invoiceNumber} إلى مدفوعة بمبلغ {formatCurrency(invoice.totalAmount)} واحتساب نقاط
-                            الولاء إن وُجدت.
+                            سيتم تحويل الفاتورة {invoice.invoiceNumber} إلى مدفوعة بمبلغ {formatCurrency(invoice.totalAmount)} واحتساب نقاط الولاء إن
+                            وُجدت.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

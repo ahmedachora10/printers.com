@@ -100,6 +100,11 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                         <tr key={i} className="border-b border-dashed border-black/30 align-top">
                             <td className="py-1 text-right">
                                 {line.name}
+                                {line.widthCm != null && line.heightCm != null && (
+                                    <span className="block text-[10px]">
+                                        المقاس: {line.widthCm}×{line.heightCm} سم
+                                    </span>
+                                )}
                                 {line.discountPct > 0 && <span className="block text-[10px]">خصم {line.discountPct}%</span>}
                             </td>
                             <td className="py-1 text-center">{line.qty}</td>
@@ -155,9 +160,7 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) 
                     )}
                     {invoice.branch.taxNumber && <p className="text-xs">الرقم الضريبي: {invoice.branch.taxNumber}</p>}
                 </div>
-                {invoice.branch.logoUrl && (
-                    <img src={invoice.branch.logoUrl} alt="logo" className="h-20 w-auto object-contain" />
-                )}
+                {invoice.branch.logoUrl && <img src={invoice.branch.logoUrl} alt="logo" className="h-20 w-auto object-contain" />}
             </div>
 
             <h2 className="my-6 text-center text-lg font-bold">{invoiceTitle(invoice)}</h2>
@@ -212,12 +215,17 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) 
                 <tbody>
                     {invoice.lines.map((line, i) => (
                         <tr key={i}>
-                            <td className="border border-neutral-300 p-2">{line.name}</td>
+                            <td className="border border-neutral-300 p-2">
+                                {line.name}
+                                {line.widthCm != null && line.heightCm != null && (
+                                    <span className="block text-[10px] text-neutral-500">
+                                        المقاس: {line.widthCm}×{line.heightCm} سم
+                                    </span>
+                                )}
+                            </td>
                             <td className="border border-neutral-300 p-2 text-center">{line.qty}</td>
                             <td className="border border-neutral-300 p-2 text-center">{formatCurrency(line.unitPrice)}</td>
-                            <td className="border border-neutral-300 p-2 text-center">
-                                {line.discountPct > 0 ? `${line.discountPct}%` : '—'}
-                            </td>
+                            <td className="border border-neutral-300 p-2 text-center">{line.discountPct > 0 ? `${line.discountPct}%` : '—'}</td>
                             <td className="border border-neutral-300 p-2 text-left">{formatCurrency(line.subtotal)}</td>
                         </tr>
                     ))}
@@ -264,11 +272,7 @@ export default function InvoicePrint({ invoice, format, zatcaQr }: Props) {
             <div className="mx-auto max-w-3xl px-4 pt-4">
                 <PrintToolbar />
             </div>
-            {format === 'thermal' ? (
-                <ThermalReceipt invoice={invoice} zatcaQr={zatcaQr} />
-            ) : (
-                <A4Invoice invoice={invoice} zatcaQr={zatcaQr} />
-            )}
+            {format === 'thermal' ? <ThermalReceipt invoice={invoice} zatcaQr={zatcaQr} /> : <A4Invoice invoice={invoice} zatcaQr={zatcaQr} />}
         </div>
     );
 }
