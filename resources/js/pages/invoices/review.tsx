@@ -72,7 +72,7 @@ const reviewLineColumns: ColumnDef<ReviewLine>[] = [
     { key: 'subtotal', header: 'الإجمالي', headerClassName: 'text-start', className: 'text-start', cell: (line) => formatCurrency(line.subtotal) },
 ];
 
-const breadcrumbs: BreadcrumbItem[] = [{ title: 'مراجعة الفواتير الآجلة', href: serviceInvoice.review().url }];
+const breadcrumbs: BreadcrumbItem[] = [{ title: 'عروض الاسعار', href: serviceInvoice.review().url }];
 
 const formatDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-GB') : '—');
 
@@ -203,7 +203,7 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="مراجعة الفواتير الآجلة" />
+            <Head title="عروض الاسعار" />
             <Toaster position="top-center" richColors />
 
             <div className="space-y-4 p-4">
