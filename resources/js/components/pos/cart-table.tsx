@@ -38,6 +38,10 @@ interface PosCartTableProps<T extends PosCartLineBase> {
     onDiscountChange: (line: T, value: number) => void;
     onRemove: (key: string) => void;
     onAddManual: () => void;
+    /** header label for the optional agent column (enables the column when set together with renderLineAgent) */
+    lineAgentLabel?: string;
+    /** the per-line agent (commission owner) picker, rendered in its own column beside price */
+    renderLineAgent?: (line: T) => ReactNode;
     /** optional full-width detail row rendered under a line (dimensions, commission owner …) */
     renderLineDetails?: (line: T) => ReactNode;
 }
@@ -72,8 +76,14 @@ export function PosCartTable<T extends PosCartLineBase>({
     onDiscountChange,
     onRemove,
     onAddManual,
+    lineAgentLabel,
+    renderLineAgent,
     renderLineDetails,
 }: PosCartTableProps<T>) {
+    // The agent column is opt-in; other POS screens (e.g. products) omit it.
+    const hasAgentColumn = !!renderLineAgent;
+    const detailsColSpan = hasAgentColumn ? 7 : 6;
+
     return (
         <div className="space-y-3">
             {error && <p className="bg-destructive/10 text-destructive rounded-md p-2 text-sm">{error}</p>}
@@ -95,6 +105,7 @@ export function PosCartTable<T extends PosCartLineBase>({
                                     <TableHead className="text-right">{itemLabel}</TableHead>
                                     <TableHead className="w-[8rem] text-center">الكمية</TableHead>
                                     <TableHead className="w-[7rem] text-center">السعر</TableHead>
+                                    {hasAgentColumn && <TableHead className="w-[9rem] text-center">{lineAgentLabel}</TableHead>}
                                     <TableHead className="w-[6rem] text-center">خصم %</TableHead>
                                     <TableHead className="w-[7rem] text-center">الإجمالي</TableHead>
                                     <TableHead className="w-[3rem]" />
@@ -137,6 +148,10 @@ export function PosCartTable<T extends PosCartLineBase>({
                                                     )}
                                                 </TableCell>
 
+                                                {hasAgentColumn && (
+                                                    <TableCell className="p-2 text-center">{renderLineAgent!(line)}</TableCell>
+                                                )}
+
                                                 <TableCell className="p-2 text-center">
                                                     <Input
                                                         type="number"
@@ -166,7 +181,7 @@ export function PosCartTable<T extends PosCartLineBase>({
                                             </TableRow>
                                             {details && (
                                                 <TableRow className="hover:bg-transparent">
-                                                    <TableCell colSpan={6} className="bg-muted/30 p-2 pt-0">
+                                                    <TableCell colSpan={detailsColSpan} className="bg-muted/30 p-2 pt-0">
                                                         {details}
                                                     </TableCell>
                                                 </TableRow>

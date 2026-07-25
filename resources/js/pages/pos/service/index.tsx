@@ -942,10 +942,35 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 onDiscountChange={setDiscount}
                                 onRemove={removeLine}
                                 onAddManual={addManualLine}
+                                lineAgentLabel="صاحب العمولة"
+                                renderLineAgent={
+                                    agents.length > 0
+                                        ? (line) =>
+                                              line.branchServiceId ? (
+                                                  <Select
+                                                      value={line.agentId ? String(line.agentId) : 'none'}
+                                                      onValueChange={(v) => setLineAgent(line, v === 'none' ? null : Number(v))}
+                                                  >
+                                                      <SelectTrigger className="h-8 w-full">
+                                                          <SelectValue placeholder="— بدون —" />
+                                                      </SelectTrigger>
+                                                      <SelectContent>
+                                                          <SelectItem value="none">— بدون —</SelectItem>
+                                                          {agents.map((a) => (
+                                                              <SelectItem key={a.id} value={String(a.id)}>
+                                                                  {a.name}
+                                                              </SelectItem>
+                                                          ))}
+                                                      </SelectContent>
+                                                  </Select>
+                                              ) : null
+                                        : undefined
+                                }
                                 renderLineDetails={(line) => {
                                     if (!line.branchServiceId) return null;
                                     const isSqm = line.pricingType === 'sqm';
-                                    if (!isSqm && agents.length === 0) return null;
+                                    const hasAgent = !!line.agentId;
+                                    if (!isSqm && !hasAgent) return null;
                                     const commissionPreview = lineAgentCommission(line);
 
                                     return (
@@ -992,75 +1017,51 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                 </>
                                             )}
 
-                                            {agents.length > 0 && (
+                                            {hasAgent && (
                                                 <>
                                                     <div className="space-y-1">
-                                                        <Label className="text-muted-foreground text-xs">صاحب العمولة</Label>
+                                                        <Label className="text-muted-foreground text-xs">نوع العمولة</Label>
                                                         <Select
-                                                            value={line.agentId ? String(line.agentId) : 'none'}
-                                                            onValueChange={(v) => setLineAgent(line, v === 'none' ? null : Number(v))}
+                                                            value={line.agentCommissionType ?? 'percentage'}
+                                                            onValueChange={(v) =>
+                                                                updateLine(line.key, { agentCommissionType: v as LineAgentCommissionType })
+                                                            }
                                                         >
-                                                            <SelectTrigger className="h-8 w-40">
-                                                                <SelectValue placeholder="— بدون —" />
+                                                            <SelectTrigger className="h-8 w-32">
+                                                                <SelectValue />
                                                             </SelectTrigger>
                                                             <SelectContent>
-                                                                <SelectItem value="none">— بدون —</SelectItem>
-                                                                {agents.map((a) => (
-                                                                    <SelectItem key={a.id} value={String(a.id)}>
-                                                                        {a.name}
-                                                                    </SelectItem>
-                                                                ))}
+                                                                <SelectItem value="percentage">نسبة %</SelectItem>
+                                                                <SelectItem value="fixed">مبلغ ثابت</SelectItem>
+                                                                {isSqm && <SelectItem value="per_sqm">لكل م²</SelectItem>}
                                                             </SelectContent>
                                                         </Select>
                                                     </div>
-
-                                                    {line.agentId && (
-                                                        <>
-                                                            <div className="space-y-1">
-                                                                <Label className="text-muted-foreground text-xs">نوع العمولة</Label>
-                                                                <Select
-                                                                    value={line.agentCommissionType ?? 'percentage'}
-                                                                    onValueChange={(v) =>
-                                                                        updateLine(line.key, { agentCommissionType: v as LineAgentCommissionType })
-                                                                    }
-                                                                >
-                                                                    <SelectTrigger className="h-8 w-32">
-                                                                        <SelectValue />
-                                                                    </SelectTrigger>
-                                                                    <SelectContent>
-                                                                        <SelectItem value="percentage">نسبة %</SelectItem>
-                                                                        <SelectItem value="fixed">مبلغ ثابت</SelectItem>
-                                                                        {isSqm && <SelectItem value="per_sqm">لكل م²</SelectItem>}
-                                                                    </SelectContent>
-                                                                </Select>
-                                                            </div>
-                                                            <div className="space-y-1">
-                                                                <Label className="text-muted-foreground text-xs">
-                                                                    {line.agentCommissionType === 'percentage'
-                                                                        ? 'النسبة (%)'
-                                                                        : line.agentCommissionType === 'per_sqm'
-                                                                          ? 'ر.س / م²'
-                                                                          : 'المبلغ (ر.س)'}
-                                                                </Label>
-                                                                <Input
-                                                                    type="number"
-                                                                    min={0}
-                                                                    step="0.01"
-                                                                    max={line.agentCommissionType === 'percentage' ? 100 : undefined}
-                                                                    value={line.agentCommissionValue}
-                                                                    onChange={(e) =>
-                                                                        updateLine(line.key, {
-                                                                            agentCommissionValue: Math.max(0, Number(e.target.value) || 0),
-                                                                        })
-                                                                    }
-                                                                    className="h-8 w-24 text-center"
-                                                                />
-                                                            </div>
-                                                            <p className="pb-1.5 text-xs font-medium text-sky-700 dark:text-sky-400">
-                                                                العمولة: {formatCurrency(commissionPreview)}
-                                                            </p>
-                                                        </>
-                                                    )}
+                                                    <div className="space-y-1">
+                                                        <Label className="text-muted-foreground text-xs">
+                                                            {line.agentCommissionType === 'percentage'
+                                                                ? 'النسبة (%)'
+                                                                : line.agentCommissionType === 'per_sqm'
+                                                                  ? 'ر.س / م²'
+                                                                  : 'المبلغ (ر.س)'}
+                                                        </Label>
+                                                        <Input
+                                                            type="number"
+                                                            min={0}
+                                                            step="0.01"
+                                                            max={line.agentCommissionType === 'percentage' ? 100 : undefined}
+                                                            value={line.agentCommissionValue}
+                                                            onChange={(e) =>
+                                                                updateLine(line.key, {
+                                                                    agentCommissionValue: Math.max(0, Number(e.target.value) || 0),
+                                                                })
+                                                            }
+                                                            className="h-8 w-24 text-center"
+                                                        />
+                                                    </div>
+                                                    <p className="pb-1.5 text-xs font-medium text-sky-700 dark:text-sky-400">
+                                                        العمولة: {formatCurrency(commissionPreview)}
+                                                    </p>
                                                 </>
                                             )}
                                         </div>
