@@ -60,7 +60,7 @@ export default function CommissionsIndex({ employees, summary, payments, branche
             },
             {
                 key: 'tahazirEarned',
-                header: 'منها تحضير',
+                header: 'عمولات - خامات',
                 cell: (item) => (
                     <span className="text-muted-foreground">{formatCurrency(item.tahazirEarned)}</span>
                 ),

@@ -209,7 +209,7 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
             <div className="space-y-4 p-4">
                 <div className="flex items-center gap-2">
                     <ClipboardList className="size-5" />
-                    <h1 className="text-lg font-semibold">الفواتير الآجلة بانتظار المراجعة</h1>
+                    <h1 className="text-lg font-semibold">عروض الاسعار بانتظار الاعتماد</h1>
                     <Badge variant="secondary">{invoices.length}</Badge>
                 </div>
 

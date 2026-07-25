@@ -41,7 +41,7 @@ const summaryColumns: ColumnDef<CommissionReportSummaryRow>[] = [
     { key: 'userName', header: 'الموظف', className: 'font-medium', cell: (row) => row.userName },
     { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
     { key: 'earned', header: 'إجمالي العمولة', cell: (row) => formatCurrency(row.earned) },
-    { key: 'tahazir', header: 'منها تحضير', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.tahazir) },
+    { key: 'tahazir', header: 'عمولات - خامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.tahazir) },
     { key: 'paid', header: 'المصروف', className: 'text-green-600', cell: (row) => formatCurrency(row.paid) },
     {
         key: 'pending',
@@ -196,7 +196,7 @@ export default function CommissionReportIndex({ summary, lines, totals, filters,
                     />
                     <SummaryCard
                         icon={<Wallet className="size-4" />}
-                        label="منها تحضير"
+                        label="عمولات - خامات"
                         value={formatCurrency(totals.tahazir)}
                         valueClass="text-muted-foreground"
                     />
