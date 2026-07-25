@@ -11,10 +11,10 @@ const SIDEBAR_SCROLL_KEY = 'app-sidebar-scroll';
 
 
 type RawNavItem = Omit<NavItem, 'icon'> & { icon: string };
-type NavGroup = { label: string | null; items: RawNavItem[] };
+type RawNavGroup = { label: string | null; icon: string | null; items: RawNavItem[] };
 
 export function AppSidebar() {
-    const { auth } = usePage<{ auth: { sidebarItems?: NavGroup[] } }>().props;
+    const { auth } = usePage<{ auth: { sidebarItems?: RawNavGroup[] } }>().props;
 
     const ICON_MAP: Record<string, LucideIcon> = {
         LayoutGrid,
@@ -43,6 +43,7 @@ export function AppSidebar() {
 
     const navGroups = (auth.sidebarItems ?? []).map((group) => ({
         label: group.label,
+        icon: group.icon ? (ICON_MAP[group.icon] ?? LayoutGrid) : undefined,
         items: group.items.map((item) => ({
             ...item,
             icon: ICON_MAP[item.icon] ?? LayoutGrid,

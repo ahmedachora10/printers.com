@@ -89,7 +89,7 @@ class HandleInertiaRequests extends Middleware
     }
 
     // sidebar items for each role
-    /** @return array<int, array{label: string|null, items: array<int, array<string, mixed>>}> */
+    /** @return array<int, array{label: string|null, icon: string|null, items: array<int, array<string, mixed>>}> */
     private function getSidebarItems(Request $request): array
     {
 
@@ -99,17 +99,19 @@ class HandleInertiaRequests extends Middleware
             return [];
         }
 
-        // Ordered group definitions. Key => visible label ('main' has no header
-        // and sits at the top). Items are bucketed into these in this order;
-        // any group with no visible items (after role filtering) is dropped.
+        // Ordered group definitions. Key => [label, parent icon]. 'main' has a
+        // null label and renders flat at the top (no dropdown); every other
+        // group renders as a collapsible dropdown whose header carries the icon.
+        // Items are bucketed into these in this order; any group with no visible
+        // items (after role filtering) is dropped.
         $groups = [
-            'main' => null,
-            'sales' => 'المبيعات والفواتير',
-            'crm' => 'العملاء والوكلاء',
-            'inventory' => 'المخزون والمشتريات',
-            'finance' => 'المالية والعمولات',
-            'reports' => 'التقارير والتحليلات',
-            'admin' => 'الإدارة والإعداد',
+            'main' => ['label' => null, 'icon' => null],
+            'sales' => ['label' => 'المبيعات', 'icon' => 'ShoppingCart'],
+            'crm' => ['label' => 'العملاء والوكلاء', 'icon' => 'Users'],
+            'inventory' => ['label' => 'المخزون', 'icon' => 'Package'],
+            'finance' => ['label' => 'المالية', 'icon' => 'Wallet'],
+            'reports' => ['label' => 'التقارير', 'icon' => 'ChartPie'],
+            'admin' => ['label' => 'الإدارة', 'icon' => 'Settings'],
         ];
 
         $items = [
@@ -360,14 +362,18 @@ class HandleInertiaRequests extends Middleware
 
         // Bucket into the defined group order, dropping empty groups.
         $result = [];
-        foreach ($groups as $key => $label) {
+        foreach ($groups as $key => $group) {
             $groupItems = array_values(array_map(
                 fn ($item) => array_diff_key($item, ['group' => null]),
                 array_filter($visible, fn ($item) => $item['group'] === $key)
             ));
 
             if ($groupItems !== []) {
-                $result[] = ['label' => $label, 'items' => $groupItems];
+                $result[] = [
+                    'label' => $group['label'],
+                    'icon' => $group['icon'],
+                    'items' => $groupItems,
+                ];
             }
         }
 
