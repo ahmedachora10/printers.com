@@ -10,8 +10,11 @@ import AppLogo from './app-logo';
 const SIDEBAR_SCROLL_KEY = 'app-sidebar-scroll';
 
 
+type RawNavItem = Omit<NavItem, 'icon'> & { icon: string };
+type NavGroup = { label: string | null; items: RawNavItem[] };
+
 export function AppSidebar() {
-    const { auth } = usePage<{ auth: { sidebarItems?: Array<Omit<NavItem, 'icon'> & { icon: string }> } }>().props;
+    const { auth } = usePage<{ auth: { sidebarItems?: NavGroup[] } }>().props;
 
     const ICON_MAP: Record<string, LucideIcon> = {
         LayoutGrid,
@@ -38,12 +41,13 @@ export function AppSidebar() {
         CalendarDays,
     };
 
-    const mainNavItems = (auth.sidebarItems ?? []).map((item) => ({
-        ...item,
-        icon: ICON_MAP[item.icon as string] ?? LayoutGrid,
+    const navGroups = (auth.sidebarItems ?? []).map((group) => ({
+        label: group.label,
+        items: group.items.map((item) => ({
+            ...item,
+            icon: ICON_MAP[item.icon] ?? LayoutGrid,
+        })),
     }));
-
-    // const mainNavItems: NavItem[] = auth.sidebarItems || [];
 
     // The layout is non-persistent, so the sidebar remounts on every navigation
     // and its scroll position is lost. Restore it from sessionStorage on mount
@@ -77,7 +81,7 @@ export function AppSidebar() {
             </SidebarHeader>
 
             <SidebarContent ref={contentRef}>
-                <NavMain items={mainNavItems} />
+                <NavMain groups={navGroups} />
             </SidebarContent>
 
             <SidebarFooter>

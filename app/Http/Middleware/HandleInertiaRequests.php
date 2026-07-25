@@ -89,7 +89,7 @@ class HandleInertiaRequests extends Middleware
     }
 
     // sidebar items for each role
-    /** @return array<int, array<string, mixed>> */
+    /** @return array<int, array{label: string|null, items: array<int, array<string, mixed>>}> */
     private function getSidebarItems(Request $request): array
     {
 
@@ -99,211 +99,278 @@ class HandleInertiaRequests extends Middleware
             return [];
         }
 
+        // Ordered group definitions. Key => visible label ('main' has no header
+        // and sits at the top). Items are bucketed into these in this order;
+        // any group with no visible items (after role filtering) is dropped.
+        $groups = [
+            'main' => null,
+            'sales' => 'المبيعات والفواتير',
+            'crm' => 'العملاء والوكلاء',
+            'inventory' => 'المخزون والمشتريات',
+            'finance' => 'المالية والعمولات',
+            'reports' => 'التقارير والتحليلات',
+            'admin' => 'الإدارة والإعداد',
+        ];
+
         $items = [
             [
                 'title' => 'لوحة التحكم',
                 'url' => route('dashboard'),
                 'icon' => 'LayoutGrid',
+                'group' => 'main',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
                 'title' => 'بوابة الوكيل',
                 'url' => route('agent-portal.index'),
                 'icon' => 'Handshake',
+                'group' => 'main',
                 'role' => [Roles::AGENT],
             ],
-            [
-                'title' => 'المدن',
-                'url' => route('cities.index'),
-                'icon' => 'LayoutGrid',
-                'role' => [Roles::SUPER_ADMIN],
-            ],
-            [
-                'title' => 'الفروع',
-                'url' => route('branches.index'),
-                'icon' => 'GitBranch',
-                'role' => [Roles::SUPER_ADMIN],
-            ],
-            [
-                'title' => 'المستخدمون',
-                'url' => route('users.index'),
-                'icon' => 'Users',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
-            ],
-            [
-                'title' => 'الخدمات',
-                'url' => $userRole->isSuperAdmin() ? route('service-templates.index') : route('branch-services.index'),
-                'icon' => 'ServerIcon',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
-            ],
-            [
-                'title' => 'فئات المنتجات',
-                'url' => route('product-categories.index'),
-                'icon' => 'FolderKanban',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
-            ],
-            [
-                'title' => 'فئات المصروفات',
-                'url' => route('expense-categories.index'),
-                'icon' => 'FolderKanban',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
-            ],
-            [
-                'title' => 'المصروفات',
-                'url' => route('expenses.index'),
-                'icon' => 'Receipt',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
-            ],
-            [
-                'title' => 'الكوبونات',
-                'url' => route('coupons.index'),
-                'icon' => 'Ticket',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
-            ],
-            [
-                'title' => 'دليل الخدمات',
-                'url' => route('admin.catalogue.categories.index'),
-                'icon' => 'BookOpen',
-                'role' => [Roles::SUPER_ADMIN],
-            ],
-            [
-                'title' => 'العمولات',
-                'url' => route('commissions.index'),
-                'icon' => 'Wallet',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
-            ],
-            [
-                'title' => 'تقرير العمولات',
-                'url' => route('reports.commissions'),
-                'icon' => 'FileText',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
-            ],
-            [
-                'title' => 'تقرير المبيعات',
-                'url' => route('reports.sales'),
-                'icon' => 'TrendingUp',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
-            ],
-            [
-                'title' => 'التقرير اليومي',
-                'url' => route('reports.daily'),
-                'icon' => 'CalendarDays',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
-            ],
-            [
-                'title' => 'التحليلات المتقدمة',
-                'url' => route('analytics.index'),
-                'icon' => 'ChartPie',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
-            ],
-            [
-                'title' => 'برنامج الولاء',
-                'url' => route('loyalty.index'),
-                'icon' => 'Award',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
-            ],
-            [
-                'title' => 'الحوافز والمكافآت',
-                'url' => route('incentives.index'),
-                'icon' => 'Trophy',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
-            ],
+            // ---- Sales & Invoices ----
             [
                 'title' => 'نقطة البيع',
                 'url' => route('pos.product.create'),
                 'icon' => 'ShoppingCart',
+                'group' => 'sales',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
                 'title' => 'فاتورة خدمة',
                 'url' => route('pos.service.create'),
                 'icon' => 'ShoppingCart',
+                'group' => 'sales',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::EMPLOYEE],
             ],
             [
                 'title' => 'الفواتير',
                 'url' => route('invoices.index'),
                 'icon' => 'FileText',
+                'group' => 'sales',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
             ],
             [
                 'title' => 'مراجعة الفواتير الآجلة',
                 'url' => route('invoices.service.review'),
                 'icon' => 'ClipboardList',
+                'group' => 'sales',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
+            [
+                'title' => 'المرتجعات',
+                'url' => route('refunds.index'),
+                'icon' => 'Undo2',
+                'group' => 'sales',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            // ---- Customers & Agents ----
             [
                 'title' => 'العملاء',
                 'url' => route('customers.index'),
                 'icon' => 'User',
+                'group' => 'crm',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
                 'title' => 'الوكلاء',
                 'url' => route('agents.index'),
                 'icon' => 'Handshake',
+                'group' => 'crm',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
                 'title' => 'مدفوعات الوكلاء',
                 'url' => route('agent-payments.index'),
                 'icon' => 'Wallet',
+                'group' => 'crm',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
-                'title' => 'المرتجعات',
-                'url' => route('refunds.index'),
-                'icon' => 'Undo2',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'title' => 'برنامج الولاء',
+                'url' => route('loyalty.index'),
+                'icon' => 'Award',
+                'group' => 'crm',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
+            // ---- Inventory & Procurement ----
             [
                 'title' => 'المنتجات',
                 'url' => route('inventory.products.index'),
                 'icon' => 'Package',
+                'group' => 'inventory',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
+                'title' => 'فئات المنتجات',
+                'url' => route('product-categories.index'),
+                'icon' => 'FolderKanban',
+                'group' => 'inventory',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
                 'title' => 'تحركات المخزون',
                 'url' => route('inventory.stock-movements.index'),
                 'icon' => 'ArrowLeftRight',
+                'group' => 'inventory',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
                 'title' => 'الموردون',
                 'url' => route('inventory.suppliers.index'),
                 'icon' => 'Truck',
+                'group' => 'inventory',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
                 'title' => 'أوامر الشراء',
                 'url' => route('inventory.purchase-orders.index'),
                 'icon' => 'ClipboardList',
+                'group' => 'inventory',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
                 'title' => 'جرد المخزون',
                 'url' => route('inventory.stock-reconciliations.index'),
                 'icon' => 'ClipboardCheck',
+                'group' => 'inventory',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            // ---- Finance & Commissions ----
+            [
+                'title' => 'العمولات',
+                'url' => route('commissions.index'),
+                'icon' => 'Wallet',
+                'group' => 'finance',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
+                'title' => 'المصروفات',
+                'url' => route('expenses.index'),
+                'icon' => 'Receipt',
+                'group' => 'finance',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
+                'title' => 'فئات المصروفات',
+                'url' => route('expense-categories.index'),
+                'icon' => 'FolderKanban',
+                'group' => 'finance',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
+                'title' => 'الكوبونات',
+                'url' => route('coupons.index'),
+                'icon' => 'Ticket',
+                'group' => 'finance',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
+                'title' => 'الحوافز والمكافآت',
+                'url' => route('incentives.index'),
+                'icon' => 'Trophy',
+                'group' => 'finance',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            // ---- Reports & Analytics ----
+            [
+                'title' => 'تقرير المبيعات',
+                'url' => route('reports.sales'),
+                'icon' => 'TrendingUp',
+                'group' => 'reports',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
+                'title' => 'تقرير العمولات',
+                'url' => route('reports.commissions'),
+                'icon' => 'FileText',
+                'group' => 'reports',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
+            ],
+            [
+                'title' => 'التقرير اليومي',
+                'url' => route('reports.daily'),
+                'icon' => 'CalendarDays',
+                'group' => 'reports',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
+                'title' => 'التحليلات المتقدمة',
+                'url' => route('analytics.index'),
+                'icon' => 'ChartPie',
+                'group' => 'reports',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            // ---- Admin & Setup ----
+            [
+                'title' => 'المدن',
+                'url' => route('cities.index'),
+                'icon' => 'LayoutGrid',
+                'group' => 'admin',
+                'role' => [Roles::SUPER_ADMIN],
+            ],
+            [
+                'title' => 'الفروع',
+                'url' => route('branches.index'),
+                'icon' => 'GitBranch',
+                'group' => 'admin',
+                'role' => [Roles::SUPER_ADMIN],
+            ],
+            [
+                'title' => 'المستخدمون',
+                'url' => route('users.index'),
+                'icon' => 'Users',
+                'group' => 'admin',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
+                'title' => 'الخدمات',
+                'url' => $userRole->isSuperAdmin() ? route('service-templates.index') : route('branch-services.index'),
+                'icon' => 'ServerIcon',
+                'group' => 'admin',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
+                'title' => 'دليل الخدمات',
+                'url' => route('admin.catalogue.categories.index'),
+                'icon' => 'BookOpen',
+                'group' => 'admin',
+                'role' => [Roles::SUPER_ADMIN],
             ],
             [
                 'title' => 'الإشعارات',
                 'url' => route('notifications.index'),
                 'icon' => 'Bell',
+                'group' => 'admin',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE, Roles::AGENT],
             ],
             [
                 'title' => 'الاعدادات',
                 'url' => route('app-settings.index'),
                 'icon' => 'Settings',
+                'group' => 'admin',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
         ];
 
-        // return array_values(array_filter($items, fn($item) => in_array($request->user()?->roleName, $item['role'])));
-        return array_values(array_map(
-            fn ($item) => array_diff_key($item, ['role' => null]),
+        // Keep only items visible to this role, stripped of the internal keys.
+        $visible = array_map(
+            fn ($item) => array_diff_key($item, ['role' => null, 'group' => null]) + ['group' => $item['group']],
             array_filter($items, fn ($item) => in_array($userRole, $item['role']))
-        ));
+        );
+
+        // Bucket into the defined group order, dropping empty groups.
+        $result = [];
+        foreach ($groups as $key => $label) {
+            $groupItems = array_values(array_map(
+                fn ($item) => array_diff_key($item, ['group' => null]),
+                array_filter($visible, fn ($item) => $item['group'] === $key)
+            ));
+
+            if ($groupItems !== []) {
+                $result[] = ['label' => $label, 'items' => $groupItems];
+            }
+        }
+
+        return $result;
     }
 }
