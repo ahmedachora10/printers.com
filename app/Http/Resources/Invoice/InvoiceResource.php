@@ -57,6 +57,7 @@ class InvoiceResource extends JsonResource
                 'name' => $a->agent?->name,
                 'mode' => $a->discount_mode->value,
                 'rebate' => (float) $a->rebate_amount,
+                'lineCommission' => (float) $a->line_commission_amount,
                 'discount' => (float) $a->discount_amount,
                 'isRebatePaid' => $a->agent_payment_id !== null,
             ])->values()->all()
@@ -64,6 +65,7 @@ class InvoiceResource extends JsonResource
                 'name' => $this->agent->name,
                 'mode' => (float) $this->agent_rebate > 0 ? 'rebate' : 'discount',
                 'rebate' => (float) $this->agent_rebate,
+                'lineCommission' => 0.0,
                 'discount' => (float) $this->agent_discount,
                 'isRebatePaid' => $this->agent_payment_id !== null,
             ]] : []);

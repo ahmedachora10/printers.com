@@ -6,9 +6,13 @@ export interface InvoiceLine {
     sku: string | null;
     qty: number;
     unitPrice: number;
+    widthCm: number | null;
+    heightCm: number | null;
     discountPct: number;
     subtotal: number;
     commissionAmount: number | null;
+    lineAgentName: string | null;
+    lineAgentCommissionAmount: number | null;
 }
 
 export interface InvoiceBranch {
@@ -32,6 +36,7 @@ export interface InvoiceAgent {
     name: string | null;
     mode: 'discount' | 'rebate';
     rebate: number;
+    lineCommission: number;
     discount: number;
     isRebatePaid: boolean;
 }

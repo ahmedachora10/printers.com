@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ServicePricingTypeEnum;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Pivot;
@@ -15,6 +16,9 @@ class BranchService extends Pivot
         'service_template_id',
         'base_commission_pct',
         'max_discount_pct',
+        'pricing_type',
+        'price_per_sqm',
+        'agent_commission_per_sqm',
         'is_tahazir',
         'is_active',
     ];
@@ -22,6 +26,9 @@ class BranchService extends Pivot
     protected $casts = [
         'base_commission_pct' => 'decimal:2',
         'max_discount_pct' => 'decimal:2',
+        'pricing_type' => ServicePricingTypeEnum::class,
+        'price_per_sqm' => 'decimal:2',
+        'agent_commission_per_sqm' => 'decimal:2',
         'is_tahazir' => 'boolean',
         'is_active' => 'boolean',
     ];

@@ -1,24 +1,9 @@
-import {
-    store,
-    update,
-} from '@/actions/App/Http/Controllers/BranchServiceController';
+import { store, update } from '@/actions/App/Http/Controllers/BranchServiceController';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { type BranchService, type BranchServiceFormData } from '@/types/branch-service';
 import { useForm } from '@inertiajs/react';
@@ -43,24 +28,20 @@ interface Props {
     branchService?: BranchService;
 }
 
-export default function BranchServiceFormModal({
-    open,
-    onOpenChange,
-    userBranch,
-    serviceTemplates,
-    branchService,
-}: Props) {
+export default function BranchServiceFormModal({ open, onOpenChange, userBranch, serviceTemplates, branchService }: Props) {
     const isEdit = !!branchService;
 
-    const { data, setData, post, put, processing, errors, reset, clearErrors } =
-        useForm<BranchServiceFormData>({
-            service_template_id: branchService?.serviceTemplateId ?? 0,
-            branch_id: userBranch.id,
-            base_commission_pct: branchService?.baseCommissionPct ?? 0,
-            max_discount_pct: branchService?.maxDiscountPct ?? 0,
-            is_tahazir: branchService?.isTahazir ?? false,
-            is_active: branchService?.isActive ?? true,
-        });
+    const { data, setData, post, put, processing, errors, reset, clearErrors } = useForm<BranchServiceFormData>({
+        service_template_id: branchService?.serviceTemplateId ?? 0,
+        branch_id: userBranch.id,
+        base_commission_pct: branchService?.baseCommissionPct ?? 0,
+        max_discount_pct: branchService?.maxDiscountPct ?? 0,
+        pricing_type: branchService?.pricingType ?? 'unit',
+        price_per_sqm: branchService?.pricePerSqm ?? 0,
+        agent_commission_per_sqm: branchService?.agentCommissionPerSqm ?? 0,
+        is_tahazir: branchService?.isTahazir ?? false,
+        is_active: branchService?.isActive ?? true,
+    });
 
     useEffect(() => {
         if (branchService) {
@@ -69,6 +50,9 @@ export default function BranchServiceFormModal({
                 branch_id: userBranch.id,
                 base_commission_pct: branchService.baseCommissionPct ?? 0,
                 max_discount_pct: branchService.maxDiscountPct ?? 0,
+                pricing_type: branchService.pricingType ?? 'unit',
+                price_per_sqm: branchService.pricePerSqm ?? 0,
+                agent_commission_per_sqm: branchService.agentCommissionPerSqm ?? 0,
                 is_tahazir: branchService.isTahazir ?? false,
                 is_active: branchService.isActive ?? true,
             });
@@ -108,9 +92,7 @@ export default function BranchServiceFormModal({
         <Dialog open={open} onOpenChange={handleOpenChange}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>
-                        {isEdit ? 'تعديل خدمة الفرع' : 'ربط خدمة بالفرع'}
-                    </DialogTitle>
+                    <DialogTitle>{isEdit ? 'تعديل خدمة الفرع' : 'ربط خدمة بالفرع'}</DialogTitle>
                 </DialogHeader>
 
                 <form id="bs-form" onSubmit={handleSubmit} className="space-y-4 py-2">
@@ -119,12 +101,7 @@ export default function BranchServiceFormModal({
                         <Label htmlFor="bs-branch">
                             الفرع <span className="text-destructive">*</span>
                         </Label>
-                        <Input
-                            id="bs-branch"
-                            value={userBranch.name}
-                            disabled
-                            className="bg-muted/50 text-muted-foreground"
-                        />
+                        <Input id="bs-branch" value={userBranch.name} disabled className="bg-muted/50 text-muted-foreground" />
                     </div>
 
                     {/* Service template */}
@@ -172,9 +149,7 @@ export default function BranchServiceFormModal({
                             max="100"
                             dir="ltr"
                             value={data.base_commission_pct}
-                            onChange={(e) =>
-                                setData('base_commission_pct', parseFloat(e.target.value) || 0)
-                            }
+                            onChange={(e) => setData('base_commission_pct', parseFloat(e.target.value) || 0)}
                         />
                         <InputError message={errors.base_commission_pct} />
                     </div>
@@ -192,12 +167,58 @@ export default function BranchServiceFormModal({
                             max="100"
                             dir="ltr"
                             value={data.max_discount_pct}
-                            onChange={(e) =>
-                                setData('max_discount_pct', parseFloat(e.target.value) || 0)
-                            }
+                            onChange={(e) => setData('max_discount_pct', parseFloat(e.target.value) || 0)}
                         />
                         <InputError message={errors.max_discount_pct} />
                     </div>
+
+                    {/* Pricing type: per-unit or per-square-meter */}
+                    <div className="space-y-1">
+                        <Label htmlFor="bs-pricing-type">نوع التسعير</Label>
+                        <Select value={data.pricing_type} onValueChange={(val) => setData('pricing_type', val as 'unit' | 'sqm')}>
+                            <SelectTrigger id="bs-pricing-type">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="unit">بالوحدة</SelectItem>
+                                <SelectItem value="sqm">بالمتر المربع</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <InputError message={errors.pricing_type} />
+                    </div>
+
+                    {data.pricing_type === 'sqm' && (
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                                <Label htmlFor="bs-price-sqm">
+                                    سعر المتر المربع (ر.س) <span className="text-destructive">*</span>
+                                </Label>
+                                <Input
+                                    id="bs-price-sqm"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    dir="ltr"
+                                    value={data.price_per_sqm}
+                                    onChange={(e) => setData('price_per_sqm', parseFloat(e.target.value) || 0)}
+                                />
+                                <InputError message={errors.price_per_sqm} />
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="bs-agent-sqm">عمولة الوكيل للمتر (ر.س)</Label>
+                                <Input
+                                    id="bs-agent-sqm"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    dir="ltr"
+                                    value={data.agent_commission_per_sqm}
+                                    onChange={(e) => setData('agent_commission_per_sqm', parseFloat(e.target.value) || 0)}
+                                />
+                                <InputError message={errors.agent_commission_per_sqm} />
+                            </div>
+                        </div>
+                    )}
 
                     {/* Tahazir + Active switches */}
                     <div className="flex flex-col gap-3 pt-1">
@@ -205,33 +226,20 @@ export default function BranchServiceFormModal({
                             <Label htmlFor="bs-tahazir" className="cursor-pointer">
                                 خدمة تحضير
                             </Label>
-                            <Switch
-                                id="bs-tahazir"
-                                checked={data.is_tahazir}
-                                onCheckedChange={(checked) => setData('is_tahazir', checked)}
-                            />
+                            <Switch id="bs-tahazir" checked={data.is_tahazir} onCheckedChange={(checked) => setData('is_tahazir', checked)} />
                         </div>
 
                         <div className="flex items-center justify-between">
                             <Label htmlFor="bs-active" className="cursor-pointer">
                                 نشطة
                             </Label>
-                            <Switch
-                                id="bs-active"
-                                checked={data.is_active}
-                                onCheckedChange={(checked) => setData('is_active', checked)}
-                            />
+                            <Switch id="bs-active" checked={data.is_active} onCheckedChange={(checked) => setData('is_active', checked)} />
                         </div>
                     </div>
                 </form>
 
                 <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={processing}
-                    >
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={processing}>
                         إلغاء
                     </Button>
                     <Button type="submit" form="bs-form" disabled={processing}>

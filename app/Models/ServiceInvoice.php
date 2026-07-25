@@ -104,7 +104,7 @@ class ServiceInvoice extends Model implements HasMedia
     public function agents(): BelongsToMany
     {
         return $this->belongsToMany(Agent::class, 'service_invoice_agent', 'service_invoice_id', 'agent_id')
-            ->withPivot(['discount_mode', 'discount_type', 'rate', 'discount_amount', 'rebate_amount', 'agent_payment_id']);
+            ->withPivot(['discount_mode', 'discount_type', 'rate', 'discount_amount', 'rebate_amount', 'line_commission_amount', 'agent_payment_id']);
     }
 
     /** @return BelongsTo<PaymentMethod, $this> */

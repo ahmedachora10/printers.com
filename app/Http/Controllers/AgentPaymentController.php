@@ -97,15 +97,19 @@ class AgentPaymentController extends Controller
             ->get()
             ->each(fn ($row) => $add((int) $row->agent_id, (float) $row->rebate, (int) $row->cnt));
 
-        // Service invoices settle each agent independently via the pivot.
+        // Service invoices settle each agent independently via the pivot. The
+        // payable per row is the invoice-level rebate plus any per-line
+        // commissions accrued to the agent on that invoice.
         ServiceInvoiceAgent::query()
             ->whereNull('agent_payment_id')
-            ->where('rebate_amount', '>', 0)
+            ->where(fn ($q) => $q
+                ->where('rebate_amount', '>', 0)
+                ->orWhere('line_commission_amount', '>', 0))
             ->whereHas('invoice', fn ($q) => $q
                 ->where('status', InvoiceStatusEnum::PAID->value)
                 ->when($branchId, fn ($qq) => $qq->where('branch_id', $branchId)))
             ->groupBy('agent_id')
-            ->selectRaw('agent_id, SUM(rebate_amount) as rebate, COUNT(*) as cnt')
+            ->selectRaw('agent_id, SUM(rebate_amount + line_commission_amount) as rebate, COUNT(*) as cnt')
             ->get()
             ->each(fn ($row) => $add((int) $row->agent_id, (float) $row->rebate, (int) $row->cnt));
 

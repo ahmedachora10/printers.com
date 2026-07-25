@@ -27,7 +27,7 @@ class ServiceTemplate extends Model
     {
         return $this->belongsToMany(Branch::class, 'branch_services')
             ->using(BranchService::class)
-            ->withPivot(['id', 'base_commission_pct', 'max_discount_pct', 'is_tahazir', 'is_active'])
+            ->withPivot(['id', 'base_commission_pct', 'max_discount_pct', 'pricing_type', 'price_per_sqm', 'agent_commission_per_sqm', 'is_tahazir', 'is_active'])
             ->withTimestamps();
     }
 }

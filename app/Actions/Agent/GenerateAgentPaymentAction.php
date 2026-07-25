@@ -7,6 +7,7 @@ use App\Models\Agent;
 use App\Models\AgentPayment;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoiceAgent;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -37,17 +38,23 @@ class GenerateAgentPaymentAction
 
             // Service invoices may list several agents; each shares the rebate via
             // its own pivot row settled independently — again, paid invoices only.
+            // A pivot row is payable for its rebate and/or its per-line commissions;
+            // both are settled together under the same agent_payment_id stamp.
             $serviceRows = ServiceInvoiceAgent::query()
                 ->where('agent_id', $agent->id)
                 ->whereNull('agent_payment_id')
-                ->where('rebate_amount', '>', 0)
+                ->where(fn ($q) => $q
+                    ->where('rebate_amount', '>', 0)
+                    ->orWhere('line_commission_amount', '>', 0))
                 ->whereHas('invoice', fn ($q) => $q
                     ->where('status', InvoiceStatusEnum::PAID->value)
                     ->whereBetween('created_at', $window))
                 ->lockForUpdate()
-                ->get(['id', 'rebate_amount']);
+                ->get(['id', 'rebate_amount', 'line_commission_amount']);
 
-            $totalRebate = (float) $productRows->sum('agent_rebate') + (float) $serviceRows->sum('rebate_amount');
+            $totalRebate = (float) $productRows->sum('agent_rebate')
+                + (float) $serviceRows->sum('rebate_amount')
+                + (float) $serviceRows->sum('line_commission_amount');
             $totalInvoices = $productRows->count() + $serviceRows->count();
 
             if ($totalInvoices === 0) {
@@ -63,7 +70,7 @@ class GenerateAgentPaymentAction
                 'period_end' => $end,
                 'total_invoices' => $totalInvoices,
                 'total_rebate' => round($totalRebate, 2),
-                'paid_by' => auth()->id(),
+                'paid_by' => Auth::id(),
                 'paid_at' => now(),
                 'notes' => $data['notes'] ?? null,
             ]);

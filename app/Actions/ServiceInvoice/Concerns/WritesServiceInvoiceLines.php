@@ -36,11 +36,17 @@ trait WritesServiceInvoiceLines
                 'service_name' => $line['service_name'],
                 'qty' => $line['qty'],
                 'unit_price' => $line['unit_price'],
+                'width_cm' => $line['width_cm'] ?? null,
+                'height_cm' => $line['height_cm'] ?? null,
                 'discount_pct' => $line['discount_pct'],
                 'subtotal' => $line['subtotal'],
                 'commission_pct' => $line['commission_pct'],
                 'commission_amount' => $line['commission_amount'],
                 'is_tahazir' => $line['is_tahazir'],
+                'agent_id' => $line['agent_id'] ?? null,
+                'agent_commission_type' => $line['agent_commission_type'] ?? null,
+                'agent_commission_value' => $line['agent_commission_value'] ?? null,
+                'agent_commission_amount' => $line['agent_commission_amount'] ?? 0,
             ]);
         }
     }

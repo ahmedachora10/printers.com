@@ -8,12 +8,16 @@ use App\Enums\AgentDiscountModeEnum;
 use App\Enums\AgentDiscountTypeEnum;
 use App\Enums\CouponDiscountTypeEnum;
 use App\Enums\CustomerTypeEnum;
+use App\Enums\LineAgentCommissionTypeEnum;
+use App\Enums\ServicePricingTypeEnum;
+use App\Models\Agent;
 use App\Models\BranchService;
 use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\User;
 use App\Models\UserService;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -23,7 +27,7 @@ use Illuminate\Validation\ValidationException;
  * attributes and line rows to persist. It performs no invoice/ledger writes; the
  * only side effect is finding-or-creating a walk-in customer from name/phone.
  *
- * @phpstan-type CalculatedLine array{branch_service_id:int, service_name:string, qty:int, unit_price:float, discount_pct:float, subtotal:float, commission_pct:float, commission_amount:float, is_tahazir:bool}
+ * @phpstan-type CalculatedLine array{branch_service_id:int, service_name:string, qty:int, unit_price:float, width_cm:?float, height_cm:?float, discount_pct:float, subtotal:float, commission_pct:float, commission_amount:float, is_tahazir:bool, agent_id:?int, agent_commission_type:?LineAgentCommissionTypeEnum, agent_commission_value:?float, agent_commission_amount:float}
  */
 class CalculateServiceInvoiceAction
 {
@@ -58,6 +62,8 @@ class CalculateServiceInvoiceAction
             ->whereIn('branch_service_id', $branchServiceIds)
             ->pluck('commission_override_pct', 'branch_service_id');
 
+        $lineAgents = $this->resolveLineAgents($data, $branchId);
+
         $lines = [];
         $subtotal = 0.0;
 
@@ -72,7 +78,6 @@ class CalculateServiceInvoiceAction
             }
 
             $qty = (int) $line['qty'];
-            $unitPrice = (float) $line['unit_price'];
             $discountPct = (float) ($line['discount_pct'] ?? 0);
             $maxDiscount = (float) $branchService->max_discount_pct;
 
@@ -82,9 +87,33 @@ class CalculateServiceInvoiceAction
                 ]);
             }
 
+            // Sqm-priced services derive the per-piece price from the entered
+            // dimensions server-side — the client figure is never trusted. The
+            // per-piece price is rounded first so the JS preview (round2 on the
+            // same formula) and the stored DECIMAL(12,2) always agree.
+            $widthCm = isset($line['width_cm']) && $line['width_cm'] !== '' ? (float) $line['width_cm'] : null;
+            $heightCm = isset($line['height_cm']) && $line['height_cm'] !== '' ? (float) $line['height_cm'] : null;
+
+            if ($branchService->pricing_type === ServicePricingTypeEnum::Sqm) {
+                if ($widthCm === null || $widthCm <= 0 || $heightCm === null || $heightCm <= 0) {
+                    throw ValidationException::withMessages([
+                        'lines' => "أدخل العرض والطول لخدمة \"{$branchService->serviceTemplate?->name}\" المسعّرة بالمتر المربع.",
+                    ]);
+                }
+
+                $unitPrice = round(($widthCm / 100) * ($heightCm / 100) * (float) $branchService->price_per_sqm, 2);
+            } else {
+                $widthCm = null;
+                $heightCm = null;
+                $unitPrice = (float) $line['unit_price'];
+            }
+
             $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
             $commissionPct = (float) ($commissionRates[$branchService->id] ?? 0);
             $commissionAmount = round($lineSubtotal * $commissionPct / 100, 2);
+
+            [$lineAgentId, $agentCommissionType, $agentCommissionValue, $agentCommissionAmount] =
+                $this->lineAgentCommission($line, $branchService, $lineAgents, $lineSubtotal, $qty, $widthCm, $heightCm);
 
             $subtotal += $lineSubtotal;
 
@@ -93,11 +122,17 @@ class CalculateServiceInvoiceAction
                 'service_name' => $branchService->serviceTemplate->name ?? 'خدمة',
                 'qty' => $qty,
                 'unit_price' => $unitPrice,
+                'width_cm' => $widthCm,
+                'height_cm' => $heightCm,
                 'discount_pct' => $discountPct,
                 'subtotal' => $lineSubtotal,
                 'commission_pct' => $commissionPct,
                 'commission_amount' => $commissionAmount,
                 'is_tahazir' => $branchService->is_tahazir,
+                'agent_id' => $lineAgentId,
+                'agent_commission_type' => $agentCommissionType,
+                'agent_commission_value' => $agentCommissionValue,
+                'agent_commission_amount' => $agentCommissionAmount,
             ];
         }
 
@@ -147,6 +182,7 @@ class CalculateServiceInvoiceAction
                 'rate' => $agent['rate'],
                 'discount_amount' => round($discount, 2),
                 'rebate_amount' => 0.0, // filled once the total is known
+                'line_commission_amount' => 0.0, // filled from the line commissions below
             ];
         }
 
@@ -165,6 +201,43 @@ class CalculateServiceInvoiceAction
             if ($agent['mode'] === AgentDiscountModeEnum::Rebate) {
                 $agentRows[$i]['rebate_amount'] = $this->agentAmount($agent['type'], $agent['rate'], $total);
             }
+        }
+
+        // Per-line commission owners accrue onto the same pivot rows: an agent
+        // already attached at invoice level keeps their row (merged), one picked
+        // only on lines gets a row with no invoice-level discount/rebate effect.
+        // Like rebates, the amount never touches the customer's total and is
+        // settled with agent payments once the invoice is paid.
+        $lineCommissions = [];
+
+        foreach ($lines as $line) {
+            if ($line['agent_id'] !== null && $line['agent_commission_amount'] > 0) {
+                $lineCommissions[$line['agent_id']] = round(
+                    ($lineCommissions[$line['agent_id']] ?? 0.0) + $line['agent_commission_amount'],
+                    2,
+                );
+            }
+        }
+
+        foreach ($agentRows as $i => $row) {
+            if (isset($lineCommissions[$row['agent_id']])) {
+                $agentRows[$i]['line_commission_amount'] = $lineCommissions[$row['agent_id']];
+                unset($lineCommissions[$row['agent_id']]);
+            }
+        }
+
+        foreach ($lineCommissions as $agentId => $amount) {
+            $profile = $lineAgents->get($agentId)?->agentProfile;
+
+            $agentRows[] = [
+                'agent_id' => $agentId,
+                'discount_mode' => $profile->discount_mode ?? AgentDiscountModeEnum::Rebate,
+                'discount_type' => $profile->discount_type ?? AgentDiscountTypeEnum::Percentage,
+                'rate' => (float) ($profile->rate ?? 0),
+                'discount_amount' => 0.0,
+                'rebate_amount' => 0.0,
+                'line_commission_amount' => $amount,
+            ];
         }
 
         // Employee commission is earned on the net service value the customer
@@ -208,6 +281,103 @@ class CalculateServiceInvoiceAction
             'coupon' => $coupon,
             'pointsRedeemed' => $pointsRedeemed,
         ];
+    }
+
+    /**
+     * Load the active branch agents referenced by the lines' commission owners,
+     * keyed by id, with their profiles for the pivot-row snapshot.
+     *
+     * @param  array<string, mixed>  $data
+     * @return Collection<int, Agent>
+     */
+    private function resolveLineAgents(array $data, int $branchId): Collection
+    {
+        $ids = collect((array) $data['lines'])
+            ->map(fn ($line) => (int) ($line['agent_id'] ?? 0))
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return new Collection;
+        }
+
+        return Agent::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->with('agentProfile')
+            ->whereIn('id', $ids)
+            ->get()
+            ->keyBy('id');
+    }
+
+    /**
+     * Resolve a line's commission-owner terms and compute the amount. The value
+     * is whatever the cashier submitted (prefill is a client-side convenience);
+     * the amount is always derived here: percentage of the line subtotal
+     * (post line-discount, pre-VAT, never scaled by the invoice-level cascade),
+     * a fixed SAR amount per piece, or a per-sqm rate over the line's total area.
+     *
+     * @param  array<string, mixed>  $line
+     * @param  Collection<int, Agent>  $lineAgents
+     * @return array{0: ?int, 1: ?LineAgentCommissionTypeEnum, 2: ?float, 3: float}
+     */
+    private function lineAgentCommission(
+        array $line,
+        BranchService $branchService,
+        Collection $lineAgents,
+        float $lineSubtotal,
+        int $qty,
+        ?float $widthCm,
+        ?float $heightCm,
+    ): array {
+        $agentId = (int) ($line['agent_id'] ?? 0);
+
+        if ($agentId === 0) {
+            return [null, null, null, 0.0];
+        }
+
+        $agent = $lineAgents->get($agentId);
+
+        if (! $agent || ! $agent->agentProfile) {
+            throw ValidationException::withMessages([
+                'lines' => 'أحد أصحاب العمولة المحددين غير صالح لهذا الفرع.',
+            ]);
+        }
+
+        $type = LineAgentCommissionTypeEnum::tryFrom((string) ($line['agent_commission_type'] ?? ''));
+
+        if ($type === null) {
+            throw ValidationException::withMessages([
+                'lines' => 'نوع عمولة صاحب العمولة غير صالح.',
+            ]);
+        }
+
+        $value = (float) ($line['agent_commission_value'] ?? 0);
+
+        if ($type === LineAgentCommissionTypeEnum::Percentage && $value > 100) {
+            throw ValidationException::withMessages([
+                'lines' => 'نسبة عمولة صاحب العمولة يجب ألا تتجاوز 100%.',
+            ]);
+        }
+
+        if ($type === LineAgentCommissionTypeEnum::PerSqm
+            && $branchService->pricing_type !== ServicePricingTypeEnum::Sqm) {
+            throw ValidationException::withMessages([
+                'lines' => 'عمولة المتر المربع متاحة فقط للخدمات المسعّرة بالمتر المربع.',
+            ]);
+        }
+
+        $amount = match ($type) {
+            LineAgentCommissionTypeEnum::Percentage => round($lineSubtotal * $value / 100, 2),
+            LineAgentCommissionTypeEnum::Fixed => round($value * $qty, 2),
+            LineAgentCommissionTypeEnum::PerSqm => round(
+                $qty * (($widthCm ?? 0) / 100) * (($heightCm ?? 0) / 100) * $value,
+                2,
+            ),
+        };
+
+        return [$agentId, $type, $value, $amount];
     }
 
     /**

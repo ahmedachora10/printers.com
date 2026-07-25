@@ -24,6 +24,7 @@ class ServiceInvoiceAgent extends Model
         'rate',
         'discount_amount',
         'rebate_amount',
+        'line_commission_amount',
         'agent_payment_id',
     ];
 
@@ -33,6 +34,7 @@ class ServiceInvoiceAgent extends Model
         'rate' => 'decimal:2',
         'discount_amount' => 'decimal:2',
         'rebate_amount' => 'decimal:2',
+        'line_commission_amount' => 'decimal:2',
     ];
 
     /** @return BelongsTo<ServiceInvoice, $this> */
