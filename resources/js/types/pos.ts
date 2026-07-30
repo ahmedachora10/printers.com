@@ -52,6 +52,7 @@ export interface PosCustomer {
     id: number;
     fullName: string;
     phone: string;
+    taxNumber: string | null;
     agentId: number | null;
     pointsBalance: number;
     tier: string;

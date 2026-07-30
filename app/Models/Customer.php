@@ -85,6 +85,7 @@ class Customer extends Model
             'id' => $this->id,
             'fullName' => $this->full_name,
             'phone' => $this->phone,
+            'taxNumber' => $this->tax_number,
             'agentId' => $this->agent_id,
             'pointsBalance' => (int) $this->points_balance,
             'tier' => $this->tier->value,

@@ -234,6 +234,72 @@ describe('Service invoice edit/delete', function () {
         $this->actingAs($other)->delete(route('pos.service.destroy', $invoice))->assertForbidden();
     });
 
+    // ---- Customer tax number ----------------------------------------------
+
+    it('lets the owner employee set the customer tax number of a due invoice', function () {
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'tax_number' => null]);
+        $invoice = makeOwnedDueInvoice();
+        $invoice->update(['customer_id' => $customer->id]);
+
+        $this->patch(route('pos.service.tax-number', $invoice), ['tax_number' => '310000000000003'])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        expect($customer->refresh()->tax_number)->toBe('310000000000003');
+    });
+
+    it('surfaces the customer tax number on the edit screen', function () {
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'tax_number' => '310000000000003']);
+        $invoice = makeOwnedDueInvoice();
+        $invoice->update(['customer_id' => $customer->id]);
+
+        $this->get(route('pos.service.edit', $invoice))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('invoice.customer.taxNumber', '310000000000003'));
+    });
+
+    it('rejects a tax number that is not exactly 15 digits', function () {
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'tax_number' => null]);
+        $invoice = makeOwnedDueInvoice();
+        $invoice->update(['customer_id' => $customer->id]);
+
+        $this->patch(route('pos.service.tax-number', $invoice), ['tax_number' => '3100000'])
+            ->assertSessionHasErrors('tax_number');
+
+        expect($customer->refresh()->tax_number)->toBeNull();
+    });
+
+    it('rejects a tax number update on an invoice with no customer', function () {
+        $invoice = makeOwnedDueInvoice();
+
+        $this->patch(route('pos.service.tax-number', $invoice), ['tax_number' => '310000000000003'])
+            ->assertSessionHasErrors('tax_number');
+    });
+
+    it('forbids editing the tax number on another employee\'s invoice', function () {
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'tax_number' => null]);
+        $invoice = makeOwnedDueInvoice();
+        $invoice->update(['customer_id' => $customer->id]);
+
+        $other = User::factory()->create(['branch_id' => $this->branch->id]);
+        $other->addRole(Roles::EMPLOYEE->value);
+
+        $this->actingAs($other)
+            ->patch(route('pos.service.tax-number', $invoice), ['tax_number' => '310000000000003'])
+            ->assertForbidden();
+
+        expect($customer->refresh()->tax_number)->toBeNull();
+    });
+
+    it('forbids editing the tax number once the invoice is paid', function () {
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'tax_number' => null]);
+        $invoice = makeOwnedDueInvoice();
+        $invoice->update(['customer_id' => $customer->id, 'status' => 'paid', 'paid_at' => now()]);
+
+        $this->patch(route('pos.service.tax-number', $invoice), ['tax_number' => '310000000000003'])
+            ->assertForbidden();
+    });
+
     // ---- Line notes --------------------------------------------------------
 
     it('stores the free-text detail typed against a service line', function () {

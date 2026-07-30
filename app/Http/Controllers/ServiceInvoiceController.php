@@ -16,6 +16,7 @@ use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoicePaymentMethodRequest;
+use App\Http\Requests\ServiceInvoice\UpdateInvoiceTaxNumberRequest;
 use App\Http\Requests\ServiceInvoice\UpdateServiceInvoiceRequest;
 use App\Models\Agent;
 use App\Models\Branch;
@@ -34,6 +35,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -57,7 +59,7 @@ class ServiceInvoiceController extends Controller
         $user = Auth::user();
         $branchId = (int) $invoice->branch_id;
 
-        $invoice->load(['lines', 'customer:id,full_name,phone,agent_id,customer_type,points_balance,tier', 'invoiceAgents:id,service_invoice_id,agent_id']);
+        $invoice->load(['lines', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'invoiceAgents:id,service_invoice_id,agent_id']);
 
         $loyalty = LoyaltyConfig::forBranch($branchId);
         $loyaltyActive = (bool) $loyalty->is_active;
@@ -277,6 +279,30 @@ class ServiceInvoiceController extends Controller
 
         return redirect()->back(fallback: route('invoices.service.review'))
             ->with('success', "تم تحديث بيانات العميل للفاتورة {$invoice->invoice_number}");
+    }
+
+    /**
+     * Add or correct the tax number of the invoice's customer from the POS edit
+     * screen. Scoped to the owner employee of a still-DUE invoice (the same gate
+     * that lets them edit its lines) and deliberately limited to the tax number —
+     * name and phone remain the accountant's to change via updateCustomer, since
+     * editing those rewrites a record shared by all of that customer's invoices.
+     */
+    public function updateTaxNumber(UpdateInvoiceTaxNumberRequest $request, ServiceInvoice $invoice): RedirectResponse
+    {
+        Gate::authorize('update', $invoice);
+
+        $customer = $invoice->customer;
+
+        if ($customer === null) {
+            throw ValidationException::withMessages([
+                'tax_number' => 'لا يوجد عميل مرتبط بهذه الفاتورة — أضف بيانات العميل أولاً.',
+            ]);
+        }
+
+        $customer->update(['tax_number' => $request->validated('tax_number')]);
+
+        return back()->with('success', "تم تحديث الرقم الضريبي للفاتورة {$invoice->invoice_number}");
     }
 
     /**

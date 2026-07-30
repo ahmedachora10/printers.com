@@ -31,7 +31,7 @@ class SearchPosCustomersAction
             }))
             ->orderBy('full_name')
             ->limit($limit)
-            ->get(['id', 'full_name', 'phone', 'agent_id', 'customer_type', 'points_balance', 'tier'])
+            ->get(['id', 'full_name', 'phone', 'tax_number', 'agent_id', 'customer_type', 'points_balance', 'tier'])
             ->map(fn (Customer $customer) => $customer->toPosArray($loyalty, $loyaltyActive));
     }
 }

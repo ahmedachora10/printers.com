@@ -163,6 +163,10 @@ Route::middleware(['auth'])->group(function () {
             // per-invoice by ServiceInvoicePolicy, never by an accountant.
             Route::get('service/{invoice}/edit', [ServiceInvoiceController::class, 'edit'])->name('service.edit');
             Route::put('service/{invoice}', [ServiceInvoiceController::class, 'update'])->name('service.update');
+            // Tax number only — the rest of the customer record stays with the
+            // accountant via invoices.service.update-customer.
+            Route::patch('service/{invoice}/tax-number', [ServiceInvoiceController::class, 'updateTaxNumber'])
+                ->name('service.tax-number');
             Route::delete('service/{invoice}', [ServiceInvoiceController::class, 'destroy'])->name('service.destroy');
         });
     });

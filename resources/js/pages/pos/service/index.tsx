@@ -120,6 +120,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // The chosen customer is held in full (fetched on demand) rather than looked up
     // from a preloaded list, so 10k+ customers never ship to the browser.
     const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(invoice?.customer ?? null);
+    // Tax number of a registered customer, editable while re-editing a DUE invoice.
+    // Saved on its own endpoint — the employee may correct only this field, never
+    // the name or phone, which are shared across all of that customer's invoices.
+    const [customerTaxNumber, setCustomerTaxNumber] = useState(invoice?.customer?.taxNumber ?? '');
+    const [taxNumberError, setTaxNumberError] = useState<string | undefined>();
+    const [savingTaxNumber, setSavingTaxNumber] = useState(false);
     const customerId = selectedCustomer ? String(selectedCustomer.id) : 'none';
     // A service invoice may carry several agents (shared rebate).
     const [agentIds, setAgentIds] = useState<number[]>(invoice?.agentIds ?? []);
@@ -280,6 +286,26 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             ];
         });
         setSearch('');
+    }
+
+    function saveTaxNumber() {
+        if (!invoice || !selectedCustomer) return;
+        setSavingTaxNumber(true);
+        setTaxNumberError(undefined);
+        router.patch(
+            service.taxNumber(invoice.id).url,
+            { tax_number: customerTaxNumber.trim() || null },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onError: (e) => setTaxNumberError(e.tax_number),
+                onSuccess: () => {
+                    setSelectedCustomer((c) => (c ? { ...c, taxNumber: customerTaxNumber.trim() || null } : c));
+                    toast.success('تم حفظ الرقم الضريبي.');
+                },
+                onFinish: () => setSavingTaxNumber(false),
+            },
+        );
     }
 
     function addManualLine() {
@@ -549,6 +575,37 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                     />
                                     {errors.walkin_tax_number && <p className="text-destructive text-xs">{errors.walkin_tax_number}</p>}
                                 </>
+                            )}
+
+                            {/* Editing a DUE invoice: let the employee add or correct the
+                                registered customer's tax number without leaving the screen. */}
+                            {isEditing && selectedCustomer && (
+                                <div className="space-y-1.5 border-t pt-3">
+                                    <Label htmlFor="customer-tax-number" className="text-muted-foreground text-xs">
+                                        الرقم الضريبي للعميل
+                                    </Label>
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            id="customer-tax-number"
+                                            value={customerTaxNumber}
+                                            onChange={(e) => setCustomerTaxNumber(e.target.value.replace(/[^0-9]/g, ''))}
+                                            placeholder="15 رقماً"
+                                            inputMode="numeric"
+                                            maxLength={15}
+                                            disabled={savingTaxNumber}
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={saveTaxNumber}
+                                            disabled={savingTaxNumber || customerTaxNumber === (selectedCustomer.taxNumber ?? '')}
+                                        >
+                                            حفظ
+                                        </Button>
+                                    </div>
+                                    {taxNumberError && <p className="text-destructive text-xs">{taxNumberError}</p>}
+                                </div>
                             )}
                         </CardContent>
                     </Card>
