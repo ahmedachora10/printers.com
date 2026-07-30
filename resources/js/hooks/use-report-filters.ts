@@ -16,6 +16,8 @@ export interface UseReportFilters {
     reset: () => void;
     /** Drop a single applied filter (used by the removable chips). */
     remove: (key: string) => void;
+    /** Set a single applied filter to a new value and navigate — for chips that narrow rather than clear. */
+    replace: (key: string, value: string) => void;
     /** Whether a given key currently differs from its default. */
     isActive: (key: string) => boolean;
     /** Number of applied filters that differ from their defaults. */
@@ -68,7 +70,9 @@ export function useReportFilters(url: string, applied: FilterValues, defaults: F
         setOpen(false);
     };
 
-    const remove = (key: string) => navigate({ ...applied, [key]: defaults[key] });
+    const replace = (key: string, value: string) => navigate({ ...applied, [key]: value });
+
+    const remove = (key: string) => replace(key, defaults[key]);
 
     const isActive = (key: string) => {
         const value = applied[key];
@@ -77,5 +81,5 @@ export function useReportFilters(url: string, applied: FilterValues, defaults: F
 
     const activeCount = Object.keys(defaults).filter(isActive).length;
 
-    return { draft, setField, open, onOpenChange, apply, reset, remove, isActive, activeCount, appliedQuery: buildQuery(applied) };
+    return { draft, setField, open, onOpenChange, apply, reset, remove, replace, isActive, activeCount, appliedQuery: buildQuery(applied) };
 }

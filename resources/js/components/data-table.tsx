@@ -43,6 +43,8 @@ export interface DataTableProps<T extends object> {
     footer?: React.ReactNode;
     /** When provided, rows become expandable; returns the content shown in a full-width sub-row. */
     renderSubRow?: (row: T) => React.ReactNode;
+    /** Extra classes per row — for emphasising subtotal/total rows. */
+    rowClassName?: (row: T, index: number) => string | undefined;
 }
 
 interface SortState {
@@ -149,6 +151,7 @@ export function DataTable<T extends object>({
     className,
     footer,
     renderSubRow,
+    rowClassName,
 }: DataTableProps<T>) {
     const [sort, setSort] = useState<SortState | null>(null);
     const [selectedKeys, setSelectedKeys] = useState<Set<string | number>>(new Set());
@@ -290,6 +293,7 @@ export function DataTable<T extends object>({
                                             'border-b border-border/50 transition-colors hover:bg-muted/30',
                                             selected && 'bg-primary/5 hover:bg-primary/[0.08]',
                                             expandable && 'cursor-pointer',
+                                            rowClassName?.(row, idx),
                                         )}
                                     >
                                         {selectable && (

@@ -18,12 +18,19 @@ class DailyReportExport implements FromCollection, ShouldAutoSize, WithHeadings,
     public function __construct(
         private readonly Collection $rows,
         private readonly bool $showPurchases,
+        private readonly bool $detailed = false,
     ) {}
 
     /** @return array<int, string> */
     public function headings(): array
     {
-        $headings = ['التاريخ', 'المنتجات', 'الخدمات', 'الإجمالي', 'عمولة الموظفين'];
+        $headings = ['التاريخ'];
+
+        if ($this->detailed) {
+            $headings[] = 'الموظف';
+        }
+
+        array_push($headings, 'المنتجات', 'الخدمات', 'الإجمالي', 'عمولة الموظفين');
 
         if ($this->showPurchases) {
             $headings[] = 'المشتريات';
@@ -39,13 +46,19 @@ class DailyReportExport implements FromCollection, ShouldAutoSize, WithHeadings,
     public function collection(): Collection
     {
         return $this->rows->map(function (array $row) {
-            $cells = [
-                Carbon::parse($row['date'])->format('d/m/Y'),
+            $cells = [Carbon::parse($row['date'])->format('d/m/Y')];
+
+            if ($this->detailed) {
+                $cells[] = $row['isTotal'] ? 'الإجمالي' : (string) $row['employeeName'];
+            }
+
+            array_push(
+                $cells,
                 number_format((float) $row['products'], 2),
                 number_format((float) $row['services'], 2),
                 number_format((float) $row['total'], 2),
                 number_format((float) $row['commission'], 2),
-            ];
+            );
 
             if ($this->showPurchases) {
                 $cells[] = number_format((float) $row['purchases'], 2);
