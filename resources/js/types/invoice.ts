@@ -3,6 +3,8 @@ export type InvoiceStatus = 'paid' | 'due' | 'cancelled';
 
 export interface InvoiceLine {
     name: string;
+    /** Free-text detail typed at the POS; service lines only. */
+    notes: string | null;
     sku: string | null;
     qty: number;
     unitPrice: number;
@@ -93,6 +95,8 @@ export interface InvoiceListItem {
     customerPhone: string | null;
     customerTaxNumber: string | null;
     employeeName: string | null;
+    /** Super-admins only — omitted from the payload for every other role. */
+    branchName?: string | null;
     createdAt: string;
     canEdit: boolean;
     canDelete: boolean;
@@ -111,4 +115,5 @@ export interface InvoiceFilters {
     status?: string;
     date_from?: string;
     date_to?: string;
+    branch_id?: string;
 }

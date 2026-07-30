@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
+import { invoiceDocumentTitle } from '@/lib/invoice';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
@@ -37,6 +38,7 @@ const lineColumns: ColumnDef<InvoiceLine>[] = [
         cell: (line) => (
             <>
                 {line.name}
+                {line.notes && <span className="text-muted-foreground block text-xs whitespace-pre-line">{line.notes}</span>}
                 {line.sku && (
                     <span className="text-muted-foreground block text-xs" dir="ltr">
                         {line.sku}
@@ -153,7 +155,7 @@ export default function InvoiceShow({ invoice }: Props) {
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={`فاتورة ${invoice.invoiceNumber}`} />
+            <Head title={`${invoiceDocumentTitle(invoice)} ${invoice.invoiceNumber}`} />
             <Toaster position="top-center" richColors />
 
             <div className="p-6">
@@ -167,7 +169,7 @@ export default function InvoiceShow({ invoice }: Props) {
                                 {invoice.statusLabel}
                             </Badge>
                             <Badge variant="secondary">{invoice.typeLabel}</Badge>
-                            <Badge variant="outline">{invoice.customerTaxNumber ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة'}</Badge>
+                            <Badge variant="outline">{invoiceDocumentTitle(invoice)}</Badge>
                             {invoice.isFullyRefunded && (
                                 <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
                                     مُرتجعة
@@ -199,16 +201,20 @@ export default function InvoiceShow({ invoice }: Props) {
                                 <Trash2 className="size-4" /> حذف
                             </Button>
                         )}
-                        <Button variant="outline" asChild>
-                            <a href={`${printBase}?format=thermal`} target="_blank" rel="noreferrer">
-                                <ReceiptText className="size-4" /> إيصال حراري
-                            </a>
-                        </Button>
-                        <Button asChild>
-                            <a href={`${printBase}?format=a4`} target="_blank" rel="noreferrer">
-                                <Printer className="size-4" /> طباعة A4
-                            </a>
-                        </Button>
+                        {invoice.status !== 'cancelled' && (
+                            <>
+                                <Button variant="outline" asChild>
+                                    <a href={`${printBase}?format=thermal`} target="_blank" rel="noreferrer">
+                                        <ReceiptText className="size-4" /> إيصال حراري
+                                    </a>
+                                </Button>
+                                <Button asChild>
+                                    <a href={`${printBase}?format=a4`} target="_blank" rel="noreferrer">
+                                        <Printer className="size-4" /> طباعة A4
+                                    </a>
+                                </Button>
+                            </>
+                        )}
                     </div>
                 </div>
 

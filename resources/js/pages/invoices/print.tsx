@@ -1,3 +1,4 @@
+import { invoiceDocumentTitle } from '@/lib/invoice';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { type Invoice } from '@/types/invoice';
 import { Head } from '@inertiajs/react';
@@ -8,12 +9,7 @@ import { useEffect } from 'react';
 interface Props {
     invoice: Invoice;
     format: 'a4' | 'thermal';
-    zatcaQr: string;
-}
-
-// فاتورة ضريبية (B2B) عندما يملك العميل رقماً ضريبياً، وإلا فاتورة ضريبية مبسطة (B2C)
-function invoiceTitle(invoice: Invoice): string {
-    return invoice.customerTaxNumber ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة';
+    zatcaQr: string | null;
 }
 
 function PrintToolbar() {
@@ -30,7 +26,7 @@ function PrintToolbar() {
     );
 }
 
-function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) {
+function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | null }) {
     // إجمالي بدون خصم الخصومات: يُحسب على المجموع الفرعي بالكامل
     const grossVat = invoice.subtotal * (invoice.vatPct / 100);
     const grossTotal = invoice.subtotal + grossVat;
@@ -42,7 +38,7 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                 {invoice.branch.phone && <p className="text-xs">{invoice.branch.phone}</p>}
                 {invoice.branch.address && <p className="text-xs">{invoice.branch.address}</p>}
                 {invoice.branch.taxNumber && <p className="text-xs">الرقم الضريبي: {invoice.branch.taxNumber}</p>}
-                <h2 className="mt-2 text-sm font-bold">{invoiceTitle(invoice)}</h2>
+                <h2 className="mt-2 text-sm font-bold">{invoiceDocumentTitle(invoice)}</h2>
             </div>
 
             <div className="my-3 border-t border-dashed border-black" />
@@ -100,6 +96,7 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                         <tr key={i} className="border-b border-dashed border-black/30 align-top">
                             <td className="py-1 text-right">
                                 {line.name}
+                                {line.notes && <span className="block text-[10px] whitespace-pre-line">{line.notes}</span>}
                                 {line.widthCm != null && line.heightCm != null && (
                                     <span className="block text-[10px]">
                                         المقاس: {line.widthCm}×{line.heightCm} سم
@@ -132,16 +129,18 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                 </div>
             </div>
 
-            <div className="my-3 flex justify-center">
-                <QRCodeSVG value={zatcaQr} size={96} />
-            </div>
+            {zatcaQr && (
+                <div className="my-3 flex justify-center">
+                    <QRCodeSVG value={zatcaQr} size={96} />
+                </div>
+            )}
 
             <p className="text-center text-xs">شكراً لزيارتكم</p>
         </div>
     );
 }
 
-function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) {
+function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | null }) {
     // إجمالي بدون خصم الخصومات: يُحسب على المجموع الفرعي بالكامل
     const grossVat = invoice.subtotal * (invoice.vatPct / 100);
     const grossTotal = invoice.subtotal + grossVat;
@@ -163,7 +162,7 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) 
                 {invoice.branch.logoUrl && <img src={invoice.branch.logoUrl} alt="logo" className="h-20 w-auto object-contain" />}
             </div>
 
-            <h2 className="my-6 text-center text-lg font-bold">{invoiceTitle(invoice)}</h2>
+            <h2 className="my-6 text-center text-lg font-bold">{invoiceDocumentTitle(invoice)}</h2>
 
             {/* Meta grid */}
             <div className="mb-6 grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
@@ -217,6 +216,9 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) 
                         <tr key={i}>
                             <td className="border border-neutral-300 p-2">
                                 {line.name}
+                                {line.notes && (
+                                    <span className="block text-[10px] whitespace-pre-line text-neutral-500">{line.notes}</span>
+                                )}
                                 {line.widthCm != null && line.heightCm != null && (
                                     <span className="block text-[10px] text-neutral-500">
                                         المقاس: {line.widthCm}×{line.heightCm} سم
@@ -234,10 +236,14 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string }) 
 
             {/* Totals + QR */}
             <div className="mt-6 flex items-end justify-between gap-8">
-                <div className="text-center">
-                    <QRCodeSVG value={zatcaQr} size={120} />
-                    <p className="mt-1 text-[10px] text-neutral-500">رمز الاستجابة الضريبي</p>
-                </div>
+                {zatcaQr ? (
+                    <div className="text-center">
+                        <QRCodeSVG value={zatcaQr} size={120} />
+                        <p className="mt-1 text-[10px] text-neutral-500">رمز الاستجابة الضريبي</p>
+                    </div>
+                ) : (
+                    <div />
+                )}
 
                 <div className="w-64 space-y-1">
                     <div className="flex justify-between">
@@ -268,7 +274,7 @@ export default function InvoicePrint({ invoice, format, zatcaQr }: Props) {
 
     return (
         <div className="bg-white">
-            <Head title={`فاتورة ${invoice.invoiceNumber}`} />
+            <Head title={`${invoiceDocumentTitle(invoice)} ${invoice.invoiceNumber}`} />
             <div className="mx-auto max-w-3xl px-4 pt-4">
                 <PrintToolbar />
             </div>

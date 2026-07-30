@@ -152,7 +152,7 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
             ],
             [
-                'title' => 'مراجعة الفواتير الآجلة',
+                'title' => 'عروض الاسعار',
                 'url' => route('invoices.service.review'),
                 'icon' => 'ClipboardList',
                 'group' => 'sales',
