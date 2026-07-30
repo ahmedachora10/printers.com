@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 
 interface ReviewLine {
     name: string;
+    notes: string | null;
     qty: number;
     unitPrice: number;
     widthCm: number | null;
@@ -59,6 +60,7 @@ const reviewLineColumns: ColumnDef<ReviewLine>[] = [
         cell: (line) => (
             <>
                 {line.name}
+                {line.notes && <span className="text-muted-foreground block text-xs whitespace-pre-line">{line.notes}</span>}
                 {line.widthCm != null && line.heightCm != null && (
                     <span className="text-muted-foreground block text-xs">
                         المقاس: {line.widthCm}×{line.heightCm} سم

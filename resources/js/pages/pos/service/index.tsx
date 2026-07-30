@@ -98,6 +98,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 key: `e-${l.branchServiceId}-${lineSeq.current}`,
                 branchServiceId: l.branchServiceId,
                 name: l.name,
+                notes: l.notes ?? '',
                 unitPrice: l.unitPrice,
                 qty: l.qty,
                 discountPct: l.discountPct,
@@ -259,6 +260,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     key: `s-${s.id}-${lineSeq.current}`,
                     branchServiceId: s.id,
                     name: s.name,
+                    notes: '',
                     unitPrice: 0,
                     qty: 1,
                     discountPct: 0,
@@ -288,6 +290,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 key: `m-${lineSeq.current}`,
                 branchServiceId: null,
                 name: '',
+                notes: '',
                 unitPrice: 0,
                 qty: 1,
                 discountPct: 0,
@@ -460,6 +463,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             receipt,
             lines: cart.map((l) => ({
                 branch_service_id: l.branchServiceId,
+                notes: l.notes.trim() || null,
                 qty: l.qty,
                 unit_price: l.unitPrice,
                 discount_pct: l.discountPct,
@@ -970,10 +974,10 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                     if (!line.branchServiceId) return null;
                                     const isSqm = line.pricingType === 'sqm';
                                     const hasAgent = !!line.agentId;
-                                    if (!isSqm && !hasAgent) return null;
                                     const commissionPreview = lineAgentCommission(line);
 
                                     return (
+                                        <div className="space-y-2">
                                         <div className="flex flex-wrap items-end gap-3">
                                             {isSqm && (
                                                 <>
@@ -1064,6 +1068,25 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                     </p>
                                                 </>
                                             )}
+                                        </div>
+
+                                        {/* Free-text detail — printed under the service name on the invoice */}
+                                        <div className="space-y-1">
+                                            <Label className="text-muted-foreground text-xs" htmlFor={`notes-${line.key}`}>
+                                                تفاصيل إضافية للخدمة (اختياري)
+                                            </Label>
+                                            <textarea
+                                                id={`notes-${line.key}`}
+                                                rows={2}
+                                                maxLength={500}
+                                                value={line.notes}
+                                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                                                    updateLine(line.key, { notes: e.target.value })
+                                                }
+                                                placeholder="مثال: ورق مقوّى 300 جرام — تسليم الخميس"
+                                                className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[56px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                            />
+                                        </div>
                                         </div>
                                     );
                                 }}

@@ -28,6 +28,8 @@ export interface ServiceCartLine {
     /** null for a manual line whose service has not been picked yet */
     branchServiceId: number | null;
     name: string;
+    /** free-text detail printed under the service name on the invoice */
+    notes: string;
     unitPrice: number;
     qty: number;
     discountPct: number;
@@ -85,6 +87,7 @@ export interface PosPaymentMethod {
 export interface EditServiceInvoiceLine {
     branchServiceId: number;
     name: string;
+    notes: string | null;
     qty: number;
     unitPrice: number;
     discountPct: number;
@@ -129,6 +132,7 @@ export interface CartLine {
 
 export interface PosInvoiceLine {
     name: string;
+    notes?: string | null;
     sku: string | null;
     qty: number;
     unitPrice: number;

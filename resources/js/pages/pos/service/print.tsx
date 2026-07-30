@@ -97,6 +97,7 @@ export default function ServiceInvoicePrint({ invoice, branch }: Props) {
                         <tr key={i} className="border-b border-dashed border-black/30 align-top">
                             <td className="py-1 text-right">
                                 {line.name}
+                                {line.notes && <span className="block text-[10px] whitespace-pre-line">{line.notes}</span>}
                                 {line.widthCm != null && line.heightCm != null && (
                                     <span className="block text-[10px]">
                                         المقاس: {line.widthCm}×{line.heightCm} سم

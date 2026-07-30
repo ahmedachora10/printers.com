@@ -27,7 +27,7 @@ use Illuminate\Validation\ValidationException;
  * attributes and line rows to persist. It performs no invoice/ledger writes; the
  * only side effect is finding-or-creating a walk-in customer from name/phone.
  *
- * @phpstan-type CalculatedLine array{branch_service_id:int, service_name:string, qty:int, unit_price:float, width_cm:?float, height_cm:?float, discount_pct:float, subtotal:float, commission_pct:float, commission_amount:float, is_tahazir:bool, agent_id:?int, agent_commission_type:?LineAgentCommissionTypeEnum, agent_commission_value:?float, agent_commission_amount:float}
+ * @phpstan-type CalculatedLine array{branch_service_id:int, service_name:string, notes:?string, qty:int, unit_price:float, width_cm:?float, height_cm:?float, discount_pct:float, subtotal:float, commission_pct:float, commission_amount:float, is_tahazir:bool, agent_id:?int, agent_commission_type:?LineAgentCommissionTypeEnum, agent_commission_value:?float, agent_commission_amount:float}
  */
 class CalculateServiceInvoiceAction
 {
@@ -120,6 +120,8 @@ class CalculateServiceInvoiceAction
             $lines[] = [
                 'branch_service_id' => $branchService->id,
                 'service_name' => $branchService->serviceTemplate->name ?? 'خدمة',
+                // Free-text detail typed at the POS; carried through untouched.
+                'notes' => $this->normalizeNotes($line['notes'] ?? null),
                 'qty' => $qty,
                 'unit_price' => $unitPrice,
                 'width_cm' => $widthCm,
@@ -392,6 +394,21 @@ class CalculateServiceInvoiceAction
             : $base * $rate / 100;
 
         return round(min($amount, $base), 2);
+    }
+
+    /**
+     * Trim a line's free-text detail, collapsing a blank field to null so an
+     * untouched box never persists an empty string.
+     */
+    private function normalizeNotes(mixed $notes): ?string
+    {
+        if (! is_string($notes)) {
+            return null;
+        }
+
+        $trimmed = trim($notes);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     /**

@@ -34,6 +34,7 @@ trait WritesServiceInvoiceLines
             $invoice->lines()->create([
                 'branch_service_id' => $line['branch_service_id'],
                 'service_name' => $line['service_name'],
+                'notes' => $line['notes'] ?? null,
                 'qty' => $line['qty'],
                 'unit_price' => $line['unit_price'],
                 'width_cm' => $line['width_cm'] ?? null,

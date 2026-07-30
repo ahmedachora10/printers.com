@@ -233,4 +233,86 @@ describe('Service invoice edit/delete', function () {
 
         $this->actingAs($other)->delete(route('pos.service.destroy', $invoice))->assertForbidden();
     });
+
+    // ---- Line notes --------------------------------------------------------
+
+    it('stores the free-text detail typed against a service line', function () {
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $this->service->id,
+                'qty' => 1,
+                'unit_price' => 10,
+                'discount_pct' => 0,
+                'notes' => '  ورق مقوّى 300 جرام  ',
+            ]],
+        ])->assertRedirect();
+
+        $line = ServiceInvoice::latest('id')->firstOrFail()->lines()->firstOrFail();
+
+        expect($line->notes)->toBe('ورق مقوّى 300 جرام');
+    });
+
+    it('collapses a blank detail box to null', function () {
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $this->service->id,
+                'qty' => 1,
+                'unit_price' => 10,
+                'discount_pct' => 0,
+                'notes' => '   ',
+            ]],
+        ])->assertRedirect();
+
+        expect(ServiceInvoice::latest('id')->firstOrFail()->lines()->firstOrFail()->notes)->toBeNull();
+    });
+
+    it('rejects a detail longer than 500 characters', function () {
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $this->service->id,
+                'qty' => 1,
+                'unit_price' => 10,
+                'discount_pct' => 0,
+                'notes' => str_repeat('ا', 501),
+            ]],
+        ])->assertSessionHasErrors('lines.0.notes');
+    });
+
+    it('keeps the line detail when the invoice is re-edited', function () {
+        $invoice = makeOwnedDueInvoice();
+
+        $this->put(route('pos.service.update', $invoice), [
+            'lines' => [[
+                'branch_service_id' => $this->service->id,
+                'qty' => 2,
+                'unit_price' => 10,
+                'discount_pct' => 0,
+                'notes' => 'تسليم الخميس',
+            ]],
+        ])->assertRedirect();
+
+        expect($invoice->refresh()->lines()->firstOrFail()->notes)->toBe('تسليم الخميس');
+    });
+
+    it('surfaces the line detail on the edit screen', function () {
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $this->service->id,
+                'qty' => 1,
+                'unit_price' => 10,
+                'discount_pct' => 0,
+                'notes' => 'تسليم الخميس',
+            ]],
+        ]);
+
+        $invoice = ServiceInvoice::latest('id')->firstOrFail();
+
+        $this->get(route('pos.service.edit', $invoice))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('invoice.lines.0.notes', 'تسليم الخميس'));
+    });
 });

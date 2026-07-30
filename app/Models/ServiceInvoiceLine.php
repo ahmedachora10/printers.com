@@ -12,6 +12,7 @@ class ServiceInvoiceLine extends Model
         'invoice_id',
         'branch_service_id',
         'service_name',
+        'notes',
         'qty',
         'unit_price',
         'width_cm',

@@ -27,6 +27,8 @@ class InvoiceLineResource extends JsonResource
 
         return [
             'name' => $this->product_name ?? $this->service_name,
+            // Free-text detail; service lines only — product lines have no field.
+            'notes' => $isService ? $this->resource->notes : null,
             'sku' => $this->sku,
             'qty' => $this->qty,
             'unitPrice' => (float) $this->unit_price,

@@ -87,6 +87,7 @@ class ServiceInvoiceController extends Controller
                     return [
                         'branchServiceId' => $line->branch_service_id,
                         'name' => $line->service_name,
+                        'notes' => $line->notes,
                         'qty' => $line->qty,
                         'unitPrice' => (float) $line->unit_price,
                         'discountPct' => (float) $line->discount_pct,
@@ -215,6 +216,7 @@ class ServiceInvoiceController extends Controller
                     'totalAmount' => (float) $invoice->total_amount,
                     'lines' => $invoice->lines->map(fn ($line) => [
                         'name' => $line->service_name,
+                        'notes' => $line->notes,
                         'qty' => $line->qty,
                         'unitPrice' => (float) $line->unit_price,
                         'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
@@ -353,6 +355,7 @@ class ServiceInvoiceController extends Controller
                 'paymentMethod' => $invoice->paymentMethod?->name,
                 'lines' => $invoice->lines->map(fn ($line) => [
                     'name' => $line->service_name,
+                    'notes' => $line->notes,
                     'sku' => null,
                     'qty' => $line->qty,
                     'unitPrice' => (float) $line->unit_price,
