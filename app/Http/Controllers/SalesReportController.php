@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Report\BuildReportDayRange;
 use App\Actions\Report\ResolveReportScope;
 use App\Enums\InvoiceStatusEnum;
 use App\Exports\SalesReportExport;
@@ -22,6 +23,8 @@ class SalesReportController extends Controller
     /** Sum of every discount column, shared by totals and breakdowns. */
     private const DISCOUNTS = '(tier_discount_amount + coupon_discount + points_discount + agent_discount)';
 
+    public function __construct(private readonly BuildReportDayRange $dayRange) {}
+
     public function index(SalesReportFilterRequest $request, ResolveReportScope $resolveScope): Response
     {
         $scope = $resolveScope->handle($request);
@@ -40,6 +43,9 @@ class SalesReportController extends Controller
                 'branch' => $scope['isSuper'] && $scope['branchId'] ? (string) $scope['branchId'] : null,
                 'type' => $type,
             ],
+            // The "cleared" value of the date fields — the report opens on today,
+            // so the client treats today as the default and not as a live filter.
+            'defaultDate' => Carbon::today()->toDateString(),
             'branches' => $scope['isSuper']
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
@@ -162,6 +168,8 @@ class SalesReportController extends Controller
 
     /**
      * Daily revenue trend, merged across both tables and sorted chronologically.
+     * Every day of the filtered range is listed, quiet ones included, so a range
+     * shows its full calendar rather than only the days that sold something.
      *
      * @param  array<string, mixed>  $scope
      * @return array<int, array<string, mixed>>
@@ -169,6 +177,10 @@ class SalesReportController extends Controller
     private function byDay(array $scope, string $type): array
     {
         $days = [];
+
+        foreach ($this->dayRange->handle($scope) as $day) {
+            $days[$day] = ['date' => $day, 'count' => 0, 'total' => 0.0];
+        }
 
         foreach ($this->tablesForType($type) as $table) {
             $rows = $this->baseQuery($table, $scope)

@@ -20,12 +20,11 @@ import {
 } from '@/types/sales-report';
 import { Head } from '@inertiajs/react';
 import { CreditCard, Download, Percent, Receipt, TrendingUp, Wallet } from 'lucide-react';
+import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير المبيعات', href: '/reports/sales' }];
 
 const REPORT_URL = '/reports/sales';
-
-const DEFAULTS: FilterValues = { from: '', to: '', branch: 'all', type: 'all' };
 
 const TYPE_LABELS: Record<string, string> = { product: 'منتجات', service: 'خدمات' };
 
@@ -60,20 +59,40 @@ interface Props {
     byPaymentMethod: SalesReportPaymentMethodRow[];
     byBranch: SalesReportBranchRow[];
     filters: SalesReportFilters;
+    /** Today — the date fields' cleared value, since the report opens on today. */
+    defaultDate: string;
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
 }
 
-export default function SalesReportIndex({ totals, byType, byDay, byEmployee, byPaymentMethod, byBranch, filters, branches, isSuperAdmin }: Props) {
+export default function SalesReportIndex({
+    totals,
+    byType,
+    byDay,
+    byEmployee,
+    byPaymentMethod,
+    byBranch,
+    filters,
+    defaultDate,
+    branches,
+    isSuperAdmin,
+}: Props) {
     const canPickBranch = isSuperAdmin && branches.length > 0;
 
+    // Today is the cleared state of the date fields, so an untouched report shows
+    // no date chips and clearing one snaps that end back to today.
+    const defaults = useMemo<FilterValues>(
+        () => ({ from: defaultDate, to: defaultDate, branch: 'all', type: 'all' }),
+        [defaultDate],
+    );
+
     const applied: FilterValues = {
-        from: filters.from ?? '',
-        to: filters.to ?? '',
+        from: filters.from ?? defaultDate,
+        to: filters.to ?? defaultDate,
         branch: filters.branch ?? 'all',
         type: filters.type ?? 'all',
     };
-    const f = useReportFilters(REPORT_URL, applied, DEFAULTS);
+    const f = useReportFilters(REPORT_URL, applied, defaults);
 
     const qs = new URLSearchParams(f.appliedQuery).toString();
     const exportUrl = `${REPORT_URL}/export${qs ? `?${qs}` : ''}`;

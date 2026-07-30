@@ -11,6 +11,7 @@ import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import {
+    type CommissionReportDayRow,
     type CommissionReportFilters,
     type CommissionReportLine,
     type CommissionReportSummaryRow,
@@ -21,19 +22,29 @@ import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير العمولات', href: '/reports/commissions' }];
 
-const DEFAULTS: FilterValues = { from: '', to: '', employee: 'all', branch: 'all', status: 'all' };
-
 const STATUS_LABELS: Record<string, string> = { pending: 'معلقة', paid: 'مصروفة' };
 
 interface Props {
     summary: CommissionReportSummaryRow[];
+    byDay: CommissionReportDayRow[];
     lines: CommissionReportLine[];
     totals: CommissionReportTotals;
     filters: CommissionReportFilters;
+    /** Today — the date fields' cleared value, since the report opens on today. */
+    defaultDate: string;
     employees: { id: number; name: string }[];
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
 }
+
+const dayColumns: ColumnDef<CommissionReportDayRow>[] = [
+    { key: 'date', header: 'التاريخ', className: 'font-medium', cell: (row) => formatDate(row.date) },
+    { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
+    { key: 'earned', header: 'إجمالي العمولة', cell: (row) => formatCurrency(row.earned) },
+    { key: 'tahazir', header: 'عمولات - خامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.tahazir) },
+    { key: 'paid', header: 'المصروف', className: 'text-green-600', cell: (row) => formatCurrency(row.paid) },
+    { key: 'pending', header: 'المستحق', className: 'text-amber-600', cell: (row) => formatCurrency(row.pending) },
+];
 
 const REPORT_URL = '/reports/commissions';
 
@@ -87,18 +98,25 @@ const detailColumns: ColumnDef<CommissionReportLine>[] = [
     { key: 'earnedAt', header: 'تاريخ الاستحقاق', className: 'text-sm', cell: (line) => (line.earnedAt ? formatDate(line.earnedAt) : '—') },
 ];
 
-export default function CommissionReportIndex({ summary, lines, totals, filters, employees, branches, isSuperAdmin }: Props) {
+export default function CommissionReportIndex({ summary, byDay, lines, totals, filters, defaultDate, employees, branches, isSuperAdmin }: Props) {
     const canPickEmployee = employees.length > 0;
     const canPickBranch = isSuperAdmin && branches.length > 0;
 
+    // Today is the cleared state of the date fields, so an untouched report shows
+    // no date chips and clearing one snaps that end back to today.
+    const defaults = useMemo<FilterValues>(
+        () => ({ from: defaultDate, to: defaultDate, employee: 'all', branch: 'all', status: 'all' }),
+        [defaultDate],
+    );
+
     const applied: FilterValues = {
-        from: filters.from ?? '',
-        to: filters.to ?? '',
+        from: filters.from ?? defaultDate,
+        to: filters.to ?? defaultDate,
         employee: filters.employee ?? 'all',
         branch: filters.branch ?? 'all',
         status: filters.status ?? 'all',
     };
-    const f = useReportFilters(REPORT_URL, applied, DEFAULTS);
+    const f = useReportFilters(REPORT_URL, applied, defaults);
 
     const qs = new URLSearchParams(f.appliedQuery).toString();
     const exportUrl = `${REPORT_URL}/export${qs ? `?${qs}` : ''}`;
@@ -201,6 +219,32 @@ export default function CommissionReportIndex({ summary, lines, totals, filters,
                         valueClass="text-muted-foreground"
                     />
                 </div>
+
+                {/* Per-day breakdown — every day of the range, quiet ones included */}
+                <Card className="mb-6">
+                    <CardHeader>
+                        <CardTitle>العمولات حسب اليوم</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                        <DataTable
+                            className="rounded-none bg-transparent shadow-none"
+                            columns={dayColumns}
+                            data={byDay}
+                            keyExtractor={(row) => row.date}
+                            emptyState={<span className="text-muted-foreground">لا توجد أيام ضمن الفترة المحددة</span>}
+                            footer={
+                                <TableRow>
+                                    <TableCell className="font-bold">الإجمالي</TableCell>
+                                    <TableCell className="font-bold">{totals.lineCount}</TableCell>
+                                    <TableCell className="font-bold">{formatCurrency(totals.earned)}</TableCell>
+                                    <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.tahazir)}</TableCell>
+                                    <TableCell className="font-bold text-green-600">{formatCurrency(totals.paid)}</TableCell>
+                                    <TableCell className="font-bold text-amber-600">{formatCurrency(totals.pending)}</TableCell>
+                                </TableRow>
+                            }
+                        />
+                    </CardContent>
+                </Card>
 
                 {/* Summary table with drill-down */}
                 <Card>

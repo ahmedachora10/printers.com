@@ -220,6 +220,36 @@ describe('Sales Report', function () {
             ->assertInertia(fn ($page) => $page->where('totals.total', 115));
     });
 
+    // ── TODAY DEFAULT & ZERO-FILLED DAYS ───────────────────────────
+
+    it('defaults to today only when no date filter is given', function () {
+        paidProductInvoice($this->branch, $this->branchAdmin, ['paid_at' => now()->subDay(), 'total_amount' => 500]);
+        paidProductInvoice($this->branch, $this->branchAdmin, ['total_amount' => 115]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page->where('totals.total', 115)
+                ->has('byDay', 1)
+                ->where('byDay.0.date', now()->toDateString())
+                ->where('defaultDate', now()->toDateString()));
+    });
+
+    it('keeps a zero row for every quiet day inside a filtered range', function () {
+        paidProductInvoice($this->branch, $this->branchAdmin, ['paid_at' => now()->subDays(2), 'total_amount' => 115]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales', [
+                'from' => now()->subDays(2)->toDateString(),
+                'to' => now()->toDateString(),
+            ]))
+            ->assertInertia(fn ($page) => $page->has('byDay', 3)
+                ->where('byDay.0.total', 115)
+                ->where('byDay.1.total', 0)
+                ->where('byDay.1.count', 0)
+                ->where('byDay.2.date', now()->toDateString())
+                ->where('byDay.2.total', 0));
+    });
+
     // ── EXPORT ─────────────────────────────────────────────────────
 
     it('exports the report as an xlsx download', function () {

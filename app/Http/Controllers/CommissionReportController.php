@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Report\BuildReportDayRange;
 use App\Enums\CommissionSourceTypeEnum;
 use App\Enums\Roles;
 use App\Exports\CommissionReportExport;
@@ -21,6 +22,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CommissionReportController extends Controller
 {
+    public function __construct(private readonly BuildReportDayRange $dayRange) {}
+
     public function index(CommissionReportFilterRequest $request): Response
     {
         $scope = $this->resolveScope($request);
@@ -30,6 +33,7 @@ class CommissionReportController extends Controller
 
         return Inertia::render('reports/commissions/index', [
             'summary' => $summary,
+            'byDay' => $this->dailyRows($scope),
             'lines' => $lines,
             'totals' => [
                 'earned' => (float) $summary->sum('earned'),
@@ -45,6 +49,9 @@ class CommissionReportController extends Controller
                 'branch' => $scope['forcedBranchId'] ? null : ($scope['branchId'] ? (string) $scope['branchId'] : null),
                 'status' => $scope['status'],
             ],
+            // The "cleared" value of the date fields — the report opens on today,
+            // so the client treats today as the default and not as a live filter.
+            'defaultDate' => Carbon::today()->toDateString(),
             'employees' => $scope['forcedUserId'] ? [] : $this->employeeOptions($scope['branchId']),
             'branches' => $scope['forcedBranchId']
                 ? []
@@ -98,8 +105,14 @@ class CommissionReportController extends Controller
             'userId' => $userId,
             'forcedBranchId' => $forcedBranchId,
             'forcedUserId' => $forcedUserId,
-            'from' => $request->filled('from') ? Carbon::parse($request->input('from'))->startOfDay() : null,
-            'to' => $request->filled('to') ? Carbon::parse($request->input('to'))->endOfDay() : null,
+            // Unfiltered, the report shows TODAY only — widening the window is
+            // the filter modal's job. Mirrors ResolveReportScope.
+            'from' => $request->filled('from')
+                ? Carbon::parse($request->input('from'))->startOfDay()
+                : Carbon::today()->startOfDay(),
+            'to' => $request->filled('to')
+                ? Carbon::parse($request->input('to'))->endOfDay()
+                : Carbon::today()->endOfDay(),
             'status' => $request->input('status', 'all'),
         ];
     }
@@ -156,6 +169,52 @@ class CommissionReportController extends Controller
                 ];
             })
             ->values();
+    }
+
+    /**
+     * Per-day aggregate rows covering the whole filtered range. Days without any
+     * ledger entry are kept and read 0.00, so a multi-day filter lists its full
+     * calendar rather than only the days that earned something.
+     *
+     * @param  array<string, mixed>  $scope
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function dailyRows(array $scope): Collection
+    {
+        $days = [];
+
+        foreach ($this->dayRange->handle($scope) as $day) {
+            $days[$day] = ['date' => $day, 'lineCount' => 0, 'earned' => 0.0, 'paid' => 0.0, 'pending' => 0.0, 'tahazir' => 0.0];
+        }
+
+        $rows = $this->baseQuery($scope)
+            ->groupBy(DB::raw('DATE(commission_ledger.earned_at)'))
+            ->get([
+                DB::raw('DATE(commission_ledger.earned_at) as day'),
+                DB::raw('COUNT(*) as line_count'),
+                DB::raw('COALESCE(SUM(commission_ledger.amount), 0) as earned'),
+                DB::raw('COALESCE(SUM(CASE WHEN commission_ledger.paid_at IS NOT NULL THEN commission_ledger.amount ELSE 0 END), 0) as paid'),
+                DB::raw('COALESCE(SUM(CASE WHEN commission_ledger.is_tahazir = 1 THEN commission_ledger.amount ELSE 0 END), 0) as tahazir'),
+            ]);
+
+        foreach ($rows as $row) {
+            $day = (string) $row->day;
+            $earned = (float) $row->earned;
+            $paid = (float) $row->paid;
+
+            $days[$day] = [
+                'date' => $day,
+                'lineCount' => (int) $row->line_count,
+                'earned' => $earned,
+                'paid' => $paid,
+                'pending' => max(0, $earned - $paid),
+                'tahazir' => (float) $row->tahazir,
+            ];
+        }
+
+        ksort($days);
+
+        return collect(array_values($days));
     }
 
     /**

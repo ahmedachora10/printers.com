@@ -220,9 +220,104 @@ describe('Daily Report', function () {
             ->get(route('reports.daily', ['employee' => $this->branchAdmin->id]))
             ->assertInertia(fn ($page) => $page
                 ->where('showPurchases', false)
+                ->where('detailed', false)
                 ->where('totals.services', 200)
                 ->where('totals.commission', 20)
                 ->where('totals.purchases', 0));
+    });
+
+    it('keeps one row per day for a single selected employee', function () {
+        dailyServiceInvoice($this->branch, $this->branchAdmin);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily', ['employee' => $this->branchAdmin->id]))
+            ->assertInertia(fn ($page) => $page
+                ->where('detailed', false)
+                ->has('rows', 1)
+                ->where('rows.0.employeeName', null)
+                ->where('rows.0.isTotal', false));
+    });
+
+    // ── MULTI-EMPLOYEE FILTER ──────────────────────────────────────
+
+    it('accepts a comma-separated employee list and sums only those employees', function () {
+        $other = User::factory()->create(['branch_id' => $this->branch->id, 'name' => 'زياد']);
+        $other->addRole(Roles::EMPLOYEE->value);
+
+        dailyServiceInvoice($this->branch, $this->branchAdmin); // net 200
+        dailyServiceInvoice($this->branch, $this->accountant, ['subtotal' => 300, 'vat_amount' => 45, 'total_amount' => 345]);
+        dailyServiceInvoice($this->branch, $other, ['subtotal' => 900, 'vat_amount' => 135, 'total_amount' => 1035]);
+        ledgerRow($this->branch, $this->branchAdmin, ['amount' => 20]);
+        ledgerRow($this->branch, $this->accountant, ['amount' => 30]);
+        ledgerRow($this->branch, $other, ['amount' => 99]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily', ['employee' => $this->branchAdmin->id.','.$this->accountant->id]))
+            ->assertInertia(fn ($page) => $page
+                ->where('detailed', true)
+                ->where('showPurchases', false)
+                ->where('totals.services', 500)
+                ->where('totals.commission', 50));
+    });
+
+    it('splits each day into one row per employee plus a day total row', function () {
+        $this->branchAdmin->update(['name' => 'أحمد']);
+        $this->accountant->update(['name' => 'بدر']);
+
+        dailyServiceInvoice($this->branch, $this->branchAdmin); // net 200
+        dailyServiceInvoice($this->branch, $this->accountant, ['subtotal' => 300, 'vat_amount' => 45, 'total_amount' => 345]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily', ['employee' => [$this->branchAdmin->id, $this->accountant->id]]))
+            ->assertInertia(fn ($page) => $page
+                ->has('rows', 3)
+                ->where('rows.0.employeeId', $this->branchAdmin->id)
+                ->where('rows.0.services', 200)
+                ->where('rows.1.employeeId', $this->accountant->id)
+                ->where('rows.1.services', 300)
+                ->where('rows.2.isTotal', true)
+                ->where('rows.2.employeeId', null)
+                ->where('rows.2.services', 500));
+    });
+
+    it('does not double-count the day total rows in the grand totals', function () {
+        dailyProductInvoice($this->branch, $this->branchAdmin); // net 100
+        dailyProductInvoice($this->branch, $this->accountant, ['subtotal' => 50, 'vat_amount' => 7.5, 'total_amount' => 57.5]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily', ['employee' => $this->branchAdmin->id.','.$this->accountant->id]))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.products', 150)
+                ->where('totals.dayCount', 1));
+    });
+
+    it('rejects an unknown employee id', function () {
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily', ['employee' => '999999']))
+            ->assertSessionHasErrors('employee.0');
+    });
+
+    it('ignores a legacy employee=all query value', function () {
+        dailyProductInvoice($this->branch, $this->branchAdmin);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily', ['employee' => 'all']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('showPurchases', true)
+                ->where('filters.employee', null)
+                ->where('totals.products', 100));
+    });
+
+    it('exports the detailed multi-employee report', function () {
+        dailyServiceInvoice($this->branch, $this->branchAdmin);
+        dailyServiceInvoice($this->branch, $this->accountant);
+
+        $response = $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily.export', ['employee' => $this->branchAdmin->id.','.$this->accountant->id]));
+
+        $response->assertOk();
+        expect($response->headers->get('content-disposition'))->toContain('.xlsx');
     });
 
     // ── SCOPING ────────────────────────────────────────────────────
@@ -259,6 +354,47 @@ describe('Daily Report', function () {
                 'to' => now()->toDateString(),
             ]))
             ->assertInertia(fn ($page) => $page->where('totals.products', 100));
+    });
+
+    // ── TODAY DEFAULT & ZERO-FILLED DAYS ───────────────────────────
+
+    it('defaults to today only when no date filter is given', function () {
+        dailyProductInvoice($this->branch, $this->branchAdmin, ['created_at' => now()->subDay(), 'subtotal' => 500]);
+        dailyProductInvoice($this->branch, $this->branchAdmin, ['subtotal' => 100]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page->where('totals.products', 100)
+                ->has('rows', 1)
+                ->where('rows.0.date', now()->toDateString())
+                ->where('defaultDate', now()->toDateString()));
+    });
+
+    it('lists today with zeroes when nothing happened at all', function () {
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page->has('rows', 1)
+                ->where('rows.0.date', now()->toDateString())
+                ->where('rows.0.total', 0)
+                ->where('rows.0.products', 0)
+                ->where('rows.0.services', 0));
+    });
+
+    it('keeps a zero row for every quiet day inside a filtered range', function () {
+        dailyProductInvoice($this->branch, $this->branchAdmin, ['created_at' => now()->subDays(2), 'subtotal' => 100]);
+
+        // 3-day window: only the oldest day sold anything, the other two are quiet.
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily', [
+                'from' => now()->subDays(2)->toDateString(),
+                'to' => now()->toDateString(),
+            ]))
+            ->assertInertia(fn ($page) => $page->has('rows', 3)
+                ->where('rows.0.date', now()->subDays(2)->toDateString())
+                ->where('rows.0.products', 100)
+                ->where('rows.1.total', 0)
+                ->where('rows.2.total', 0)
+                ->where('rows.2.date', now()->toDateString()));
     });
 
     // ── EXPORT ─────────────────────────────────────────────────────

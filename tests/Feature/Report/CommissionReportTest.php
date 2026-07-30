@@ -203,6 +203,45 @@ describe('Employee Commission Report', function () {
             ->assertInertia(fn ($page) => $page->where('totals.earned', 45));
     });
 
+    // ── TODAY DEFAULT & PER-DAY BREAKDOWN ──────────────────────────
+
+    it('defaults to today only when no date filter is given', function () {
+        ledgerLine($this->employee, $this->branch, ['amount' => 30, 'earned_at' => now()->subDay()]);
+        ledgerLine($this->employee, $this->branch, ['amount' => 45]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page->where('totals.earned', 45)
+                ->has('byDay', 1)
+                ->where('byDay.0.date', now()->toDateString())
+                ->where('byDay.0.earned', 45)
+                ->where('defaultDate', now()->toDateString()));
+    });
+
+    it('lists today with zeroes when no commission was earned at all', function () {
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page->has('byDay', 1)
+                ->where('byDay.0.date', now()->toDateString())
+                ->where('byDay.0.earned', 0)
+                ->where('byDay.0.lineCount', 0));
+    });
+
+    it('keeps a zero row for every quiet day inside a filtered range', function () {
+        ledgerLine($this->employee, $this->branch, ['amount' => 30, 'earned_at' => now()->subDays(2)]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions', [
+                'from' => now()->subDays(2)->toDateString(),
+                'to' => now()->toDateString(),
+            ]))
+            ->assertInertia(fn ($page) => $page->has('byDay', 3)
+                ->where('byDay.0.earned', 30)
+                ->where('byDay.1.earned', 0)
+                ->where('byDay.2.date', now()->toDateString())
+                ->where('byDay.2.earned', 0));
+    });
+
     // ── EXPORT ─────────────────────────────────────────────────────
 
     it('exports the report as an xlsx download', function () {

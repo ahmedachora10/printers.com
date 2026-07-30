@@ -1,6 +1,6 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
-import { DateRangeFields, FilterSelect } from '@/components/reports/filter-fields';
+import { DateRangeFields, FilterMultiSelect, FilterSelect } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,30 +18,51 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'التقرير اليومي', h
 
 const REPORT_URL = '/reports/daily';
 
-const DEFAULTS: FilterValues = { from: '', to: '', branch: 'all', employee: 'all' };
-
 const EMPTY_STATE = <span className="text-muted-foreground">لا توجد بيانات مطابقة للتصفية</span>;
 
 interface Props {
     rows: DailyReportRow[];
     totals: DailyReportTotals;
     showPurchases: boolean;
+    /** Two or more employees selected: rows are split per employee with a daily total row. */
+    detailed: boolean;
     filters: DailyReportFilters;
+    /** Today — the date fields' cleared value, since the report opens on today. */
+    defaultDate: string;
     branches: { id: number; name: string }[];
     employees: { id: number; name: string }[];
     isSuperAdmin: boolean;
 }
 
-export default function DailyReportIndex({ rows, totals, showPurchases, filters, branches, employees, isSuperAdmin }: Props) {
+export default function DailyReportIndex({
+    rows,
+    totals,
+    showPurchases,
+    detailed,
+    filters,
+    defaultDate,
+    branches,
+    employees,
+    isSuperAdmin,
+}: Props) {
     const canPickBranch = isSuperAdmin && branches.length > 0;
 
+    // Today is the cleared state of the date fields, so an untouched report shows
+    // no date chips and clearing one snaps that end back to today.
+    const defaults = useMemo<FilterValues>(
+        () => ({ from: defaultDate, to: defaultDate, branch: 'all', employee: '' }),
+        [defaultDate],
+    );
+
     const applied: FilterValues = {
-        from: filters.from ?? '',
-        to: filters.to ?? '',
+        from: filters.from ?? defaultDate,
+        to: filters.to ?? defaultDate,
         branch: filters.branch ?? 'all',
-        employee: filters.employee ?? 'all',
+        employee: filters.employee ?? '',
     };
-    const f = useReportFilters(REPORT_URL, applied, DEFAULTS);
+    const f = useReportFilters(REPORT_URL, applied, defaults);
+
+    const selectedEmployees = applied.employee ? applied.employee.split(',') : [];
 
     const qs = new URLSearchParams(f.appliedQuery).toString();
     const exportUrl = `${REPORT_URL}/export${qs ? `?${qs}` : ''}`;
@@ -53,19 +74,35 @@ export default function DailyReportIndex({ rows, totals, showPurchases, filters,
         const name = branches.find((b) => b.id.toString() === applied.branch)?.name ?? applied.branch;
         chips.push({ key: 'branch', label: `الفرع: ${name}`, onRemove: () => f.remove('branch') });
     }
-    if (f.isActive('employee')) {
-        const name = employees.find((e) => e.id.toString() === applied.employee)?.name ?? applied.employee;
-        chips.push({ key: 'employee', label: `الموظف: ${name}`, onRemove: () => f.remove('employee') });
+    // One removable chip per selected employee; removing narrows the list.
+    for (const id of selectedEmployees) {
+        const name = employees.find((e) => e.id.toString() === id)?.name ?? id;
+        chips.push({
+            key: `employee-${id}`,
+            label: `الموظف: ${name}`,
+            onRemove: () => f.replace('employee', selectedEmployees.filter((v) => v !== id).join(',')),
+        });
     }
 
     const columns = useMemo<ColumnDef<DailyReportRow>[]>(() => {
         const cols: ColumnDef<DailyReportRow>[] = [
             { key: 'date', header: 'التاريخ', className: 'font-medium', cell: (row) => formatDate(row.date) },
+        ];
+
+        if (detailed) {
+            cols.push({
+                key: 'employeeName',
+                header: 'الموظف',
+                cell: (row) => (row.isTotal ? 'الإجمالي' : (row.employeeName ?? '—')),
+            });
+        }
+
+        cols.push(
             { key: 'products', header: 'المنتجات', cell: (row) => formatCurrency(row.products) },
             { key: 'services', header: 'الخدمات', cell: (row) => formatCurrency(row.services) },
             { key: 'total', header: 'الإجمالي', className: 'font-semibold text-green-600', cell: (row) => formatCurrency(row.total) },
             { key: 'commission', header: 'عمولة الموظفين', className: 'text-amber-600', cell: (row) => formatCurrency(row.commission) },
-        ];
+        );
 
         if (showPurchases) {
             cols.push({ key: 'purchases', header: 'المشتريات', className: 'text-rose-600', cell: (row) => formatCurrency(row.purchases) });
@@ -75,7 +112,7 @@ export default function DailyReportIndex({ rows, totals, showPurchases, filters,
         cols.push({ key: 'vat', header: 'الضريبة', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.vat) });
 
         return cols;
-    }, [showPurchases]);
+    }, [showPurchases, detailed]);
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -100,12 +137,14 @@ export default function DailyReportIndex({ rows, totals, showPurchases, filters,
                                     options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
                                 />
                             )}
-                            <FilterSelect
+                            <FilterMultiSelect
                                 label="الموظف"
                                 value={f.draft.employee}
                                 onChange={(v) => f.setField('employee', v)}
                                 allLabel="كل الموظفين"
+                                searchPlaceholder="ابحث عن موظف..."
                                 options={employees.map((e) => ({ value: e.id.toString(), label: e.name }))}
+                                className="sm:col-span-2"
                             />
                         </FilterModal>
                         <Button asChild variant="outline" disabled={totals.dayCount === 0}>
@@ -161,11 +200,13 @@ export default function DailyReportIndex({ rows, totals, showPurchases, filters,
                             className="rounded-none bg-transparent shadow-none"
                             columns={columns}
                             data={rows}
-                            keyExtractor={(row) => row.date}
+                            keyExtractor={(row) => `${row.date}-${row.isTotal ? 'total' : (row.employeeId ?? 'all')}`}
+                            rowClassName={(row) => (row.isTotal ? 'bg-muted/40 font-semibold hover:bg-muted/50' : undefined)}
                             emptyState={EMPTY_STATE}
                             footer={
                                 <TableRow>
                                     <TableCell className="font-bold">الإجمالي</TableCell>
+                                    {detailed && <TableCell />}
                                     <TableCell className="font-bold">{formatCurrency(totals.products)}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.services)}</TableCell>
                                     <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>

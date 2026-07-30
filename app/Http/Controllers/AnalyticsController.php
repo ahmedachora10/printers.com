@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Report\BuildReportDayRange;
 use App\Actions\Report\ResolveReportScope;
 use App\Enums\InvoiceStatusEnum;
 use App\Http\Requests\Report\AnalyticsFilterRequest;
 use App\Models\Branch;
 use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -16,17 +16,14 @@ class AnalyticsController extends Controller
 {
     private const TABLES = ['product_invoices', 'service_invoices'];
 
-    /** Default chart window when no explicit date range is picked. */
-    private const DEFAULT_DAYS = 30;
-
     /** Beyond this span zero-filling would bloat the payload; only actual days are sent. */
-    private const MAX_FILLED_DAYS = 366;
+    private const MAX_FILLED_DAYS = BuildReportDayRange::MAX_DAYS;
 
     public function index(AnalyticsFilterRequest $request, ResolveReportScope $resolveScope): Response
     {
+        // ResolveReportScope opens every report on the current day; widening the
+        // window is the filter modal's job.
         $scope = $resolveScope->handle($request);
-        $scope['from'] ??= Carbon::today()->subDays(self::DEFAULT_DAYS - 1)->startOfDay();
-        $scope['to'] ??= Carbon::now()->endOfDay();
 
         $daily = $this->dailyRevenue($scope);
 

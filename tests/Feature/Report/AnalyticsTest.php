@@ -165,6 +165,20 @@ describe('Advanced Analytics', function () {
                 ->where('dailyRevenue.2.product', 115));
     });
 
+    it('defaults to today only when no date filter is given', function () {
+        anaProductInvoice($this->branch, $this->branchAdmin, ['paid_at' => now()->subDay(), 'total_amount' => 500]);
+        anaProductInvoice($this->branch, $this->branchAdmin, ['total_amount' => 115]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('analytics.index'))
+            ->assertInertia(fn ($page) => $page
+                ->count('dailyRevenue', 1)
+                ->where('dailyRevenue.0.date', now()->toDateString())
+                ->where('salesByType.product', 115)
+                ->where('filters.from', now()->toDateString())
+                ->where('filters.to', now()->toDateString()));
+    });
+
     it('excludes due and cancelled invoices from revenue', function () {
         anaProductInvoice($this->branch, $this->branchAdmin, ['total_amount' => 115]);
         anaProductInvoice($this->branch, $this->branchAdmin, ['status' => 'due', 'paid_at' => null, 'total_amount' => 500]);

@@ -8,6 +8,16 @@ export interface CommissionReportSummaryRow {
     tahazir: number;
 }
 
+/** One calendar day of the filtered range — quiet days are present and read zero. */
+export interface CommissionReportDayRow {
+    date: string;
+    lineCount: number;
+    earned: number;
+    paid: number;
+    pending: number;
+    tahazir: number;
+}
+
 export interface CommissionReportLine {
     id: number;
     userId: number;
