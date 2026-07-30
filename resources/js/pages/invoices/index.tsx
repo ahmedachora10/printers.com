@@ -33,14 +33,16 @@ interface Props {
     items: PaginatedInvoice;
     isSuperAdmin: boolean;
     availableTypes: { value: string; label: string }[];
+    branches: { id: number; name: string }[] | null;
     filters: InvoiceFilters;
 }
 
-export default function InvoicesIndex({ items, availableTypes, filters }: Props) {
+export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, branches, filters }: Props) {
     const [search, setSearch] = useState(filters.search ?? '');
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
         type: filters.type ?? '',
         status: filters.status ?? '',
+        branch_id: filters.branch_id ?? '',
     });
     const [dateFrom, setDateFrom] = useState(filters.date_from ?? '');
     const [dateTo, setDateTo] = useState(filters.date_to ?? '');
@@ -131,7 +133,7 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
 
     const handleClearAll = () => {
         setSearch('');
-        setFilterValues({ type: '', status: '' });
+        setFilterValues({ type: '', status: '', branch_id: '' });
         setDateFrom('');
         setDateTo('');
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -215,6 +217,16 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
                 header: 'منشئ الفاتورة',
                 cell: (item) => item.employeeName ?? <span className="text-muted-foreground">—</span>,
             },
+            ...(isSuperAdmin
+                ? [
+                      {
+                          key: 'branchName',
+                          header: 'الفرع',
+                          cell: (item: InvoiceListItem) =>
+                              item.branchName ?? <span className="text-muted-foreground">—</span>,
+                      },
+                  ]
+                : []),
             {
                 key: 'totalAmount',
                 header: 'الإجمالي',
@@ -271,7 +283,7 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
                 ),
             },
         ],
-        [],
+        [isSuperAdmin],
     );
 
     return (
@@ -290,6 +302,15 @@ export default function InvoicesIndex({ items, availableTypes, filters }: Props)
                         filters={[
                             ...(availableTypes.length > 1
                                 ? [{ key: 'type', placeholder: 'النوع', options: availableTypes }]
+                                : []),
+                            ...(branches
+                                ? [
+                                      {
+                                          key: 'branch_id',
+                                          placeholder: 'الفرع',
+                                          options: branches.map((b) => ({ value: b.id.toString(), label: b.name })),
+                                      },
+                                  ]
                                 : []),
                             {
                                 key: 'status',

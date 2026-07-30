@@ -143,6 +143,55 @@ describe('Invoice View (M13)', function () {
                 ->where('items.data.0.type', 'service'));
     });
 
+    it('exposes the branch column and picker to a super admin', function () {
+        $superAdmin = User::factory()->create(['branch_id' => null]);
+        $superAdmin->addRole(Roles::SUPER_ADMIN->value);
+        $this->actingAs($superAdmin);
+
+        makeProductInvoice($this->branch, $this->admin);
+
+        $this->get(route('invoices.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('items.data.0.branchName', $this->branch->name)
+                ->has('branches'));
+    });
+
+    it('hides the branch column and picker from non super admins', function () {
+        makeProductInvoice($this->branch, $this->admin);
+
+        $this->get(route('invoices.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->missing('items.data.0.branchName')
+                ->where('branches', null));
+    });
+
+    it('lets a super admin narrow the list to one branch', function () {
+        $superAdmin = User::factory()->create(['branch_id' => null]);
+        $superAdmin->addRole(Roles::SUPER_ADMIN->value);
+        $this->actingAs($superAdmin);
+
+        $other = Branch::factory()->create();
+        makeProductInvoice($this->branch, $this->admin);
+        makeProductInvoice($other, $this->admin);
+
+        $this->get(route('invoices.index', ['branch_id' => $other->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)
+                ->where('items.data.0.branchName', $other->name));
+    });
+
+    it('ignores a branch_id filter from a branch-scoped role', function () {
+        $other = Branch::factory()->create();
+        makeProductInvoice($this->branch, $this->admin);
+        makeProductInvoice($other, $this->admin);
+
+        // A branch admin stays pinned to their own branch even if they forge the param.
+        $this->get(route('invoices.index', ['branch_id' => $other->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)
+                ->where('items.data.0.invoiceNumber', ProductInvoice::where('branch_id', $this->branch->id)->value('invoice_number')));
+    });
+
     it('shows a product invoice detail', function () {
         $invoice = makeProductInvoice($this->branch, $this->admin);
 
@@ -184,6 +233,31 @@ describe('Invoice View (M13)', function () {
         $this->get(route('invoices.print', ['type' => 'product', 'id' => $invoice->id, 'format' => 'thermal']))
             ->assertOk()
             ->assertInertia(fn ($page) => $page->where('format', 'thermal'));
+    });
+
+    it('omits the ZATCA QR for an unapproved (due) invoice printed as a quotation', function () {
+        $invoice = makeServiceInvoice($this->branch, $this->admin, ['status' => 'due', 'paid_at' => null]);
+
+        $this->get(route('invoices.print', ['type' => 'service', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('invoices/print')
+                ->where('invoice.status', 'due')
+                ->where('zatcaQr', null));
+    });
+
+    it('keeps the ZATCA QR for an approved (paid) invoice', function () {
+        $invoice = makeServiceInvoice($this->branch, $this->admin);
+
+        $this->get(route('invoices.print', ['type' => 'service', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->whereNot('zatcaQr', null));
+    });
+
+    it('forbids printing a cancelled invoice', function () {
+        $invoice = makeProductInvoice($this->branch, $this->admin, ['status' => 'cancelled', 'paid_at' => null]);
+
+        $this->get(route('invoices.print', ['type' => 'product', 'id' => $invoice->id]))
+            ->assertForbidden();
     });
 });
 

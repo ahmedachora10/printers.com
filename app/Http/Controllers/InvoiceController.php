@@ -7,6 +7,7 @@ use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
+use App\Models\Branch;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use Illuminate\Database\Query\Builder;
@@ -40,7 +41,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -62,7 +63,11 @@ class InvoiceController extends Controller
                 fn (InvoiceTypeEnum $t) => ['value' => $t->value, 'label' => $t->label()],
                 $allowedTypes,
             ),
-            'filters' => $request->only(['search', 'type', 'status', 'date_from', 'date_to']),
+            // Only super-admins browse across branches, so only they get the picker.
+            'branches' => $isSuperAdmin
+                ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
+                : null,
+            'filters' => $request->only(['search', 'type', 'status', 'date_from', 'date_to', 'branch_id']),
         ]);
     }
 
@@ -97,6 +102,9 @@ class InvoiceController extends Controller
         $invoice = $this->resolveInvoice($type, $id);
         Gate::authorize('view', $invoice);
 
+        // الفواتير الملغاة لا تُطبع إطلاقاً
+        abort_if($invoice->status === InvoiceStatusEnum::CANCELLED, 403, 'لا يمكن طباعة فاتورة ملغاة.');
+
         $invoice->load(['lines', 'customer:id,full_name,phone,tax_number', 'paymentMethod:id,name', 'branch']);
 
         if ($invoice instanceof ServiceInvoice) {
@@ -110,7 +118,8 @@ class InvoiceController extends Controller
         return Inertia::render('invoices/print', [
             'invoice' => new InvoiceResource($invoice),
             'format' => $format,
-            'zatcaQr' => $qrAction->handle($invoice),
+            // الفواتير غير المعتمدة (آجل) تُطبع كعرض سعر — لا رمز ضريبي لها
+            'zatcaQr' => $invoice->status === InvoiceStatusEnum::PAID ? $qrAction->handle($invoice) : null,
         ]);
     }
 
@@ -163,8 +172,12 @@ class InvoiceController extends Controller
         return DB::table($table)
             ->leftJoin('customers', 'customers.id', '=', "{$table}.customer_id")
             ->leftJoin('users', 'users.id', '=', "{$table}.user_id")
+            ->leftJoin('branches', 'branches.id', '=', "{$table}.branch_id")
             ->whereNull("{$table}.deleted_at")
             ->when(! $isSuperAdmin, fn ($q) => $q->where("{$table}.branch_id", $branchId))
+            // Super-admins see every branch by default, and may narrow to one.
+            ->when($isSuperAdmin && $request->filled('branch_id'),
+                fn ($q) => $q->where("{$table}.branch_id", (int) $request->input('branch_id')))
             ->when($request->filled('status') && in_array($request->input('status'), InvoiceStatusEnum::all(), true),
                 fn ($q) => $q->where("{$table}.status", $request->input('status')))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate("{$table}.created_at", '>=', $request->input('date_from')))
@@ -188,6 +201,7 @@ class InvoiceController extends Controller
                 'users.name as employee_name',
                 $serviceNameSelect,
                 "{$table}.user_id",
+                'branches.name as branch_name',
             ]);
     }
 }

@@ -24,6 +24,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string|null $service_name
  * @property string|null $created_at
  * @property int|null $user_id
+ * @property string|null $branch_name
  */
 class InvoiceListResource extends JsonResource
 {
@@ -66,6 +67,12 @@ class InvoiceListResource extends JsonResource
             'customerPhone' => $this->customer_phone,
             'customerTaxNumber' => $this->customer_tax_number,
             'employeeName' => $this->employee_name,
+            // Every other role is already locked to a single branch, so the column
+            // would carry no information for them — omit it entirely.
+            'branchName' => $this->when(
+                $user !== null && $user->roleName->isSuperAdmin(),
+                fn () => $this->branch_name,
+            ),
             'createdAt' => $this->created_at,
             'canEdit' => $isOwnerEmployee && $status === InvoiceStatusEnum::DUE,
             'canDelete' => $isOwnerEmployee && $status !== InvoiceStatusEnum::CANCELLED,
