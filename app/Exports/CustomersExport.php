@@ -15,18 +15,31 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class CustomersExport implements FromCollection, ShouldAutoSize, WithHeadings, WithStyles
 {
-    public function __construct(private readonly ?int $branchId = null) {}
+    public function __construct(
+        private readonly ?int $branchId = null,
+        private readonly bool $includeBranch = false,
+    ) {}
 
     /** @return array<int, string> */
     public function headings(): array
     {
-        return ['الاسم', 'الهاتف', 'النوع', 'المستوى', 'عدد الفواتير', 'إجمالي الإنفاق', 'آخر زيارة'];
+        return [
+            'الاسم',
+            'الهاتف',
+            ...($this->includeBranch ? ['الفرع'] : []),
+            'النوع',
+            'المستوى',
+            'عدد الفواتير',
+            'إجمالي الإنفاق',
+            'آخر زيارة',
+        ];
     }
 
     /** @return Collection<int, mixed> */
     public function collection(): Collection
     {
         $customers = Customer::query()
+            ->when($this->includeBranch, fn ($q) => $q->with('branch:id,name'))
             ->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))
             ->orderBy('full_name')
             ->get();
@@ -54,6 +67,7 @@ class CustomersExport implements FromCollection, ShouldAutoSize, WithHeadings, W
             return [
                 $customer->full_name,
                 $customer->phone,
+                ...($this->includeBranch ? [$customer->branch?->name ?? '—'] : []),
                 $customer->customer_type->label(),
                 $customer->tier->label(),
                 $invoiceCount,

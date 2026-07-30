@@ -7,7 +7,6 @@ use App\Actions\Customer\DeleteCustomerAction;
 use App\Actions\Customer\MergeCustomersAction;
 use App\Actions\Customer\SearchPosCustomersAction;
 use App\Actions\Customer\UpdateCustomerAction;
-use App\Enums\Roles;
 use App\Exports\CustomersExport;
 use App\Http\Requests\Customer\MergeCustomersRequest;
 use App\Http\Requests\Customer\StoreCustomerRequest;
@@ -17,7 +16,6 @@ use App\Http\Resources\Customer\CustomerResource;
 use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\Customer;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -42,7 +40,11 @@ class CustomerController extends Controller
         $branchId = $isSuperAdmin ? null : Auth::user()->branchId;
 
         $query = Customer::query()
+            ->with('branch:id,name')
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $branchId))
+            // Super-admins see every branch by default, and may narrow to one.
+            ->when($isSuperAdmin && $request->filled('branch_id'),
+                fn ($q) => $q->where('branch_id', (int) $request->input('branch_id')))
             ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
                 $q->where('full_name', 'like', '%'.$request->input('search').'%')
                     ->orWhere('phone', 'like', '%'.$request->input('search').'%');
@@ -70,8 +72,8 @@ class CustomerController extends Controller
         $stats = $this->loadPageStats($ids);
 
         $agents = Agent::select('id', 'name')
-        ->when(!$isSuperAdmin, fn ($q) => $q->where('branch_id', $branchId))
-        ->get();
+            ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $branchId))
+            ->get();
 
         $branches = $isSuperAdmin ? Branch::select('id', 'name')->get() : [];
 
@@ -81,7 +83,7 @@ class CustomerController extends Controller
             'agents' => $agents,
             'branches' => BranchResource::collection($branches),
             'isSuperAdmin' => $isSuperAdmin,
-            'filters' => $request->only(['search', 'tier', 'type', 'agent_id', 'has_outstanding']),
+            'filters' => $request->only(['search', 'tier', 'type', 'agent_id', 'has_outstanding', 'branch_id']),
         ]);
     }
 
@@ -205,9 +207,12 @@ class CustomerController extends Controller
     {
         Gate::authorize('viewAny', Customer::class);
 
-        $branchId = Auth::user()->branchId;
+        $isSuperAdmin = Auth::user()->roleName->isSuperAdmin();
+        $branchId = $isSuperAdmin ? null : Auth::user()->branchId;
 
-        return Excel::download(new CustomersExport($branchId), 'customers.xlsx');
+        // Only the cross-branch role gets a branch column; everyone else exports
+        // a single branch, where the column would repeat the same value.
+        return Excel::download(new CustomersExport($branchId, $isSuperAdmin), 'customers.xlsx');
     }
 
     public function toggleStatus(Customer $customer, UpdateCustomerAction $action): RedirectResponse

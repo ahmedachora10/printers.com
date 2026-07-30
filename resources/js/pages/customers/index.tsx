@@ -49,6 +49,7 @@ interface Props {
         type?: string;
         agent_id?: string;
         has_outstanding?: string;
+        branch_id?: string;
     };
 }
 
@@ -94,6 +95,7 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
         type: filters.type ?? '',
         agent_id: filters.agent_id ?? '',
         has_outstanding: filters.has_outstanding ?? '',
+        branch_id: filters.branch_id ?? '',
     });
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -119,7 +121,7 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
 
     const handleClearAll = () => {
         setSearch('');
-        setFilterValues({ tier: '', type: '', agent_id: '', has_outstanding: '' });
+        setFilterValues({ tier: '', type: '', agent_id: '', has_outstanding: '', branch_id: '' });
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         router.get('/customers', {}, { preserveState: true, replace: true });
     };
@@ -164,6 +166,16 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
                     </a>
                 ),
             },
+            ...(isSuperAdmin
+                ? [
+                      {
+                          key: 'branchName',
+                          header: 'الفرع',
+                          cell: (item: Customer) =>
+                              item.branchName ?? <span className="text-muted-foreground">—</span>,
+                      },
+                  ]
+                : []),
             {
                 key: 'customerType',
                 header: 'النوع',
@@ -273,7 +285,7 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
                 ),
             },
         ],
-        [stats],
+        [stats, isSuperAdmin],
     );
 
     return (
@@ -318,6 +330,19 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
                                 placeholder: 'المديونية',
                                 options: [{ value: '1', label: 'لديه مديونية' }],
                             },
+                            // Only super-admins browse across branches, so only they get the picker.
+                            ...(isSuperAdmin
+                                ? [
+                                      {
+                                          key: 'branch_id',
+                                          placeholder: 'الفرع',
+                                          options: branches.map((b) => ({
+                                              value: String(b.id),
+                                              label: b.name,
+                                          })),
+                                      },
+                                  ]
+                                : []),
                         ]}
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}

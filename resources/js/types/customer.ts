@@ -7,6 +7,8 @@ export interface Customer {
     phone: string;
     email: string | null;
     branchId: number;
+    /** Super-admin only — omitted by the API for branch-scoped roles. */
+    branchName?: string | null;
     customerType: {
         value: CustomerType;
         label: string;

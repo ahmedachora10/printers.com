@@ -2,16 +2,29 @@
 
 use App\Enums\CustomerTierEnum;
 use App\Enums\CustomerTypeEnum;
+use App\Enums\Roles;
+use App\Exports\CustomersExport;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Maatwebsite\Excel\Facades\Excel;
 
-uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
+
+function makeSuperAdmin(): User
+{
+    $user = User::factory()->create(['branch_id' => null]);
+    $user->addRole(Roles::SUPER_ADMIN->value);
+
+    return $user;
+}
 
 describe('Customer Management', function () {
     beforeEach(function () {
         $this->withoutVite();
-        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $this->seed(RolesAndPermissionsSeeder::class);
 
         $this->branchAdmin = User::factory()->create();
         $this->branch = Branch::factory()->create(['owner_id' => $this->branchAdmin->id]);
@@ -60,45 +73,45 @@ describe('Customer Management', function () {
 
     it('creates an individual customer with valid data', function () {
         $this->post(route('customers.store'), [
-            'full_name'     => 'أحمد محمد',
-            'phone'         => '0512345678',
+            'full_name' => 'أحمد محمد',
+            'phone' => '0512345678',
             'customer_type' => 'individual',
-            'is_active'     => true,
+            'is_active' => true,
         ])->assertRedirect(route('customers.index'));
 
         $this->assertDatabaseHas('customers', [
-            'full_name'  => 'أحمد محمد',
-            'phone'      => '0512345678',
-            'branch_id'  => $this->branch->id,
+            'full_name' => 'أحمد محمد',
+            'phone' => '0512345678',
+            'branch_id' => $this->branch->id,
         ]);
     });
 
     it('creates a corporate customer with company_name', function () {
         $this->post(route('customers.store'), [
-            'full_name'     => 'خالد العمري',
-            'phone'         => '0523456789',
+            'full_name' => 'خالد العمري',
+            'phone' => '0523456789',
             'customer_type' => 'corporate',
-            'company_name'  => 'شركة النجاح',
-            'is_active'     => true,
+            'company_name' => 'شركة النجاح',
+            'is_active' => true,
         ])->assertRedirect(route('customers.index'));
 
         $this->assertDatabaseHas('customers', [
-            'phone'        => '0523456789',
+            'phone' => '0523456789',
             'company_name' => 'شركة النجاح',
         ]);
     });
 
     it('creates a customer with credit limit', function () {
         $this->post(route('customers.store'), [
-            'full_name'     => 'سعد العتيبي',
-            'phone'         => '0534567890',
+            'full_name' => 'سعد العتيبي',
+            'phone' => '0534567890',
             'customer_type' => 'individual',
-            'credit_limit'  => 5000,
-            'is_active'     => true,
+            'credit_limit' => 5000,
+            'is_active' => true,
         ])->assertRedirect(route('customers.index'));
 
         $this->assertDatabaseHas('customers', [
-            'phone'        => '0534567890',
+            'phone' => '0534567890',
             'credit_limit' => '5000.00',
         ]);
     });
@@ -110,8 +123,8 @@ describe('Customer Management', function () {
 
     it('fails to create corporate customer without company_name', function () {
         $this->post(route('customers.store'), [
-            'full_name'     => 'اسم المؤسسة',
-            'phone'         => '0545678901',
+            'full_name' => 'اسم المؤسسة',
+            'phone' => '0545678901',
             'customer_type' => 'corporate',
         ])->assertSessionHasErrors(['company_name']);
     });
@@ -119,12 +132,12 @@ describe('Customer Management', function () {
     it('fails to create duplicate phone in same branch', function () {
         Customer::factory()->create([
             'branch_id' => $this->branch->id,
-            'phone'     => '0512345678',
+            'phone' => '0512345678',
         ]);
 
         $this->post(route('customers.store'), [
-            'full_name'     => 'عميل آخر',
-            'phone'         => '0512345678',
+            'full_name' => 'عميل آخر',
+            'phone' => '0512345678',
             'customer_type' => 'individual',
         ])->assertSessionHasErrors(['phone']);
     });
@@ -133,12 +146,12 @@ describe('Customer Management', function () {
         $otherBranch = Branch::factory()->create();
         Customer::factory()->create([
             'branch_id' => $otherBranch->id,
-            'phone'     => '0512345678',
+            'phone' => '0512345678',
         ]);
 
         $this->post(route('customers.store'), [
-            'full_name'     => 'عميل جديد',
-            'phone'         => '0512345678',
+            'full_name' => 'عميل جديد',
+            'phone' => '0512345678',
             'customer_type' => 'individual',
         ])->assertRedirect(route('customers.index'));
     });
@@ -155,7 +168,7 @@ describe('Customer Management', function () {
 
     it('prevents branch-admin from viewing another branch customer', function () {
         $otherBranch = Branch::factory()->create();
-        $customer    = Customer::factory()->create(['branch_id' => $otherBranch->id]);
+        $customer = Customer::factory()->create(['branch_id' => $otherBranch->id]);
 
         $this->get(route('customers.show', $customer))->assertForbidden();
     });
@@ -166,14 +179,14 @@ describe('Customer Management', function () {
         $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
 
         $this->put(route('customers.update', $customer), [
-            'full_name'     => 'اسم محدّث',
-            'phone'         => '0598765432',
+            'full_name' => 'اسم محدّث',
+            'phone' => '0598765432',
             'customer_type' => 'individual',
-            'is_active'     => true,
+            'is_active' => true,
         ])->assertRedirect(route('customers.show', $customer));
 
         $this->assertDatabaseHas('customers', [
-            'id'        => $customer->id,
+            'id' => $customer->id,
             'full_name' => 'اسم محدّث',
         ]);
     });
@@ -186,8 +199,8 @@ describe('Customer Management', function () {
         $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
 
         $this->put(route('customers.update', $customer), [
-            'full_name'     => 'هاكر',
-            'phone'         => '0598765432',
+            'full_name' => 'هاكر',
+            'phone' => '0598765432',
             'customer_type' => 'individual',
         ])->assertForbidden();
     });
@@ -226,7 +239,7 @@ describe('Customer Management', function () {
 
     it('prevents branch-admin from deleting another branch customer', function () {
         $otherBranch = Branch::factory()->create();
-        $customer    = Customer::factory()->create(['branch_id' => $otherBranch->id]);
+        $customer = Customer::factory()->create(['branch_id' => $otherBranch->id]);
 
         $this->delete(route('customers.destroy', $customer))->assertForbidden();
     });
@@ -234,12 +247,12 @@ describe('Customer Management', function () {
     // ── MERGE ──────────────────────────────────────────────────────
 
     it('merges secondary customer into primary and soft-deletes secondary', function () {
-        $primary   = Customer::factory()->create([
-            'branch_id'     => $this->branch->id,
+        $primary = Customer::factory()->create([
+            'branch_id' => $this->branch->id,
             'points_balance' => 100,
         ]);
         $secondary = Customer::factory()->create([
-            'branch_id'     => $this->branch->id,
+            'branch_id' => $this->branch->id,
             'points_balance' => 50,
         ]);
 
@@ -265,7 +278,7 @@ describe('Customer Management', function () {
         $employee->addRole('employee');
         $this->actingAs($employee);
 
-        $primary   = Customer::factory()->create(['branch_id' => $this->branch->id]);
+        $primary = Customer::factory()->create(['branch_id' => $this->branch->id]);
         $secondary = Customer::factory()->create(['branch_id' => $this->branch->id]);
 
         $this->post(route('customers.merge', $primary), [
@@ -279,6 +292,87 @@ describe('Customer Management', function () {
         $this->get(route('customers.outstanding-balance'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page->component('customers/outstanding-balance'));
+    });
+
+    // ── BRANCH COLUMN (super-admin only) ───────────────────────────
+
+    it('exposes the branch column and picker to a super admin', function () {
+        $this->actingAs(makeSuperAdmin());
+
+        Customer::factory()->create(['branch_id' => $this->branch->id]);
+
+        $this->get(route('customers.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('items.data.0.branchName', $this->branch->name)
+                ->has('branches', 1));
+    });
+
+    it('hides the branch column from non super admins', function () {
+        Customer::factory()->create(['branch_id' => $this->branch->id]);
+
+        $this->get(route('customers.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->missing('items.data.0.branchName'));
+    });
+
+    it('lets a super admin narrow the customer list to one branch', function () {
+        $this->actingAs(makeSuperAdmin());
+
+        $other = Branch::factory()->create();
+        Customer::factory()->create(['branch_id' => $this->branch->id]);
+        Customer::factory()->create(['branch_id' => $other->id]);
+
+        $this->get(route('customers.index', ['branch_id' => $other->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)
+                ->where('items.data.0.branchName', $other->name));
+    });
+
+    it('ignores a branch_id filter from a branch-scoped role', function () {
+        $other = Branch::factory()->create();
+        Customer::factory()->create(['branch_id' => $this->branch->id]);
+        Customer::factory()->create(['branch_id' => $other->id]);
+
+        $this->get(route('customers.index', ['branch_id' => $other->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('items.data', 1));
+    });
+
+    it('includes the branch column in the super admin excel export', function () {
+        $this->actingAs(makeSuperAdmin());
+
+        $other = Branch::factory()->create();
+        Customer::factory()->create(['branch_id' => $this->branch->id, 'full_name' => 'أحمد']);
+        Customer::factory()->create(['branch_id' => $other->id, 'full_name' => 'باسم']);
+
+        Excel::fake();
+
+        $this->get(route('customers.export'))->assertOk();
+
+        Excel::assertDownloaded('customers.xlsx', function (CustomersExport $export) use ($other) {
+            expect($export->headings())->toContain('الفرع');
+
+            // Name, phone, then branch — every branch is in scope for a super-admin.
+            expect($export->collection()->pluck(2)->all())
+                ->toBe([$this->branch->name, $other->name]);
+
+            return true;
+        });
+    });
+
+    it('omits the branch column from a branch-scoped excel export', function () {
+        Customer::factory()->create(['branch_id' => $this->branch->id]);
+
+        Excel::fake();
+
+        $this->get(route('customers.export'))->assertOk();
+
+        Excel::assertDownloaded('customers.xlsx', function (CustomersExport $export) {
+            expect($export->headings())->not->toContain('الفرع');
+            expect($export->collection()->first())->toHaveCount(7);
+
+            return true;
+        });
     });
 
     // ── FACTORY STATES ─────────────────────────────────────────────

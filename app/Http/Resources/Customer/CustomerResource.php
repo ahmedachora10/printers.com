@@ -20,6 +20,12 @@ class CustomerResource extends JsonResource
             'phone' => $this->phone,
             'email' => $this->email,
             'branchId' => $this->branch_id,
+            // Every other role is already locked to a single branch, so the column
+            // would carry no information for them — omit it entirely.
+            'branchName' => $this->when(
+                $request->user()?->roleName?->isSuperAdmin() === true,
+                fn () => $this->whenLoaded('branch', fn () => $this->branch?->name),
+            ),
             'customerType' => [
                 'value' => $this->customer_type?->value,
                 'label' => $this->customer_type?->label(),
