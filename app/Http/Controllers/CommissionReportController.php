@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Report\BuildReportDayRange;
 use App\Enums\CommissionSourceTypeEnum;
+use App\Enums\InvoiceStatusEnum;
 use App\Enums\Roles;
 use App\Exports\CommissionReportExport;
 use App\Http\Requests\Report\CommissionReportFilterRequest;
@@ -40,6 +41,7 @@ class CommissionReportController extends Controller
                 'paid' => (float) $summary->sum('paid'),
                 'pending' => (float) $summary->sum('pending'),
                 'tahazir' => (float) $summary->sum('tahazir'),
+                'lineCommission' => (float) $summary->sum('lineCommission'),
                 'lineCount' => $lines->count(),
             ],
             'filters' => [
@@ -142,6 +144,40 @@ class CommissionReportController extends Controller
      */
     private function summaryRows(array $scope): Collection
     {
+        $lineCommissions = $this->lineCommissionByEmployee($scope)->keyBy('userId');
+
+        $rows = $this->ledgerSummaryRows($scope)
+            ->map(fn (array $row) => [
+                ...$row,
+                'lineCommission' => (float) ($lineCommissions[$row['userId']]['amount'] ?? 0.0),
+            ]);
+
+        // An employee whose invoices only earned agent commissions has no ledger
+        // row at all; list them too, so the column total matches the rows above it.
+        $missing = $lineCommissions
+            ->reject(fn (array $row) => $rows->contains('userId', $row['userId']))
+            ->map(fn (array $row) => [
+                'userId' => $row['userId'],
+                'userName' => $row['userName'],
+                'lineCount' => 0,
+                'earned' => 0.0,
+                'paid' => 0.0,
+                'pending' => 0.0,
+                'tahazir' => 0.0,
+                'lineCommission' => $row['amount'],
+            ]);
+
+        return $rows->concat($missing->values())->sortBy('userName')->values();
+    }
+
+    /**
+     * Per-employee aggregate rows straight off the ledger.
+     *
+     * @param  array<string, mixed>  $scope
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function ledgerSummaryRows(array $scope): Collection
+    {
         return $this->baseQuery($scope)
             ->join('users', 'users.id', '=', 'commission_ledger.user_id')
             ->groupBy('commission_ledger.user_id', 'users.name')
@@ -181,10 +217,19 @@ class CommissionReportController extends Controller
      */
     private function dailyRows(array $scope): Collection
     {
+        $lineCommissions = $this->lineCommissionByDay($scope);
         $days = [];
 
         foreach ($this->dayRange->handle($scope) as $day) {
-            $days[$day] = ['date' => $day, 'lineCount' => 0, 'earned' => 0.0, 'paid' => 0.0, 'pending' => 0.0, 'tahazir' => 0.0];
+            $days[$day] = [
+                'date' => $day,
+                'lineCount' => 0,
+                'earned' => 0.0,
+                'paid' => 0.0,
+                'pending' => 0.0,
+                'tahazir' => 0.0,
+                'lineCommission' => (float) ($lineCommissions[$day] ?? 0.0),
+            ];
         }
 
         $rows = $this->baseQuery($scope)
@@ -209,6 +254,7 @@ class CommissionReportController extends Controller
                 'paid' => $paid,
                 'pending' => max(0, $earned - $paid),
                 'tahazir' => (float) $row->tahazir,
+                'lineCommission' => (float) ($lineCommissions[$day] ?? 0.0),
             ];
         }
 
@@ -240,6 +286,7 @@ class CommissionReportController extends Controller
                 'service_invoices.invoice_number as invoice_number',
                 'service_invoices.status as invoice_status',
                 'service_invoice_lines.service_name as service_name',
+                'service_invoice_lines.agent_commission_amount as agent_commission_amount',
                 'commission_ledger.amount as amount',
                 'commission_ledger.is_tahazir as is_tahazir',
                 'commission_ledger.tier_applied as tier_applied',
@@ -254,6 +301,9 @@ class CommissionReportController extends Controller
                 'invoiceNumber' => $row->invoice_number,
                 'invoiceStatus' => $row->invoice_status,
                 'serviceName' => $row->service_name,
+                // The مندوب's share of this same line — shown beside the
+                // employee's commission, never added to it.
+                'lineCommission' => (float) $row->agent_commission_amount,
                 'amount' => (float) $row->amount,
                 'isTahazir' => (bool) $row->is_tahazir,
                 'tierApplied' => $row->tier_applied !== null ? (int) $row->tier_applied : null,
@@ -263,6 +313,75 @@ class CommissionReportController extends Controller
                 'paidAt' => $row->paid_at ? Carbon::parse($row->paid_at)->toIso8601String() : null,
             ])
             ->values();
+    }
+
+    /**
+     * Agent line-commissions ("للعمولات") on the invoices each employee raised.
+     *
+     * This is money owed to the مندوب named on an invoice line, not to the
+     * employee, so it is read from service_invoice_lines and never from
+     * commission_ledger. It is summed off the lines rather than the
+     * service_invoice_agent pivot because the two hold the same total (the pivot
+     * aggregates the lines per agent) and the lines also feed the detail rows.
+     *
+     * Only approved invoices count, matching when the ledger records a
+     * commission as earned. The report's paid/pending status filter is a ledger
+     * concept and deliberately does not narrow this column.
+     *
+     * @param  array<string, mixed>  $scope
+     * @return Collection<int, array{userId: int, userName: string, amount: float}>
+     */
+    private function lineCommissionByEmployee(array $scope): Collection
+    {
+        return $this->lineCommissionQuery($scope)
+            ->join('users', 'users.id', '=', 'service_invoices.user_id')
+            ->groupBy('service_invoices.user_id', 'users.name')
+            ->get([
+                'service_invoices.user_id as user_id',
+                'users.name as user_name',
+                DB::raw('COALESCE(SUM(service_invoice_lines.agent_commission_amount), 0) as amount'),
+            ])
+            ->map(fn ($row) => [
+                'userId' => (int) $row->user_id,
+                'userName' => $row->user_name,
+                'amount' => (float) $row->amount,
+            ]);
+    }
+
+    /**
+     * The same agent line-commissions, totalled per day.
+     *
+     * @param  array<string, mixed>  $scope
+     * @return array<string, float> YYYY-MM-DD => amount
+     */
+    private function lineCommissionByDay(array $scope): array
+    {
+        return $this->lineCommissionQuery($scope)
+            ->groupBy(DB::raw('DATE(service_invoices.paid_at)'))
+            ->get([
+                DB::raw('DATE(service_invoices.paid_at) as day'),
+                DB::raw('COALESCE(SUM(service_invoice_lines.agent_commission_amount), 0) as amount'),
+            ])
+            ->mapWithKeys(fn ($row) => [(string) $row->day => (float) $row->amount])
+            ->all();
+    }
+
+    /**
+     * Shared base for both line-commission aggregates.
+     *
+     * @param  array<string, mixed>  $scope
+     */
+    private function lineCommissionQuery(array $scope): Builder
+    {
+        return DB::table('service_invoice_lines')
+            ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_lines.invoice_id')
+            ->where('service_invoices.status', InvoiceStatusEnum::PAID->value)
+            // DB::table() bypasses the model's soft-delete scope.
+            ->whereNull('service_invoices.deleted_at')
+            ->when($scope['branchId'], fn ($q) => $q->where('service_invoices.branch_id', $scope['branchId']))
+            ->when($scope['userId'], fn ($q) => $q->where('service_invoices.user_id', $scope['userId']))
+            ->when($scope['from'], fn ($q) => $q->where('service_invoices.paid_at', '>=', $scope['from']))
+            ->when($scope['to'], fn ($q) => $q->where('service_invoices.paid_at', '<=', $scope['to']));
     }
 
     /**

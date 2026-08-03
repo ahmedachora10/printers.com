@@ -1,6 +1,7 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
-import { DateRangeFields, FilterSelect } from '@/components/reports/filter-fields';
+import DateRangeBar from '@/components/reports/date-range-bar';
+import { FilterSelect } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,7 +18,7 @@ import {
     type CommissionReportSummaryRow,
     type CommissionReportTotals,
 } from '@/types/report';
-import { Banknote, Download, TrendingUp, Wallet } from 'lucide-react';
+import { Banknote, Download, Handshake, TrendingUp, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير العمولات', href: '/reports/commissions' }];
@@ -42,6 +43,7 @@ const dayColumns: ColumnDef<CommissionReportDayRow>[] = [
     { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
     { key: 'earned', header: 'إجمالي العمولة', cell: (row) => formatCurrency(row.earned) },
     { key: 'tahazir', header: 'عمولات - خامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.tahazir) },
+    { key: 'lineCommission', header: 'للعمولات', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
     { key: 'paid', header: 'المصروف', className: 'text-green-600', cell: (row) => formatCurrency(row.paid) },
     { key: 'pending', header: 'المستحق', className: 'text-amber-600', cell: (row) => formatCurrency(row.pending) },
 ];
@@ -53,6 +55,7 @@ const summaryColumns: ColumnDef<CommissionReportSummaryRow>[] = [
     { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
     { key: 'earned', header: 'إجمالي العمولة', cell: (row) => formatCurrency(row.earned) },
     { key: 'tahazir', header: 'عمولات - خامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.tahazir) },
+    { key: 'lineCommission', header: 'للعمولات', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
     { key: 'paid', header: 'المصروف', className: 'text-green-600', cell: (row) => formatCurrency(row.paid) },
     {
         key: 'pending',
@@ -91,6 +94,12 @@ const detailColumns: ColumnDef<CommissionReportLine>[] = [
     { key: 'tierApplied', header: 'الشريحة', cell: (line) => line.tierApplied ?? '—' },
     { key: 'amount', header: 'المبلغ', cell: (line) => formatCurrency(line.amount) },
     {
+        key: 'lineCommission',
+        header: 'للعمولات',
+        className: 'text-sky-600',
+        cell: (line) => (line.lineCommission > 0 ? formatCurrency(line.lineCommission) : <span className="text-muted-foreground">—</span>),
+    },
+    {
         key: 'status',
         header: 'الحالة',
         cell: (line) => <InvoiceStatusBadge status={line.invoiceStatus} />,
@@ -121,9 +130,8 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
     const qs = new URLSearchParams(f.appliedQuery).toString();
     const exportUrl = `${REPORT_URL}/export${qs ? `?${qs}` : ''}`;
 
+    // No chips for from/to — the range is always visible in the bar above.
     const chips: FilterChip[] = [];
-    if (f.isActive('from')) chips.push({ key: 'from', label: `من: ${formatDate(applied.from)}`, onRemove: () => f.remove('from') });
-    if (f.isActive('to')) chips.push({ key: 'to', label: `إلى: ${formatDate(applied.to)}`, onRemove: () => f.remove('to') });
     if (f.isActive('branch')) {
         const name = branches.find((b) => b.id.toString() === applied.branch)?.name ?? applied.branch;
         chips.push({ key: 'branch', label: `الفرع: ${name}`, onRemove: () => f.remove('branch') });
@@ -153,12 +161,6 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                     <h1 className="text-2xl font-bold">تقرير العمولات</h1>
                     <div className="flex items-center gap-2">
                         <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
-                            <DateRangeFields
-                                from={f.draft.from}
-                                to={f.draft.to}
-                                onFromChange={(v) => f.setField('from', v)}
-                                onToChange={(v) => f.setField('to', v)}
-                            />
                             {canPickBranch && (
                                 <FilterSelect
                                     label="الفرع"
@@ -195,10 +197,14 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                     </div>
                 </div>
 
+                <div className="mb-6">
+                    <DateRangeBar filters={f} from={applied.from} to={applied.to} />
+                </div>
+
                 <ActiveFilterChips chips={chips} />
 
                 {/* Summary cards */}
-                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
                     <SummaryCard icon={<TrendingUp className="size-4" />} label="إجمالي العمولات" value={formatCurrency(totals.earned)} />
                     <SummaryCard
                         icon={<Banknote className="size-4" />}
@@ -217,6 +223,12 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                         label="عمولات - خامات"
                         value={formatCurrency(totals.tahazir)}
                         valueClass="text-muted-foreground"
+                    />
+                    <SummaryCard
+                        icon={<Handshake className="size-4" />}
+                        label="للعمولات (المناديب)"
+                        value={formatCurrency(totals.lineCommission)}
+                        valueClass="text-sky-600"
                     />
                 </div>
 
@@ -238,6 +250,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                                     <TableCell className="font-bold">{totals.lineCount}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.earned)}</TableCell>
                                     <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.tahazir)}</TableCell>
+                                    <TableCell className="font-bold text-sky-600">{formatCurrency(totals.lineCommission)}</TableCell>
                                     <TableCell className="font-bold text-green-600">{formatCurrency(totals.paid)}</TableCell>
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.pending)}</TableCell>
                                 </TableRow>
@@ -266,6 +279,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                                     <TableCell className="font-bold">{totals.lineCount}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.earned)}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.tahazir)}</TableCell>
+                                    <TableCell className="font-bold text-sky-600">{formatCurrency(totals.lineCommission)}</TableCell>
                                     <TableCell className="font-bold text-green-600">{formatCurrency(totals.paid)}</TableCell>
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.pending)}</TableCell>
                                 </TableRow>

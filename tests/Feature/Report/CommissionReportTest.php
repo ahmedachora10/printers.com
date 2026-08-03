@@ -27,6 +27,9 @@ function ledgerLine(User $user, Branch $branch, array $ledger = [], array $lineO
         'total_amount' => 115,
         'employee_commission' => 10,
         'status' => 'paid',
+        // A paid invoice always carries paid_at in the real flow, and the
+        // للعمولات column reads the range off it.
+        'paid_at' => now(),
     ]);
 
     $line = ServiceInvoiceLine::create(array_merge([
@@ -240,6 +243,96 @@ describe('Employee Commission Report', function () {
                 ->where('byDay.1.earned', 0)
                 ->where('byDay.2.date', now()->toDateString())
                 ->where('byDay.2.earned', 0));
+    });
+
+    // ── AGENT LINE COMMISSIONS («للعمولات») ────────────────────────
+
+    it('sums agent line-commissions per employee without touching their own total', function () {
+        ledgerLine($this->employee, $this->branch, ['amount' => 30], ['agent_commission_amount' => 12.5]);
+        ledgerLine($this->employee, $this->branch, ['amount' => 20], ['agent_commission_amount' => 7.5]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->where('summary.0.earned', 50)
+                ->where('summary.0.lineCommission', 20)
+                ->where('totals.earned', 50)
+                ->where('totals.lineCommission', 20));
+    });
+
+    it('reports the line commission on the matching drill-down row and daily total', function () {
+        ledgerLine($this->employee, $this->branch, ['amount' => 30], ['agent_commission_amount' => 12.5]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->where('lines.0.lineCommission', 12.5)
+                ->where('byDay.0.lineCommission', 12.5));
+    });
+
+    it('lists an employee whose invoices only earned agent commissions', function () {
+        // An invoice with no ledger row of its own: all of it went to the مندوب.
+        $invoice = ServiceInvoice::create([
+            'invoice_number' => 'SINV-TST-AGENTONLY',
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->employee->id,
+            'subtotal' => 100,
+            'vat_pct' => 15,
+            'vat_amount' => 15,
+            'total_amount' => 115,
+            'employee_commission' => 0,
+            'status' => 'paid',
+            'paid_at' => now(),
+        ]);
+        ServiceInvoiceLine::create([
+            'invoice_id' => $invoice->id,
+            'service_name' => 'طباعة',
+            'qty' => 1,
+            'unit_price' => 100,
+            'discount_pct' => 0,
+            'subtotal' => 100,
+            'commission_pct' => 0,
+            'commission_amount' => 0,
+            'agent_commission_amount' => 18,
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->has('summary', 1)
+                ->where('summary.0.userId', $this->employee->id)
+                ->where('summary.0.earned', 0)
+                ->where('summary.0.lineCommission', 18)
+                ->where('totals.lineCommission', 18));
+    });
+
+    it('excludes a due invoice from the line-commission column', function () {
+        $invoice = ServiceInvoice::create([
+            'invoice_number' => 'SINV-TST-DUE',
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->employee->id,
+            'subtotal' => 100,
+            'vat_pct' => 15,
+            'vat_amount' => 15,
+            'total_amount' => 115,
+            'employee_commission' => 0,
+            'status' => 'due',
+        ]);
+        ServiceInvoiceLine::create([
+            'invoice_id' => $invoice->id,
+            'service_name' => 'طباعة',
+            'qty' => 1,
+            'unit_price' => 100,
+            'discount_pct' => 0,
+            'subtotal' => 100,
+            'commission_pct' => 0,
+            'commission_amount' => 0,
+            'agent_commission_amount' => 25,
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page->where('totals.lineCommission', 0));
     });
 
     // ── EXPORT ─────────────────────────────────────────────────────

@@ -6,6 +6,8 @@ export interface CommissionReportSummaryRow {
     paid: number;
     pending: number;
     tahazir: number;
+    /** Agent (مندوب) line-commissions on the approved invoices this employee raised. */
+    lineCommission: number;
 }
 
 /** One calendar day of the filtered range — quiet days are present and read zero. */
@@ -16,6 +18,7 @@ export interface CommissionReportDayRow {
     paid: number;
     pending: number;
     tahazir: number;
+    lineCommission: number;
 }
 
 export interface CommissionReportLine {
@@ -26,6 +29,8 @@ export interface CommissionReportLine {
     invoiceStatus: 'paid' | 'due' | 'cancelled';
     serviceName: string;
     amount: number;
+    /** The مندوب's share of this same line — shown beside `amount`, never added to it. */
+    lineCommission: number;
     isTahazir: boolean;
     tierApplied: number | null;
     sourceType: string;
@@ -39,6 +44,7 @@ export interface CommissionReportTotals {
     paid: number;
     pending: number;
     tahazir: number;
+    lineCommission: number;
     lineCount: number;
 }
 
