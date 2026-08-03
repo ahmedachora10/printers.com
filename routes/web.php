@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AgentCommissionReportController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentPaymentController;
 use App\Http\Controllers\AgentPortalController;
@@ -237,6 +238,13 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.daily.export');
         Route::get('reports/daily', [DailyReportController::class, 'index'])
             ->name('reports.daily');
+
+        // Agent (مندوب) commissions: what each agent earned and what is still
+        // owed — the counter side of the agent portal.
+        Route::get('reports/agent-commissions/export', [AgentCommissionReportController::class, 'export'])
+            ->name('reports.agent-commissions.export');
+        Route::get('reports/agent-commissions', [AgentCommissionReportController::class, 'index'])
+            ->name('reports.agent-commissions');
 
         // Advanced analytics (M25): Recharts dashboards over paid invoices and
         // loyalty activity, same audience and scoping as the sales report.
