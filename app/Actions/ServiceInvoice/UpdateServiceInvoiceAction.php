@@ -42,7 +42,7 @@ class UpdateServiceInvoiceAction
         // the invoice were recomputed underneath it.
         if ($invoice->invoiceAgents()->whereNotNull('agent_payment_id')->exists()) {
             throw ValidationException::withMessages([
-                'invoice' => 'لا يمكن تعديل فاتورة مُدرجة ضمن دفعة وكيل.',
+                'invoice' => 'لا يمكن تعديل فاتورة مُدرجة ضمن دفعة مندوب.',
             ]);
         }
 
@@ -51,7 +51,7 @@ class UpdateServiceInvoiceAction
         $branch = Branch::findOrFail($branchId);
         $vatPct = (float) $branch->vat_rate_override;
 
-        return DB::transaction(function () use ($invoice, $data, $receipt, $branchId, $userId, $vatPct) {
+        return DB::transaction(function () use ($invoice, $data, $receipt, $branchId, $vatPct) {
             // Unwind the current invoice before recomputing. Restoring the
             // redeemed points first means the recomputation sees the customer's
             // real balance, so an unchanged redemption nets to zero.

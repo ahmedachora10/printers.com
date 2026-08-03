@@ -53,10 +53,15 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
     const { auth } = usePage<SharedData>().props;
     const isAdmin = isSuperAdmin || auth.role === 'branch-admin';
 
-    // Mirrors UserPolicy::impersonate — admins may sign in as any non-admin
-    // who isn't themselves. The server re-checks before swapping accounts.
+    // Mirrors UserPolicy::impersonate — admins may sign in as any active
+    // non-admin who isn't themselves. The server re-checks before swapping accounts.
     function canImpersonate(item: ManagedUser): boolean {
-        return isAdmin && item.id !== auth.user.id && (item.role === null || !ADMIN_ROLES.includes(item.role));
+        return (
+            isAdmin &&
+            item.isActive &&
+            item.id !== auth.user.id &&
+            (item.role === null || !ADMIN_ROLES.includes(item.role))
+        );
     }
 
     function handleImpersonate(item: ManagedUser) {

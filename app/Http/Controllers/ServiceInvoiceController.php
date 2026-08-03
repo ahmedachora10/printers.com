@@ -16,7 +16,6 @@ use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoicePaymentMethodRequest;
-use App\Http\Requests\ServiceInvoice\UpdateInvoiceTaxNumberRequest;
 use App\Http\Requests\ServiceInvoice\UpdateServiceInvoiceRequest;
 use App\Models\Agent;
 use App\Models\Branch;
@@ -252,8 +251,9 @@ class ServiceInvoiceController extends Controller
     }
 
     /**
-     * Set the invoice's customer from the review queue. For a linked customer this
-     * corrects the shared record's name/phone (affects the customer everywhere);
+     * Set the invoice's customer, from the accountant's review queue or from the
+     * owning employee's POS edit screen. For a linked customer this corrects the
+     * shared record's name/phone/tax number (affects the customer everywhere);
      * for a due invoice with no customer (walk-in), it registers/links one by phone.
      */
     public function updateCustomer(
@@ -262,6 +262,8 @@ class ServiceInvoiceController extends Controller
         UpdateCustomerAction $updateAction,
         AttachServiceInvoiceCustomerAction $attachAction,
     ): RedirectResponse {
+        Gate::authorize('updateCustomer', $invoice);
+
         $customer = $invoice->customer;
 
         if ($customer === null) {
@@ -269,40 +271,34 @@ class ServiceInvoiceController extends Controller
 
             $attachAction->handle($invoice, $request->validated());
 
-            return redirect()->back(fallback: route('invoices.service.review'))
+            return redirect()->back(fallback: $this->customerEditFallback($invoice))
                 ->with('success', "تم إضافة بيانات العميل للفاتورة {$invoice->invoice_number}");
         }
 
-        Gate::authorize('update', $customer);
+        // Reported inline rather than as a 403: the employee is editing a form,
+        // and a full error page in place of a field message is no help to them.
+        if (! Gate::allows('updateFromInvoice', $customer)) {
+            throw ValidationException::withMessages([
+                'full_name' => 'هذا العميل مرتبط بشركة أو مندوب — راجع المحاسب لتعديل بياناته.',
+            ]);
+        }
 
         $updateAction->handle($customer, $request->validated());
 
-        return redirect()->back(fallback: route('invoices.service.review'))
+        return redirect()->back(fallback: $this->customerEditFallback($invoice))
             ->with('success', "تم تحديث بيانات العميل للفاتورة {$invoice->invoice_number}");
     }
 
     /**
-     * Add or correct the tax number of the invoice's customer from the POS edit
-     * screen. Scoped to the owner employee of a still-DUE invoice (the same gate
-     * that lets them edit its lines) and deliberately limited to the tax number —
-     * name and phone remain the accountant's to change via updateCustomer, since
-     * editing those rewrites a record shared by all of that customer's invoices.
+     * Where to land after a customer edit when the request carries no referer:
+     * back to the queue for whoever reviews invoices, or the invoice list for
+     * the employee who edited their own.
      */
-    public function updateTaxNumber(UpdateInvoiceTaxNumberRequest $request, ServiceInvoice $invoice): RedirectResponse
+    private function customerEditFallback(ServiceInvoice $invoice): string
     {
-        Gate::authorize('update', $invoice);
-
-        $customer = $invoice->customer;
-
-        if ($customer === null) {
-            throw ValidationException::withMessages([
-                'tax_number' => 'لا يوجد عميل مرتبط بهذه الفاتورة — أضف بيانات العميل أولاً.',
-            ]);
-        }
-
-        $customer->update(['tax_number' => $request->validated('tax_number')]);
-
-        return back()->with('success', "تم تحديث الرقم الضريبي للفاتورة {$invoice->invoice_number}");
+        return Gate::allows('updateStatus', $invoice)
+            ? route('invoices.service.review')
+            : route('invoices.index');
     }
 
     /**

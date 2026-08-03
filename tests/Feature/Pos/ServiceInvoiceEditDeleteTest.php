@@ -234,18 +234,28 @@ describe('Service invoice edit/delete', function () {
         $this->actingAs($other)->delete(route('pos.service.destroy', $invoice))->assertForbidden();
     });
 
-    // ---- Customer tax number ----------------------------------------------
+    // ---- Customer details from the POS edit screen --------------------------
 
-    it('lets the owner employee set the customer tax number of a due invoice', function () {
-        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'tax_number' => null]);
+    it('lets the owner employee correct the customer name, phone and tax number of a due invoice', function () {
+        $customer = Customer::factory()->create([
+            'branch_id' => $this->branch->id,
+            'full_name' => 'اسم قديم',
+            'phone' => '0500000001',
+            'tax_number' => null,
+        ]);
         $invoice = makeOwnedDueInvoice();
         $invoice->update(['customer_id' => $customer->id]);
 
-        $this->patch(route('pos.service.tax-number', $invoice), ['tax_number' => '310000000000003'])
-            ->assertRedirect()
-            ->assertSessionHas('success');
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => 'اسم جديد',
+            'phone' => '0500000002',
+            'tax_number' => '310000000000003',
+        ])->assertRedirect()->assertSessionHas('success');
 
-        expect($customer->refresh()->tax_number)->toBe('310000000000003');
+        expect($customer->refresh())
+            ->full_name->toBe('اسم جديد')
+            ->phone->toBe('0500000002')
+            ->tax_number->toBe('310000000000003');
     });
 
     it('surfaces the customer tax number on the edit screen', function () {
@@ -263,20 +273,64 @@ describe('Service invoice edit/delete', function () {
         $invoice = makeOwnedDueInvoice();
         $invoice->update(['customer_id' => $customer->id]);
 
-        $this->patch(route('pos.service.tax-number', $invoice), ['tax_number' => '3100000'])
-            ->assertSessionHasErrors('tax_number');
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => $customer->full_name,
+            'phone' => $customer->phone,
+            'tax_number' => '3100000',
+        ])->assertSessionHasErrors('tax_number');
 
         expect($customer->refresh()->tax_number)->toBeNull();
     });
 
-    it('rejects a tax number update on an invoice with no customer', function () {
+    it('rejects a phone already taken by another customer in the branch', function () {
+        $other = Customer::factory()->create(['branch_id' => $this->branch->id, 'phone' => '0500000009']);
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'phone' => '0500000001']);
         $invoice = makeOwnedDueInvoice();
+        $invoice->update(['customer_id' => $customer->id]);
 
-        $this->patch(route('pos.service.tax-number', $invoice), ['tax_number' => '310000000000003'])
-            ->assertSessionHasErrors('tax_number');
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => $customer->full_name,
+            'phone' => $other->phone,
+            'tax_number' => '',
+        ])->assertSessionHasErrors(['phone' => 'رقم الجوال مستخدم لعميل آخر.']);
+
+        expect($customer->refresh()->phone)->toBe('0500000001');
     });
 
-    it('forbids editing the tax number on another employee\'s invoice', function () {
+    it('registers and links a customer when the due invoice has none', function () {
+        $invoice = makeOwnedDueInvoice();
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => 'عميل عابر',
+            'phone' => '0500000007',
+            'tax_number' => '',
+        ])->assertRedirect()->assertSessionHas('success');
+
+        $customer = Customer::where('phone', '0500000007')->firstOrFail();
+        expect($customer->branch_id)->toBe($this->branch->id)
+            ->and($invoice->refresh()->customer_id)->toBe($customer->id);
+    });
+
+    it('refuses to rewrite a corporate customer from the employee POS screen', function () {
+        $customer = Customer::factory()->create([
+            'branch_id' => $this->branch->id,
+            'customer_type' => CustomerTypeEnum::Corporate,
+            'company_name' => 'شركة الاختبار',
+            'full_name' => 'اسم قديم',
+        ]);
+        $invoice = makeOwnedDueInvoice();
+        $invoice->update(['customer_id' => $customer->id]);
+
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => 'اسم جديد',
+            'phone' => $customer->phone,
+            'tax_number' => '',
+        ])->assertSessionHasErrors('full_name');
+
+        expect($customer->refresh()->full_name)->toBe('اسم قديم');
+    });
+
+    it('forbids editing the customer on another employee\'s invoice', function () {
         $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'tax_number' => null]);
         $invoice = makeOwnedDueInvoice();
         $invoice->update(['customer_id' => $customer->id]);
@@ -285,19 +339,25 @@ describe('Service invoice edit/delete', function () {
         $other->addRole(Roles::EMPLOYEE->value);
 
         $this->actingAs($other)
-            ->patch(route('pos.service.tax-number', $invoice), ['tax_number' => '310000000000003'])
-            ->assertForbidden();
+            ->patch(route('invoices.service.update-customer', $invoice), [
+                'full_name' => 'اسم جديد',
+                'phone' => $customer->phone,
+                'tax_number' => '310000000000003',
+            ])->assertForbidden();
 
         expect($customer->refresh()->tax_number)->toBeNull();
     });
 
-    it('forbids editing the tax number once the invoice is paid', function () {
+    it('forbids the employee editing the customer once the invoice is paid', function () {
         $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'tax_number' => null]);
         $invoice = makeOwnedDueInvoice();
         $invoice->update(['customer_id' => $customer->id, 'status' => 'paid', 'paid_at' => now()]);
 
-        $this->patch(route('pos.service.tax-number', $invoice), ['tax_number' => '310000000000003'])
-            ->assertForbidden();
+        $this->patch(route('invoices.service.update-customer', $invoice), [
+            'full_name' => 'اسم جديد',
+            'phone' => $customer->phone,
+            'tax_number' => '310000000000003',
+        ])->assertForbidden();
     });
 
     // ---- Line notes --------------------------------------------------------

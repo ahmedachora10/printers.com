@@ -291,7 +291,7 @@ export default function InvoiceShow({ invoice }: Props) {
                                     <TotalRow label="خصم المستوى" value={`−${formatCurrency(invoice.tierDiscountAmount)}`} />
                                 )}
                                 {invoice.couponDiscount > 0 && <TotalRow label="خصم الكوبون" value={`−${formatCurrency(invoice.couponDiscount)}`} />}
-                                {invoice.agentDiscount > 0 && <TotalRow label="خصم الوكيل" value={`−${formatCurrency(invoice.agentDiscount)}`} />}
+                                {invoice.agentDiscount > 0 && <TotalRow label="خصم المندوب" value={`−${formatCurrency(invoice.agentDiscount)}`} />}
                                 {invoice.pointsDiscount > 0 && <TotalRow label="خصم النقاط" value={`−${formatCurrency(invoice.pointsDiscount)}`} />}
                                 <TotalRow label={`الضريبة (${invoice.vatPct}%)`} value={formatCurrency(invoice.vatAmount)} />
                                 <Separator className="my-1" />
@@ -301,7 +301,7 @@ export default function InvoiceShow({ invoice }: Props) {
                                     .map((a, i) => (
                                         <TotalRow
                                             key={i}
-                                            label={`عمولة الوكيل المرتجعة${a.name ? ` (${a.name})` : ''}`}
+                                            label={`عمولة المندوب المرتجعة${a.name ? ` (${a.name})` : ''}`}
                                             value={formatCurrency(a.rebate)}
                                         />
                                     ))}

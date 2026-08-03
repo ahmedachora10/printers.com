@@ -368,7 +368,7 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
             {data.pricing_type === 'sqm' && (
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
-                        <Label className="text-xs">عمولة الوكيل للمتر (ر.س)</Label>
+                        <Label className="text-xs">عمولة المندوب للمتر (ر.س)</Label>
                         <Input
                             type="number"
                             step="0.01"

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Agent;
 
+use App\Enums\AgentDiscountModeEnum;
 use App\Enums\AgentDiscountTypeEnum;
 use App\Models\Agent;
 use Illuminate\Validation\ValidationException;
@@ -16,7 +17,7 @@ class ResolveInvoiceAgentsAction
 {
     /**
      * @param  array<int, int|string>|null  $agentIds
-     * @return list<array{agentId: int, mode: \App\Enums\AgentDiscountModeEnum, type: AgentDiscountTypeEnum, rate: float}>
+     * @return list<array{agentId: int, mode: AgentDiscountModeEnum, type: AgentDiscountTypeEnum, rate: float}>
      */
     public function handle(?array $agentIds, int $branchId): array
     {
@@ -43,7 +44,7 @@ class ResolveInvoiceAgentsAction
 
             if (! $agent || ! $agent->agentProfile) {
                 throw ValidationException::withMessages([
-                    'agent_ids' => 'أحد الوكلاء المحددين غير صالح لهذا الفرع.',
+                    'agent_ids' => 'أحد المناديب المحددين غير صالح لهذا الفرع.',
                 ]);
             }
 

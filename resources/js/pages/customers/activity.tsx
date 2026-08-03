@@ -50,7 +50,7 @@ const FIELD_LABELS: Record<string, string> = {
     company_name: 'اسم الشركة',
     tax_number: 'الرقم الضريبي',
     credit_limit: 'الحد الائتماني',
-    agent_id: 'الوكيل',
+    agent_id: 'المندوب',
     points_balance: 'رصيد النقاط',
     cumulative_spend: 'الإنفاق التراكمي',
     tier: 'فئة الولاء',

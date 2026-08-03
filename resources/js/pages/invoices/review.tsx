@@ -229,18 +229,17 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                 <Card key={invoice.id}>
                                     <CardHeader className="cursor-pointer pb-3" onClick={() => toggleExpanded(invoice.id)}>
                                         <div className="flex items-start justify-between gap-2">
+                                            {/* Collapsed: who raised it and for how much. Everything
+                                                else waits behind «عرض». */}
                                             <div className="space-y-1">
                                                 <CardTitle className="text-base">{invoice.invoiceNumber}</CardTitle>
                                                 <p className="text-muted-foreground flex items-center gap-1.5 text-xs">
                                                     <User className="size-3.5 shrink-0" />
-                                                    <span>
-                                                        {invoice.customerName ?? 'عميل عابر'}
-                                                        {invoice.customerPhone ? ` — ${invoice.customerPhone}` : ''}
-                                                    </span>
+                                                    <span>{invoice.employeeName ?? '—'}</span>
                                                 </p>
                                             </div>
                                             <div className="flex shrink-0 items-center gap-2">
-                                                <Badge variant="outline">{formatDate(invoice.createdAt)}</Badge>
+                                                <span className="text-base font-bold">{formatCurrency(invoice.totalAmount)}</span>
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
@@ -336,7 +335,7 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
 
                                             <div className="text-muted-foreground space-y-0.5 text-xs">
                                                 {isSuperAdmin && invoice.branchName && <p>الفرع: {invoice.branchName}</p>}
-                                                <p>الموظف: {invoice.employeeName ?? '—'}</p>
+                                                <p>التاريخ: {formatDate(invoice.createdAt)}</p>
                                             </div>
 
                                             <DataTable

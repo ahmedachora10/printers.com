@@ -322,7 +322,7 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
                             },
                             {
                                 key: 'agent_id',
-                                placeholder: 'الوكيل',
+                                placeholder: 'المندوب',
                                 options: agents.map((a) => ({ value: String(a.id), label: a.name })),
                             },
                             {

@@ -391,16 +391,22 @@ describe('Service invoice review', function () {
         expect($invoice->refresh()->customer_id)->toBeNull();
     });
 
-    it('forbids an employee from editing the invoice customer', function () {
-        $this->actingAs($this->employee);
+    it('forbids an employee from editing the customer of an invoice they did not raise', function () {
+        // The employee who raised it may correct its customer (see
+        // ServiceInvoiceEditDeleteTest); a colleague still may not.
+        $other = User::factory()->create(['branch_id' => $this->branch->id]);
+        $other->addRole(Roles::EMPLOYEE->value);
+        $this->actingAs($other);
 
-        $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'full_name' => 'عميل']);
         $invoice = makeDueInvoice(['customer_id' => $customer->id]);
 
         $this->patch(route('invoices.service.update-customer', $invoice), [
             'full_name' => 'محاولة',
             'phone' => '0500000004',
         ])->assertForbidden();
+
+        expect($customer->refresh()->full_name)->toBe('عميل');
     });
 
     it('forbids editing a customer on an invoice from another branch', function () {

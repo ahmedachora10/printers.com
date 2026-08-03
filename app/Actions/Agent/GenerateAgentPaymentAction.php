@@ -59,7 +59,7 @@ class GenerateAgentPaymentAction
 
             if ($totalInvoices === 0) {
                 throw ValidationException::withMessages([
-                    'agent_id' => 'لا توجد عمولات مستحقة لهذا الوكيل في الفترة المحددة.',
+                    'agent_id' => 'لا توجد عمولات مستحقة لهذا المندوب في الفترة المحددة.',
                 ]);
             }
 

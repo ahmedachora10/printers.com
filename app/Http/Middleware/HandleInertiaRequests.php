@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Enums\Roles;
+use App\Models\Branch;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -47,6 +48,7 @@ class HandleInertiaRequests extends Middleware
                 'user' => $request->user(),
                 'role' => $request->user()?->roleName,
                 'sidebarItems' => $this->getSidebarItems($request),
+                'branch' => $this->branch($request),
                 'impersonating' => $request->session()->has('impersonator_id')
                     ? ['active' => true, 'viewingName' => $request->user()?->name]
                     : null,
@@ -55,6 +57,35 @@ class HandleInertiaRequests extends Middleware
             'success' => $request->session()->get('success'),
             'error' => $request->session()->get('error'),
         ]);
+    }
+
+    /**
+     * The branch this user works out of, so the app can wear its identity
+     * instead of the generic one. Null for a super-admin, who belongs to no
+     * single branch, and for a branch that never uploaded a logo.
+     *
+     * @return array{name: string, logoUrl: string|null}|null
+     */
+    private function branch(Request $request): ?array
+    {
+        // branchId resolves a branch-admin through branches.owner_id, so this
+        // covers managers as well as ordinary branch staff.
+        $branchId = $request->user()?->branchId;
+
+        if ($branchId === null) {
+            return null;
+        }
+
+        $branch = Branch::with('media')->find($branchId);
+
+        if ($branch === null) {
+            return null;
+        }
+
+        return [
+            'name' => $branch->name,
+            'logoUrl' => $branch->getFirstMediaUrl('logo') ?: null,
+        ];
     }
 
     /**
@@ -107,7 +138,7 @@ class HandleInertiaRequests extends Middleware
         $groups = [
             'main' => ['label' => null, 'icon' => null],
             'sales' => ['label' => 'المبيعات', 'icon' => 'ShoppingCart'],
-            'crm' => ['label' => 'العملاء والوكلاء', 'icon' => 'Users'],
+            'crm' => ['label' => 'العملاء والمناديب', 'icon' => 'Users'],
             'inventory' => ['label' => 'المخزون', 'icon' => 'Package'],
             'finance' => ['label' => 'المالية', 'icon' => 'Wallet'],
             'reports' => ['label' => 'التقارير', 'icon' => 'ChartPie'],
@@ -123,7 +154,7 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
-                'title' => 'بوابة الوكيل',
+                'title' => 'بوابة المندوب',
                 'url' => route('agent-portal.index'),
                 'icon' => 'Handshake',
                 'group' => 'main',
@@ -174,14 +205,14 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
-                'title' => 'الوكلاء',
+                'title' => 'المناديب',
                 'url' => route('agents.index'),
                 'icon' => 'Handshake',
                 'group' => 'crm',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
-                'title' => 'مدفوعات الوكلاء',
+                'title' => 'مدفوعات المناديب',
                 'url' => route('agent-payments.index'),
                 'icon' => 'Wallet',
                 'group' => 'crm',

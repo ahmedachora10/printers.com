@@ -170,14 +170,14 @@ export default function CustomerForm({ customer, submitUrl, method, submitLabel,
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="agent_id">الوكيل</Label>
+                    <Label htmlFor="agent_id">المندوب</Label>
                     <Input
                         id="agent_id"
                         type="number"
                         min="1"
                         value={data.agent_id}
                         onChange={(e) => setData('agent_id', e.target.value)}
-                        placeholder="معرّف الوكيل (اختياري)"
+                        placeholder="معرّف المندوب (اختياري)"
                         dir="ltr"
                     />
                     {errors.agent_id && (

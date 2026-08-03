@@ -96,3 +96,39 @@ describe('Authentication', function () {
         $this->actingAs($user)->get('/login')->assertRedirect('/dashboard');
     });
 });
+
+describe('Deactivated accounts', function () {
+    test('a deactivated user cannot login even with correct credentials', function () {
+        $user = User::factory()->create(['is_active' => false]);
+
+        $response = $this->post('/login', [
+            'username' => $user->username,
+            'password' => 'password',
+        ]);
+
+        $this->assertGuest();
+        $response->assertSessionHasErrors(['username' => 'هذا الحساب معطّل، راجع الإدارة']);
+    });
+
+    test('a user deactivated mid-session is logged out on the next request', function () {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/dashboard')->assertOk();
+
+        User::query()->whereKey($user->id)->update(['is_active' => false]);
+
+        // The test app is reused between requests; drop the resolved guard so the
+        // next request re-reads the user from the session like a real one does.
+        $this->app['auth']->forgetGuards();
+
+        $this->get('/dashboard')->assertRedirect(route('login'));
+        $this->assertGuest();
+    });
+
+    test('an active user is not affected by the active-account check', function () {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get('/dashboard')->assertOk();
+        $this->assertAuthenticated();
+    });
+});

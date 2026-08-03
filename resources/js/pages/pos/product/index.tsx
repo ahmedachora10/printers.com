@@ -104,7 +104,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
     // first so the cashier can return to it from the list.
     const agentOptions = useMemo<ComboboxOption[]>(
         () => [
-            { value: 'none', label: '— بدون وكيل —' },
+            { value: 'none', label: '— بدون مندوب —' },
             ...agents.map((a) => ({ value: String(a.id), label: `${a.name} (${a.discountMode === 'rebate' ? 'عمولة' : 'خصم'} ${a.rate}${a.discountType === 'fixed' ? ' ر.س' : '%'})` })),
         ],
         [agents],
@@ -373,16 +373,16 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                     {agents.length > 0 && (
                         <Card>
                             <CardHeader className="pb-3">
-                                <CardTitle className="text-base">الوكيل</CardTitle>
+                                <CardTitle className="text-base">المندوب</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-2">
                                 <Combobox
                                     options={agentOptions}
                                     value={agentId === 'none' ? '' : agentId}
                                     onChange={(v) => setAgentId(v || 'none')}
-                                    placeholder="— بدون وكيل —"
-                                    searchPlaceholder="بحث عن وكيل"
-                                    emptyText="لا يوجد وكيل مطابق"
+                                    placeholder="— بدون مندوب —"
+                                    searchPlaceholder="بحث عن مندوب"
+                                    emptyText="لا يوجد مندوب مطابق"
                                     triggerClassName="w-full"
                                     className="w-[var(--radix-popover-trigger-width)] min-w-56"
                                 />
@@ -509,7 +509,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                             )}
                             {agentDiscount > 0 && (
                                 <div className="flex justify-between text-green-600 dark:text-green-400">
-                                    <span>خصم الوكيل</span>
+                                    <span>خصم المندوب</span>
                                     <span>−{formatCurrency(agentDiscount)}</span>
                                 </div>
                             )}
@@ -530,7 +530,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                             </div>
                             {agentRebate > 0 && (
                                 <div className="text-muted-foreground flex justify-between text-xs">
-                                    <span>عمولة الوكيل المرتجعة</span>
+                                    <span>عمولة المندوب المرتجعة</span>
                                     <span>{formatCurrency(agentRebate)}</span>
                                 </div>
                             )}

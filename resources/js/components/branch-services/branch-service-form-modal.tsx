@@ -205,7 +205,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                 <InputError message={errors.price_per_sqm} />
                             </div>
                             <div className="space-y-1">
-                                <Label htmlFor="bs-agent-sqm">عمولة الوكيل للمتر (ر.س)</Label>
+                                <Label htmlFor="bs-agent-sqm">عمولة المندوب للمتر (ر.س)</Label>
                                 <Input
                                     id="bs-agent-sqm"
                                     type="number"

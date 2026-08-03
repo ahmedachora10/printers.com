@@ -107,6 +107,32 @@ describe('User Impersonation', function () {
                 ->where('auth.impersonating.viewingName', $this->employee->name));
     });
 
+    it('forbids impersonating a deactivated account', function () {
+        $this->employee->update(['is_active' => false]);
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('users.impersonate', $this->employee))
+            ->assertForbidden();
+
+        $this->assertAuthenticatedAs($this->superAdmin->fresh());
+    });
+
+    it('returns the admin to their own account if the impersonated user is deactivated mid-session', function () {
+        $this->actingAs($this->superAdmin)
+            ->post(route('users.impersonate', $this->employee));
+
+        $this->employee->update(['is_active' => false]);
+
+        // The test app is reused between requests; drop the resolved guard so the
+        // next request re-reads the user from the session like a real one does.
+        $this->app['auth']->forgetGuards();
+
+        $this->get(route('dashboard'))->assertRedirect(route('users.index'));
+
+        $this->assertAuthenticatedAs($this->superAdmin->fresh());
+        expect(session()->has('impersonator_id'))->toBeFalse();
+    });
+
     it('does nothing when leaving without an active impersonation', function () {
         $this->actingAs($this->superAdmin)
             ->delete(route('impersonate.leave'))

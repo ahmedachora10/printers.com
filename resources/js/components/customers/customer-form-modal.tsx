@@ -236,16 +236,16 @@ export default function CustomerFormModal({ open, onOpenChange, customer, agents
                         </div>
 
                         <div className="space-y-1">
-                            <Label htmlFor="cf-agent-id">الوكيل</Label>
+                            <Label htmlFor="cf-agent-id">المندوب</Label>
                             <Select
                                 value={data.agent_id === '' ? 'none' : data.agent_id}
                                 onValueChange={(v) => setData('agent_id', v === 'none' ? '' : v)}
                             >
                                 <SelectTrigger id="cf-agent-id">
-                                    <SelectValue placeholder="اختر وكيلاً (اختياري)" />
+                                    <SelectValue placeholder="اختر مندوباً (اختياري)" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="none">بدون وكيل</SelectItem>
+                                    <SelectItem value="none">بدون مندوب</SelectItem>
                                     {agents.map((agent) => (
                                         <SelectItem key={agent.id} value={String(agent.id)}>
                                             {agent.name}
