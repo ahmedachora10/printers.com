@@ -1,6 +1,7 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
-import { DateRangeFields, FilterSelect } from '@/components/reports/filter-fields';
+import DateRangeBar from '@/components/reports/date-range-bar';
+import { FilterSelect } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -97,9 +98,8 @@ export default function SalesReportIndex({
     const qs = new URLSearchParams(f.appliedQuery).toString();
     const exportUrl = `${REPORT_URL}/export${qs ? `?${qs}` : ''}`;
 
+    // No chips for from/to — the range is always visible in the bar above.
     const chips: FilterChip[] = [];
-    if (f.isActive('from')) chips.push({ key: 'from', label: `من: ${formatDate(applied.from)}`, onRemove: () => f.remove('from') });
-    if (f.isActive('to')) chips.push({ key: 'to', label: `إلى: ${formatDate(applied.to)}`, onRemove: () => f.remove('to') });
     if (f.isActive('branch')) {
         const name = branches.find((b) => b.id.toString() === applied.branch)?.name ?? applied.branch;
         chips.push({ key: 'branch', label: `الفرع: ${name}`, onRemove: () => f.remove('branch') });
@@ -115,12 +115,6 @@ export default function SalesReportIndex({
                     <h1 className="text-2xl font-bold">تقرير المبيعات</h1>
                     <div className="flex items-center gap-2">
                         <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
-                            <DateRangeFields
-                                from={f.draft.from}
-                                to={f.draft.to}
-                                onFromChange={(v) => f.setField('from', v)}
-                                onToChange={(v) => f.setField('to', v)}
-                            />
                             {canPickBranch && (
                                 <FilterSelect
                                     label="الفرع"
@@ -146,6 +140,10 @@ export default function SalesReportIndex({
                             </a>
                         </Button>
                     </div>
+                </div>
+
+                <div className="mb-6">
+                    <DateRangeBar filters={f} from={applied.from} to={applied.to} />
                 </div>
 
                 <ActiveFilterChips chips={chips} />

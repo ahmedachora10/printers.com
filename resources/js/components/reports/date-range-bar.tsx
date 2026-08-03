@@ -1,7 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { router } from '@inertiajs/react';
+import { type UseReportFilters } from '@/hooks/use-report-filters';
 
 /** Local YYYY-MM-DD — never toISOString(), which shifts across the UTC boundary. */
 function iso(date: Date): string {
@@ -34,23 +34,21 @@ const SHORTCUTS: Shortcut[] = [
 ];
 
 interface Props {
-    /** Route the range is applied against. */
-    url: string;
+    /** The page's filter state — the single source of truth for every filter. */
+    filters: UseReportFilters;
     /** Currently applied range, as YYYY-MM-DD. */
     from: string;
     to: string;
-    /** Other applied filters to carry along so the range doesn't drop them. */
-    params?: Record<string, string>;
 }
 
 /**
  * Always-visible date range: four shortcuts plus من/إلى, applied immediately.
  * Sits above a report so the common case (today, yesterday, this month) never
- * costs a trip through the filter modal.
+ * costs a trip through the filter modal. Navigating through useReportFilters
+ * keeps the page's other filters applied.
  */
-export default function DateRangeBar({ url, from, to, params = {} }: Props) {
-    const go = (next: { from: string; to: string }) =>
-        router.get(url, { ...params, ...next }, { preserveState: true, preserveScroll: true, replace: true });
+export default function DateRangeBar({ filters, from, to }: Props) {
+    const go = (next: { from: string; to: string }) => filters.replaceMany(next);
 
     const isCurrent = (range: { from: string; to: string }) => range.from === from && range.to === to;
 

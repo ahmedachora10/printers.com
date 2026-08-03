@@ -2,6 +2,7 @@ import { DataTable, type ColumnDef } from '@/components/data-table';
 import DateRangeBar from '@/components/reports/date-range-bar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useReportFilters } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
@@ -58,6 +59,8 @@ interface Props {
     recentInvoices: InvoiceRow[];
     payments: PaymentRow[];
     filters: { from: string; to: string };
+    /** Today — the range the portal opens on. */
+    defaultDate: string;
 }
 
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
@@ -71,7 +74,10 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
     );
 }
 
-export default function AgentPortalIndex({ agent, summary, recentInvoices, payments, filters }: Props) {
+export default function AgentPortalIndex({ agent, summary, recentInvoices, payments, filters, defaultDate }: Props) {
+    // The portal's only filter is the range, but it goes through the same hook as
+    // the reports so DateRangeBar behaves identically everywhere.
+    const f = useReportFilters('/agent-portal', filters, { from: defaultDate, to: defaultDate });
     const isRebate = agent.discountMode === 'rebate';
     // Per-line commissions can accrue to any agent, whatever their invoice-level mode.
     const hasLineCommission = recentInvoices.some((i) => i.lineCommission > 0);
@@ -181,7 +187,7 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                     </div>
                 </div>
 
-                <DateRangeBar url="/agent-portal" from={filters.from} to={filters.to} />
+                <DateRangeBar filters={f} from={filters.from} to={filters.to} />
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <StatCard label="عدد الفواتير" value={String(summary.invoiceCount)} />

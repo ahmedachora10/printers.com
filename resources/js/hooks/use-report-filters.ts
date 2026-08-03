@@ -18,6 +18,8 @@ export interface UseReportFilters {
     remove: (key: string) => void;
     /** Set a single applied filter to a new value and navigate — for chips that narrow rather than clear. */
     replace: (key: string, value: string) => void;
+    /** Set several applied filters at once and navigate — for the always-visible date bar. */
+    replaceMany: (values: FilterValues) => void;
     /** Whether a given key currently differs from its default. */
     isActive: (key: string) => boolean;
     /** Number of applied filters that differ from their defaults. */
@@ -72,6 +74,8 @@ export function useReportFilters(url: string, applied: FilterValues, defaults: F
 
     const replace = (key: string, value: string) => navigate({ ...applied, [key]: value });
 
+    const replaceMany = (values: FilterValues) => navigate({ ...applied, ...values });
+
     const remove = (key: string) => replace(key, defaults[key]);
 
     const isActive = (key: string) => {
@@ -81,5 +85,18 @@ export function useReportFilters(url: string, applied: FilterValues, defaults: F
 
     const activeCount = Object.keys(defaults).filter(isActive).length;
 
-    return { draft, setField, open, onOpenChange, apply, reset, remove, replace, isActive, activeCount, appliedQuery: buildQuery(applied) };
+    return {
+        draft,
+        setField,
+        open,
+        onOpenChange,
+        apply,
+        reset,
+        remove,
+        replace,
+        replaceMany,
+        isActive,
+        activeCount,
+        appliedQuery: buildQuery(applied),
+    };
 }
