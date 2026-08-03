@@ -163,6 +163,7 @@ class AgentPortalController extends Controller
                 'from' => $from->toDateString(),
                 'to' => $to->toDateString(),
             ],
+            'defaultDate' => now()->toDateString(),
         ]);
     }
 

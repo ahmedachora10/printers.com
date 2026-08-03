@@ -20,7 +20,7 @@ class CommissionReportExport implements FromCollection, ShouldAutoSize, WithHead
     /** @return array<int, string> */
     public function headings(): array
     {
-        return ['الموظف', 'رقم الفاتورة', 'الخدمة', 'النوع', 'الشريحة', 'المصدر', 'المبلغ', 'الحالة', 'تاريخ الاستحقاق', 'تاريخ الصرف'];
+        return ['الموظف', 'رقم الفاتورة', 'الخدمة', 'النوع', 'الشريحة', 'المصدر', 'المبلغ', 'للعمولات', 'الحالة', 'تاريخ الاستحقاق', 'تاريخ الصرف'];
     }
 
     /** @return Collection<int, mixed> */
@@ -34,6 +34,7 @@ class CommissionReportExport implements FromCollection, ShouldAutoSize, WithHead
             $line['tierApplied'] !== null ? (string) $line['tierApplied'] : '—',
             $line['sourceLabel'],
             number_format((float) $line['amount'], 2),
+            number_format((float) $line['lineCommission'], 2),
             $this->invoiceStatusLabel((string) $line['invoiceStatus']),
             $line['earnedAt'] ? Carbon::parse($line['earnedAt'])->format('d/m/Y') : '—',
             $line['paidAt'] ? Carbon::parse($line['paidAt'])->format('d/m/Y') : '—',

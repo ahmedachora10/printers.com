@@ -320,6 +320,13 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
             ],
             [
+                'title' => 'عمولات المناديب',
+                'url' => route('reports.agent-commissions'),
+                'icon' => 'Handshake',
+                'group' => 'reports',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
                 'title' => 'التقرير اليومي',
                 'url' => route('reports.daily'),
                 'icon' => 'CalendarDays',

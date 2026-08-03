@@ -1,7 +1,8 @@
 import { ExportChartCard, PointsMonthlyChart, TierDistributionChart } from '@/components/analytics/charts';
 import { RevenueTrendChart, SalesByTypeChart, TopServicesChart } from '@/components/dashboard/charts';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
-import { DateRangeFields, FilterSelect } from '@/components/reports/filter-fields';
+import DateRangeBar from '@/components/reports/date-range-bar';
+import { FilterSelect } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
@@ -86,20 +87,16 @@ export default function AnalyticsIndex({
                         <h1 className="text-2xl font-bold">التحليلات المتقدمة</h1>
                         <p className="text-muted-foreground text-sm">رسوم بيانية تفاعلية للمبيعات والولاء — يمكن تصدير كل رسم كصورة PNG</p>
                     </div>
-                    <FilterModal
-                        open={f.open}
-                        onOpenChange={f.onOpenChange}
-                        onApply={f.apply}
-                        onReset={f.reset}
-                        activeCount={f.isActive('branch') ? 1 : 0}
-                    >
-                        <DateRangeFields
-                            from={f.draft.from}
-                            to={f.draft.to}
-                            onFromChange={(v) => f.setField('from', v)}
-                            onToChange={(v) => f.setField('to', v)}
-                        />
-                        {canPickBranch && (
+                    {/* The range lives in the bar below; the branch is the only
+                        thing left to filter, so the modal is a super-admin affair. */}
+                    {canPickBranch && (
+                        <FilterModal
+                            open={f.open}
+                            onOpenChange={f.onOpenChange}
+                            onApply={f.apply}
+                            onReset={f.reset}
+                            activeCount={f.isActive('branch') ? 1 : 0}
+                        >
                             <FilterSelect
                                 label="الفرع"
                                 value={f.draft.branch}
@@ -107,9 +104,11 @@ export default function AnalyticsIndex({
                                 allLabel="كل الفروع"
                                 options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
                             />
-                        )}
-                    </FilterModal>
+                        </FilterModal>
+                    )}
                 </div>
+
+                <DateRangeBar filters={f} from={applied.from} to={applied.to} />
 
                 <ActiveFilterChips chips={chips} />
 
