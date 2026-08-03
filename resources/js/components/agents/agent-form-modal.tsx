@@ -93,7 +93,7 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                    <DialogTitle>{isEdit ? 'تعديل وكيل' : 'إضافة وكيل'}</DialogTitle>
+                    <DialogTitle>{isEdit ? 'تعديل مندوب' : 'إضافة مندوب'}</DialogTitle>
                 </DialogHeader>
 
                 <form id="agent-form" onSubmit={handleSubmit} className="space-y-4 py-2">
@@ -126,7 +126,7 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                                 id="agent-name"
                                 value={data.name}
                                 onChange={(e) => setData('name', e.target.value)}
-                                placeholder="اسم الوكيل"
+                                placeholder="اسم المندوب"
                             />
                             <InputError message={errors.name} />
                         </div>
@@ -298,7 +298,7 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                     </div>
 
                     <div className="flex items-center justify-between rounded-lg border px-4 py-3">
-                        <Label htmlFor="agent-active">الوكيل نشط</Label>
+                        <Label htmlFor="agent-active">المندوب نشط</Label>
                         <Switch
                             id="agent-active"
                             checked={data.is_active}

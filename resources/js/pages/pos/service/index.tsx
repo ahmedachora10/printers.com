@@ -639,7 +639,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     {agents.length > 0 && (
                         <Card>
                             <CardHeader className="pb-3">
-                                <CardTitle className="text-base">الوكلاء</CardTitle>
+                                <CardTitle className="text-base">المناديب</CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-2">
                                 <Combobox
@@ -649,9 +649,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                         const id = Number(v);
                                         if (id) setAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
                                     }}
-                                    placeholder="— إضافة وكيل —"
-                                    searchPlaceholder="بحث عن وكيل"
-                                    emptyText="لا يوجد وكيل مطابق"
+                                    placeholder="— إضافة مندوب —"
+                                    searchPlaceholder="بحث عن مندوب"
+                                    emptyText="لا يوجد مندوب مطابق"
                                     triggerClassName="w-full"
                                     className="w-[var(--radix-popover-trigger-width)] min-w-56"
                                 />
@@ -803,7 +803,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                             )}
                             {agentDiscount > 0 && (
                                 <div className="flex justify-between text-green-600 dark:text-green-400">
-                                    <span>خصم الوكيل</span>
+                                    <span>خصم المندوب</span>
                                     <span>−{formatCurrency(agentDiscount)}</span>
                                 </div>
                             )}
@@ -824,7 +824,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                             </div>
                             {agentRebate > 0 && (
                                 <div className="text-muted-foreground flex justify-between text-xs">
-                                    <span>عمولة الوكيل المرتجعة</span>
+                                    <span>عمولة المندوب المرتجعة</span>
                                     <span>{formatCurrency(agentRebate)}</span>
                                 </div>
                             )}

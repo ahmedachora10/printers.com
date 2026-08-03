@@ -17,7 +17,7 @@ enum Roles: string
             self::BRANCH_ADMIN => 'مدير فرع',
             self::ACCOUNTANT => 'محاسب',
             self::EMPLOYEE => 'موظف',
-            self::AGENT => 'وكيل',
+            self::AGENT => 'مندوب',
         };
     }
 

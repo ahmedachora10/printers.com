@@ -332,7 +332,7 @@ export default function CustomerShow({
 
                                 {customer.agent && (
                                     <div className="flex items-center justify-between border-t pt-3">
-                                        <span className="text-sm text-muted-foreground">الوكيل</span>
+                                        <span className="text-sm text-muted-foreground">المندوب</span>
                                         <span className="text-sm font-medium">{customer.agent.name}</span>
                                     </div>
                                 )}

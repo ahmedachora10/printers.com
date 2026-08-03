@@ -271,7 +271,7 @@ class ServiceInvoiceController extends Controller
 
             $attachAction->handle($invoice, $request->validated());
 
-            return redirect()->back(fallback: route('invoices.index'))
+            return redirect()->back(fallback: $this->customerEditFallback($invoice))
                 ->with('success', "تم إضافة بيانات العميل للفاتورة {$invoice->invoice_number}");
         }
 
@@ -285,8 +285,20 @@ class ServiceInvoiceController extends Controller
 
         $updateAction->handle($customer, $request->validated());
 
-        return redirect()->back(fallback: route('invoices.index'))
+        return redirect()->back(fallback: $this->customerEditFallback($invoice))
             ->with('success', "تم تحديث بيانات العميل للفاتورة {$invoice->invoice_number}");
+    }
+
+    /**
+     * Where to land after a customer edit when the request carries no referer:
+     * back to the queue for whoever reviews invoices, or the invoice list for
+     * the employee who edited their own.
+     */
+    private function customerEditFallback(ServiceInvoice $invoice): string
+    {
+        return Gate::allows('updateStatus', $invoice)
+            ? route('invoices.service.review')
+            : route('invoices.index');
     }
 
     /**

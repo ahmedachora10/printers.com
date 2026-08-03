@@ -1,4 +1,5 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
+import DateRangeBar from '@/components/reports/date-range-bar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
@@ -6,7 +7,7 @@ import { formatCurrency } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { useMemo } from 'react';
 
-const breadcrumbs: BreadcrumbItem[] = [{ title: 'بوابة الوكيل', href: '/agent-portal' }];
+const breadcrumbs: BreadcrumbItem[] = [{ title: 'بوابة المندوب', href: '/agent-portal' }];
 
 interface AgentInfo {
     name: string;
@@ -28,6 +29,10 @@ interface Summary {
 interface InvoiceRow {
     type: 'product' | 'service';
     invoiceNumber: string;
+    /** Who raised the invoice. */
+    employeeName: string | null;
+    /** First service/product on the invoice, plus a count of the rest. */
+    itemsLabel: string | null;
     totalAmount: number;
     rebate: number;
     lineCommission: number;
@@ -52,6 +57,7 @@ interface Props {
     summary: Summary;
     recentInvoices: InvoiceRow[];
     payments: PaymentRow[];
+    filters: { from: string; to: string };
 }
 
 function StatCard({ label, value, accent }: { label: string; value: string; accent?: boolean }) {
@@ -65,7 +71,7 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
     );
 }
 
-export default function AgentPortalIndex({ agent, summary, recentInvoices, payments }: Props) {
+export default function AgentPortalIndex({ agent, summary, recentInvoices, payments, filters }: Props) {
     const isRebate = agent.discountMode === 'rebate';
     // Per-line commissions can accrue to any agent, whatever their invoice-level mode.
     const hasLineCommission = recentInvoices.some((i) => i.lineCommission > 0);
@@ -82,6 +88,12 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                 ),
             },
             { key: 'type', header: 'النوع', cell: (i) => (i.type === 'service' ? 'خدمة' : 'منتجات') },
+            {
+                key: 'service',
+                header: 'الخدمة',
+                cell: (i) => <span className="text-muted-foreground">{i.itemsLabel ?? '—'}</span>,
+            },
+            { key: 'employee', header: 'الموظف', cell: (i) => i.employeeName ?? '—' },
             {
                 key: 'date',
                 header: 'التاريخ',
@@ -168,6 +180,8 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                         </p>
                     </div>
                 </div>
+
+                <DateRangeBar url="/agent-portal" from={filters.from} to={filters.to} />
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <StatCard label="عدد الفواتير" value={String(summary.invoiceCount)} />

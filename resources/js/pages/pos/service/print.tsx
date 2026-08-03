@@ -135,7 +135,7 @@ export default function ServiceInvoicePrint({ invoice, branch }: Props) {
                 )}
                 {invoice.agentDiscount > 0 && (
                     <div className="flex justify-between">
-                        <span>خصم الوكيل</span>
+                        <span>خصم المندوب</span>
                         <span>−{formatCurrency(invoice.agentDiscount)}</span>
                     </div>
                 )}

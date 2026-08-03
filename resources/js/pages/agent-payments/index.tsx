@@ -12,7 +12,7 @@ import { router } from '@inertiajs/react';
 import { Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
-const breadcrumbs: BreadcrumbItem[] = [{ title: 'مدفوعات الوكلاء', href: '/agent-payments' }];
+const breadcrumbs: BreadcrumbItem[] = [{ title: 'مدفوعات المناديب', href: '/agent-payments' }];
 
 interface Props {
     agents: AgentOutstanding[];
@@ -29,7 +29,7 @@ export default function AgentPaymentsIndex({ agents, payments }: Props) {
 
     const columns = useMemo<ColumnDef<AgentPaymentRow>[]>(
         () => [
-            { key: 'agent', header: 'الوكيل', cell: (p) => <span className="font-medium">{p.agentName ?? '—'}</span> },
+            { key: 'agent', header: 'المندوب', cell: (p) => <span className="font-medium">{p.agentName ?? '—'}</span> },
             {
                 key: 'period',
                 header: 'الفترة',
@@ -55,7 +55,7 @@ export default function AgentPaymentsIndex({ agents, payments }: Props) {
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
                 <div className="mb-6 flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">مدفوعات الوكلاء</h1>
+                    <h1 className="text-2xl font-bold">مدفوعات المناديب</h1>
                     <div className="rounded-lg border bg-muted/40 px-4 py-2 text-sm">
                         <span className="text-muted-foreground">إجمالي العمولات المستحقة: </span>
                         <span className="font-bold tabular-nums">{formatCurrency(totalOutstanding)}</span>
@@ -69,7 +69,7 @@ export default function AgentPaymentsIndex({ agents, payments }: Props) {
                     </CardHeader>
                     <CardContent>
                         {agents.length === 0 ? (
-                            <p className="text-muted-foreground text-sm">لا يوجد وكلاء.</p>
+                            <p className="text-muted-foreground text-sm">لا يوجد مناديب.</p>
                         ) : (
                             <div className="divide-y">
                                 {agents.map((a) => (

@@ -20,7 +20,7 @@ import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'الوكلاء', href: '/agents' },
+    { title: 'المناديب', href: '/agents' },
 ];
 
 interface Props {
@@ -191,7 +191,7 @@ export default function AgentsIndex({ items, agentTypes, discountModes, branches
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
                 <div className="mb-6 flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">الوكلاء</h1>
+                    <h1 className="text-2xl font-bold">المناديب</h1>
                 </div>
 
                 <div className="mb-6">
@@ -234,7 +234,7 @@ export default function AgentsIndex({ items, agentTypes, discountModes, branches
                         onClearAll={handleClearAll}
                         actions={
                             <Button size="sm" onClick={openCreate}>
-                                <Plus className="size-4" /> إضافة وكيل
+                                <Plus className="size-4" /> إضافة مندوب
                             </Button>
                         }
                     />
@@ -261,7 +261,7 @@ export default function AgentsIndex({ items, agentTypes, discountModes, branches
                     <DialogHeader>
                         <DialogTitle>تأكيد الحذف</DialogTitle>
                         <DialogDescription>
-                            هل أنت متأكد من حذف الوكيل «{deleting?.name}»؟ لا يمكن التراجع عن هذا الإجراء.
+                            هل أنت متأكد من حذف المندوب «{deleting?.name}»؟ لا يمكن التراجع عن هذا الإجراء.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

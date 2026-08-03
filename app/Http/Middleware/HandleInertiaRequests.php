@@ -138,7 +138,7 @@ class HandleInertiaRequests extends Middleware
         $groups = [
             'main' => ['label' => null, 'icon' => null],
             'sales' => ['label' => 'المبيعات', 'icon' => 'ShoppingCart'],
-            'crm' => ['label' => 'العملاء والوكلاء', 'icon' => 'Users'],
+            'crm' => ['label' => 'العملاء والمناديب', 'icon' => 'Users'],
             'inventory' => ['label' => 'المخزون', 'icon' => 'Package'],
             'finance' => ['label' => 'المالية', 'icon' => 'Wallet'],
             'reports' => ['label' => 'التقارير', 'icon' => 'ChartPie'],
@@ -154,7 +154,7 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
-                'title' => 'بوابة الوكيل',
+                'title' => 'بوابة المندوب',
                 'url' => route('agent-portal.index'),
                 'icon' => 'Handshake',
                 'group' => 'main',
@@ -205,14 +205,14 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
-                'title' => 'الوكلاء',
+                'title' => 'المناديب',
                 'url' => route('agents.index'),
                 'icon' => 'Handshake',
                 'group' => 'crm',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
-                'title' => 'مدفوعات الوكلاء',
+                'title' => 'مدفوعات المناديب',
                 'url' => route('agent-payments.index'),
                 'icon' => 'Wallet',
                 'group' => 'crm',

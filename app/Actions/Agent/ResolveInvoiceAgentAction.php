@@ -28,7 +28,7 @@ class ResolveInvoiceAgentAction
 
         if (! $agent || ! $agent->agentProfile) {
             throw ValidationException::withMessages([
-                'agent_id' => 'الوكيل المحدد غير صالح لهذا الفرع.',
+                'agent_id' => 'المندوب المحدد غير صالح لهذا الفرع.',
             ]);
         }
 

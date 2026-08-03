@@ -128,6 +128,48 @@ describe('Agent Portal', function () {
                 ->has('recentInvoices', 1));
     });
 
+    it('opens on today and hides an invoice from an earlier day', function () {
+        agentInvoice(ServiceInvoice::class, $this->branch->id, $this->agent->id, ['agent_rebate' => 10]);
+
+        agentInvoice(ServiceInvoice::class, $this->branch->id, $this->agent->id, ['agent_rebate' => 40]);
+        // created_at is not fillable — force it to backdate the invoice.
+        ServiceInvoice::latest('id')->firstOrFail()->forceFill(['created_at' => now()->subDays(5)])->save();
+
+        $this->actingAs($this->agent);
+
+        $this->get(route('agent-portal.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('summary.invoiceCount', 1)
+                ->where('summary.rebateEarned', 10)
+                ->where('filters.from', now()->toDateString())
+                ->where('filters.to', now()->toDateString())
+                ->has('recentInvoices', 1));
+
+        // Widening the range brings the older invoice back.
+        $this->get(route('agent-portal.index', ['from' => now()->subDays(7)->toDateString(), 'to' => now()->toDateString()]))
+            ->assertInertia(fn ($page) => $page
+                ->where('summary.invoiceCount', 2)
+                ->where('summary.rebateEarned', 50)
+                ->has('recentInvoices', 2));
+    });
+
+    it('names the employee who raised the invoice and the service sold', function () {
+        agentInvoice(ServiceInvoice::class, $this->branch->id, $this->agent->id, ['agent_rebate' => 10]);
+
+        $invoice = ServiceInvoice::latest('id')->firstOrFail();
+        $invoice->lines()->createMany([
+            ['service_name' => 'طباعة لوحة', 'qty' => 1, 'unit_price' => 60, 'discount_pct' => 0, 'subtotal' => 60, 'commission_pct' => 0, 'commission_amount' => 0],
+            ['service_name' => 'تغليف', 'qty' => 1, 'unit_price' => 40, 'discount_pct' => 0, 'subtotal' => 40, 'commission_pct' => 0, 'commission_amount' => 0],
+        ]);
+
+        $this->actingAs($this->agent);
+
+        $this->get(route('agent-portal.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('recentInvoices.0.employeeName', $this->branchAdmin->name)
+                ->where('recentInvoices.0.itemsLabel', 'طباعة لوحة و1 أخرى'));
+    });
+
     it('redirects an agent to the portal on login', function () {
         $this->agent->update(['username' => 'agent_login']);
 
