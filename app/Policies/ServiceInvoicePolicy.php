@@ -61,6 +61,17 @@ class ServiceInvoicePolicy
     }
 
     /**
+     * Who may correct the customer attached to an invoice: a reviewer on any
+     * invoice in their scope, or the employee who raised it while it is still
+     * DUE. What of the customer record they may actually rewrite is a separate
+     * question, answered by CustomerPolicy::updateFromInvoice.
+     */
+    public function updateCustomer(User $user, ServiceInvoice $invoice): bool
+    {
+        return $this->updateStatus($user, $invoice) || $this->update($user, $invoice);
+    }
+
+    /**
      * The employee who raised an invoice may delete it before OR after approval
      * (business rule: an accountant can never delete an employee's invoice).
      * Cancelled invoices are already unwound and nothing left to delete.

@@ -163,10 +163,6 @@ Route::middleware(['auth'])->group(function () {
             // per-invoice by ServiceInvoicePolicy, never by an accountant.
             Route::get('service/{invoice}/edit', [ServiceInvoiceController::class, 'edit'])->name('service.edit');
             Route::put('service/{invoice}', [ServiceInvoiceController::class, 'update'])->name('service.update');
-            // Tax number only — the rest of the customer record stays with the
-            // accountant via invoices.service.update-customer.
-            Route::patch('service/{invoice}/tax-number', [ServiceInvoiceController::class, 'updateTaxNumber'])
-                ->name('service.tax-number');
             Route::delete('service/{invoice}', [ServiceInvoiceController::class, 'destroy'])->name('service.destroy');
         });
     });
@@ -178,10 +174,17 @@ Route::middleware(['auth'])->group(function () {
             Route::get('review', [ServiceInvoiceController::class, 'review'])->name('review');
             Route::patch('{invoice}/pay', [ServiceInvoiceController::class, 'markPaid'])->name('pay');
             Route::patch('{invoice}/cancel', [ServiceInvoiceController::class, 'cancel'])->name('cancel');
-            Route::patch('{invoice}/customer', [ServiceInvoiceController::class, 'updateCustomer'])->name('update-customer');
             Route::patch('{invoice}/payment-method', [ServiceInvoiceController::class, 'updatePaymentMethod'])->name('update-payment-method');
             Route::post('{invoice}/receipt', [InvoiceReceiptController::class, 'store'])->name('receipt');
         });
+    });
+
+    // Customer details of a service invoice — shared by the accountant's review
+    // queue and the owning employee's POS edit screen. Who may touch which
+    // invoice is decided per-invoice by ServiceInvoicePolicy::updateCustomer.
+    Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
+        Route::patch('invoices/service/{invoice}/customer', [ServiceInvoiceController::class, 'updateCustomer'])
+            ->name('invoices.service.update-customer');
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {

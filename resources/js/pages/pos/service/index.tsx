@@ -1,3 +1,4 @@
+import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
 import { PosCartTable } from '@/components/pos/cart-table';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
+import serviceInvoice from '@/routes/invoices/service';
 import service from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import {
@@ -120,12 +122,16 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // The chosen customer is held in full (fetched on demand) rather than looked up
     // from a preloaded list, so 10k+ customers never ship to the browser.
     const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(invoice?.customer ?? null);
-    // Tax number of a registered customer, editable while re-editing a DUE invoice.
-    // Saved on its own endpoint — the employee may correct only this field, never
-    // the name or phone, which are shared across all of that customer's invoices.
-    const [customerTaxNumber, setCustomerTaxNumber] = useState(invoice?.customer?.taxNumber ?? '');
-    const [taxNumberError, setTaxNumberError] = useState<string | undefined>();
-    const [savingTaxNumber, setSavingTaxNumber] = useState(false);
+    // Customer details, editable while re-editing a DUE invoice. Saved on the same
+    // endpoint the accountant's review queue uses; the server decides what this
+    // employee may rewrite on a record shared by all of that customer's invoices.
+    const [customerEdit, setCustomerEdit] = useState<InvoiceCustomerFormData>({
+        full_name: invoice?.customer?.fullName ?? '',
+        phone: invoice?.customer?.phone ?? '',
+        tax_number: invoice?.customer?.taxNumber ?? '',
+    });
+    const [customerErrors, setCustomerErrors] = useState<InvoiceCustomerErrors>({});
+    const [savingCustomer, setSavingCustomer] = useState(false);
     const customerId = selectedCustomer ? String(selectedCustomer.id) : 'none';
     // A service invoice may carry several agents (shared rebate).
     const [agentIds, setAgentIds] = useState<number[]>(invoice?.agentIds ?? []);
@@ -288,24 +294,45 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         setSearch('');
     }
 
-    function saveTaxNumber() {
+    /** Pick a customer and re-seed the editable details from that record. */
+    function pickCustomer(customer: PosCustomer | null) {
+        setSelectedCustomer(customer);
+        setCustomerEdit({
+            full_name: customer?.fullName ?? '',
+            phone: customer?.phone ?? '',
+            tax_number: customer?.taxNumber ?? '',
+        });
+        setCustomerErrors({});
+    }
+
+    // Nothing to submit until one of the three fields differs from the record.
+    const customerDetailsChanged =
+        selectedCustomer !== null &&
+        (customerEdit.full_name.trim() !== selectedCustomer.fullName ||
+            customerEdit.phone.trim() !== selectedCustomer.phone ||
+            customerEdit.tax_number.trim() !== (selectedCustomer.taxNumber ?? ''));
+
+    function saveCustomer() {
         if (!invoice || !selectedCustomer) return;
-        setSavingTaxNumber(true);
-        setTaxNumberError(undefined);
-        router.patch(
-            service.taxNumber(invoice.id).url,
-            { tax_number: customerTaxNumber.trim() || null },
-            {
-                preserveScroll: true,
-                preserveState: true,
-                onError: (e) => setTaxNumberError(e.tax_number),
-                onSuccess: () => {
-                    setSelectedCustomer((c) => (c ? { ...c, taxNumber: customerTaxNumber.trim() || null } : c));
-                    toast.success('تم حفظ الرقم الضريبي.');
-                },
-                onFinish: () => setSavingTaxNumber(false),
+        const payload = {
+            full_name: customerEdit.full_name.trim(),
+            phone: customerEdit.phone.trim(),
+            tax_number: customerEdit.tax_number.trim(),
+        };
+        setSavingCustomer(true);
+        setCustomerErrors({});
+        router.patch(serviceInvoice.updateCustomer(invoice.id).url, payload, {
+            preserveScroll: true,
+            preserveState: true,
+            onError: (e) => setCustomerErrors({ full_name: e.full_name, phone: e.phone, tax_number: e.tax_number }),
+            onSuccess: () => {
+                setSelectedCustomer((c) =>
+                    c ? { ...c, fullName: payload.full_name, phone: payload.phone, taxNumber: payload.tax_number || null } : c,
+                );
+                toast.success('تم حفظ بيانات العميل.');
             },
-        );
+            onFinish: () => setSavingCustomer(false),
+        });
     }
 
     function addManualLine() {
@@ -547,7 +574,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 fetcher={fetchCustomers}
                                 value={customerId}
                                 selectedLabel={selectedCustomer ? `${selectedCustomer.fullName} — ${selectedCustomer.phone}` : undefined}
-                                onChange={(_v, option) => setSelectedCustomer(option?.data ?? null)}
+                                onChange={(_v, option) => pickCustomer(option?.data ?? null)}
                                 sentinel={CUSTOMER_SENTINEL}
                                 placeholder="— عميل عابر —"
                                 searchPlaceholder="بحث عن عميل (اسم/هاتف)"
@@ -577,34 +604,32 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 </>
                             )}
 
-                            {/* Editing a DUE invoice: let the employee add or correct the
-                                registered customer's tax number without leaving the screen. */}
+                            {/* Editing a DUE invoice: let the employee correct the registered
+                                customer's details without leaving the screen. */}
                             {isEditing && selectedCustomer && (
-                                <div className="space-y-1.5 border-t pt-3">
-                                    <Label htmlFor="customer-tax-number" className="text-muted-foreground text-xs">
-                                        الرقم الضريبي للعميل
-                                    </Label>
-                                    <div className="flex items-center gap-2">
-                                        <Input
-                                            id="customer-tax-number"
-                                            value={customerTaxNumber}
-                                            onChange={(e) => setCustomerTaxNumber(e.target.value.replace(/[^0-9]/g, ''))}
-                                            placeholder="15 رقماً"
-                                            inputMode="numeric"
-                                            maxLength={15}
-                                            disabled={savingTaxNumber}
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={saveTaxNumber}
-                                            disabled={savingTaxNumber || customerTaxNumber === (selectedCustomer.taxNumber ?? '')}
-                                        >
-                                            حفظ
-                                        </Button>
-                                    </div>
-                                    {taxNumberError && <p className="text-destructive text-xs">{taxNumberError}</p>}
+                                <div className="space-y-2 border-t pt-3">
+                                    <Label className="text-muted-foreground text-xs">بيانات العميل</Label>
+                                    <InvoiceCustomerFields
+                                        idPrefix="pos-customer"
+                                        data={customerEdit}
+                                        onChange={(field, value) =>
+                                            setCustomerEdit((prev) => ({
+                                                ...prev,
+                                                [field]: field === 'tax_number' ? value.replace(/[^0-9]/g, '') : value,
+                                            }))
+                                        }
+                                        errors={customerErrors}
+                                        disabled={savingCustomer}
+                                    />
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={saveCustomer}
+                                        disabled={savingCustomer || !customerDetailsChanged}
+                                    >
+                                        حفظ بيانات العميل
+                                    </Button>
                                 </div>
                             )}
                         </CardContent>
