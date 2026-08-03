@@ -40,11 +40,16 @@ class UserPolicy
 
     /**
      * Sign in as another user. Reserved for admins, and never targets another
-     * admin or yourself. Branch-admins are confined to their own branch staff.
+     * admin, a deactivated account, or yourself. Branch-admins are confined to
+     * their own branch staff.
      */
     public function impersonate(User $user, User $model): bool
     {
         if ($user->id === $model->id) {
+            return false;
+        }
+
+        if (! $model->is_active) {
             return false;
         }
 
