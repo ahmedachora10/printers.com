@@ -6,9 +6,16 @@ export interface Impersonating {
     viewingName: string | null;
 }
 
+export interface AuthBranch {
+    name: string;
+    logoUrl: string | null;
+}
+
 export interface Auth {
     user: User;
     role?: string;
+    /** The branch this user works out of — null for a super-admin. */
+    branch?: AuthBranch | null;
     impersonating?: Impersonating | null;
 }
 
