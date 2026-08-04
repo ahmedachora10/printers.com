@@ -123,13 +123,14 @@ describe('Service POS', function () {
             ->and((float) $invoice->subtotal)->toBe(30.00)
             ->and((float) $invoice->vat_amount)->toBe(4.50)
             ->and((float) $invoice->total_amount)->toBe(34.50)
-            ->and((float) $invoice->employee_commission)->toBe(3.00)
+            // Commission is earned net of VAT: 30 / 1.15 = 26.09, at 10% = 2.61.
+            ->and((float) $invoice->employee_commission)->toBe(2.61)
             ->and($invoice->invoice_number)->toBe(sprintf('SINV-%03d-%05d', $this->branch->id, 1))
             ->and($invoice->lines)->toHaveCount(1);
 
         $line = $invoice->lines->first();
         expect((float) $line->commission_pct)->toBe(10.00)
-            ->and((float) $line->commission_amount)->toBe(3.00);
+            ->and((float) $line->commission_amount)->toBe(2.61);
     });
 
     it('does not write a commission ledger row until the invoice is approved', function () {
@@ -157,7 +158,7 @@ describe('Service POS', function () {
         $entry = CommissionLedger::firstOrFail();
         expect($entry->user_id)->toBe($this->employee->id)
             ->and($entry->branch_id)->toBe($this->branch->id)
-            ->and((float) $entry->amount)->toBe(3.00)
+            ->and((float) $entry->amount)->toBe(2.61)
             ->and($entry->invoice_line_type)->toBe(ServiceInvoiceLine::class)
             ->and($entry->invoice_line_id)->toBe($line->id)
             ->and($entry->source_type->value)->toBe('standard')
@@ -179,8 +180,78 @@ describe('Service POS', function () {
         approveInvoice(ServiceInvoice::firstOrFail());
 
         $entry = CommissionLedger::firstOrFail();
+        // 100 / 1.15 = 86.96, at 5% = 4.35
         expect($entry->is_tahazir)->toBeTrue()
-            ->and((float) $entry->amount)->toBe(5.00);
+            ->and((float) $entry->amount)->toBe(4.35);
+    });
+
+    // ── COMMISSION IS EARNED NET OF VAT ────────────────────────────
+
+    it('earns the employee commission on the value net of VAT', function () {
+        // The client's worked example: a 100 line at 15% VAT and a 50% rate.
+        // 100 / 1.15 = 86.96, at 50% = 43.48 — not 50.00 on the gross.
+        $service = makeBranchService(['base_commission_pct' => 50]);
+        setCommissionRate($this->employee, $service, 50);
+
+        $this->post(route('pos.service.store'), svcPayload([
+            'lines' => [
+                ['branch_service_id' => $service->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],
+            ],
+        ]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+        approveInvoice($invoice);
+
+        expect((float) $invoice->refresh()->subtotal)->toBe(100.00)
+            ->and((float) $invoice->total_amount)->toBe(115.00)
+            ->and((float) $invoice->employee_commission)->toBe(43.48)
+            ->and((float) $invoice->lines->first()->commission_amount)->toBe(43.48)
+            ->and((float) CommissionLedger::firstOrFail()->amount)->toBe(43.48);
+    });
+
+    it('takes the coupon discount before dividing out VAT', function () {
+        // Order matters: discounts first, then VAT, then commission.
+        // 100 − 20 coupon = 80; 80 / 1.15 = 69.57; at 50% = 34.785 → 34.79.
+        $service = makeBranchService(['base_commission_pct' => 50]);
+        setCommissionRate($this->employee, $service, 50);
+
+        Coupon::factory()->create([
+            'branch_id' => $this->branch->id,
+            'code' => 'VATORDER',
+            'discount_type' => 'fixed',
+            'discount_value' => 20,
+            'is_active' => true,
+        ]);
+
+        $this->post(route('pos.service.store'), svcPayload([
+            'coupon_code' => 'VATORDER',
+            'lines' => [
+                ['branch_service_id' => $service->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],
+            ],
+        ]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+
+        expect((float) $invoice->coupon_discount)->toBe(20.00)
+            ->and((float) $invoice->total_amount)->toBe(92.00)
+            ->and((float) $invoice->employee_commission)->toBe(34.79);
+    });
+
+    it('leaves a zero-VAT branch commission on the gross value', function () {
+        // With no VAT there is nothing to divide out — the guard against the
+        // net-of-VAT rule quietly shrinking commissions where it should not.
+        $this->branch->update(['vat_rate_override' => 0]);
+
+        $service = makeBranchService(['base_commission_pct' => 50]);
+        setCommissionRate($this->employee, $service, 50);
+
+        $this->post(route('pos.service.store'), svcPayload([
+            'lines' => [
+                ['branch_service_id' => $service->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],
+            ],
+        ]));
+
+        expect((float) ServiceInvoice::firstOrFail()->employee_commission)->toBe(50.00);
     });
 
     it('applies a line discount to the subtotal and commission', function () {
@@ -191,9 +262,9 @@ describe('Service POS', function () {
         ]));
 
         $invoice = ServiceInvoice::firstOrFail();
-        // 2 * 10 * 0.9 = 18 subtotal; commission 10% = 1.80
+        // 2 * 10 * 0.9 = 18 subtotal; net of VAT 18 / 1.15 = 15.65, at 10% = 1.57
         expect((float) $invoice->subtotal)->toBe(18.00)
-            ->and((float) $invoice->employee_commission)->toBe(1.80);
+            ->and((float) $invoice->employee_commission)->toBe(1.57);
     });
 
     it('rejects a discount that exceeds the service ceiling', function () {
@@ -381,12 +452,12 @@ describe('Service POS', function () {
         $invoice = ServiceInvoice::firstOrFail();
         approveInvoice($invoice);
 
-        // subtotal 30, agent discount 10% = 3, taxable base 27. Commission is
-        // scaled by 27/30 = 0.9: raw 3.00 -> 2.70, in the invoice, the line and
-        // the immutable ledger row alike.
-        expect((float) $invoice->employee_commission)->toBe(2.70)
-            ->and((float) $invoice->lines->first()->commission_amount)->toBe(2.70)
-            ->and((float) CommissionLedger::firstOrFail()->amount)->toBe(2.70);
+        // subtotal 30, agent discount 10% = 3, taxable base 27, net of VAT
+        // 27 / 1.15 = 23.48. Commission is scaled by 23.48/30 = 0.7827: raw 3.00
+        // -> 2.35, in the invoice, the line and the immutable ledger row alike.
+        expect((float) $invoice->employee_commission)->toBe(2.35)
+            ->and((float) $invoice->lines->first()->commission_amount)->toBe(2.35)
+            ->and((float) CommissionLedger::firstOrFail()->amount)->toBe(2.35);
     });
 
     it('does not reduce employee commission by an agent rebate', function () {
@@ -399,9 +470,9 @@ describe('Service POS', function () {
         approveInvoice($invoice);
 
         // Rebate sits on top of the total and never touches the taxable base, so
-        // commission stays at the full 3.00.
-        expect((float) $invoice->employee_commission)->toBe(3.00)
-            ->and((float) CommissionLedger::firstOrFail()->amount)->toBe(3.00);
+        // commission stays at the full net-of-VAT figure (30 / 1.15 * 10%).
+        expect((float) $invoice->employee_commission)->toBe(2.61)
+            ->and((float) CommissionLedger::firstOrFail()->amount)->toBe(2.61);
     });
 
     it('records an agent rebate without deducting it from the total', function () {
@@ -412,11 +483,12 @@ describe('Service POS', function () {
 
         $invoice = ServiceInvoice::firstOrFail();
         $pivot = $invoice->invoiceAgents()->firstOrFail();
-        // subtotal 30, no discount, taxable 30, VAT 15% = 4.50, total 34.50, rebate 10% of total = 3.45
+        // subtotal 30, no discount, taxable 30, VAT 15% = 4.50, total 34.50.
+        // The rebate is earned net of VAT: 30 / 1.15 = 26.09, at 10% = 2.61.
         expect((float) $invoice->subtotal)->toBe(30.00)
             ->and((float) $invoice->agent_discount)->toBe(0.00)
             ->and((float) $invoice->total_amount)->toBe(34.50)
-            ->and((float) $pivot->rebate_amount)->toBe(3.45)
+            ->and((float) $pivot->rebate_amount)->toBe(2.61)
             ->and($pivot->agent_id)->toBe($agent->id);
     });
 
@@ -474,12 +546,13 @@ describe('Service POS', function () {
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$a->id, $b->id]]));
 
         $invoice = ServiceInvoice::firstOrFail();
-        // subtotal 30, no discount, total 34.50; rebates: 10% = 3.45 and 5% = 1.725→1.73
+        // subtotal 30, no discount, total 34.50. Rebates are earned on the
+        // net-of-VAT 26.09: 10% = 2.61 and 5% = 1.3045→1.30
         expect((float) $invoice->total_amount)->toBe(34.50)
             ->and((float) $invoice->agent_discount)->toBe(0.00)
             ->and($invoice->invoiceAgents()->count())->toBe(2)
-            ->and((float) $invoice->invoiceAgents()->where('agent_id', $a->id)->value('rebate_amount'))->toBe(3.45)
-            ->and((float) $invoice->invoiceAgents()->where('agent_id', $b->id)->value('rebate_amount'))->toBe(1.73);
+            ->and((float) $invoice->invoiceAgents()->where('agent_id', $a->id)->value('rebate_amount'))->toBe(2.61)
+            ->and((float) $invoice->invoiceAgents()->where('agent_id', $b->id)->value('rebate_amount'))->toBe(1.30);
     });
 
     it('sums the discounts of several discount-mode agents', function () {

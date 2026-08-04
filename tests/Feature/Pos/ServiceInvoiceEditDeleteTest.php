@@ -106,17 +106,18 @@ describe('Service invoice edit/delete', function () {
         expect($invoice->invoice_number)->toBe($number)
             ->and($invoice->status->value)->toBe('due')
             ->and((float) $invoice->subtotal)->toBe(50.00)
-            ->and((float) $invoice->employee_commission)->toBe(5.00)
+            // Net of VAT 50 / 1.15 = 43.48, at 10% = 4.35.
+            ->and((float) $invoice->employee_commission)->toBe(4.35)
             ->and((float) $invoice->total_amount)->toBe(57.50)
             ->and($invoice->lines()->count())->toBe(1);
 
         // A due invoice carries no ledger yet; approving it writes the recomputed
-        // commission (5.00, not the original 3.00) to the immutable ledger.
+        // commission (4.35, not the original 2.61) to the immutable ledger.
         expect(CommissionLedger::count())->toBe(0);
 
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
 
-        expect((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(5.00);
+        expect((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(4.35);
     });
 
     it('forbids editing a paid invoice', function () {

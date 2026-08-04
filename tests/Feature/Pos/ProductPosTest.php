@@ -268,10 +268,11 @@ describe('Product POS', function () {
         $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
 
         $invoice = ProductInvoice::firstOrFail();
-        // subtotal 30, taxable 30, VAT 15% = 4.50, total 34.50, rebate 10% of total = 3.45
+        // subtotal 30, taxable 30, VAT 15% = 4.50, total 34.50. The rebate is
+        // earned net of VAT: 30 / 1.15 = 26.09, at 10% = 2.61.
         expect((float) $invoice->total_amount)->toBe(34.50)
             ->and((float) $invoice->agent_discount)->toBe(0.00)
-            ->and((float) $invoice->agent_rebate)->toBe(3.45);
+            ->and((float) $invoice->agent_rebate)->toBe(2.61);
     });
 
     it('applies a fixed agent discount to the taxable base', function () {

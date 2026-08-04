@@ -113,7 +113,7 @@ class CalculateServiceInvoiceAction
             $commissionAmount = round($lineSubtotal * $commissionPct / 100, 2);
 
             [$lineAgentId, $agentCommissionType, $agentCommissionValue, $agentCommissionAmount] =
-                $this->lineAgentCommission($line, $branchService, $lineAgents, $lineSubtotal, $qty, $widthCm, $heightCm);
+                $this->lineAgentCommission($line, $branchService, $lineAgents, $lineSubtotal, $qty, $widthCm, $heightCm, $vatPct);
 
             $subtotal += $lineSubtotal;
 
@@ -198,10 +198,17 @@ class CalculateServiceInvoiceAction
         $vatAmount = round($taxableBase * $vatPct / 100, 2);
         $total = round($taxableBase + $vatAmount, 2);
 
-        // Rebate is computed on the final total, independently per agent.
+        // Every commission on this invoice is earned on the value net of VAT: the
+        // tax belongs to the state, not to the sale, so it is stripped out of the
+        // base before any percentage is taken. The prices entered at the POS are
+        // treated as VAT-inclusive for this purpose only — the customer's total is
+        // still taxableBase + VAT and is unaffected.
+        $netBeforeVat = round($taxableBase / (1 + $vatPct / 100), 2);
+
+        // Rebate is computed on that net value, independently per agent.
         foreach ($agents as $i => $agent) {
             if ($agent['mode'] === AgentDiscountModeEnum::Rebate) {
-                $agentRows[$i]['rebate_amount'] = $this->agentAmount($agent['type'], $agent['rate'], $total);
+                $agentRows[$i]['rebate_amount'] = $this->agentAmount($agent['type'], $agent['rate'], $netBeforeVat);
             }
         }
 
@@ -244,13 +251,13 @@ class CalculateServiceInvoiceAction
 
         // Employee commission is earned on the net service value the customer
         // actually pays — after every invoice-level deduction (tier, coupon,
-        // agent discount, points), pre-VAT. Each line's raw commission is scaled
-        // by the ratio of that final taxable base to the gross subtotal, sharing
-        // the reduction across lines proportionally; the scaled amounts are what
-        // get persisted to the lines and the immutable commission ledger, so the
-        // employee is actually paid the reduced figure. Agent rebate sits on top
-        // of the total and leaves this base untouched.
-        $commissionRatio = $subtotal > 0 ? $taxableBase / $subtotal : 0.0;
+        // agent discount, points) and after VAT is stripped out. Each line's raw
+        // commission is scaled by the ratio of that net value to the gross
+        // subtotal, sharing the reduction across lines proportionally; the scaled
+        // amounts are what get persisted to the lines and the immutable commission
+        // ledger, so the employee is actually paid the reduced figure. Agent
+        // rebate sits on top of the total and leaves this base untouched.
+        $commissionRatio = $subtotal > 0 ? $netBeforeVat / $subtotal : 0.0;
         $totalCommission = 0.0;
 
         foreach ($lines as $i => $line) {
@@ -316,9 +323,12 @@ class CalculateServiceInvoiceAction
     /**
      * Resolve a line's commission-owner terms and compute the amount. The value
      * is whatever the cashier submitted (prefill is a client-side convenience);
-     * the amount is always derived here: percentage of the line subtotal
-     * (post line-discount, pre-VAT, never scaled by the invoice-level cascade),
-     * a fixed SAR amount per piece, or a per-sqm rate over the line's total area.
+     * the amount is always derived here: percentage of the line subtotal net of
+     * VAT (post line-discount, never scaled by the invoice-level cascade), a
+     * fixed SAR amount per piece, or a per-sqm rate over the line's total area.
+     *
+     * Only the percentage case divides out VAT — a fixed or per-sqm rate is an
+     * agreed SAR figure with no tax inside it to strip.
      *
      * @param  array<string, mixed>  $line
      * @param  Collection<int, Agent>  $lineAgents
@@ -332,6 +342,7 @@ class CalculateServiceInvoiceAction
         int $qty,
         ?float $widthCm,
         ?float $heightCm,
+        float $vatPct,
     ): array {
         $agentId = (int) ($line['agent_id'] ?? 0);
 
@@ -370,8 +381,10 @@ class CalculateServiceInvoiceAction
             ]);
         }
 
+        $lineNetBeforeVat = round($lineSubtotal / (1 + $vatPct / 100), 2);
+
         $amount = match ($type) {
-            LineAgentCommissionTypeEnum::Percentage => round($lineSubtotal * $value / 100, 2),
+            LineAgentCommissionTypeEnum::Percentage => round($lineNetBeforeVat * $value / 100, 2),
             LineAgentCommissionTypeEnum::Fixed => round($value * $qty, 2),
             LineAgentCommissionTypeEnum::PerSqm => round(
                 $qty * (($widthCm ?? 0) / 100) * (($heightCm ?? 0) / 100) * $value,

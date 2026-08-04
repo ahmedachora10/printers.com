@@ -147,12 +147,16 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
     const taxableBase = useMemo(() => round2(afterAgent - pointsDiscount), [afterAgent, pointsDiscount]);
     const vatAmount = useMemo(() => round2((taxableBase * vatPct) / 100), [taxableBase, vatPct]);
     const total = useMemo(() => round2(taxableBase + vatAmount), [taxableBase, vatAmount]);
+    // The rebate is earned on the value net of VAT — mirrors the server.
+    const netBeforeVat = useMemo(() => round2(taxableBase / (1 + vatPct / 100)), [taxableBase, vatPct]);
     const agentRebate = useMemo(
         () =>
             selectedAgent?.discountMode === 'rebate'
-                ? round2(Math.min(selectedAgent.discountType === 'fixed' ? selectedAgent.rate : (total * selectedAgent.rate) / 100, total))
+                ? round2(
+                      Math.min(selectedAgent.discountType === 'fixed' ? selectedAgent.rate : (netBeforeVat * selectedAgent.rate) / 100, netBeforeVat),
+                  )
                 : 0,
-        [selectedAgent, total],
+        [selectedAgent, netBeforeVat],
     );
 
     function addProduct(p: PosProduct) {

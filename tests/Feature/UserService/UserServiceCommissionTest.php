@@ -77,10 +77,11 @@ describe('per-employee commission at invoice time', function () {
         // computed commission from invoice time.
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
 
+        // The rate is 12% of the value net of VAT: 100 / 1.15 = 86.96 → 10.44.
         expect((float) $line->commission_pct)->toBe(12.00)
-            ->and((float) $line->commission_amount)->toBe(12.00)
-            ->and((float) $invoice->employee_commission)->toBe(12.00)
-            ->and((float) CommissionLedger::firstOrFail()->amount)->toBe(12.00);
+            ->and((float) $line->commission_amount)->toBe(10.44)
+            ->and((float) $invoice->employee_commission)->toBe(10.44)
+            ->and((float) CommissionLedger::firstOrFail()->amount)->toBe(10.44);
     });
 
     it('earns zero commission when the employee has no rate for the service', function () {
@@ -111,8 +112,9 @@ describe('per-employee commission at invoice time', function () {
         $byEmployee = ServiceInvoice::where('user_id', $this->employee->id)->firstOrFail();
         $byOther = ServiceInvoice::where('user_id', $other->id)->firstOrFail();
 
-        expect((float) $byEmployee->employee_commission)->toBe(10.00)
-            ->and((float) $byOther->employee_commission)->toBe(15.00);
+        // 10% and 15% of the net-of-VAT 86.96.
+        expect((float) $byEmployee->employee_commission)->toBe(8.70)
+            ->and((float) $byOther->employee_commission)->toBe(13.04);
     });
 });
 
