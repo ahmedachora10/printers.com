@@ -84,9 +84,9 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         $line = $invoice->lines->firstOrFail();
         $pivot = $invoice->invoiceAgents()->firstOrFail();
 
-        // Line subtotal 30 → 10% = 3.00. The customer's total stays 34.50 and
-        // the pivot row carries no invoice-level discount or rebate.
-        expect((float) $line->agent_commission_amount)->toBe(3.00)
+        // Line subtotal 30, net of VAT 26.09 → 10% = 2.61. The customer's total
+        // stays 34.50 and the pivot row carries no invoice-level discount or rebate.
+        expect((float) $line->agent_commission_amount)->toBe(2.61)
             ->and($line->agent_id)->toBe($this->agent->id)
             ->and($line->agent_commission_type->value)->toBe('percentage')
             ->and((float) $invoice->total_amount)->toBe(34.50)
@@ -94,7 +94,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
             ->and($pivot->agent_id)->toBe($this->agent->id)
             ->and((float) $pivot->discount_amount)->toBe(0.00)
             ->and((float) $pivot->rebate_amount)->toBe(0.00)
-            ->and((float) $pivot->line_commission_amount)->toBe(3.00);
+            ->and((float) $pivot->line_commission_amount)->toBe(2.61);
     });
 
     it('multiplies a fixed commission by the quantity', function () {
@@ -183,12 +183,53 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
 
         $invoice = ServiceInvoice::firstOrFail();
 
-        // One row for the agent: rebate 10% of 34.50 = 3.45 plus line commission 3.00.
+        // One row for the agent. Both are earned net of VAT (26.09): rebate
+        // 10% = 2.61 plus line commission 10% = 2.61.
         expect($invoice->invoiceAgents()->count())->toBe(1);
 
         $pivot = $invoice->invoiceAgents()->firstOrFail();
-        expect((float) $pivot->rebate_amount)->toBe(3.45)
-            ->and((float) $pivot->line_commission_amount)->toBe(3.00);
+        expect((float) $pivot->rebate_amount)->toBe(2.61)
+            ->and((float) $pivot->line_commission_amount)->toBe(2.61);
+    });
+
+    it('earns a percentage line commission on the value net of VAT', function () {
+        // The client's worked example applied to a commission owner:
+        // 100 / 1.15 = 86.96, at 50% = 43.48 — not 50.00 on the gross.
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $this->service->id,
+                'qty' => 1,
+                'unit_price' => 100,
+                'discount_pct' => 0,
+                'agent_id' => $this->agent->id,
+                'agent_commission_type' => 'percentage',
+                'agent_commission_value' => 50,
+            ]],
+        ])->assertRedirect(route('pos.service.create'));
+
+        $invoice = ServiceInvoice::firstOrFail();
+
+        expect((float) $invoice->lines->first()->agent_commission_amount)->toBe(43.48)
+            ->and((float) $invoice->invoiceAgents()->first()->line_commission_amount)->toBe(43.48);
+    });
+
+    it('leaves a fixed line commission whole — there is no VAT inside a flat rate', function () {
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $this->service->id,
+                'qty' => 3,
+                'unit_price' => 100,
+                'discount_pct' => 0,
+                'agent_id' => $this->agent->id,
+                'agent_commission_type' => 'fixed',
+                'agent_commission_value' => 5,
+            ]],
+        ]);
+
+        // 5 SAR per piece × 3 = 15.00, untouched by the VAT division.
+        expect((float) ServiceInvoice::firstOrFail()->lines->first()->agent_commission_amount)->toBe(15.00);
     });
 
     it('sums the line commissions of several lines for the same agent', function () {
@@ -216,10 +257,11 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
             ],
         ]);
 
-        // 30 × 10% = 3.00 plus fixed 20 × 1 = 20.00 → 23.00 on one pivot row.
+        // Percentage: 26.09 (30 net of VAT) × 10% = 2.61. Fixed: 20 × 1 = 20.00,
+        // an agreed SAR figure with no VAT to strip. Total 22.61 on one pivot row.
         $invoice = ServiceInvoice::firstOrFail();
         expect($invoice->invoiceAgents()->count())->toBe(1)
-            ->and((float) $invoice->invoiceAgents()->first()->line_commission_amount)->toBe(23.00);
+            ->and((float) $invoice->invoiceAgents()->first()->line_commission_amount)->toBe(22.61);
     });
 
     it('leaves the employee commission and its ledger untouched', function () {
@@ -235,10 +277,10 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
             ->patch(route('invoices.service.pay', $invoice))
             ->assertRedirect();
 
-        // The employee still earns their own 10% (3.00) regardless of the
-        // commission owner's share.
-        expect((float) $invoice->refresh()->employee_commission)->toBe(3.00)
-            ->and((float) CommissionLedger::firstOrFail()->amount)->toBe(3.00);
+        // The employee still earns their own 10% of the net-of-VAT value (2.61)
+        // regardless of the commission owner's share.
+        expect((float) $invoice->refresh()->employee_commission)->toBe(2.61)
+            ->and((float) CommissionLedger::firstOrFail()->amount)->toBe(2.61);
     });
 
     it('re-syncs the line commission when the invoice is edited', function () {
@@ -249,7 +291,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         ]));
 
         $invoice = ServiceInvoice::firstOrFail();
-        expect((float) $invoice->invoiceAgents()->first()->line_commission_amount)->toBe(3.00);
+        expect((float) $invoice->invoiceAgents()->first()->line_commission_amount)->toBe(2.61);
 
         // The owner edits the line and removes the commission owner entirely.
         $this->put(route('pos.service.update', $invoice), [

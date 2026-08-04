@@ -70,12 +70,16 @@ const lineAreaSqm = (line: ServiceCartLine) => ((line.widthCm ?? 0) / 100) * ((l
 /** Per-piece price of a sqm line — mirrors the server (rounded before qty). */
 const sqmUnitPrice = (line: ServiceCartLine) => round2(lineAreaSqm(line) * line.pricePerSqm);
 
-/** The line's commission-owner share — mirrors the server formulas. */
-function lineAgentCommission(line: ServiceCartLine): number {
+/**
+ * The line's commission-owner share — mirrors the server formulas. Only the
+ * percentage case divides VAT out of its base; a fixed or per-sqm rate is an
+ * agreed SAR figure with no tax inside it to strip.
+ */
+function lineAgentCommission(line: ServiceCartLine, vatPct: number): number {
     if (!line.agentId || !line.agentCommissionType) return 0;
     switch (line.agentCommissionType) {
         case 'percentage':
-            return round2((lineTotal(line) * line.agentCommissionValue) / 100);
+            return round2((round2(lineTotal(line) / (1 + vatPct / 100)) * line.agentCommissionValue) / 100);
         case 'fixed':
             return round2(line.agentCommissionValue * line.qty);
         case 'per_sqm':
@@ -234,30 +238,33 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         return round2(Math.min(pts / loyalty.redemptionRate, afterAgent));
     }, [loyaltyOn, redeemPoints, loyalty.redemptionRate, afterAgent]);
     const taxableBase = useMemo(() => round2(afterAgent - pointsDiscount), [afterAgent, pointsDiscount]);
-    // Employee commission is earned on the net service value after every
-    // invoice-level discount (tier, coupon, agent discount, points), mirroring
-    // the server: scale the gross commission by taxableBase / subtotal. Stays an
-    // estimate — it uses the service base rate, not the employee's own rate.
+    // Every commission is earned on the value net of VAT — mirrors the server's
+    // netBeforeVat. The customer's total is unaffected.
+    const netBeforeVat = useMemo(() => round2(taxableBase / (1 + vatPct / 100)), [taxableBase, vatPct]);
+    // Employee commission is earned on that net value, after every invoice-level
+    // discount (tier, coupon, agent discount, points), mirroring the server:
+    // scale the gross commission by netBeforeVat / subtotal. Stays an estimate —
+    // it uses the service base rate, not the employee's own rate.
     const commission = useMemo(
-        () => (subtotal > 0 ? round2((grossCommission * taxableBase) / subtotal) : 0),
-        [grossCommission, taxableBase, subtotal],
+        () => (subtotal > 0 ? round2((grossCommission * netBeforeVat) / subtotal) : 0),
+        [grossCommission, netBeforeVat, subtotal],
     );
     const vatAmount = useMemo(() => round2((taxableBase * vatPct) / 100), [taxableBase, vatPct]);
     const total = useMemo(() => round2(taxableBase + vatAmount), [taxableBase, vatAmount]);
-    // Each rebate-mode agent earns independently on the final total; the preview
-    // shows their combined rebate.
+    // Each rebate-mode agent earns independently on the net-of-VAT value; the
+    // preview shows their combined rebate.
     const agentRebate = useMemo(
         () =>
             round2(
                 selectedAgents
                     .filter((a) => a.discountMode === 'rebate')
-                    .reduce((sum, a) => sum + Math.min(a.discountType === 'fixed' ? a.rate : (total * a.rate) / 100, total), 0),
+                    .reduce((sum, a) => sum + Math.min(a.discountType === 'fixed' ? a.rate : (netBeforeVat * a.rate) / 100, netBeforeVat), 0),
             ),
-        [selectedAgents, total],
+        [selectedAgents, netBeforeVat],
     );
     // Per-line commission owners' shares — informational: paid to the agents
     // later, never deducted from the customer's total.
-    const lineAgentsCommission = useMemo(() => round2(cart.reduce((sum, l) => sum + lineAgentCommission(l), 0)), [cart]);
+    const lineAgentsCommission = useMemo(() => round2(cart.reduce((sum, l) => sum + lineAgentCommission(l, vatPct), 0)), [cart, vatPct]);
 
     function addService(s: PosService) {
         setCart((prev) => {
@@ -1056,7 +1063,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                     if (!line.branchServiceId) return null;
                                     const isSqm = line.pricingType === 'sqm';
                                     const hasAgent = !!line.agentId;
-                                    const commissionPreview = lineAgentCommission(line);
+                                    const commissionPreview = lineAgentCommission(line, vatPct);
 
                                     return (
                                         <div className="space-y-2">

@@ -150,8 +150,13 @@ class CreateProductInvoiceAction
             $vatAmount = round($taxableBase * $vatPct / 100, 2);
             $total = round($taxableBase + $vatAmount, 2);
 
+            // The rebate is earned on the value net of VAT — the tax belongs to
+            // the state, not to the sale. Matches the service invoice, so an
+            // agent is paid on the same basis whichever counter served them.
+            $netBeforeVat = round($taxableBase / (1 + $vatPct / 100), 2);
+
             $agentRebate = $agentMode === AgentDiscountModeEnum::Rebate
-                ? $this->agentAmount($agentType, $agentRate, $total)
+                ? $this->agentAmount($agentType, $agentRate, $netBeforeVat)
                 : 0.0;
 
             $status = InvoiceStatusEnum::from($data['status']);
