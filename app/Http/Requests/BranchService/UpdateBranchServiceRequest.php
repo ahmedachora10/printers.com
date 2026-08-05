@@ -3,20 +3,29 @@
 namespace App\Http\Requests\BranchService;
 
 use App\Enums\ServicePricingTypeEnum;
+use App\Http\Requests\BranchService\Concerns\HandlesNoteExamples;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class UpdateBranchServiceRequest extends FormRequest
 {
+    use HandlesNoteExamples;
+
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->normalizeNoteExamples();
     }
 
     /** @return array<string, mixed> */
     public function rules(): array
     {
         return [
+            ...$this->noteExampleRules(),
             'base_commission_pct' => ['required', 'numeric', 'min:0', 'max:100'],
             'max_discount_pct' => ['required', 'numeric', 'min:0', 'max:100'],
             'pricing_type' => ['nullable', Rule::enum(ServicePricingTypeEnum::class)],
@@ -30,6 +39,7 @@ class UpdateBranchServiceRequest extends FormRequest
     public function messages(): array
     {
         return [
+            ...$this->noteExampleMessages(),
             'price_per_sqm.required_if' => 'أدخل سعر المتر المربع للخدمات المسعّرة بالمتر المربع.',
         ];
     }

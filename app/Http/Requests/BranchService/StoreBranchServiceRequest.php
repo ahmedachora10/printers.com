@@ -3,20 +3,29 @@
 namespace App\Http\Requests\BranchService;
 
 use App\Enums\ServicePricingTypeEnum;
+use App\Http\Requests\BranchService\Concerns\HandlesNoteExamples;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreBranchServiceRequest extends FormRequest
 {
+    use HandlesNoteExamples;
+
     public function authorize(): bool
     {
         return true;
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->normalizeNoteExamples();
     }
 
     /** @return array<string, mixed> */
     public function rules(): array
     {
         return [
+            ...$this->noteExampleRules(),
             'service_template_id' => ['required', 'exists:service_templates,id'],
             'branch_id' => [
                 'required',
@@ -37,6 +46,7 @@ class StoreBranchServiceRequest extends FormRequest
     public function messages(): array
     {
         return [
+            ...$this->noteExampleMessages(),
             'branch_id.unique' => 'هذا الفرع مرتبط بالفعل بقالب الخدمة هذا.',
             'price_per_sqm.required_if' => 'أدخل سعر المتر المربع للخدمات المسعّرة بالمتر المربع.',
         ];

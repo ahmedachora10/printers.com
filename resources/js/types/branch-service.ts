@@ -11,6 +11,8 @@ export interface BranchService {
     pricingType: ServicePricingType;
     pricePerSqm: number;
     agentCommissionPerSqm: number;
+    /** ready-made detail phrases shown as the POS placeholder for this service */
+    noteExamples: string[];
     isTahazir: boolean;
     isActive: boolean;
     createdAt: string | null;
@@ -25,9 +27,10 @@ export interface BranchServiceFormData {
     pricing_type: ServicePricingType;
     price_per_sqm: number;
     agent_commission_per_sqm: number;
+    note_examples: string[];
     is_tahazir: boolean;
     is_active: boolean;
-    [key: string]: number | boolean | ServicePricingType;
+    [key: string]: number | boolean | ServicePricingType | string[];
 }
 
 export interface BranchServiceUpdateData {
@@ -36,7 +39,8 @@ export interface BranchServiceUpdateData {
     pricing_type: ServicePricingType;
     price_per_sqm: number;
     agent_commission_per_sqm: number;
+    note_examples: string[];
     is_tahazir: boolean;
     is_active: boolean;
-    [key: string]: number | boolean | ServicePricingType;
+    [key: string]: number | boolean | ServicePricingType | string[];
 }

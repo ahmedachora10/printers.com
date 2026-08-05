@@ -20,6 +20,8 @@ export interface PosService {
     pricingType: ServicePricingType;
     pricePerSqm: number;
     agentCommissionPerSqm: number;
+    /** ready-made detail phrases set by the branch admin for this service */
+    noteExamples: string[];
     isTahazir: boolean;
 }
 
@@ -30,6 +32,8 @@ export interface ServiceCartLine {
     name: string;
     /** free-text detail printed under the service name on the invoice */
     notes: string;
+    /** placeholder hints for `notes`, carried over from the picked service */
+    noteExamples: string[];
     unitPrice: number;
     qty: number;
     discountPct: number;
@@ -89,6 +93,7 @@ export interface EditServiceInvoiceLine {
     branchServiceId: number;
     name: string;
     notes: string | null;
+    noteExamples: string[];
     qty: number;
     unitPrice: number;
     discountPct: number;

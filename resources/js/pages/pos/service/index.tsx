@@ -1,3 +1,4 @@
+import { noteExamplesPlaceholder } from '@/components/branch-services/note-examples-field';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
 import { PosCartTable } from '@/components/pos/cart-table';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
@@ -105,6 +106,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 branchServiceId: l.branchServiceId,
                 name: l.name,
                 notes: l.notes ?? '',
+                noteExamples: l.noteExamples ?? [],
                 unitPrice: l.unitPrice,
                 qty: l.qty,
                 discountPct: l.discountPct,
@@ -280,6 +282,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     branchServiceId: s.id,
                     name: s.name,
                     notes: '',
+                    noteExamples: s.noteExamples ?? [],
                     unitPrice: 0,
                     qty: 1,
                     discountPct: 0,
@@ -351,6 +354,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 branchServiceId: null,
                 name: '',
                 notes: '',
+                noteExamples: [],
                 unitPrice: 0,
                 qty: 1,
                 discountPct: 0,
@@ -381,6 +385,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         updateLine(line.key, {
             branchServiceId: s.id,
             name: s.name,
+            noteExamples: s.noteExamples ?? [],
             maxDiscountPct: s.maxDiscountPct,
             baseCommissionPct: s.baseCommissionPct,
             isTahazir: s.isTahazir,
@@ -1172,7 +1177,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
                                                     updateLine(line.key, { notes: e.target.value })
                                                 }
-                                                placeholder="مثال: ورق مقوّى 300 جرام — تسليم الخميس"
+                                                placeholder={
+                                                    noteExamplesPlaceholder(line.noteExamples) ?? 'مثال: ورق مقوّى 300 جرام — تسليم الخميس'
+                                                }
                                                 className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[56px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                             />
                                         </div>

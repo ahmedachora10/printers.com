@@ -20,6 +20,9 @@ class AttachBranchServiceAction
                 'pricing_type' => $data['pricing_type'] ?? 'unit',
                 'price_per_sqm' => $data['price_per_sqm'] ?? 0,
                 'agent_commission_per_sqm' => $data['agent_commission_per_sqm'] ?? 0,
+                // Cast to JSON by the BranchService pivot model — attach() fills it
+                // through `using()`, so the array cast applies here too.
+                'note_examples' => $data['note_examples'] ?? [],
                 'is_tahazir' => $data['is_tahazir'] ?? false,
                 'is_active' => $data['is_active'] ?? true,
             ]);

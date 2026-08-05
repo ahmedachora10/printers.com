@@ -19,6 +19,7 @@ class BranchService extends Pivot
         'pricing_type',
         'price_per_sqm',
         'agent_commission_per_sqm',
+        'note_examples',
         'is_tahazir',
         'is_active',
     ];
@@ -29,6 +30,7 @@ class BranchService extends Pivot
         'pricing_type' => ServicePricingTypeEnum::class,
         'price_per_sqm' => 'decimal:2',
         'agent_commission_per_sqm' => 'decimal:2',
+        'note_examples' => 'array',
         'is_tahazir' => 'boolean',
         'is_active' => 'boolean',
     ];
