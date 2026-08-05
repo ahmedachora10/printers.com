@@ -138,7 +138,10 @@ describe('Service invoice review', function () {
 
         $invoice->refresh();
         expect($invoice->status->value)->toBe('cancelled')
-            ->and($invoice->cancellation_reason)->toBe('طلب العميل الإلغاء');
+            ->and($invoice->cancellation_reason)->toBe('طلب العميل الإلغاء')
+            // Who rejected it and when, so the employee can be told both.
+            ->and($invoice->cancelled_by)->toBe($this->accountant->id)
+            ->and($invoice->cancelled_at)->not->toBeNull();
 
         // A due invoice never accrued commission (the ledger is written only on
         // approval), so there is nothing to reverse — the ledger stays empty.
@@ -205,6 +208,47 @@ describe('Service invoice review', function () {
                 return $data['type'] === 'invoice_rejected' && str_contains($data['body'], 'بيانات ناقصة');
             },
         );
+    });
+
+    // ---- The cancellation reason reaching the employee (تاسك 18) ------------
+
+    it('surfaces the cancellation reason to the employee on the invoice list', function () {
+        $invoice = makeDueInvoice();
+
+        $this->patch(route('invoices.service.cancel', $invoice), ['reason' => 'بيانات العميل ناقصة']);
+
+        $this->actingAs($this->employee)
+            ->get(route('invoices.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('items.data.0.status', 'cancelled')
+                ->where('items.data.0.cancellationReason', 'بيانات العميل ناقصة'));
+    });
+
+    it('surfaces the reason, the reviewer and the date to the employee on the invoice page', function () {
+        $invoice = makeDueInvoice();
+
+        $this->patch(route('invoices.service.cancel', $invoice), ['reason' => 'السعر غير مطابق للتسعيرة']);
+
+        $this->actingAs($this->employee)
+            ->get(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('invoice.cancellationReason', 'السعر غير مطابق للتسعيرة')
+                ->where('invoice.cancelledByName', $this->accountant->name)
+                ->where('invoice.cancelledAt', $invoice->refresh()->cancelled_at->toIso8601String()));
+    });
+
+    it('leaves the cancellation fields null on an invoice that was never cancelled', function () {
+        $invoice = makeDueInvoice();
+
+        $this->actingAs($this->employee)
+            ->get(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('invoice.cancellationReason', null)
+                ->where('invoice.cancelledByName', null)
+                ->where('invoice.cancelledAt', null));
     });
 
     it('forbids settling an invoice from another branch', function () {

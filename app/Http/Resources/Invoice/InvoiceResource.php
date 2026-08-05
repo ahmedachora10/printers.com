@@ -89,6 +89,12 @@ class InvoiceResource extends JsonResource
             'paidAt' => $this->paid_at?->toIso8601String(),
             'status' => $this->status->value,
             'statusLabel' => $this->status->label(),
+            // Why the invoice was rejected, for everyone who may view it — the
+            // employee who raised it above all (تاسك 18). Product invoices have
+            // no cancellation flow, hence no reason to carry.
+            'cancellationReason' => $isServiceInvoice ? $this->resource->cancellation_reason : null,
+            'cancelledByName' => $isServiceInvoice ? $this->resource->cancelledBy?->name : null,
+            'cancelledAt' => $isServiceInvoice ? $this->resource->cancelled_at?->toIso8601String() : null,
             'subtotal' => (float) $this->subtotal,
             'tierDiscountPct' => (float) $this->tier_discount_pct,
             'tierDiscountAmount' => (float) $this->tier_discount_amount,

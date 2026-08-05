@@ -52,6 +52,10 @@ export interface Invoice {
     paidAt: string | null;
     status: InvoiceStatus;
     statusLabel: string;
+    /** Why a reviewer rejected the invoice — service invoices only. */
+    cancellationReason: string | null;
+    cancelledByName: string | null;
+    cancelledAt: string | null;
     subtotal: number;
     tierDiscountPct: number;
     tierDiscountAmount: number;
@@ -90,6 +94,8 @@ export interface InvoiceListItem {
     totalAmount: number;
     status: InvoiceStatus;
     statusLabel: string;
+    /** Why a reviewer rejected the invoice — service invoices only. */
+    cancellationReason: string | null;
     customerId: number | null;
     customerName: string | null;
     customerPhone: string | null;

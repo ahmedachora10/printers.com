@@ -5,6 +5,7 @@ namespace App\Actions\ServiceInvoice;
 use App\Actions\ServiceInvoice\Concerns\ReversesServiceInvoiceAccruals;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\ServiceInvoice;
+use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,7 +23,7 @@ class CancelServiceInvoiceAction
 {
     use ReversesServiceInvoiceAccruals;
 
-    public function handle(ServiceInvoice $invoice, string $reason): ServiceInvoice
+    public function handle(ServiceInvoice $invoice, string $reason, User $actor): ServiceInvoice
     {
         if ($invoice->status !== InvoiceStatusEnum::DUE) {
             throw ValidationException::withMessages([
@@ -30,10 +31,12 @@ class CancelServiceInvoiceAction
             ]);
         }
 
-        return DB::transaction(function () use ($invoice, $reason) {
+        return DB::transaction(function () use ($invoice, $reason, $actor) {
             $invoice->update([
                 'status' => InvoiceStatusEnum::CANCELLED,
                 'cancellation_reason' => $reason,
+                'cancelled_by' => $actor->id,
+                'cancelled_at' => now(),
             ]);
 
             $this->reverseUnpaidCommission($invoice);

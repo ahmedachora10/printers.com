@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
@@ -12,7 +13,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
 import { Link, router } from '@inertiajs/react';
-import { Eye, Loader2, Pencil, Printer, Undo2, UserPlus } from 'lucide-react';
+import { Eye, Info, Loader2, Pencil, Printer, Undo2, UserPlus } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -246,11 +247,34 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'status',
                 header: 'الحالة',
-                cell: (item) => (
-                    <Badge variant="outline" className={STATUS_COLORS[item.status]}>
-                        {item.statusLabel}
-                    </Badge>
-                ),
+                cell: (item) => {
+                    const badge = (
+                        <Badge variant="outline" className={STATUS_COLORS[item.status]}>
+                            {item.statusLabel}
+                        </Badge>
+                    );
+
+                    // A rejected invoice carries its reason on the badge, so the
+                    // employee sees why without opening the invoice.
+                    if (item.status !== 'cancelled' || !item.cancellationReason) {
+                        return badge;
+                    }
+
+                    return (
+                        <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="inline-flex cursor-help items-center gap-1">
+                                        {badge}
+                                        <Info className="text-muted-foreground h-3.5 w-3.5" aria-hidden />
+                                        <span className="sr-only">سبب الإلغاء: {item.cancellationReason}</span>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs whitespace-pre-line">سبب الإلغاء: {item.cancellationReason}</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    );
+                },
             },
             {
                 key: 'actions',

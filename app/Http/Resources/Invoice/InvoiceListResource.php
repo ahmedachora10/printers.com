@@ -25,6 +25,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string|null $created_at
  * @property int|null $user_id
  * @property string|null $branch_name
+ * @property string|null $cancellation_reason
  */
 class InvoiceListResource extends JsonResource
 {
@@ -62,6 +63,9 @@ class InvoiceListResource extends JsonResource
             'totalAmount' => (float) $this->total_amount,
             'status' => $status->value,
             'statusLabel' => $status->label(),
+            // Feeds the tooltip on the "ملغاة" badge so the employee sees why
+            // their invoice was rejected without opening it (تاسك 18).
+            'cancellationReason' => $this->cancellation_reason,
             'customerId' => $this->customer_id !== null ? (int) $this->customer_id : null,
             'customerName' => $this->customer_name,
             'customerPhone' => $this->customer_phone,
