@@ -133,7 +133,47 @@ class CommissionReportController extends Controller
             ->when($scope['from'], fn ($q) => $q->where('commission_ledger.earned_at', '>=', $scope['from']))
             ->when($scope['to'], fn ($q) => $q->where('commission_ledger.earned_at', '<=', $scope['to']))
             ->when($scope['status'] === 'paid', fn ($q) => $q->whereNotNull('commission_ledger.paid_at'))
-            ->when($scope['status'] === 'pending', fn ($q) => $q->whereNull('commission_ledger.paid_at'));
+            ->when($scope['status'] === 'pending', fn ($q) => $q->whereNull('commission_ledger.paid_at'))
+            // "مرتجعة" is a view of what was reversed, so it keeps exactly the rows
+            // every other view drops.
+            ->when($scope['status'] === 'returned',
+                fn ($q) => $q->whereExists(fn ($sub) => $this->returnedInvoiceSubquery($sub)));
+    }
+
+    /**
+     * Aggregate query: the ledger rows that still represent money, with the
+     * unpaid commission of returned invoices left out (تاسك 10).
+     *
+     * Returning an invoice writes a negative offsetting row rather than touching
+     * the immutable ledger, so netting alone only balances when the report window
+     * happens to span both the earning and the return. Dropping both rows instead
+     * makes "المستحق" right in every window. Commission that was already **paid**
+     * stays counted: that money left the till and is never clawed back (M14).
+     *
+     * @param  array<string, mixed>  $scope
+     */
+    private function moneyQuery(array $scope): Builder
+    {
+        return $this->baseQuery($scope)
+            ->when($scope['status'] !== 'returned', fn ($q) => $q->where(
+                fn ($q) => $q->whereNotNull('commission_ledger.paid_at')
+                    ->orWhereNotExists(fn ($sub) => $this->returnedInvoiceSubquery($sub)),
+            ));
+    }
+
+    /**
+     * Correlated subquery: does this ledger row belong to a returned invoice?
+     * Written as EXISTS rather than a join so it composes with every caller
+     * (the detail query already joins the same tables).
+     */
+    private function returnedInvoiceSubquery(Builder $query): Builder
+    {
+        return $query->selectRaw('1')
+            ->from('service_invoice_lines')
+            ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_lines.invoice_id')
+            ->whereColumn('service_invoice_lines.id', 'commission_ledger.invoice_line_id')
+            ->where('commission_ledger.invoice_line_type', ServiceInvoiceLine::class)
+            ->where('service_invoices.status', InvoiceStatusEnum::RETURNED->value);
     }
 
     /**
@@ -178,7 +218,7 @@ class CommissionReportController extends Controller
      */
     private function ledgerSummaryRows(array $scope): Collection
     {
-        return $this->baseQuery($scope)
+        return $this->moneyQuery($scope)
             ->join('users', 'users.id', '=', 'commission_ledger.user_id')
             ->groupBy('commission_ledger.user_id', 'users.name')
             ->orderBy('users.name')
@@ -232,7 +272,7 @@ class CommissionReportController extends Controller
             ];
         }
 
-        $rows = $this->baseQuery($scope)
+        $rows = $this->moneyQuery($scope)
             ->groupBy(DB::raw('DATE(commission_ledger.earned_at)'))
             ->get([
                 DB::raw('DATE(commission_ledger.earned_at) as day'),
@@ -266,6 +306,10 @@ class CommissionReportController extends Controller
     /**
      * Line-level detail: one row per ledger entry, resolved to its service
      * invoice for drill-down (invoice number, service name, date).
+     *
+     * Unlike the aggregates this keeps the rows of returned invoices — they carry
+     * the "مرتجعة" badge, which is what explains why they are missing from the
+     * totals above them.
      *
      * @param  array<string, mixed>  $scope
      * @return Collection<int, array<string, mixed>>

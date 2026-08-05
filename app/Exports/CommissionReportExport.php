@@ -50,6 +50,7 @@ class CommissionReportExport implements FromCollection, ShouldAutoSize, WithHead
         return match ($status) {
             'cancelled' => 'ملغاة',
             'due' => 'غير مسددة',
+            'returned' => 'مرتجعة',
             default => 'معتمدة',
         };
     }
