@@ -33,6 +33,7 @@ class BranchServiceResource extends JsonResource
             'pricingType' => ($hasPivot ? $this->pivot->pricing_type : $this->pricing_type)?->value ?? 'unit',
             'pricePerSqm' => (float) ($hasPivot ? $this->pivot->price_per_sqm : $this->price_per_sqm),
             'agentCommissionPerSqm' => (float) ($hasPivot ? $this->pivot->agent_commission_per_sqm : $this->agent_commission_per_sqm),
+            'noteExamples' => array_values(($hasPivot ? $this->pivot->note_examples : $this->note_examples) ?? []),
             'isTahazir' => (bool) ($hasPivot ? $this->pivot->is_tahazir : $this->is_tahazir),
             'isActive' => (bool) ($hasPivot ? $this->pivot->is_active : $this->is_active),
             'createdAt' => ($hasPivot ? $this->pivot->created_at : $this->created_at)?->toISOString(),

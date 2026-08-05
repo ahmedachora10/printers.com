@@ -7,6 +7,7 @@ import BranchServiceEmployeesModal, {
     type BranchEmployee,
     type EmployeeCommission,
 } from '@/components/branch-services/branch-service-employees-modal';
+import NoteExamplesField from '@/components/branch-services/note-examples-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -48,6 +49,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         pricing_type: 'unit',
         price_per_sqm: 0,
         agent_commission_per_sqm: 0,
+        note_examples: [],
         is_tahazir: false,
         is_active: true,
     });
@@ -58,6 +60,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         pricing_type: 'unit',
         price_per_sqm: 0,
         agent_commission_per_sqm: 0,
+        note_examples: [],
         is_tahazir: false,
         is_active: true,
     });
@@ -81,6 +84,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
             pricing_type: 'unit',
             price_per_sqm: 0,
             agent_commission_per_sqm: 0,
+            note_examples: [],
             is_tahazir: false,
             is_active: true,
         });
@@ -94,6 +98,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
             pricing_type: service.pricingType ?? 'unit',
             price_per_sqm: service.pricePerSqm ?? 0,
             agent_commission_per_sqm: service.agentCommissionPerSqm ?? 0,
+            note_examples: service.noteExamples ?? [],
             is_tahazir: service.isTahazir,
             is_active: service.isActive,
         });
@@ -228,7 +233,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                                         <BranchServiceFields
                                             data={editForm.data}
                                             errors={editForm.errors}
-                                            setData={editForm.setData as (key: string, value: number | boolean | string) => void}
+                                            setData={editForm.setData as (key: string, value: number | boolean | string | string[]) => void}
                                         />
                                         <div className="flex justify-end gap-2">
                                             <Button type="button" size="sm" variant="outline" onClick={cancelAction} disabled={editForm.processing}>
@@ -247,7 +252,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                                         <BranchServiceFields
                                             data={attachForm.data}
                                             errors={attachForm.errors}
-                                            setData={attachForm.setData as (key: string, value: number | boolean | string) => void}
+                                            setData={attachForm.setData as (key: string, value: number | boolean | string | string[]) => void}
                                         />
                                         <div className="flex justify-end gap-2">
                                             <Button type="button" size="sm" variant="outline" onClick={cancelAction} disabled={attachForm.processing}>
@@ -286,11 +291,12 @@ interface FieldsProps {
         pricing_type: 'unit' | 'sqm';
         price_per_sqm: number;
         agent_commission_per_sqm: number;
+        note_examples: string[];
         is_tahazir: boolean;
         is_active: boolean;
     };
     errors: Partial<Record<string, string>>;
-    setData: (key: string, value: number | boolean | string) => void;
+    setData: (key: string, value: number | boolean | string | string[]) => void;
 }
 
 function BranchServiceFields({ data, errors, setData }: FieldsProps) {
@@ -382,6 +388,14 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                     </div>
                 </div>
             )}
+
+            <NoteExamplesField
+                value={data.note_examples}
+                onChange={(next) => setData('note_examples', next)}
+                error={errors.note_examples}
+                compact
+                idPrefix="bs-manage"
+            />
 
             <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">

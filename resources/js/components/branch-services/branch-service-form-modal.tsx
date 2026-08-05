@@ -9,6 +9,7 @@ import { type BranchService, type BranchServiceFormData } from '@/types/branch-s
 import { useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
 import InputError from '../input-error';
+import NoteExamplesField from './note-examples-field';
 
 interface ServiceTemplateOption {
     id: number;
@@ -39,6 +40,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
         pricing_type: branchService?.pricingType ?? 'unit',
         price_per_sqm: branchService?.pricePerSqm ?? 0,
         agent_commission_per_sqm: branchService?.agentCommissionPerSqm ?? 0,
+        note_examples: branchService?.noteExamples ?? [],
         is_tahazir: branchService?.isTahazir ?? false,
         is_active: branchService?.isActive ?? true,
     });
@@ -53,6 +55,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                 pricing_type: branchService.pricingType ?? 'unit',
                 price_per_sqm: branchService.pricePerSqm ?? 0,
                 agent_commission_per_sqm: branchService.agentCommissionPerSqm ?? 0,
+                note_examples: branchService.noteExamples ?? [],
                 is_tahazir: branchService.isTahazir ?? false,
                 is_active: branchService.isActive ?? true,
             });
@@ -219,6 +222,9 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                             </div>
                         </div>
                     )}
+
+                    {/* Ready-made detail phrases — become the POS placeholder */}
+                    <NoteExamplesField value={data.note_examples} onChange={(next) => setData('note_examples', next)} error={errors.note_examples} />
 
                     {/* Tahazir + Active switches */}
                     <div className="flex flex-col gap-3 pt-1">
