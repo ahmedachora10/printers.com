@@ -14,7 +14,7 @@ use App\Models\ServiceInvoiceLine;
 /**
  * Unwinds the accruals a service invoice created, using the immutable-ledger
  * pattern (reversals are new offsetting rows, never updates/deletes). Shared by
- * cancel, edit and delete. Call each helper inside the surrounding transaction.
+ * cancel, edit and return. Call each helper inside the surrounding transaction.
  */
 trait ReversesServiceInvoiceAccruals
 {
@@ -86,13 +86,13 @@ trait ReversesServiceInvoiceAccruals
             'type' => LoyaltyTransactionTypeEnum::ManualAdjust,
             'points' => $points,
             'balance_after' => $newBalance,
-            'notes' => "استرجاع نقاط بعد إلغاء الفاتورة {$invoice->invoice_number}",
+            'notes' => "استرجاع نقاط بعد إلغاء/استرجاع الفاتورة {$invoice->invoice_number}",
         ]);
     }
 
     /**
      * Claw back points the customer *earned* on this (paid) invoice when it is
-     * deleted: subtract them from the balance (never below zero) and roll back
+     * returned: subtract them from the balance (never below zero) and roll back
      * the spend they added. The tier is never downgraded (business rule), and
      * the reversal is recorded as an immutable negative manual adjustment.
      */
@@ -138,7 +138,7 @@ trait ReversesServiceInvoiceAccruals
             'type' => LoyaltyTransactionTypeEnum::ManualAdjust,
             'points' => -$removed,
             'balance_after' => $newBalance,
-            'notes' => "سحب نقاط مكتسبة بعد حذف الفاتورة {$invoice->invoice_number}",
+            'notes' => "سحب نقاط مكتسبة بعد استرجاع الفاتورة {$invoice->invoice_number}",
         ]);
     }
 

@@ -72,14 +72,16 @@ class ServiceInvoicePolicy
     }
 
     /**
-     * The employee who raised an invoice may delete it before OR after approval
-     * (business rule: an accountant can never delete an employee's invoice).
-     * Cancelled invoices are already unwound and nothing left to delete.
+     * The employee who raised an invoice may return it before OR after approval
+     * (business rule: an accountant can never unwind an employee's invoice — they
+     * cancel a due one or book a refund instead). Cancelled and already-returned
+     * invoices are unwound already, so there is nothing left to return.
      */
-    public function delete(User $user, ServiceInvoice $invoice): bool
+    public function returnInvoice(User $user, ServiceInvoice $invoice): bool
     {
         return $user->roleName->isEmployee()
             && $user->id === $invoice->user_id
-            && $invoice->status !== InvoiceStatusEnum::CANCELLED;
+            && $invoice->status !== InvoiceStatusEnum::CANCELLED
+            && $invoice->status !== InvoiceStatusEnum::RETURNED;
     }
 }

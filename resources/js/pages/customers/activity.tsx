@@ -25,12 +25,14 @@ const STATUS_COLORS: Record<string, string> = {
     paid: 'border-green-200 bg-green-50 text-green-700',
     due: 'border-red-200 bg-red-50 text-red-700',
     cancelled: 'border-border bg-muted/60 text-muted-foreground',
+    returned: 'border-red-300 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
 };
 
 const STATUS_LABELS: Record<string, string> = {
     paid: 'مدفوع',
     due: 'مستحق',
     cancelled: 'ملغي',
+    returned: 'مرتجع',
 };
 
 const LOYALTY_LABELS: Record<string, string> = {

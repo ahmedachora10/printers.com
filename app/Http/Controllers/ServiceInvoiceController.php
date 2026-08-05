@@ -6,13 +6,14 @@ use App\Actions\Customer\UpdateCustomerAction;
 use App\Actions\ServiceInvoice\AttachServiceInvoiceCustomerAction;
 use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
-use App\Actions\ServiceInvoice\DeleteServiceInvoiceAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
+use App\Actions\ServiceInvoice\ReturnServiceInvoiceAction;
 use App\Actions\ServiceInvoice\UpdateServiceInvoiceAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Enums\Roles;
 use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
+use App\Http\Requests\ServiceInvoice\ReturnServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoicePaymentMethodRequest;
@@ -98,6 +99,7 @@ class ServiceInvoiceController extends Controller
                         'pricingType' => $service['pricingType'] ?? 'unit',
                         'pricePerSqm' => (float) ($service['pricePerSqm'] ?? 0),
                         'agentCommissionPerSqm' => (float) ($service['agentCommissionPerSqm'] ?? 0),
+                        'noteExamples' => $service['noteExamples'] ?? [],
                         'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
                         'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
                         'agentId' => $line->agent_id,
@@ -146,18 +148,19 @@ class ServiceInvoiceController extends Controller
     }
 
     /**
-     * Soft-delete an employee's own invoice (before or after approval) and unwind
-     * its accruals. Only the invoice's owner may do this — never an accountant.
+     * Return (استرجاع) an employee's own invoice, before or after approval: the
+     * invoice keeps its row and moves to RETURNED while its accruals are unwound
+     * and — for a settled invoice — an M14 refund is booked. Only the invoice's
+     * owner may do this, never an accountant.
      */
-    public function destroy(ServiceInvoice $invoice, DeleteServiceInvoiceAction $action): RedirectResponse
+    public function returnInvoice(ReturnServiceInvoiceRequest $request, ServiceInvoice $invoice, ReturnServiceInvoiceAction $action): RedirectResponse
     {
-        Gate::authorize('delete', $invoice);
+        Gate::authorize('returnInvoice', $invoice);
 
-        $number = $invoice->invoice_number;
-        $action->handle($invoice);
+        $action->handle($invoice, Auth::user(), $request->validated('reason'));
 
         return to_route('invoices.index')
-            ->with('success', "تم حذف الفاتورة {$number} بنجاح");
+            ->with('success', "تم استرجاع الفاتورة {$invoice->invoice_number} بنجاح");
     }
 
     /**
@@ -455,6 +458,9 @@ class ServiceInvoiceController extends Controller
                 'pricingType' => $service->pricing_type?->value ?? 'unit',
                 'pricePerSqm' => (float) $service->price_per_sqm,
                 'agentCommissionPerSqm' => (float) $service->agent_commission_per_sqm,
+                // Ready-made detail phrases; the POS joins them into the
+                // placeholder of the line's free-text detail box.
+                'noteExamples' => array_values($service->note_examples ?? []),
                 'isTahazir' => $service->is_tahazir,
             ])
             ->filter(fn ($service) => $service['name'] !== null)

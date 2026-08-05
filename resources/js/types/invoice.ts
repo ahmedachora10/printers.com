@@ -1,5 +1,5 @@
 export type InvoiceType = 'product' | 'service';
-export type InvoiceStatus = 'paid' | 'due' | 'cancelled';
+export type InvoiceStatus = 'paid' | 'due' | 'cancelled' | 'returned';
 
 export interface InvoiceLine {
     name: string;
@@ -76,7 +76,7 @@ export interface Invoice {
     canRefund: boolean;
     canApprovePayment: boolean;
     canEdit: boolean;
-    canDelete: boolean;
+    canReturn: boolean;
     refunds?: InvoiceRefund[];
     branch: InvoiceBranch;
 }
@@ -99,7 +99,9 @@ export interface InvoiceListItem {
     branchName?: string | null;
     createdAt: string;
     canEdit: boolean;
-    canDelete: boolean;
+    canReturn: boolean;
+    /** Owner of an invoice that is already returned — the control shows, disabled. */
+    returnLocked: boolean;
     canEditCustomer: boolean;
 }
 

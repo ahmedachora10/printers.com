@@ -1,8 +1,10 @@
 <?php
 
+use App\Enums\AgentDiscountModeEnum;
 use App\Enums\CustomerTypeEnum;
 use App\Enums\LoyaltyTransactionTypeEnum;
 use App\Enums\Roles;
+use App\Models\AgentPayment;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\CommissionLedger;
@@ -11,6 +13,7 @@ use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceAgent;
 use App\Models\ServiceTemplate;
 use App\Models\User;
 use App\Models\UserService;
@@ -52,7 +55,7 @@ function makeOwnedDueInvoice(array $lineOverrides = []): ServiceInvoice
     return ServiceInvoice::latest('id')->firstOrFail();
 }
 
-describe('Service invoice edit/delete', function () {
+describe('Service invoice edit/return', function () {
     beforeEach(function () {
         $this->withoutVite();
         $this->seed(RolesAndPermissionsSeeder::class);
@@ -149,22 +152,85 @@ describe('Service invoice edit/delete', function () {
         $this->actingAs($accountant)->get(route('pos.service.edit', $invoice))->assertForbidden();
     });
 
-    // ---- Delete -----------------------------------------------------------
+    // ---- Return (استرجاع) ---------------------------------------------------
 
-    it('lets the owner soft-delete a due invoice with no commission to reverse', function () {
+    it('returns a due invoice without deleting it and books no refund', function () {
         $invoice = makeOwnedDueInvoice();
 
-        $this->delete(route('pos.service.destroy', $invoice))
+        $this->post(route('pos.service.return', $invoice))
             ->assertRedirect(route('invoices.index'))
             ->assertSessionHas('success');
 
-        // A due invoice never earned commission, so the ledger stays empty.
-        expect(ServiceInvoice::withTrashed()->find($invoice->id)->trashed())->toBeTrue()
-            ->and(ServiceInvoice::find($invoice->id))->toBeNull()
+        $invoice->refresh();
+
+        // The row stays visible, only the status moves. A due invoice never
+        // collected money (nor earned commission), so no refund is booked.
+        expect($invoice->trashed())->toBeFalse()
+            ->and($invoice->status->value)->toBe('returned')
+            ->and(Refund::where('invoice_id', $invoice->id)->count())->toBe(0)
             ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(0.00);
     });
 
-    it('claws back earned points when deleting a paid invoice', function () {
+    it('books a refund for the full total and reverses commission when returning a paid invoice', function () {
+        $invoice = makeOwnedDueInvoice(); // total 34.50, commission 2.61
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
+
+        expect((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(2.61);
+
+        $this->actingAs($this->employee)
+            ->post(route('pos.service.return', $invoice), ['reason' => 'العميل ألغى الطلب'])
+            ->assertRedirect(route('invoices.index'));
+
+        $invoice->refresh();
+        $refund = Refund::where('invoice_id', $invoice->id)->where('invoice_type', $invoice->getMorphClass())->sole();
+
+        expect($invoice->trashed())->toBeFalse()
+            ->and($invoice->status->value)->toBe('returned')
+            ->and((float) $refund->amount)->toBe(34.50)
+            ->and($refund->reason)->toBe('العميل ألغى الطلب')
+            ->and($refund->user_id)->toBe($this->employee->id)
+            // The reversal is a new negative row — the ledger is never mutated.
+            ->and(CommissionLedger::where('user_id', $this->employee->id)->count())->toBe(2)
+            ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(0.00);
+    });
+
+    it('refunds only the remainder when the invoice was already partially refunded', function () {
+        $invoice = makeOwnedDueInvoice(); // total 34.50, commission 2.61
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'amount' => 10,
+            'reason' => 'مرتجع جزئي',
+        ])->assertSessionHasNoErrors();
+
+        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice))
+            ->assertRedirect(route('invoices.index'));
+
+        $invoice->refresh();
+
+        expect($invoice->status->value)->toBe('returned')
+            ->and(Refund::where('invoice_id', $invoice->id)->count())->toBe(2)
+            ->and((float) Refund::where('invoice_id', $invoice->id)->sum('amount'))->toBe(34.50)
+            // 0.76 reversed with the partial refund + 1.85 with the return = 2.61.
+            ->and(round((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'), 2) + 0)->toBe(0.00);
+    });
+
+    it('refuses to return an invoice that is already returned', function () {
+        $invoice = makeOwnedDueInvoice();
+
+        $this->post(route('pos.service.return', $invoice))->assertRedirect(route('invoices.index'));
+
+        // The policy denies a second return outright — no duplicate refund, and
+        // the accruals are never unwound twice.
+        $this->post(route('pos.service.return', $invoice))->assertForbidden();
+
+        expect(Refund::where('invoice_id', $invoice->id)->count())->toBe(0)
+            ->and($invoice->refresh()->status->value)->toBe('returned');
+    });
+
+    it('claws back earned points when returning a paid invoice', function () {
         LoyaltyConfig::query()->create(['branch_id' => $this->branch->id, 'earning_rate' => 1, 'is_active' => true]);
 
         $customer = Customer::factory()->create([
@@ -181,11 +247,11 @@ describe('Service invoice edit/delete', function () {
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
         expect($customer->refresh()->points_balance)->toBe(34);
 
-        $this->actingAs($this->employee)->delete(route('pos.service.destroy', $invoice))
+        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice))
             ->assertRedirect(route('invoices.index'));
 
         $customer->refresh();
-        expect(ServiceInvoice::withTrashed()->find($invoice->id)->trashed())->toBeTrue()
+        expect($invoice->refresh()->status->value)->toBe('returned')
             ->and($customer->points_balance)->toBe(0)
             ->and((float) $customer->cumulative_spend)->toBe(0.00)
             ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(0.00)
@@ -195,44 +261,59 @@ describe('Service invoice edit/delete', function () {
                 ->exists())->toBeTrue();
     });
 
-    it('blocks deleting a paid invoice that has a refund', function () {
+    it('blocks returning an invoice already rolled into an agent payment', function () {
         $invoice = makeOwnedDueInvoice();
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
 
-        Refund::create([
+        $agent = User::factory()->create(['branch_id' => $this->branch->id]);
+        $agent->addRole(Roles::AGENT->value);
+
+        $payment = AgentPayment::create([
+            'agent_id' => $agent->id,
             'branch_id' => $this->branch->id,
-            'user_id' => $this->branchAdmin->id,
-            'source_type' => 'service',
-            'invoice_id' => $invoice->id,
-            'invoice_type' => $invoice->getMorphClass(),
-            'amount' => 10,
-            'reason' => 'مرتجع جزئي',
+            'period_start' => now()->subMonth()->toDateString(),
+            'period_end' => now()->toDateString(),
+            'total_invoices' => 1,
+            'total_rebate' => 5,
+            'paid_by' => $this->branchAdmin->id,
+            'paid_at' => now(),
         ]);
 
-        $this->actingAs($this->employee)->delete(route('pos.service.destroy', $invoice))
+        ServiceInvoiceAgent::create([
+            'service_invoice_id' => $invoice->id,
+            'agent_id' => $agent->id,
+            'discount_mode' => AgentDiscountModeEnum::Rebate,
+            'rate' => 5,
+            'rebate_amount' => 5,
+            'discount_amount' => 0,
+            'agent_payment_id' => $payment->id,
+        ]);
+
+        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice))
             ->assertSessionHasErrors('invoice');
 
-        expect(ServiceInvoice::find($invoice->id))->not->toBeNull();
+        expect($invoice->refresh()->status->value)->toBe('paid')
+            ->and(Refund::where('invoice_id', $invoice->id)->count())->toBe(0);
     });
 
-    it('forbids an accountant from deleting an employee invoice', function () {
+    it('forbids an accountant from returning an employee invoice', function () {
         $invoice = makeOwnedDueInvoice();
 
         $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
         $accountant->addRole(Roles::ACCOUNTANT->value);
 
-        $this->actingAs($accountant)->delete(route('pos.service.destroy', $invoice))->assertForbidden();
+        $this->actingAs($accountant)->post(route('pos.service.return', $invoice))->assertForbidden();
 
-        expect(ServiceInvoice::find($invoice->id))->not->toBeNull();
+        expect($invoice->refresh()->status->value)->toBe('due');
     });
 
-    it('forbids deleting another employee\'s invoice', function () {
+    it('forbids returning another employee\'s invoice', function () {
         $invoice = makeOwnedDueInvoice();
 
         $other = User::factory()->create(['branch_id' => $this->branch->id]);
         $other->addRole(Roles::EMPLOYEE->value);
 
-        $this->actingAs($other)->delete(route('pos.service.destroy', $invoice))->assertForbidden();
+        $this->actingAs($other)->post(route('pos.service.return', $invoice))->assertForbidden();
     });
 
     // ---- Customer details from the POS edit screen --------------------------

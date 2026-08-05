@@ -35,6 +35,7 @@ const STATUS: Record<DashboardRecentInvoice['status'], { label: string; classNam
     paid: { label: 'مدفوعة', className: 'bg-green-600' },
     due: { label: 'آجلة', className: 'bg-amber-500' },
     cancelled: { label: 'ملغاة', className: 'bg-muted text-muted-foreground' },
+    returned: { label: 'مرتجع', className: 'bg-red-600' },
 };
 
 const recentInvoiceColumns: ColumnDef<DashboardRecentInvoice>[] = [

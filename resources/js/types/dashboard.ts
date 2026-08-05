@@ -42,7 +42,7 @@ export interface DashboardRecentInvoice {
     invoiceNumber: string;
     customerName: string | null;
     total: number;
-    status: 'paid' | 'due' | 'cancelled';
+    status: 'paid' | 'due' | 'cancelled' | 'returned';
     createdAt: string | null;
 }
 

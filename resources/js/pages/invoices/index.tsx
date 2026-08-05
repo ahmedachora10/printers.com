@@ -12,7 +12,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
 import { Link, router } from '@inertiajs/react';
-import { Eye, Loader2, Pencil, Printer, Trash2, UserPlus } from 'lucide-react';
+import { Eye, Loader2, Pencil, Printer, Undo2, UserPlus } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -22,6 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
     paid: 'border-green-200 bg-green-50 text-green-700',
     due: 'border-red-200 bg-red-50 text-red-700',
     cancelled: 'border-border bg-muted/60 text-muted-foreground',
+    returned: 'border-red-300 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
 };
 
 const TYPE_COLORS: Record<string, string> = {
@@ -46,8 +47,9 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     });
     const [dateFrom, setDateFrom] = useState(filters.date_from ?? '');
     const [dateTo, setDateTo] = useState(filters.date_to ?? '');
-    const [deleteItem, setDeleteItem] = useState<InvoiceListItem | null>(null);
-    const [deleting, setDeleting] = useState(false);
+    const [returnItem, setReturnItem] = useState<InvoiceListItem | null>(null);
+    const [returnReason, setReturnReason] = useState('');
+    const [returning, setReturning] = useState(false);
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
     // Customer name/phone/tax editing — service invoices only, gated by
@@ -88,17 +90,22 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         );
     }
 
-    function confirmDelete() {
-        if (!deleteItem) return;
-        setDeleting(true);
-        router.delete(posService.destroy(deleteItem.id).url, {
-            preserveScroll: true,
-            onError: (e) => toast.error((Object.values(e)[0] as string) ?? 'تعذّر حذف الفاتورة.'),
-            onFinish: () => {
-                setDeleting(false);
-                setDeleteItem(null);
+    function confirmReturn() {
+        if (!returnItem) return;
+        setReturning(true);
+        router.post(
+            posService.return(returnItem.id).url,
+            { reason: returnReason.trim() },
+            {
+                preserveScroll: true,
+                onError: (e) => toast.error((Object.values(e)[0] as string) ?? 'تعذّر استرجاع الفاتورة.'),
+                onFinish: () => {
+                    setReturning(false);
+                    setReturnItem(null);
+                    setReturnReason('');
+                },
             },
-        });
+        );
     }
 
     function buildParams(s: string, fv: Record<string, string>, from: string, to: string) {
@@ -268,15 +275,21 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                                 </Link>
                             </Button>
                         )}
-                        {item.canDelete && (
+                        {item.canReturn && (
                             <Button
                                 variant="outline"
                                 size="sm"
                                 className="text-destructive hover:text-destructive"
-                                aria-label="حذف"
-                                onClick={() => setDeleteItem(item)}
+                                aria-label="استرجاع الفاتورة"
+                                title="استرجاع الفاتورة"
+                                onClick={() => setReturnItem(item)}
                             >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                <Undo2 className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
+                        {item.returnLocked && (
+                            <Button variant="outline" size="sm" disabled aria-label="مُرتجعة بالفعل" title="مُرتجعة بالفعل">
+                                <Undo2 className="h-3.5 w-3.5" />
                             </Button>
                         )}
                     </div>
@@ -319,6 +332,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                                     { value: 'paid', label: 'مدفوعة' },
                                     { value: 'due', label: 'آجلة' },
                                     { value: 'cancelled', label: 'ملغاة' },
+                                    { value: 'returned', label: 'مرتجع' },
                                 ],
                             },
                         ]}
@@ -347,7 +361,14 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                     />
                 </div>
 
-                <DataTable columns={columns} data={items.data} keyExtractor={(item) => `${item.type}-${item.id}`} />
+                <DataTable
+                    columns={columns}
+                    data={items.data}
+                    keyExtractor={(item) => `${item.type}-${item.id}`}
+                    rowClassName={(item) =>
+                        item.status === 'returned' ? 'bg-red-50 hover:bg-red-100/70 dark:bg-red-950/30 dark:hover:bg-red-950/50' : undefined
+                    }
+                />
 
                 <TablePagination
                     currentPage={items.meta.current_page as number}
@@ -389,24 +410,38 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={!!deleteItem} onOpenChange={(open) => !open && setDeleteItem(null)}>
+            <Dialog open={!!returnItem} onOpenChange={(open) => !open && !returning && setReturnItem(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>حذف الفاتورة</DialogTitle>
+                        <DialogTitle>استرجاع الفاتورة</DialogTitle>
                         <DialogDescription>
-                            سيتم حذف الفاتورة {deleteItem?.invoiceNumber} نهائياً من القوائم
-                            {deleteItem?.status === 'paid'
-                                ? ' مع عكس العمولة غير المدفوعة وسحب نقاط الولاء المكتسبة واسترجاع أي نقاط مستبدلة.'
-                                : ' مع عكس العمولة غير المدفوعة واسترجاع أي نقاط مستبدلة.'}{' '}
+                            تبقى الفاتورة {returnItem?.invoiceNumber} ظاهرة في القوائم بحالة «مرتجع» ولا تُحذف
+                            {returnItem?.status === 'paid'
+                                ? '، ويُسجَّل لها مرتجع بكامل المتبقي مع عكس العمولة غير المدفوعة وسحب نقاط الولاء المكتسبة واسترجاع أي نقاط مستبدلة.'
+                                : '، مع عكس العمولة غير المدفوعة واسترجاع أي نقاط مستبدلة.'}{' '}
                             لا يمكن التراجع عن هذا الإجراء.
                         </DialogDescription>
                     </DialogHeader>
+                    <div className="space-y-1">
+                        <label htmlFor="return-reason" className="text-sm font-medium">
+                            سبب الاسترجاع <span className="text-muted-foreground font-normal">(اختياري)</span>
+                        </label>
+                        <textarea
+                            id="return-reason"
+                            rows={3}
+                            value={returnReason}
+                            onChange={(e) => setReturnReason(e.target.value)}
+                            placeholder="سبب استرجاع الفاتورة..."
+                            disabled={returning}
+                            className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                    </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteItem(null)} disabled={deleting}>
+                        <Button variant="outline" onClick={() => setReturnItem(null)} disabled={returning}>
                             تراجع
                         </Button>
-                        <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
-                            <Trash2 className="size-4" /> تأكيد الحذف
+                        <Button variant="destructive" onClick={confirmReturn} disabled={returning}>
+                            <Undo2 className="size-4" /> تأكيد الاسترجاع
                         </Button>
                     </DialogFooter>
                 </DialogContent>

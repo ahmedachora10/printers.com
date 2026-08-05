@@ -7,6 +7,7 @@ enum InvoiceStatusEnum: string
     case PAID = 'paid';
     case DUE = 'due';
     case CANCELLED = 'cancelled';
+    case RETURNED = 'returned';
 
     public function label(): string
     {
@@ -14,6 +15,7 @@ enum InvoiceStatusEnum: string
             self::PAID => 'مدفوعة',
             self::DUE => 'غير مسددة',
             self::CANCELLED => 'ملغاة',
+            self::RETURNED => 'مرتجع',
         };
     }
 

@@ -14,7 +14,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice } from '@/types/invoice';
 import { Head, router, usePage } from '@inertiajs/react';
-import { CheckCircle2, Paperclip, Pencil, Printer, ReceiptText, Trash2, Undo2 } from 'lucide-react';
+import { CheckCircle2, Paperclip, Pencil, Printer, ReceiptText, Undo2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -22,6 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
     paid: 'border-green-200 bg-green-50 text-green-700',
     due: 'border-red-200 bg-red-50 text-red-700',
     cancelled: 'border-border bg-muted/60 text-muted-foreground',
+    returned: 'border-red-300 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
 };
 
 interface Props {
@@ -110,8 +111,9 @@ export default function InvoiceShow({ invoice }: Props) {
     const [refundOpen, setRefundOpen] = useState(false);
     const [approveOpen, setApproveOpen] = useState(false);
     const [approving, setApproving] = useState(false);
-    const [deleteOpen, setDeleteOpen] = useState(false);
-    const [deleting, setDeleting] = useState(false);
+    const [returnOpen, setReturnOpen] = useState(false);
+    const [returnReason, setReturnReason] = useState('');
+    const [returning, setReturning] = useState(false);
 
     useEffect(() => {
         if (props.success) {
@@ -134,16 +136,20 @@ export default function InvoiceShow({ invoice }: Props) {
         );
     }
 
-    function confirmDelete() {
-        setDeleting(true);
-        router.delete(posService.destroy(invoice.id).url, {
-            onError: (e) => {
-                toast.error((Object.values(e)[0] as string) ?? 'تعذّر حذف الفاتورة.');
-                setDeleting(false);
-                setDeleteOpen(false);
+    function confirmReturn() {
+        setReturning(true);
+        router.post(
+            posService.return(invoice.id).url,
+            { reason: returnReason.trim() },
+            {
+                onError: (e) => {
+                    toast.error((Object.values(e)[0] as string) ?? 'تعذّر استرجاع الفاتورة.');
+                    setReturning(false);
+                    setReturnOpen(false);
+                },
+                onFinish: () => setReturning(false),
             },
-            onFinish: () => setDeleting(false),
-        });
+        );
     }
 
     const breadcrumbs: BreadcrumbItem[] = [
@@ -170,7 +176,7 @@ export default function InvoiceShow({ invoice }: Props) {
                             </Badge>
                             <Badge variant="secondary">{invoice.typeLabel}</Badge>
                             <Badge variant="outline">{invoiceDocumentTitle(invoice)}</Badge>
-                            {invoice.isFullyRefunded && (
+                            {invoice.isFullyRefunded && invoice.status !== 'returned' && (
                                 <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
                                     مُرتجعة
                                 </Badge>
@@ -196,9 +202,9 @@ export default function InvoiceShow({ invoice }: Props) {
                                 </a>
                             </Button>
                         )}
-                        {invoice.canDelete && (
-                            <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}>
-                                <Trash2 className="size-4" /> حذف
+                        {invoice.canReturn && (
+                            <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setReturnOpen(true)}>
+                                <Undo2 className="size-4" /> استرجاع الفاتورة
                             </Button>
                         )}
                         {invoice.status !== 'cancelled' && (
@@ -387,25 +393,39 @@ export default function InvoiceShow({ invoice }: Props) {
                 </DialogContent>
             </Dialog>
 
-            {/* Delete confirmation */}
-            <Dialog open={deleteOpen} onOpenChange={(open) => !open && setDeleteOpen(false)}>
+            {/* Return confirmation */}
+            <Dialog open={returnOpen} onOpenChange={(open) => !open && !returning && setReturnOpen(false)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>حذف الفاتورة</DialogTitle>
+                        <DialogTitle>استرجاع الفاتورة</DialogTitle>
                         <DialogDescription>
-                            سيتم حذف الفاتورة {invoice.invoiceNumber} نهائياً من القوائم
+                            تبقى الفاتورة {invoice.invoiceNumber} ظاهرة في القوائم بحالة «مرتجع» ولا تُحذف
                             {invoice.status === 'paid'
-                                ? ' مع عكس العمولة غير المدفوعة وسحب نقاط الولاء المكتسبة واسترجاع أي نقاط مستبدلة.'
-                                : ' مع عكس العمولة غير المدفوعة واسترجاع أي نقاط مستبدلة.'}{' '}
+                                ? '، ويُسجَّل لها مرتجع بكامل المتبقي مع عكس العمولة غير المدفوعة وسحب نقاط الولاء المكتسبة واسترجاع أي نقاط مستبدلة.'
+                                : '، مع عكس العمولة غير المدفوعة واسترجاع أي نقاط مستبدلة.'}{' '}
                             لا يمكن التراجع عن هذا الإجراء.
                         </DialogDescription>
                     </DialogHeader>
+                    <div className="space-y-1">
+                        <label htmlFor="invoice-return-reason" className="text-sm font-medium">
+                            سبب الاسترجاع <span className="text-muted-foreground font-normal">(اختياري)</span>
+                        </label>
+                        <textarea
+                            id="invoice-return-reason"
+                            rows={3}
+                            value={returnReason}
+                            onChange={(e) => setReturnReason(e.target.value)}
+                            placeholder="سبب استرجاع الفاتورة..."
+                            disabled={returning}
+                            className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                    </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setDeleteOpen(false)} disabled={deleting}>
+                        <Button variant="outline" onClick={() => setReturnOpen(false)} disabled={returning}>
                             تراجع
                         </Button>
-                        <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
-                            <Trash2 className="size-4" /> تأكيد الحذف
+                        <Button variant="destructive" onClick={confirmReturn} disabled={returning}>
+                            <Undo2 className="size-4" /> تأكيد الاسترجاع
                         </Button>
                     </DialogFooter>
                 </DialogContent>

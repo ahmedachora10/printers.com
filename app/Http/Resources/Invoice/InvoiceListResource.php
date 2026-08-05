@@ -35,8 +35,8 @@ class InvoiceListResource extends JsonResource
         $status = InvoiceStatusEnum::from($this->status);
 
         // Owner-employee controls, mirroring ServiceInvoicePolicy. The list can't
-        // know the refund/agent-payment guards, so an edit/delete opens the
-        // invoice where the server has the final, guard-aware say.
+        // know the agent-payment guard, so an edit/return opens the invoice where
+        // the server has the final, guard-aware say.
         $user = $request->user();
         $isOwnerEmployee = $user !== null
             && $type === InvoiceTypeEnum::SERVICE
@@ -75,7 +75,12 @@ class InvoiceListResource extends JsonResource
             ),
             'createdAt' => $this->created_at,
             'canEdit' => $isOwnerEmployee && $status === InvoiceStatusEnum::DUE,
-            'canDelete' => $isOwnerEmployee && $status !== InvoiceStatusEnum::CANCELLED,
+            'canReturn' => $isOwnerEmployee
+                && $status !== InvoiceStatusEnum::CANCELLED
+                && $status !== InvoiceStatusEnum::RETURNED,
+            // The owner of an already-returned invoice still sees the control,
+            // disabled — so the row reads as "returned", not as "not yours".
+            'returnLocked' => $isOwnerEmployee && $status === InvoiceStatusEnum::RETURNED,
             'canEditCustomer' => $canEditCustomer,
         ];
     }
