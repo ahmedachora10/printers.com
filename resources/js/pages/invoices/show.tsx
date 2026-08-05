@@ -14,7 +14,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice } from '@/types/invoice';
 import { Head, router, usePage } from '@inertiajs/react';
-import { CheckCircle2, Paperclip, Pencil, Printer, ReceiptText, Undo2 } from 'lucide-react';
+import { Ban, CheckCircle2, Paperclip, Pencil, Printer, ReceiptText, Undo2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -223,6 +223,28 @@ export default function InvoiceShow({ invoice }: Props) {
                         )}
                     </div>
                 </div>
+
+                {/* Why the reviewer rejected the invoice — shown to everyone who may
+                    view it, the employee who raised it above all (تاسك 18). */}
+                {invoice.status === 'cancelled' && invoice.cancellationReason && (
+                    <div
+                        role="alert"
+                        className="mb-6 flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+                    >
+                        <Ban className="mt-0.5 size-4 shrink-0" />
+                        <div className="space-y-1">
+                            <p className="text-sm font-semibold">أُلغيت هذه الفاتورة</p>
+                            <p className="text-sm whitespace-pre-line">{invoice.cancellationReason}</p>
+                            {(invoice.cancelledByName || invoice.cancelledAt) && (
+                                <p className="text-xs opacity-80">
+                                    {invoice.cancelledByName && <>بواسطة {invoice.cancelledByName}</>}
+                                    {invoice.cancelledByName && invoice.cancelledAt && ' — '}
+                                    {invoice.cancelledAt && formatDateTime(invoice.cancelledAt)}
+                                </p>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {invoice.refunds && invoice.refunds.length > 0 && (
                     <Card className="mb-6 border-amber-200 bg-amber-50/40">

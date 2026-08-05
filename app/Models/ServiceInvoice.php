@@ -40,6 +40,8 @@ class ServiceInvoice extends Model implements HasMedia
         'status',
         'paid_at',
         'cancellation_reason',
+        'cancelled_by',
+        'cancelled_at',
     ];
 
     protected $casts = [
@@ -56,6 +58,7 @@ class ServiceInvoice extends Model implements HasMedia
         'total_amount' => 'decimal:2',
         'employee_commission' => 'decimal:2',
         'paid_at' => 'datetime',
+        'cancelled_at' => 'datetime',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -81,6 +84,17 @@ class ServiceInvoice extends Model implements HasMedia
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The reviewer who cancelled the invoice — shown to the employee beside the
+     * cancellation reason.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function cancelledBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'cancelled_by');
     }
 
     /** @return BelongsTo<Customer, $this> */

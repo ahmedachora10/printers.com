@@ -41,7 +41,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -87,7 +87,7 @@ class InvoiceController extends Controller
         // Product invoices carry a single agent on the row; service invoices list
         // several via the pivot, plus the per-line commission owners.
         if ($invoice instanceof ServiceInvoice) {
-            $invoice->load('invoiceAgents.agent:id,name', 'lines.lineAgent:id,name');
+            $invoice->load('invoiceAgents.agent:id,name', 'lines.lineAgent:id,name', 'cancelledBy:id,name');
         } else {
             $invoice->load('agent:id,name');
         }
@@ -169,6 +169,12 @@ class InvoiceController extends Controller
             ? DB::raw("(select group_concat(distinct service_name) from service_invoice_lines where service_invoice_lines.invoice_id = {$table}.id) as service_name")
             : DB::raw('null as service_name');
 
+        // Only service invoices can be cancelled by a reviewer, so the column
+        // exists on that table alone; the product branch of the union pads it.
+        $cancellationSelect = $type === InvoiceTypeEnum::SERVICE
+            ? "{$table}.cancellation_reason"
+            : DB::raw('null as cancellation_reason');
+
         return DB::table($table)
             ->leftJoin('customers', 'customers.id', '=', "{$table}.customer_id")
             ->leftJoin('users', 'users.id', '=', "{$table}.user_id")
@@ -202,6 +208,7 @@ class InvoiceController extends Controller
                 $serviceNameSelect,
                 "{$table}.user_id",
                 'branches.name as branch_name',
+                $cancellationSelect,
             ]);
     }
 }

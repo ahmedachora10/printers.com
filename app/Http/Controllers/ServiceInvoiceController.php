@@ -323,7 +323,7 @@ class ServiceInvoiceController extends Controller
         Gate::authorize('updateStatus', $invoice);
 
         $reason = $request->validated()['reason'];
-        $action->handle($invoice, $reason);
+        $action->handle($invoice, $reason, Auth::user());
 
         Notification::send(
             $this->reviewNotifiables($invoice),
