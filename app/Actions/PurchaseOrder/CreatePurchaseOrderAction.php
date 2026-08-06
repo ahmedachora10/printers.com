@@ -12,7 +12,10 @@ class CreatePurchaseOrderAction
     public function handle(array $data): PurchaseOrder
     {
         $user = auth()->user();
-        $branchId = $user->branchId;
+        // The branch normally comes from the acting user; internal purchase
+        // requests pass it explicitly so a super-admin can convert a request
+        // that belongs to a branch they do not sit in.
+        $branchId = $data['branch_id'] ?? $user->branchId;
 
         return DB::transaction(function () use ($data, $branchId, $user) {
             $po = PurchaseOrder::create([
