@@ -1,5 +1,5 @@
 import { Input } from '@/components/ui/input';
-import { cn } from '@/lib/utils';
+import { cn, formatSar } from '@/lib/utils';
 import { type PublicCategory } from '@/types/catalogue';
 import { Head } from '@inertiajs/react';
 import { ImageIcon, MessageCircle, Search } from 'lucide-react';
@@ -8,10 +8,6 @@ import { useMemo, useState } from 'react';
 interface Props {
     categories: PublicCategory[];
     whatsappNumber: string | null;
-}
-
-function formatSar(value: number): string {
-    return `${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
 }
 
 export default function PublicCatalogue({ categories, whatsappNumber }: Props) {

@@ -37,6 +37,7 @@ use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\RefundController;
 use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\ServiceInvoiceController;
+use App\Http\Controllers\ServicePriceListController;
 use App\Http\Controllers\ServiceTemplateController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StockReconciliationController;
@@ -190,6 +191,11 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
+        // Read-only in-app price list over the same catalogue tree as the
+        // public M19 page — staff reference it while quoting a customer.
+        Route::get('services/price-list', [ServicePriceListController::class, 'index'])
+            ->name('services.price-list');
+
         Route::get('pos/customers/search', [CustomerController::class, 'posSearch'])
             ->name('pos.customers.search');
         Route::get('customers/outstanding-balance', [CustomerController::class, 'outstandingBalance'])
