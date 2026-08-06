@@ -96,7 +96,10 @@ class ProductInvoiceController extends Controller
     {
         Gate::authorize('view', $invoice);
 
-        $invoice->load(['lines', 'customer:id,full_name,phone', 'paymentMethod:id,name', 'branch:id,name,phone,address,tax_number']);
+        $invoice->load(['lines', 'customer:id,full_name,phone,tax_number', 'paymentMethod:id,name', 'branch:id,name,phone,address,tax_number']);
+
+        // قبل الاعتماد الورقة عرض سعر لا فاتورة ضريبية — فلا تحمل الرقم الضريبي للفرع.
+        $isQuotation = $invoice->status !== InvoiceStatusEnum::PAID;
 
         return Inertia::render('pos/product/print', [
             'invoice' => [
@@ -114,6 +117,7 @@ class ProductInvoiceController extends Controller
                 'totalAmount' => (float) $invoice->total_amount,
                 'customerName' => $invoice->customer?->full_name,
                 'customerPhone' => $invoice->customer?->phone,
+                'customerTaxNumber' => $invoice->customer?->tax_number,
                 'paymentMethod' => $invoice->paymentMethod?->name,
                 'lines' => $invoice->lines->map(fn ($line) => [
                     'name' => $line->product_name,
@@ -128,7 +132,7 @@ class ProductInvoiceController extends Controller
                 'name' => $invoice->branch?->name,
                 'phone' => $invoice->branch?->phone,
                 'address' => $invoice->branch?->address,
-                'taxNumber' => $invoice->branch?->tax_number,
+                'taxNumber' => $isQuotation ? null : $invoice->branch?->tax_number,
             ],
         ]);
     }

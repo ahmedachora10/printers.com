@@ -1,4 +1,4 @@
-import { invoiceDocumentTitle } from '@/lib/invoice';
+import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { type Invoice } from '@/types/invoice';
 import { Head } from '@inertiajs/react';
@@ -30,6 +30,7 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
     // إجمالي بدون خصم الخصومات: يُحسب على المجموع الفرعي بالكامل
     const grossVat = invoice.subtotal * (invoice.vatPct / 100);
     const grossTotal = invoice.subtotal + grossVat;
+    const doc = invoiceDocument(invoice);
 
     return (
         <div dir="rtl" className="mx-auto max-w-sm bg-white p-4 font-sans text-sm text-black">
@@ -38,7 +39,8 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                 {invoice.branch.phone && <p className="text-xs">{invoice.branch.phone}</p>}
                 {invoice.branch.address && <p className="text-xs">{invoice.branch.address}</p>}
                 {invoice.branch.taxNumber && <p className="text-xs">الرقم الضريبي: {invoice.branch.taxNumber}</p>}
-                <h2 className="mt-2 text-sm font-bold">{invoiceDocumentTitle(invoice)}</h2>
+                <h2 className="mt-2 text-sm font-bold">{doc.title}</h2>
+                {doc.isQuotation && <p className="mt-1 text-[10px] font-semibold">{QUOTATION_DISCLAIMER}</p>}
             </div>
 
             <div className="my-3 border-t border-dashed border-black" />
@@ -144,6 +146,7 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
     // إجمالي بدون خصم الخصومات: يُحسب على المجموع الفرعي بالكامل
     const grossVat = invoice.subtotal * (invoice.vatPct / 100);
     const grossTotal = invoice.subtotal + grossVat;
+    const doc = invoiceDocument(invoice);
 
     return (
         <div dir="rtl" className="mx-auto max-w-3xl bg-white p-10 font-sans text-sm text-black">
@@ -162,7 +165,10 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
                 {invoice.branch.logoUrl && <img src={invoice.branch.logoUrl} alt="logo" className="h-20 w-auto object-contain" />}
             </div>
 
-            <h2 className="my-6 text-center text-lg font-bold">{invoiceDocumentTitle(invoice)}</h2>
+            <div className="my-6 text-center">
+                <h2 className="text-lg font-bold">{doc.title}</h2>
+                {doc.isQuotation && <p className="mt-1 text-xs font-semibold">{QUOTATION_DISCLAIMER}</p>}
+            </div>
 
             {/* Meta grid */}
             <div className="mb-6 grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
@@ -216,9 +222,7 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
                         <tr key={i}>
                             <td className="border border-neutral-300 p-2">
                                 {line.name}
-                                {line.notes && (
-                                    <span className="block text-[10px] whitespace-pre-line text-neutral-500">{line.notes}</span>
-                                )}
+                                {line.notes && <span className="block text-[10px] whitespace-pre-line text-neutral-500">{line.notes}</span>}
                                 {line.widthCm != null && line.heightCm != null && (
                                     <span className="block text-[10px] text-neutral-500">
                                         المقاس: {line.widthCm}×{line.heightCm} سم
@@ -274,7 +278,7 @@ export default function InvoicePrint({ invoice, format, zatcaQr }: Props) {
 
     return (
         <div className="bg-white">
-            <Head title={`${invoiceDocumentTitle(invoice)} ${invoice.invoiceNumber}`} />
+            <Head title={`${invoiceDocument(invoice).title} ${invoice.invoiceNumber}`} />
             <div className="mx-auto max-w-3xl px-4 pt-4">
                 <PrintToolbar />
             </div>

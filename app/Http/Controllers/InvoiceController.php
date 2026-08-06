@@ -115,11 +115,20 @@ class InvoiceController extends Controller
 
         $format = $request->input('format') === 'thermal' ? 'thermal' : 'a4';
 
+        // الفاتورة غير المعتمدة تُطبع كعرض سعر: مستند غير ضريبي، فلا يُرسل معه أيٌّ من
+        // مقوّمات الفاتورة الضريبية — لا الرقم الضريبي للفرع ولا رمز الاستجابة الضريبي.
+        $isQuotation = $invoice->status !== InvoiceStatusEnum::PAID;
+
+        $payload = (new InvoiceResource($invoice))->toArray($request);
+
+        if ($isQuotation) {
+            $payload['branch']['taxNumber'] = null;
+        }
+
         return Inertia::render('invoices/print', [
-            'invoice' => new InvoiceResource($invoice),
+            'invoice' => $payload,
             'format' => $format,
-            // الفواتير غير المعتمدة (آجل) تُطبع كعرض سعر — لا رمز ضريبي لها
-            'zatcaQr' => $invoice->status === InvoiceStatusEnum::PAID ? $qrAction->handle($invoice) : null,
+            'zatcaQr' => $isQuotation ? null : $qrAction->handle($invoice),
         ]);
     }
 

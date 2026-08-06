@@ -1,3 +1,4 @@
+import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import service from '@/routes/pos/service';
 import { type PosBranch, type PosInvoice } from '@/types/pos';
@@ -11,6 +12,8 @@ interface Props {
 }
 
 export default function ServiceInvoicePrint({ invoice, branch }: Props) {
+    const doc = invoiceDocument(invoice);
+
     useEffect(() => {
         const timer = setTimeout(() => window.print(), 300);
         return () => clearTimeout(timer);
@@ -18,7 +21,7 @@ export default function ServiceInvoicePrint({ invoice, branch }: Props) {
 
     return (
         <div dir="rtl" className="mx-auto max-w-sm bg-white p-4 font-sans text-sm text-black">
-            <Head title={`فاتورة ${invoice.invoiceNumber}`} />
+            <Head title={`${doc.title} ${invoice.invoiceNumber}`} />
 
             {/* Toolbar — hidden when printing */}
             <div className="mb-4 flex items-center justify-between gap-2 print:hidden">
@@ -40,6 +43,8 @@ export default function ServiceInvoicePrint({ invoice, branch }: Props) {
                 {branch.phone && <p className="text-xs">{branch.phone}</p>}
                 {branch.address && <p className="text-xs">{branch.address}</p>}
                 {branch.taxNumber && <p className="text-xs">الرقم الضريبي: {branch.taxNumber}</p>}
+                <h2 className="mt-2 text-sm font-bold">{doc.title}</h2>
+                {doc.isQuotation && <p className="mt-1 text-[10px] font-semibold">{QUOTATION_DISCLAIMER}</p>}
             </div>
 
             <div className="my-3 border-t border-dashed border-black" />
@@ -70,6 +75,12 @@ export default function ServiceInvoicePrint({ invoice, branch }: Props) {
                     <div className="flex justify-between">
                         <span>الهاتف</span>
                         <span>{invoice.customerPhone}</span>
+                    </div>
+                )}
+                {!doc.isQuotation && invoice.customerTaxNumber && (
+                    <div className="flex justify-between">
+                        <span>الرقم الضريبي للعميل</span>
+                        <span dir="ltr">{invoice.customerTaxNumber}</span>
                     </div>
                 )}
                 {invoice.paymentMethod && (
