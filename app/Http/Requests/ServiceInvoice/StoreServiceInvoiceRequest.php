@@ -42,6 +42,8 @@ class StoreServiceInvoiceRequest extends FormRequest
             ],
             'status' => ['required', Rule::in($allowedStatuses)],
             'print' => ['nullable', 'boolean'],
+            // موعد تسليم العمل للعميل — اختياري، ولا يُقبل في الماضي.
+            'delivery_at' => ['nullable', 'date', 'after_or_equal:today'],
             // Invoice-level remark for the customer, printed under the lines.
             'notes' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1'],
@@ -77,6 +79,8 @@ class StoreServiceInvoiceRequest extends FormRequest
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
             'status.in' => 'لا يمكنك إصدار فاتورة مدفوعة. يتم حفظ الفاتورة كمعلقة ليراجعها المحاسب.',
             'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',
+            'delivery_at.date' => 'موعد التسليم غير صالح.',
+            'delivery_at.after_or_equal' => 'موعد التسليم يجب ألا يكون قبل اليوم.',
             'lines.required' => 'يجب إضافة خدمة واحدة على الأقل للفاتورة.',
             'lines.min' => 'يجب إضافة خدمة واحدة على الأقل للفاتورة.',
             'lines.*.branch_service_id.required' => 'يجب اختيار خدمة لكل سطر.',

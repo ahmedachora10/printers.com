@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\DeliveryStatusEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\Concerns\HasReceiptMedia;
 use Illuminate\Database\Eloquent\Model;
@@ -38,6 +39,7 @@ class ServiceInvoice extends Model implements HasMedia
         'total_amount',
         'employee_commission',
         'notes',
+        'delivery_at',
         'status',
         'paid_at',
         'cancellation_reason',
@@ -60,7 +62,17 @@ class ServiceInvoice extends Model implements HasMedia
         'employee_commission' => 'decimal:2',
         'paid_at' => 'datetime',
         'cancelled_at' => 'datetime',
+        'delivery_at' => 'datetime',
     ];
+
+    /**
+     * حالة موعد التسليم — متأخر / اليوم / قادم، أو null إن لم يُحدَّد موعد أو كانت
+     * الفاتورة ملغاة أو مرتجعة (لم يعد لها عمل يُسلَّم).
+     */
+    public function deliveryStatus(): ?DeliveryStatusEnum
+    {
+        return DeliveryStatusEnum::forInvoice($this->delivery_at, $this->status);
+    }
 
     public function getActivitylogOptions(): LogOptions
     {

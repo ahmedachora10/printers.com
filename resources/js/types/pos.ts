@@ -121,6 +121,8 @@ export interface EditServiceInvoice {
     hasReceipt: boolean;
     /** ملاحظات على مستوى الفاتورة كاملة — تختلف عن ملاحظات السطر */
     notes: string | null;
+    /** موعد تسليم العمل بصيغة «YYYY-MM-DD HH:MM» كما يقرأه المنتقي */
+    deliveryAt: string | null;
     lines: EditServiceInvoiceLine[];
 }
 
@@ -170,6 +172,8 @@ export interface PosInvoice {
     paymentMethod: string | null;
     /** ملاحظات على مستوى الفاتورة كاملة — تُطبع أسفل جدول البنود */
     notes: string | null;
+    /** موعد تسليم العمل للعميل — يُطبع مع بيانات الفاتورة */
+    deliveryAt?: string | null;
     lines: PosInvoiceLine[];
 }
 

@@ -1,5 +1,7 @@
 export type InvoiceType = 'product' | 'service';
 export type InvoiceStatus = 'paid' | 'due' | 'cancelled' | 'returned';
+/** حالة موعد التسليم مقارنةً باليوم — تُحسب على الخادم (DeliveryStatusEnum). */
+export type DeliveryStatus = 'overdue' | 'today' | 'upcoming';
 
 export interface InvoiceLine {
     name: string;
@@ -56,6 +58,9 @@ export interface Invoice {
     cancellationReason: string | null;
     cancelledByName: string | null;
     cancelledAt: string | null;
+    /** موعد تسليم العمل للعميل — فواتير الخدمات فقط */
+    deliveryAt: string | null;
+    deliveryStatus: DeliveryStatus | null;
     subtotal: number;
     tierDiscountPct: number;
     tierDiscountAmount: number;
@@ -106,6 +111,9 @@ export interface InvoiceListItem {
     /** Super-admins only — omitted from the payload for every other role. */
     branchName?: string | null;
     createdAt: string;
+    /** موعد تسليم العمل للعميل — فواتير الخدمات فقط */
+    deliveryAt: string | null;
+    deliveryStatus: DeliveryStatus | null;
     canEdit: boolean;
     canReturn: boolean;
     /** Owner of an invoice that is already returned — the control shows, disabled. */
@@ -126,4 +134,6 @@ export interface InvoiceFilters {
     date_from?: string;
     date_to?: string;
     branch_id?: string;
+    /** 'today' | 'overdue' — تصفية حسب موعد التسليم */
+    delivery?: string;
 }

@@ -41,7 +41,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -67,7 +67,7 @@ class InvoiceController extends Controller
             'branches' => $isSuperAdmin
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,
-            'filters' => $request->only(['search', 'type', 'status', 'date_from', 'date_to', 'branch_id']),
+            'filters' => $request->only(['search', 'type', 'status', 'date_from', 'date_to', 'branch_id', 'delivery']),
         ]);
     }
 
@@ -184,6 +184,13 @@ class InvoiceController extends Controller
             ? "{$table}.cancellation_reason"
             : DB::raw('null as cancellation_reason');
 
+        // موعد التسليم كذلك خاص بفواتير الخدمات — فرع المنتجات من الاتحاد يحشوه.
+        $deliverySelect = $type === InvoiceTypeEnum::SERVICE
+            ? "{$table}.delivery_at"
+            : DB::raw('null as delivery_at');
+
+        $delivery = $request->input('delivery');
+
         return DB::table($table)
             ->leftJoin('customers', 'customers.id', '=', "{$table}.customer_id")
             ->leftJoin('users', 'users.id', '=', "{$table}.user_id")
@@ -197,6 +204,22 @@ class InvoiceController extends Controller
                 fn ($q) => $q->where("{$table}.status", $request->input('status')))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate("{$table}.created_at", '>=', $request->input('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate("{$table}.created_at", '<=', $request->input('date_to')))
+            // «تسليم اليوم / متأخر»: يخص فواتير الخدمات وحدها، فيُقصى فرع المنتجات
+            // من الاتحاد كاملاً بدل أن يُرجع صفوفاً بلا موعد. الملغاة والمرتجعة لا
+            // ينتظر أحد تسليمها — تماماً كما تقرّر DeliveryStatusEnum::forInvoice.
+            ->when($delivery === 'today' || $delivery === 'overdue', function ($q) use ($table, $type, $delivery) {
+                if ($type !== InvoiceTypeEnum::SERVICE) {
+                    return $q->whereRaw('1 = 0');
+                }
+
+                return $q->whereNotNull("{$table}.delivery_at")
+                    ->whereNotIn("{$table}.status", [InvoiceStatusEnum::CANCELLED->value, InvoiceStatusEnum::RETURNED->value])
+                    ->when(
+                        $delivery === 'today',
+                        fn ($q) => $q->whereDate("{$table}.delivery_at", today()),
+                        fn ($q) => $q->whereDate("{$table}.delivery_at", '<', today()),
+                    );
+            })
             ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($table, $request) {
                 $term = '%'.$request->input('search').'%';
                 $q->where("{$table}.invoice_number", 'like', $term)
@@ -218,6 +241,7 @@ class InvoiceController extends Controller
                 "{$table}.user_id",
                 'branches.name as branch_name',
                 $cancellationSelect,
+                $deliverySelect,
             ]);
     }
 }

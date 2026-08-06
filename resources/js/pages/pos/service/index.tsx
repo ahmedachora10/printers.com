@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDateTimeNumeric } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import service from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
@@ -27,7 +27,7 @@ import {
     type ServiceCartLine,
 } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Award, Paperclip, Printer, Save, Search, Tag, X } from 'lucide-react';
+import { Award, CalendarClock, Paperclip, Printer, Save, Search, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -62,6 +62,19 @@ interface AppliedCoupon {
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/** اليوم بصيغة YYYY-MM-DD محلياً — أدنى موعد تسليم يقبله الخادم. */
+function todayIso(): string {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** يفكّ «YYYY-MM-DD HH:MM» المخزَّن إلى جزأي المنتقي. */
+function splitDeliveryAt(value: string | null | undefined): { date: string; time: string } {
+    if (!value) return { date: '', time: '' };
+    const [date = '', time = ''] = value.trim().split(' ');
+    return { date, time: time.slice(0, 5) };
+}
 
 const lineTotal = (line: ServiceCartLine) => round2(line.qty * line.unitPrice * (1 - line.discountPct / 100));
 
@@ -156,6 +169,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // Remark about the whole order, printed under the lines table — distinct
     // from the per-line detail edited inside each cart row.
     const [notes, setNotes] = useState(invoice?.notes ?? '');
+    // موعد تسليم العمل — يُلتقط تاريخاً ووقتاً منفصلين ويُرسل «YYYY-MM-DD HH:MM».
+    const [deliveryDate, setDeliveryDate] = useState(() => splitDeliveryAt(invoice?.deliveryAt).date);
+    const [deliveryTime, setDeliveryTime] = useState(() => splitDeliveryAt(invoice?.deliveryAt).time);
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -205,6 +221,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     const selectedAgents = useMemo(() => agents.filter((a) => agentIds.includes(a.id)), [agentIds, agents]);
     const selectedPaymentMethod = useMemo(() => paymentMethods.find((m) => m.id === paymentMethodId) ?? null, [paymentMethods, paymentMethodId]);
     const requiresReceipt = selectedPaymentMethod?.requiresAttachment ?? false;
+
+    // ما يُرسل للخادم: التاريخ وحده لا يكفي موعداً، فيُفترض معه منتصف النهار.
+    const deliveryAt = useMemo(() => (deliveryDate ? `${deliveryDate} ${deliveryTime || '12:00'}` : null), [deliveryDate, deliveryTime]);
 
     // Loyalty benefits apply only to an eligible customer with no agent on the
     // invoice. Pipeline mirrors the server: subtotal → tier → coupon → agent → points.
@@ -495,6 +514,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         setStatus(isEmployee ? 'due' : 'paid');
         setRedeemPoints('');
         setNotes('');
+        setDeliveryDate('');
+        setDeliveryTime('');
         removeCoupon();
     }
 
@@ -531,6 +552,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             payment_method_id: paymentMethodId,
             receipt,
             notes: notes.trim() || null,
+            delivery_at: deliveryAt,
             lines: cart.map((l) => ({
                 branch_service_id: l.branchServiceId,
                 notes: l.notes.trim() || null,
@@ -923,6 +945,72 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                     )}
                                 </div>
                             )}
+                        </CardContent>
+                    </Card>
+
+                    {/* موعد تسليم العمل — بجوار طريقة الدفع، يُعرض DD/MM/YYYY
+                        ويُخزَّن YYYY-MM-DD HH:MM. لا يُقبل موعد قبل اليوم. */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-2 text-base">
+                                <CalendarClock className="size-4" /> موعد تسليم العمل
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-2">
+                            <div className="grid grid-cols-2 gap-2">
+                                <div className="space-y-1">
+                                    <Label htmlFor="delivery-date" className="text-muted-foreground text-xs">
+                                        التاريخ
+                                    </Label>
+                                    <Input
+                                        id="delivery-date"
+                                        type="date"
+                                        min={todayIso()}
+                                        value={deliveryDate}
+                                        onChange={(e) => {
+                                            setDeliveryDate(e.target.value);
+                                            // موعد بلا وقت مبهم — يُقترح منتصف النهار ويبقى قابلاً للتعديل.
+                                            if (e.target.value && !deliveryTime) setDeliveryTime('12:00');
+                                            if (!e.target.value) setDeliveryTime('');
+                                        }}
+                                        className="h-9"
+                                    />
+                                </div>
+                                <div className="space-y-1">
+                                    <Label htmlFor="delivery-time" className="text-muted-foreground text-xs">
+                                        الوقت
+                                    </Label>
+                                    <Input
+                                        id="delivery-time"
+                                        type="time"
+                                        value={deliveryTime}
+                                        onChange={(e) => setDeliveryTime(e.target.value)}
+                                        disabled={!deliveryDate}
+                                        className="h-9"
+                                    />
+                                </div>
+                            </div>
+
+                            {deliveryAt ? (
+                                <div className="flex items-center justify-between gap-2">
+                                    <p className="text-sm font-medium" dir="ltr">
+                                        {formatDateTimeNumeric(deliveryAt.replace(' ', 'T'))}
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setDeliveryDate('');
+                                            setDeliveryTime('');
+                                        }}
+                                        className="text-muted-foreground hover:text-destructive text-xs"
+                                    >
+                                        مسح الموعد
+                                    </button>
+                                </div>
+                            ) : (
+                                <p className="text-muted-foreground text-xs">اختياري — يظهر في الفاتورة ويُذكَّر به الموظف قبل الموعد بيوم.</p>
+                            )}
+                            {errors.delivery_at && <p className="text-destructive text-xs">{errors.delivery_at}</p>}
                         </CardContent>
                     </Card>
 

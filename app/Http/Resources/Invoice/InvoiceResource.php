@@ -95,6 +95,9 @@ class InvoiceResource extends JsonResource
             'cancellationReason' => $isServiceInvoice ? $this->resource->cancellation_reason : null,
             'cancelledByName' => $isServiceInvoice ? $this->resource->cancelledBy?->name : null,
             'cancelledAt' => $isServiceInvoice ? $this->resource->cancelled_at?->toIso8601String() : null,
+            // موعد تسليم العمل للعميل — لفواتير الخدمات وحدها؛ تسليم المنتجات فوري.
+            'deliveryAt' => $isServiceInvoice ? $this->resource->delivery_at?->toIso8601String() : null,
+            'deliveryStatus' => $isServiceInvoice ? $this->resource->deliveryStatus()?->value : null,
             'subtotal' => (float) $this->subtotal,
             'tierDiscountPct' => (float) $this->tier_discount_pct,
             'tierDiscountAmount' => (float) $this->tier_discount_amount,

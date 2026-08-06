@@ -2,8 +2,10 @@
 
 namespace App\Http\Resources\Invoice;
 
+use App\Enums\DeliveryStatusEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
+use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -26,6 +28,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property int|null $user_id
  * @property string|null $branch_name
  * @property string|null $cancellation_reason
+ * @property string|null $delivery_at
  */
 class InvoiceListResource extends JsonResource
 {
@@ -78,6 +81,13 @@ class InvoiceListResource extends JsonResource
                 fn () => $this->branch_name,
             ),
             'createdAt' => $this->created_at,
+            // موعد تسليم العمل وحالته (متأخر / اليوم / قادم) — فواتير الخدمات فقط.
+            // الصف يأتي من استعلام اتحاد خام، فالتاريخ نص يُحوّل هنا.
+            'deliveryAt' => $this->delivery_at,
+            'deliveryStatus' => DeliveryStatusEnum::forInvoice(
+                $this->delivery_at !== null ? CarbonImmutable::parse($this->delivery_at) : null,
+                $status,
+            )?->value,
             'canEdit' => $isOwnerEmployee && $status === InvoiceStatusEnum::DUE,
             'canReturn' => $isOwnerEmployee
                 && $status !== InvoiceStatusEnum::CANCELLED

@@ -1,6 +1,6 @@
 import InvoiceNotes from '@/components/invoices/invoice-notes';
 import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
-import { formatCurrency, formatDateTime } from '@/lib/utils';
+import { formatCurrency, formatDateTime, formatDateTimeNumeric } from '@/lib/utils';
 import { type Invoice } from '@/types/invoice';
 import { Head } from '@inertiajs/react';
 import { Printer } from 'lucide-react';
@@ -79,6 +79,12 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                     <div className="flex justify-between">
                         <span>طريقة الدفع</span>
                         <span>{invoice.paymentMethod}</span>
+                    </div>
+                )}
+                {invoice.deliveryAt && (
+                    <div className="flex justify-between font-semibold">
+                        <span>موعد التسليم</span>
+                        <span dir="ltr">{formatDateTimeNumeric(invoice.deliveryAt)}</span>
                     </div>
                 )}
             </div>
@@ -205,6 +211,12 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
                     <div className="flex justify-between">
                         <span className="text-neutral-500">الرقم الضريبي للعميل</span>
                         <span dir="ltr">{invoice.customerTaxNumber}</span>
+                    </div>
+                )}
+                {invoice.deliveryAt && (
+                    <div className="flex justify-between font-semibold">
+                        <span className="font-normal text-neutral-500">موعد التسليم</span>
+                        <span dir="ltr">{formatDateTimeNumeric(invoice.deliveryAt)}</span>
                     </div>
                 )}
             </div>
