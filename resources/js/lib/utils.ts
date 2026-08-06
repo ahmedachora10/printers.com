@@ -18,6 +18,11 @@ export const formatCurrency = (amount: number, currency = 'SAR'): string => {
     }).format(amount);
 };
 
+/** Customer-facing money: `1,234.50 ر.س` (the catalogue / price-list style). */
+export const formatSar = (amount: number): string => {
+    return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
+};
+
 export const formatDate = (date: string | Date, locale: string = 'ar'): string => {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-u-nu-latn' : 'en-US', {

@@ -190,6 +190,15 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
+                // Read-only reference list — everyone who quotes or invoices
+                // a customer needs it, employees included.
+                'title' => 'قائمة الأسعار',
+                'url' => route('services.price-list'),
+                'icon' => 'Tags',
+                'group' => 'sales',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
+            ],
+            [
                 'title' => 'المرتجعات',
                 'url' => route('refunds.index'),
                 'icon' => 'Undo2',

@@ -3,7 +3,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowLeftRight, Award, Bell, BookOpen, CalendarDays, ChartPie, ClipboardCheck, ClipboardList, FileText, GitBranch, Handshake, LayoutGrid, LucideIcon, Package, Receipt, ServerIcon, ShoppingBasket, ShoppingCart, TrendingUp, Trophy, Truck, Undo2, Users, Wallet } from 'lucide-react';
+import { ArrowLeftRight, Award, Bell, BookOpen, CalendarDays, ChartPie, ClipboardCheck, ClipboardList, FileText, FolderKanban, GitBranch, Handshake, LayoutGrid, LucideIcon, Package, Receipt, ServerIcon, Settings, ShoppingBasket, ShoppingCart, Tags, Ticket, TrendingUp, Trophy, Truck, Undo2, User, Users, Wallet } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import AppLogo from './app-logo';
 
@@ -40,6 +40,12 @@ export function AppSidebar() {
         TrendingUp,
         ChartPie,
         CalendarDays,
+        Tags,
+        // Named by sidebar items that were silently falling back to LayoutGrid.
+        Settings,
+        User,
+        FolderKanban,
+        Ticket,
     };
 
     const navGroups = (auth.sidebarItems ?? []).map((group) => ({
