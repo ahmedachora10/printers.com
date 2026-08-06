@@ -262,6 +262,15 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
+                // Internal purchase requests: everyone in the branch can file
+                // one, so the entry is visible to employees too.
+                'title' => 'طلبات الشراء',
+                'url' => route('purchase-requests.index'),
+                'icon' => 'ShoppingBasket',
+                'group' => 'inventory',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
+            ],
+            [
                 'title' => 'جرد المخزون',
                 'url' => route('inventory.stock-reconciliations.index'),
                 'icon' => 'ClipboardCheck',

@@ -33,6 +33,7 @@ use App\Http\Controllers\ProductCategoryController;
 use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
+use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\RefundController;
 use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\ServiceInvoiceController;
@@ -222,6 +223,21 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.commissions.export');
         Route::get('reports/commissions', [CommissionReportController::class, 'index'])
             ->name('reports.commissions');
+
+        // Internal purchase requests: employees and accountants raise them, the
+        // branch admin decides and may turn an approved one into an M29
+        // purchase order. Visibility is narrowed by PurchaseRequest::visibleTo
+        // and each action by PurchaseRequestPolicy.
+        Route::prefix('purchase-requests')->name('purchase-requests.')->group(function () {
+            Route::get('/', [PurchaseRequestController::class, 'index'])->name('index');
+            Route::post('/', [PurchaseRequestController::class, 'store'])->name('store');
+            Route::patch('{purchase_request}/approve', [PurchaseRequestController::class, 'approve'])
+                ->name('approve');
+            Route::patch('{purchase_request}/reject', [PurchaseRequestController::class, 'reject'])
+                ->name('reject');
+            Route::post('{purchase_request}/convert', [PurchaseRequestController::class, 'convert'])
+                ->name('convert');
+        });
     });
 
     // Sales report (M17): realized revenue over paid invoices. Managers and
