@@ -119,6 +119,7 @@ class ProductInvoiceController extends Controller
                 'customerPhone' => $invoice->customer?->phone,
                 'customerTaxNumber' => $invoice->customer?->tax_number,
                 'paymentMethod' => $invoice->paymentMethod?->name,
+                'notes' => $invoice->notes,
                 'lines' => $invoice->lines->map(fn ($line) => [
                     'name' => $line->product_name,
                     'sku' => $line->sku,

@@ -36,6 +36,8 @@ class UpdateServiceInvoiceRequest extends FormRequest
                 $this->paymentMethodRequiresAttachment() ? 'required' : 'nullable',
                 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120',
             ],
+            // Invoice-level remark for the customer, printed under the lines.
+            'notes' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.branch_service_id' => ['required', 'integer', 'exists:branch_services,id'],
             'lines.*.notes' => ['nullable', 'string', 'max:500'],
@@ -70,6 +72,7 @@ class UpdateServiceInvoiceRequest extends FormRequest
             'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.',
             'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
+            'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',
             'lines.required' => 'يجب إضافة خدمة واحدة على الأقل للفاتورة.',
             'lines.min' => 'يجب إضافة خدمة واحدة على الأقل للفاتورة.',
             'lines.*.branch_service_id.required' => 'يجب اختيار خدمة لكل سطر.',

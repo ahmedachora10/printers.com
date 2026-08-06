@@ -113,6 +113,9 @@ class InvoiceResource extends JsonResource
             'customerPhone' => $this->customer?->phone,
             'customerTaxNumber' => $this->customer?->tax_number ?? null,
             'paymentMethod' => $this->paymentMethod?->name,
+            // Invoice-level remark for the customer — distinct from the
+            // per-line detail carried on InvoiceLineResource::notes.
+            'notes' => $this->notes,
             'receiptUrl' => $this->receiptUrl(),
             'lines' => InvoiceLineResource::collection($this->whenLoaded('lines')),
             'refundedTotal' => $refundedTotal,

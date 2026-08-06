@@ -1,4 +1,5 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
+import InvoiceNotes from '@/components/invoices/invoice-notes';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -310,6 +311,8 @@ export default function InvoiceShow({ invoice }: Props) {
                                 data={invoice.lines}
                                 keyExtractor={(line) => invoice.lines.indexOf(line)}
                             />
+
+                            <InvoiceNotes notes={invoice.notes} />
 
                             <Separator className="my-4" />
 

@@ -32,6 +32,8 @@ class StoreProductInvoiceRequest extends FormRequest
             ],
             'status' => ['required', Rule::in([InvoiceStatusEnum::PAID->value, InvoiceStatusEnum::DUE->value])],
             'print' => ['nullable', 'boolean'],
+            // Invoice-level remark for the customer, printed under the lines.
+            'notes' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
             'lines.*.name' => ['nullable', 'required_without:lines.*.product_id', 'string', 'max:255'],
@@ -57,6 +59,7 @@ class StoreProductInvoiceRequest extends FormRequest
             'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.',
             'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
+            'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',
             'lines.required' => 'يجب إضافة منتج واحد على الأقل للفاتورة.',
             'lines.min' => 'يجب إضافة منتج واحد على الأقل للفاتورة.',
             'lines.*.qty.min' => 'الكمية يجب أن تكون 1 على الأقل.',

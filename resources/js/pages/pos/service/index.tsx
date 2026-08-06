@@ -153,6 +153,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     );
     const [couponLoading, setCouponLoading] = useState(false);
     const [redeemPoints, setRedeemPoints] = useState(invoice?.pointsRedeemed ? String(invoice.pointsRedeemed) : '');
+    // Remark about the whole order, printed under the lines table — distinct
+    // from the per-line detail edited inside each cart row.
+    const [notes, setNotes] = useState(invoice?.notes ?? '');
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -491,6 +494,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         setReceipt(null);
         setStatus(isEmployee ? 'due' : 'paid');
         setRedeemPoints('');
+        setNotes('');
         removeCoupon();
     }
 
@@ -526,6 +530,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             redeem_points: loyaltyOn && Number(redeemPoints) > 0 ? Number(redeemPoints) : null,
             payment_method_id: paymentMethodId,
             receipt,
+            notes: notes.trim() || null,
             lines: cart.map((l) => ({
                 branch_service_id: l.branchServiceId,
                 notes: l.notes.trim() || null,
@@ -850,6 +855,27 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 <span>عمولة الموظف (تقديري)</span>
                                 <span>{formatCurrency(commission)}</span>
                             </div>
+                        </CardContent>
+                    </Card>
+
+                    {/* Invoice-level note — printed under the whole lines table,
+                        unlike the per-line detail edited inside each cart row. */}
+                    <Card>
+                        <CardContent className="space-y-1.5 py-4">
+                            <Label htmlFor="invoice-notes" className="text-sm">
+                                ملاحظات للعميل (اختياري)
+                            </Label>
+                            <textarea
+                                id="invoice-notes"
+                                rows={2}
+                                maxLength={1000}
+                                value={notes}
+                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
+                                placeholder="ملاحظة تخص الفاتورة كاملة — مثال: التسليم بعد 3 أيام عمل"
+                                className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[56px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                            <p className="text-muted-foreground text-xs">تُطبع أسفل جدول البنود في الفاتورة.</p>
+                            {errors.notes && <p className="text-destructive text-xs">{errors.notes}</p>}
                         </CardContent>
                     </Card>
 
