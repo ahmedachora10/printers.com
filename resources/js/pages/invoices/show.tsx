@@ -1,4 +1,5 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
+import DeliveryBadge from '@/components/invoices/delivery-badge';
 import InvoiceNotes from '@/components/invoices/invoice-notes';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { Badge } from '@/components/ui/badge';
@@ -361,6 +362,12 @@ export default function InvoiceShow({ invoice }: Props) {
                                 <MetaRow label="الرقم الضريبي للعميل" value={<span dir="ltr">{invoice.customerTaxNumber}</span>} />
                             )}
                             <MetaRow label="طريقة الدفع" value={invoice.paymentMethod ?? '—'} />
+                            {invoice.deliveryAt && (
+                                <MetaRow
+                                    label="موعد التسليم"
+                                    value={<DeliveryBadge deliveryAt={invoice.deliveryAt} deliveryStatus={invoice.deliveryStatus} />}
+                                />
+                            )}
                             {invoice.receiptUrl && (
                                 <MetaRow
                                     label="إيصال التحويل"

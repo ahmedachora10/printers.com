@@ -84,6 +84,8 @@ class ServiceInvoiceController extends Controller
                 'paymentMethodId' => $invoice->payment_method_id,
                 'hasReceipt' => $invoice->hasReceipt(),
                 'notes' => $invoice->notes,
+                // «YYYY-MM-DD HH:MM» — الصيغة التي يقرأها منتقي الموعد في الواجهة.
+                'deliveryAt' => $invoice->delivery_at?->format('Y-m-d H:i'),
                 'lines' => $invoice->lines->map(function ($line) use ($servicesById) {
                     $service = $servicesById->get($line->branch_service_id);
 
@@ -384,6 +386,7 @@ class ServiceInvoiceController extends Controller
                 'customerTaxNumber' => $invoice->customer?->tax_number,
                 'paymentMethod' => $invoice->paymentMethod?->name,
                 'notes' => $invoice->notes,
+                'deliveryAt' => $invoice->delivery_at?->toIso8601String(),
                 'lines' => $invoice->lines->map(fn ($line) => [
                     'name' => $line->service_name,
                     'notes' => $line->notes,

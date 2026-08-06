@@ -17,6 +17,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\User;
 use App\Models\UserService;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -287,6 +288,8 @@ class CalculateServiceInvoiceAction
                 // Invoice-level remark for the customer — carried through
                 // untouched, like the per-line detail.
                 'notes' => $this->normalizeNotes($data['notes'] ?? null),
+                // موعد تسليم العمل، بدقّة الدقيقة كما اختاره الكاشير.
+                'delivery_at' => $this->normalizeDeliveryAt($data['delivery_at'] ?? null),
             ],
             'lines' => $lines,
             'agents' => $agentRows,
@@ -426,6 +429,19 @@ class CalculateServiceInvoiceAction
         $trimmed = trim($notes);
 
         return $trimmed === '' ? null : $trimmed;
+    }
+
+    /**
+     * موعد التسليم كما وصل من الواجهة («YYYY-MM-DD HH:MM») إلى تاريخ بدقّة
+     * الدقيقة (الثواني مصفّرة)، أو null لصندوق فارغ. الصيغة تحقّقت في الـ Request.
+     */
+    private function normalizeDeliveryAt(mixed $deliveryAt): ?CarbonImmutable
+    {
+        if (! is_string($deliveryAt) || trim($deliveryAt) === '') {
+            return null;
+        }
+
+        return CarbonImmutable::parse($deliveryAt)->startOfMinute();
     }
 
     /**

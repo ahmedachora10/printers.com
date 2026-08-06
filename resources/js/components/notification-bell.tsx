@@ -5,7 +5,7 @@ import notifications from '@/routes/notifications';
 import { type SharedData } from '@/types';
 import { type AppNotification } from '@/types/notification';
 import { Link, router, usePage, usePoll } from '@inertiajs/react';
-import { Bell, ClipboardCheck, FileText, type LucideIcon, Package, ShoppingBasket, Undo2, Wallet } from 'lucide-react';
+import { Bell, CalendarClock, ClipboardCheck, FileText, type LucideIcon, Package, ShoppingBasket, Undo2, Wallet } from 'lucide-react';
 
 const ICON_MAP: Record<string, LucideIcon> = {
     Package,
@@ -15,6 +15,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
     Bell,
     ShoppingBasket,
     ClipboardCheck,
+    CalendarClock,
 };
 
 export function NotificationBell() {

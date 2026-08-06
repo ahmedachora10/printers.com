@@ -7,7 +7,20 @@ import notifications from '@/routes/notifications';
 import { type BreadcrumbItem } from '@/types';
 import { type AppNotification, type PaginatedNotifications } from '@/types/notification';
 import { Head, router } from '@inertiajs/react';
-import { Bell, Check, CheckCheck, ClipboardCheck, FileText, type LucideIcon, Package, ShoppingBasket, Trash2, Undo2, Wallet } from 'lucide-react';
+import {
+    Bell,
+    CalendarClock,
+    Check,
+    CheckCheck,
+    ClipboardCheck,
+    FileText,
+    type LucideIcon,
+    Package,
+    ShoppingBasket,
+    Trash2,
+    Undo2,
+    Wallet,
+} from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'الإشعارات', href: '/notifications' }];
 
@@ -19,6 +32,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
     Bell,
     ShoppingBasket,
     ClipboardCheck,
+    CalendarClock,
 };
 
 interface Props {

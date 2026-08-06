@@ -1,6 +1,6 @@
 import InvoiceNotes from '@/components/invoices/invoice-notes';
 import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
-import { formatCurrency, formatDateTime } from '@/lib/utils';
+import { formatCurrency, formatDateTime, formatDateTimeNumeric } from '@/lib/utils';
 import service from '@/routes/pos/service';
 import { type PosBranch, type PosInvoice } from '@/types/pos';
 import { Head, Link } from '@inertiajs/react';
@@ -88,6 +88,12 @@ export default function ServiceInvoicePrint({ invoice, branch }: Props) {
                     <div className="flex justify-between">
                         <span>طريقة الدفع</span>
                         <span>{invoice.paymentMethod}</span>
+                    </div>
+                )}
+                {invoice.deliveryAt && (
+                    <div className="flex justify-between font-semibold">
+                        <span>موعد التسليم</span>
+                        <span dir="ltr">{formatDateTimeNumeric(invoice.deliveryAt)}</span>
                     </div>
                 )}
             </div>

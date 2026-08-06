@@ -38,6 +38,9 @@ class UpdateServiceInvoiceRequest extends FormRequest
             ],
             // Invoice-level remark for the customer, printed under the lines.
             'notes' => ['nullable', 'string', 'max:1000'],
+            // موعد تسليم العمل للعميل — اختياري، ولا يُقبل في الماضي: التعديل
+            // إعادة تحديد للموعد، فالموعد المنقضي يُدفع للأمام أو يُمسح.
+            'delivery_at' => ['nullable', 'date', 'after_or_equal:today'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.branch_service_id' => ['required', 'integer', 'exists:branch_services,id'],
             'lines.*.notes' => ['nullable', 'string', 'max:500'],
@@ -73,6 +76,8 @@ class UpdateServiceInvoiceRequest extends FormRequest
             'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
             'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',
+            'delivery_at.date' => 'موعد التسليم غير صالح.',
+            'delivery_at.after_or_equal' => 'موعد التسليم يجب ألا يكون قبل اليوم.',
             'lines.required' => 'يجب إضافة خدمة واحدة على الأقل للفاتورة.',
             'lines.min' => 'يجب إضافة خدمة واحدة على الأقل للفاتورة.',
             'lines.*.branch_service_id.required' => 'يجب اختيار خدمة لكل سطر.',

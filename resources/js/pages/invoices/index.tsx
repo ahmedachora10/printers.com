@@ -1,5 +1,6 @@
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
+import DeliveryBadge from '@/components/invoices/delivery-badge';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         type: filters.type ?? '',
         status: filters.status ?? '',
         branch_id: filters.branch_id ?? '',
+        delivery: filters.delivery ?? '',
     });
     const [dateFrom, setDateFrom] = useState(filters.date_from ?? '');
     const [dateTo, setDateTo] = useState(filters.date_to ?? '');
@@ -141,7 +143,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
 
     const handleClearAll = () => {
         setSearch('');
-        setFilterValues({ type: '', status: '', branch_id: '' });
+        setFilterValues({ type: '', status: '', branch_id: '', delivery: '' });
         setDateFrom('');
         setDateTo('');
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
@@ -187,6 +189,16 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 key: 'createdAt',
                 header: 'التاريخ',
                 cell: (item) => <span>{formatDate(item.createdAt)}</span>,
+            },
+            {
+                key: 'deliveryAt',
+                header: 'موعد التسليم',
+                cell: (item) =>
+                    item.deliveryAt ? (
+                        <DeliveryBadge deliveryAt={item.deliveryAt} deliveryStatus={item.deliveryStatus} showLabel />
+                    ) : (
+                        <span className="text-muted-foreground">—</span>
+                    ),
             },
             {
                 key: 'customerName',
@@ -357,6 +369,16 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                                     { value: 'due', label: 'آجلة' },
                                     { value: 'cancelled', label: 'ملغاة' },
                                     { value: 'returned', label: 'مرتجع' },
+                                ],
+                            },
+                            // موعد التسليم يخص فواتير الخدمات، فاختيار أيٍّ من
+                            // الخيارين يُقصي فواتير المنتجات من النتيجة.
+                            {
+                                key: 'delivery',
+                                placeholder: 'التسليم',
+                                options: [
+                                    { value: 'today', label: 'تسليم اليوم' },
+                                    { value: 'overdue', label: 'متأخر عن موعده' },
                                 ],
                             },
                         ]}

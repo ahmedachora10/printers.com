@@ -32,6 +32,20 @@ export const formatDate = (date: string | Date, locale: string = 'ar'): string =
     }).format(dateObj);
 };
 
+const pad = (n: number): string => String(n).padStart(2, '0');
+
+/** التاريخ بالصيغة المعتمدة في النظام: DD/MM/YYYY بأرقام لاتينية. */
+export const formatDateNumeric = (date: string | Date): string => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`;
+};
+
+/** موعد بتاريخ ووقت: `DD/MM/YYYY — HH:MM` (موعد التسليم يُعرض بهذه الصيغة). */
+export const formatDateTimeNumeric = (date: string | Date): string => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return `${formatDateNumeric(d)} — ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
 export const formatTime = (date: string | Date, locale: string = 'ar'): string => {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-u-nu-latn' : 'en-US', {
