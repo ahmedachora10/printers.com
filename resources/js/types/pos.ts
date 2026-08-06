@@ -163,6 +163,8 @@ export interface PosInvoice {
     totalAmount: number;
     customerName: string | null;
     customerPhone: string | null;
+    /** يميّز الفاتورة الضريبية (B2B) عن المبسطة (B2C) في ورقة الطباعة */
+    customerTaxNumber: string | null;
     paymentMethod: string | null;
     lines: PosInvoiceLine[];
 }

@@ -253,6 +253,29 @@ describe('Invoice View (M13)', function () {
             ->assertInertia(fn ($page) => $page->whereNot('zatcaQr', null));
     });
 
+    it('strips the branch tax number from a quotation (تاسك 13)', function () {
+        $invoice = makeServiceInvoice($this->branch, $this->admin, ['status' => 'due', 'paid_at' => null]);
+
+        $this->get(route('invoices.print', ['type' => 'service', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('invoices/print')
+                // العنوان يُشتق في الواجهة من الحالة: غير مدفوعة ⇒ «عرض سعر»
+                ->where('invoice.status', 'due')
+                ->where('invoice.branch.taxNumber', null)
+                ->where('zatcaQr', null));
+    });
+
+    it('keeps the branch tax number on an approved tax invoice (تاسك 13)', function () {
+        $invoice = makeProductInvoice($this->branch, $this->admin);
+
+        $this->get(route('invoices.print', ['type' => 'product', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('invoices/print')
+                ->where('invoice.status', 'paid')
+                ->where('invoice.branch.taxNumber', $this->branch->tax_number)
+                ->whereNot('zatcaQr', null));
+    });
+
     it('forbids printing a cancelled invoice', function () {
         $invoice = makeProductInvoice($this->branch, $this->admin, ['status' => 'cancelled', 'paid_at' => null]);
 

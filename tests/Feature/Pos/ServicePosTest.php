@@ -589,4 +589,29 @@ describe('Service POS', function () {
             ->assertOk()
             ->assertInertia(fn ($page) => $page->component('pos/service/print'));
     });
+
+    it('prints a due invoice as a quotation without the branch tax number (تاسك 13)', function () {
+        $this->post(route('pos.service.store'), svcPayload());
+
+        $invoice = ServiceInvoice::firstOrFail();
+
+        $this->get(route('pos.service.print', $invoice))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('pos/service/print')
+                ->where('invoice.status', 'due')
+                ->where('branch.taxNumber', null));
+    });
+
+    it('prints an approved invoice as a tax invoice with the branch tax number (تاسك 13)', function () {
+        $this->post(route('pos.service.store'), svcPayload());
+
+        $invoice = ServiceInvoice::firstOrFail();
+        approveInvoice($invoice);
+
+        $this->get(route('pos.service.print', $invoice))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('pos/service/print')
+                ->where('invoice.status', 'paid')
+                ->where('branch.taxNumber', $this->branch->tax_number));
+    });
 });
