@@ -26,7 +26,7 @@ export interface CommissionReportLine {
     userId: number;
     userName: string;
     invoiceNumber: string;
-    invoiceStatus: 'paid' | 'due' | 'cancelled';
+    invoiceStatus: 'paid' | 'due' | 'cancelled' | 'returned';
     serviceName: string;
     amount: number;
     /** The مندوب's share of this same line — shown beside `amount`, never added to it. */

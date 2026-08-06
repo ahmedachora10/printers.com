@@ -23,7 +23,7 @@ import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير العمولات', href: '/reports/commissions' }];
 
-const STATUS_LABELS: Record<string, string> = { pending: 'معلقة', paid: 'مصروفة' };
+const STATUS_LABELS: Record<string, string> = { pending: 'معلقة', paid: 'مصروفة', returned: 'مرتجعة' };
 
 interface Props {
     summary: CommissionReportSummaryRow[];
@@ -186,6 +186,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                                 options={[
                                     { value: 'pending', label: 'معلقة' },
                                     { value: 'paid', label: 'مصروفة' },
+                                    { value: 'returned', label: 'مرتجعة' },
                                 ]}
                             />
                         </FilterModal>
@@ -310,6 +311,11 @@ function SummaryCard({ icon, label, value, valueClass }: { icon: React.ReactNode
 function InvoiceStatusBadge({ status }: { status: CommissionReportLine['invoiceStatus'] }) {
     if (status === 'cancelled') {
         return <Badge variant="destructive">ملغاة</Badge>;
+    }
+    // A returned invoice keeps its rows on show, but they no longer count towards
+    // the totals above — the badge is what says so.
+    if (status === 'returned') {
+        return <Badge variant="destructive">مرتجعة</Badge>;
     }
     if (status === 'due') {
         return (

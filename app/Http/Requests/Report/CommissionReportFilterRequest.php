@@ -21,7 +21,7 @@ class CommissionReportFilterRequest extends FormRequest
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'employee' => ['nullable', 'integer', 'exists:users,id'],
             'branch' => ['nullable', 'integer', 'exists:branches,id'],
-            'status' => ['nullable', 'in:all,paid,pending'],
+            'status' => ['nullable', 'in:all,paid,pending,returned'],
         ];
     }
 }

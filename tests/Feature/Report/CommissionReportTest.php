@@ -148,6 +148,75 @@ describe('Employee Commission Report', function () {
             );
     });
 
+    // ── RETURNED INVOICES (تاسك 10) ────────────────────────────────
+
+    it('drops the unpaid commission of a returned invoice from المستحق, whatever the window', function () {
+        $kept = ledgerLine($this->employee, $this->branch, ['amount' => 20]);
+        $returned = ledgerLine($this->employee, $this->branch, ['amount' => 30]);
+
+        // The reversal row a return writes lands on the day of the return, which
+        // may be well outside the window under review — so netting alone is not
+        // enough and the earning row itself has to stop counting.
+        ServiceInvoiceLine::find($returned->invoice_line_id)->invoice->update(['status' => 'returned']);
+        CommissionLedger::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'invoice_line_id' => $returned->invoice_line_id,
+            'invoice_line_type' => ServiceInvoiceLine::class,
+            'amount' => -30,
+            'earned_at' => now()->addDays(3),
+            'paid_at' => null,
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.earned', 20)
+                ->where('totals.pending', 20)
+                ->where('summary.0.earned', 20)
+                ->where('summary.0.pending', 20)
+                ->where('summary.0.lineCount', 1)
+                // The row itself stays on show, flagged, so the gap is explained.
+                ->where('lines', fn ($lines) => collect($lines)->pluck('invoiceStatus')->sort()->values()->all() === ['paid', 'returned'])
+                ->where('lines', fn ($lines) => (float) collect($lines)->firstWhere('id', $kept->id)['amount'] === 20.0));
+    });
+
+    it('keeps commission that was already paid out on an invoice that was later returned', function () {
+        $paid = ledgerLine($this->employee, $this->branch, ['amount' => 40, 'paid_at' => now()]);
+
+        ServiceInvoiceLine::find($paid->invoice_line_id)->invoice->update(['status' => 'returned']);
+
+        // That money left the till and is never clawed back (M14), so it must stay
+        // in "المصروف" — only the outstanding side of a return disappears.
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.earned', 40)
+                ->where('totals.paid', 40)
+                ->where('totals.pending', 0));
+    });
+
+    it('lists only returned rows when filtering by the مرتجعة status', function () {
+        ledgerLine($this->employee, $this->branch, ['amount' => 20]);
+        $returned = ledgerLine($this->employee, $this->branch, ['amount' => 30]);
+
+        ServiceInvoiceLine::find($returned->invoice_line_id)->invoice->update(['status' => 'returned']);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions', ['status' => 'returned']))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.lineCount', 1)
+                ->where('lines.0.invoiceStatus', 'returned')
+                ->where('lines.0.amount', 30)
+                ->where('filters.status', 'returned'));
+    });
+
+    it('rejects an unknown status filter', function () {
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions', ['status' => 'refunded']))
+            ->assertSessionHasErrors('status');
+    });
+
     // ── SCOPING ────────────────────────────────────────────────────
 
     it('scopes an employee to only their own rows', function () {
