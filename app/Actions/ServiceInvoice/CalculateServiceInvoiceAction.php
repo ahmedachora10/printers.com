@@ -284,6 +284,9 @@ class CalculateServiceInvoiceAction
                 'vat_amount' => $vatAmount,
                 'total_amount' => $total,
                 'employee_commission' => $totalCommission,
+                // Invoice-level remark for the customer — carried through
+                // untouched, like the per-line detail.
+                'notes' => $this->normalizeNotes($data['notes'] ?? null),
             ],
             'lines' => $lines,
             'agents' => $agentRows,
@@ -410,8 +413,9 @@ class CalculateServiceInvoiceAction
     }
 
     /**
-     * Trim a line's free-text detail, collapsing a blank field to null so an
-     * untouched box never persists an empty string.
+     * Trim a free-text field (a line's detail or the invoice's own remark),
+     * collapsing a blank field to null so an untouched box never persists an
+     * empty string.
      */
     private function normalizeNotes(mixed $notes): ?string
     {

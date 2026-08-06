@@ -72,6 +72,8 @@ export interface Invoice {
     customerPhone: string | null;
     customerTaxNumber: string | null;
     paymentMethod: string | null;
+    /** ملاحظات على مستوى الفاتورة كاملة — تختلف عن ملاحظات السطر */
+    notes: string | null;
     receiptUrl: string | null;
     lines: InvoiceLine[];
     refundedTotal: number;

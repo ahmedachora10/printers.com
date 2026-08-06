@@ -180,6 +180,8 @@ class CreateProductInvoiceAction
                 'vat_pct' => $vatPct,
                 'vat_amount' => $vatAmount,
                 'total_amount' => $total,
+                // Invoice-level remark for the customer, printed under the lines.
+                'notes' => $this->normalizeNotes($data['notes'] ?? null),
                 'status' => $status,
                 'paid_at' => $status === InvoiceStatusEnum::PAID ? now() : null,
             ]);
@@ -247,6 +249,21 @@ class CreateProductInvoiceAction
             : $base * $rate / 100;
 
         return round(min($amount, $base), 2);
+    }
+
+    /**
+     * Trim the invoice's free-text remark, collapsing a blank field to null so
+     * an untouched box never persists an empty string.
+     */
+    private function normalizeNotes(mixed $notes): ?string
+    {
+        if (! is_string($notes)) {
+            return null;
+        }
+
+        $trimmed = trim($notes);
+
+        return $trimmed === '' ? null : $trimmed;
     }
 
     /**

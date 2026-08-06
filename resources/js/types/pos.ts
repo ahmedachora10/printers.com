@@ -119,6 +119,8 @@ export interface EditServiceInvoice {
     pointsRedeemed: number;
     paymentMethodId: number | null;
     hasReceipt: boolean;
+    /** ملاحظات على مستوى الفاتورة كاملة — تختلف عن ملاحظات السطر */
+    notes: string | null;
     lines: EditServiceInvoiceLine[];
 }
 
@@ -166,6 +168,8 @@ export interface PosInvoice {
     /** يميّز الفاتورة الضريبية (B2B) عن المبسطة (B2C) في ورقة الطباعة */
     customerTaxNumber: string | null;
     paymentMethod: string | null;
+    /** ملاحظات على مستوى الفاتورة كاملة — تُطبع أسفل جدول البنود */
+    notes: string | null;
     lines: PosInvoiceLine[];
 }
 

@@ -1,3 +1,4 @@
+import InvoiceNotes from '@/components/invoices/invoice-notes';
 import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { type Invoice } from '@/types/invoice';
@@ -113,6 +114,8 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                     ))}
                 </tbody>
             </table>
+
+            <InvoiceNotes notes={invoice.notes} variant="thermal" />
 
             <div className="my-3 border-t border-dashed border-black" />
 
@@ -237,6 +240,8 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
                     ))}
                 </tbody>
             </table>
+
+            <InvoiceNotes notes={invoice.notes} variant="a4" />
 
             {/* Totals + QR */}
             <div className="mt-6 flex items-end justify-between gap-8">

@@ -83,6 +83,7 @@ class ServiceInvoiceController extends Controller
                 'pointsRedeemed' => (int) $invoice->points_redeemed,
                 'paymentMethodId' => $invoice->payment_method_id,
                 'hasReceipt' => $invoice->hasReceipt(),
+                'notes' => $invoice->notes,
                 'lines' => $invoice->lines->map(function ($line) use ($servicesById) {
                     $service = $servicesById->get($line->branch_service_id);
 
@@ -382,6 +383,7 @@ class ServiceInvoiceController extends Controller
                 'customerPhone' => $invoice->customer?->phone,
                 'customerTaxNumber' => $invoice->customer?->tax_number,
                 'paymentMethod' => $invoice->paymentMethod?->name,
+                'notes' => $invoice->notes,
                 'lines' => $invoice->lines->map(fn ($line) => [
                     'name' => $line->service_name,
                     'notes' => $line->notes,

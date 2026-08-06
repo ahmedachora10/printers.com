@@ -75,6 +75,8 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
     const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
     const [couponLoading, setCouponLoading] = useState(false);
     const [redeemPoints, setRedeemPoints] = useState('');
+    // Remark about the whole order, printed under the lines table.
+    const [notes, setNotes] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const manualSeq = useRef(0);
@@ -280,6 +282,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
         setReceipt(null);
         setStatus('paid');
         setRedeemPoints('');
+        setNotes('');
         removeCoupon();
     }
 
@@ -311,6 +314,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                 receipt,
                 status,
                 print,
+                notes: notes.trim() || null,
                 lines: cart.map((l) => ({
                     product_id: l.productId,
                     name: l.productId ? null : l.name.trim(),
@@ -538,6 +542,26 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                     <span>{formatCurrency(agentRebate)}</span>
                                 </div>
                             )}
+                        </CardContent>
+                    </Card>
+
+                    {/* Invoice-level note — printed under the whole lines table. */}
+                    <Card>
+                        <CardContent className="space-y-1.5 py-4">
+                            <Label htmlFor="invoice-notes" className="text-sm">
+                                ملاحظات للعميل (اختياري)
+                            </Label>
+                            <textarea
+                                id="invoice-notes"
+                                rows={2}
+                                maxLength={1000}
+                                value={notes}
+                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setNotes(e.target.value)}
+                                placeholder="ملاحظة تخص الفاتورة كاملة — مثال: التسليم بعد 3 أيام عمل"
+                                className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[56px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                            />
+                            <p className="text-muted-foreground text-xs">تُطبع أسفل جدول البنود في الفاتورة.</p>
+                            {errors.notes && <p className="text-destructive text-xs">{errors.notes}</p>}
                         </CardContent>
                     </Card>
 

@@ -1,3 +1,4 @@
+import InvoiceNotes from '@/components/invoices/invoice-notes';
 import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import product from '@/routes/pos/product';
@@ -117,6 +118,8 @@ export default function ProductInvoicePrint({ invoice, branch }: Props) {
                     ))}
                 </tbody>
             </table>
+
+            <InvoiceNotes notes={invoice.notes} variant="thermal" />
 
             <div className="my-3 border-t border-dashed border-black" />
 

@@ -37,6 +37,7 @@ class ServiceInvoice extends Model implements HasMedia
         'vat_amount',
         'total_amount',
         'employee_commission',
+        'notes',
         'status',
         'paid_at',
         'cancellation_reason',
