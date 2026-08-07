@@ -129,9 +129,10 @@ class InvoiceController extends Controller
 
         $format = $request->input('format') === 'thermal' ? 'thermal' : 'a4';
 
-        // الفاتورة غير المعتمدة تُطبع كعرض سعر: مستند غير ضريبي، فلا يُرسل معه أيٌّ من
-        // مقوّمات الفاتورة الضريبية — لا الرقم الضريبي للفرع ولا رمز الاستجابة الضريبي.
-        $isQuotation = $invoice->status !== InvoiceStatusEnum::PAID;
+        // الفاتورة التي لم يُقبض منها شيء تُطبع كعرض سعر: مستند غير ضريبي، فلا يُرسل
+        // معه أيٌّ من مقوّمات الفاتورة الضريبية — لا الرقم الضريبي للفرع ولا رمز
+        // الاستجابة الضريبي. العربون سداد، فالمدفوعة جزئياً تحملهما على كامل قيمتها.
+        $isQuotation = ! $invoice->status->isTaxDocument();
 
         $payload = (new InvoiceResource($invoice))->toArray($request);
 

@@ -175,6 +175,10 @@ export interface PosInvoice {
     vatPct: number;
     vatAmount: number;
     totalAmount: number;
+    /** العربون وما بقي على العميل — يُطبعان تحت الإجمالي متى قُبضت دفعة */
+    hasPayments: boolean;
+    paidAmount: number;
+    paymentRemaining: number;
     customerName: string | null;
     customerPhone: string | null;
     /** يميّز الفاتورة الضريبية (B2B) عن المبسطة (B2C) في ورقة الطباعة */
