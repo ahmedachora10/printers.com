@@ -380,10 +380,17 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('view', $invoice);
 
-        $invoice->load(['lines', 'customer:id,full_name,phone,tax_number', 'paymentMethod:id,name', 'branch:id,name,phone,address,tax_number']);
+        $invoice->load([
+            'lines',
+            'customer:id,full_name,phone,tax_number',
+            'paymentMethod:id,name',
+            'branch:id,name,phone,address,tax_number',
+            'payments',
+        ]);
 
-        // قبل الاعتماد الورقة عرض سعر لا فاتورة ضريبية — فلا تحمل الرقم الضريبي للفرع.
-        $isQuotation = $invoice->status !== InvoiceStatusEnum::PAID;
+        // ما لم يُقبض منه شيء ورقتُه عرض سعر لا فاتورة ضريبية — فلا تحمل الرقم
+        // الضريبي للفرع. والعربون سداد، فالمدفوعة جزئياً فاتورة ضريبية.
+        $isQuotation = ! $invoice->status->isTaxDocument();
 
         return Inertia::render('pos/service/print', [
             'invoice' => [
@@ -399,6 +406,10 @@ class ServiceInvoiceController extends Controller
                 'vatPct' => (float) $invoice->vat_pct,
                 'vatAmount' => (float) $invoice->vat_amount,
                 'totalAmount' => (float) $invoice->total_amount,
+                // العربون وما بقي على العميل — يُطبعان تحت الإجمالي متى قُبضت دفعة.
+                'hasPayments' => $invoice->payments->isNotEmpty(),
+                'paidAmount' => $invoice->paidAmount(),
+                'paymentRemaining' => $invoice->remainingAmount(),
                 'customerName' => $invoice->customer?->full_name,
                 'customerPhone' => $invoice->customer?->phone,
                 'customerTaxNumber' => $invoice->customer?->tax_number,

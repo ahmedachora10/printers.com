@@ -20,12 +20,13 @@ export const INVOICE_STATUS_COLORS: Record<string, string> = {
 };
 
 /**
- * الاشتقاق الوحيد لطبيعة المستند المطبوع: الفاتورة غير المعتمدة (آجل أو مدفوعة
- * جزئياً) ليست مستنداً ضريبياً فتُطبع كعرض سعر — العربون لا يقوم مقام السداد —
- * وبعد اكتمال السداد تصبح فاتورة ضريبية (B2B) إن كان للعميل رقم ضريبي، وإلا
- * فاتورة ضريبية مبسطة (B2C).
+ * الاشتقاق الوحيد لطبيعة المستند المطبوع: الفاتورة الآجلة التي لم يُقبض منها شيء
+ * ليست مستنداً ضريبياً فتُطبع كعرض سعر. أما العربون فيُعتبر سداداً — بمجرد قبض
+ * دفعة تصير الفاتورة ضريبية (B2B) إن كان للعميل رقم ضريبي، وإلا فاتورة ضريبية
+ * مبسطة (B2C)، على كامل قيمة الفاتورة لا على المقبوض.
  *
  * تستخدمه كل صفحات الطباعة وشاشة عرض الفاتورة — لا تكرّر الشرط في مكان آخر.
+ * يقابله InvoiceStatusEnum::isTaxDocument() على الخادم.
  */
 export function invoiceDocument(invoice: DocumentSource): InvoiceDocument {
     // المرتجع فاتورة اعتُمدت ثم أُرجعت — ليست عرض سعر ولا مستنداً ضريبياً سارياً.
@@ -33,7 +34,7 @@ export function invoiceDocument(invoice: DocumentSource): InvoiceDocument {
         return { title: 'فاتورة مرتجعة', isQuotation: false };
     }
 
-    if (invoice.status !== 'paid') {
+    if (invoice.status !== 'paid' && invoice.status !== 'partially_paid') {
         return { title: 'عرض سعر', isQuotation: true };
     }
 

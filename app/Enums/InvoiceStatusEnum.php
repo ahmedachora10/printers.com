@@ -35,6 +35,18 @@ enum InvoiceStatusEnum: string
         return $this === self::PAID;
     }
 
+    /**
+     * هل تُطبع الفاتورة مستنداً ضريبياً (لا عرض سعر)؟ العربون يُعتبر سداداً: بمجرد
+     * قبض دفعة تصير الفاتورة ضريبيةً فتحمل الرقم الضريبي للفرع ورمز ZATCA على
+     * كامل قيمتها. الآجلة التي لم يُقبض منها شيء تبقى عرض سعر.
+     *
+     * هذا هو الاشتقاق الوحيد على الخادم؛ يقابله invoiceDocument() في الواجهة.
+     */
+    public function isTaxDocument(): bool
+    {
+        return $this === self::PAID || $this === self::PARTIALLY_PAID;
+    }
+
     /** @return array<int, string> */
     public static function all(): array
     {

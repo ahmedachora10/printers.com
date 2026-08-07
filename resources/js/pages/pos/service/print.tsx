@@ -173,6 +173,18 @@ export default function ServiceInvoicePrint({ invoice, branch }: Props) {
                     <span>الإجمالي</span>
                     <span>{formatCurrency(invoice.totalAmount)}</span>
                 </div>
+                {invoice.hasPayments && (
+                    <>
+                        <div className="flex justify-between">
+                            <span>المدفوع (عربون)</span>
+                            <span>{formatCurrency(invoice.paidAmount)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold">
+                            <span>المتبقي</span>
+                            <span>{formatCurrency(invoice.paymentRemaining)}</span>
+                        </div>
+                    </>
+                )}
             </div>
 
             <div className="my-3 border-t border-dashed border-black" />

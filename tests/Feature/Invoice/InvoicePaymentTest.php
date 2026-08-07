@@ -260,6 +260,63 @@ describe('Invoice payments', function () {
                 ->where('totals.total', money(100)));
     });
 
+    // ── ورقة الطباعة ──────────────────────────────────────────────
+
+    it('prints a deposited invoice as a tax invoice carrying the branch tax number and the ZATCA QR', function () {
+        $invoice = paymentTestInvoice();
+
+        // قبل أي دفعة: عرض سعر مجرَّد من مقوّمات الفاتورة الضريبية.
+        $this->get(route('invoices.print', ['type' => 'service', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('invoice.status', 'due')
+                ->where('invoice.branch.taxNumber', null)
+                ->where('zatcaQr', null));
+
+        postPayment($invoice, ['amount' => 40])->assertRedirect();
+
+        // العربون سداد: الورقة صارت فاتورة ضريبية كاملة المقوّمات.
+        $this->get(route('invoices.print', ['type' => 'service', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('invoices/print')
+                ->where('invoice.status', 'partially_paid')
+                ->where('invoice.branch.taxNumber', $this->branch->tax_number)
+                ->whereNot('zatcaQr', null)
+                ->where('invoice.paidAmount', money(40))
+                ->where('invoice.paymentRemaining', money(75)));
+    });
+
+    it('encodes the whole invoice total in the ZATCA QR, not the collected deposit', function () {
+        $invoice = paymentTestInvoice();
+        postPayment($invoice, ['amount' => 40])->assertRedirect();
+
+        $response = $this->get(route('invoices.print', ['type' => 'service', 'id' => $invoice->id]));
+        $tlv = base64_decode($response->viewData('page')['props']['zatcaQr']);
+
+        // الفاتورة مستحقة بكامل قيمتها والضريبة على كاملها — لا على المقبوض.
+        expect($tlv)->toContain('115.00')
+            ->and($tlv)->toContain('15.00')
+            ->and($tlv)->not->toContain('40.00');
+    });
+
+    it('prints the deposit and the remaining amount on the POS receipt', function () {
+        $invoice = paymentTestInvoice();
+        postPayment($invoice, ['amount' => 40])->assertRedirect();
+
+        // ورقة نقطة البيع محجوزة لمن يصدر الفواتير، لا للمحاسب الذي سجّل الدفعة.
+        $this->actingAs($this->employee)
+            ->get(route('pos.service.print', $invoice))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('pos/service/print')
+                ->where('invoice.status', 'partially_paid')
+                ->where('invoice.hasPayments', true)
+                ->where('invoice.paidAmount', money(40))
+                ->where('invoice.paymentRemaining', money(75))
+                ->where('branch.taxNumber', $this->branch->tax_number));
+    });
+
     it('shows the payments and the remaining amount on the invoice page', function () {
         $invoice = paymentTestInvoice();
         postPayment($invoice, ['amount' => 40])->assertRedirect();
