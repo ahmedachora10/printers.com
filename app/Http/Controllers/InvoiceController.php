@@ -41,7 +41,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as paid_amount');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -82,6 +82,8 @@ class InvoiceController extends Controller
             'paymentMethod:id,name',
             'branch',
             'refunds' => fn ($q) => $q->with('user:id,name')->latest(),
+            // بطاقة «الدفعات»: العربون وما تلاه، مع من سجّلها وبأي طريقة.
+            'payments' => fn ($q) => $q->with(['paymentMethod:id,name', 'recordedBy:id,name'])->oldest('paid_at'),
         ]);
 
         // Product invoices carry a single agent on the row; service invoices list
@@ -94,6 +96,11 @@ class InvoiceController extends Controller
 
         return Inertia::render('invoices/show', [
             'invoice' => new InvoiceResource($invoice),
+            // خيارات طريقة الدفع لنافذة «تسجيل دفعة» — دفعة واحدة قد تُقبض بطريقة
+            // غير التي أُصدرت بها الفاتورة.
+            'paymentMethodOptions' => $invoice->branch
+                ? $invoice->branch->enabledPaymentMethods()->map(fn ($m) => ['id' => $m->id, 'name' => $m->name])->values()
+                : [],
         ]);
     }
 
@@ -105,7 +112,14 @@ class InvoiceController extends Controller
         // الفواتير الملغاة لا تُطبع إطلاقاً
         abort_if($invoice->status === InvoiceStatusEnum::CANCELLED, 403, 'لا يمكن طباعة فاتورة ملغاة.');
 
-        $invoice->load(['lines', 'customer:id,full_name,phone,tax_number', 'paymentMethod:id,name', 'branch']);
+        $invoice->load([
+            'lines',
+            'customer:id,full_name,phone,tax_number',
+            'paymentMethod:id,name',
+            'branch',
+            // العربون والمتبقي يُطبعان أسفل الإجمالي.
+            'payments' => fn ($q) => $q->with('paymentMethod:id,name')->oldest('paid_at'),
+        ]);
 
         if ($invoice instanceof ServiceInvoice) {
             $invoice->load('invoiceAgents.agent:id,name', 'lines.lineAgent:id,name');
@@ -189,6 +203,15 @@ class InvoiceController extends Controller
             ? "{$table}.delivery_at"
             : DB::raw('null as delivery_at');
 
+        // ما حُصِّل من الفاتورة عبر جدول الدفعات (عربون + دفعات لاحقة). الفاتورة
+        // التي سُدِّدت عند البيع لا دفعات لها، فيُحسب عمود «المتبقي» في المورد من
+        // الحالة نفسها. اسم الصنف كاملاً — لا morph map في المشروع، ويُربط
+        // كمعامل لا كنص خام (الشرطة المائلة العكسية لا تُفلَت في SQLite).
+        $paidSub = DB::table('invoice_payments')
+            ->selectRaw('coalesce(sum(amount), 0)')
+            ->where('invoice_payments.invoice_type', $type->modelClass())
+            ->whereColumn('invoice_payments.invoice_id', "{$table}.id");
+
         $delivery = $request->input('delivery');
 
         return DB::table($table)
@@ -242,6 +265,7 @@ class InvoiceController extends Controller
                 'branches.name as branch_name',
                 $cancellationSelect,
                 $deliverySelect,
-            ]);
+            ])
+            ->selectSub($paidSub, 'paid_amount');
     }
 }

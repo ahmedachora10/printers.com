@@ -30,7 +30,7 @@ class DailyReportExport implements FromCollection, ShouldAutoSize, WithHeadings,
             $headings[] = 'الموظف';
         }
 
-        array_push($headings, 'المنتجات', 'الخدمات', 'الإجمالي', 'عمولة الموظفين');
+        array_push($headings, 'المنتجات', 'الخدمات', 'الإجمالي', 'المحصَّل', 'عمولة الموظفين');
 
         if ($this->showPurchases) {
             $headings[] = 'المشتريات';
@@ -57,6 +57,7 @@ class DailyReportExport implements FromCollection, ShouldAutoSize, WithHeadings,
                 number_format((float) $row['products'], 2),
                 number_format((float) $row['services'], 2),
                 number_format((float) $row['total'], 2),
+                number_format((float) $row['collected'], 2),
                 number_format((float) $row['commission'], 2),
             );
 

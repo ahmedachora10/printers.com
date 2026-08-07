@@ -177,6 +177,8 @@ class ServiceInvoiceController extends Controller
         $user = Auth::user();
         $isSuperAdmin = $user->roleName->isSuperAdmin();
 
+        // عروض الأسعار وحدها: الفاتورة التي قُبض عليها عربون لم تعد عرض سعر، فتغادر
+        // الطابور فور أول دفعة ويُستكمل سدادها من صفحتها.
         $dueInvoices = ServiceInvoice::query()
             ->where('status', InvoiceStatusEnum::DUE)
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $user->branchId))
@@ -221,6 +223,10 @@ class ServiceInvoiceController extends Controller
                     'subtotal' => (float) $invoice->subtotal,
                     'vatAmount' => (float) $invoice->vat_amount,
                     'totalAmount' => (float) $invoice->total_amount,
+                    // سقف الدفعة الأولى (العربون). الطابور لا يحمل إلا فواتير آجلة
+                    // لم يُقبض منها شيء، فالمتبقي هو الإجمالي — ويُرسل صراحةً لأن
+                    // نافذة تسجيل الدفعة تحدّ به المبلغ.
+                    'remainingAmount' => $invoice->remainingAmount(),
                     'lines' => $invoice->lines->map(fn ($line) => [
                         'name' => $line->service_name,
                         'notes' => $line->notes,
@@ -243,6 +249,14 @@ class ServiceInvoiceController extends Controller
     public function markPaid(ServiceInvoice $invoice, MarkServiceInvoicePaidAction $action): RedirectResponse
     {
         Gate::authorize('updateStatus', $invoice);
+
+        // فاتورة قُبض عليها عربون تُغلق بتسجيل دفعة المتبقي، لا باعتماد مجمل — وإلا
+        // صارت «مدفوعة» ومجموع دفعاتها أقل من إجمالها.
+        if ($invoice->status === InvoiceStatusEnum::PARTIALLY_PAID) {
+            throw ValidationException::withMessages([
+                'status' => 'الفاتورة مدفوعة جزئياً — سجّل دفعة بالمتبقي ('.number_format($invoice->remainingAmount(), 2).' ر.س) لإغلاقها.',
+            ]);
+        }
 
         $action->handle($invoice);
 

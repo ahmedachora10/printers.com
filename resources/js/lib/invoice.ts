@@ -10,10 +10,20 @@ export interface InvoiceDocument {
     isQuotation: boolean;
 }
 
+/** ألوان بادج الحالة — مصدر واحد لقائمة الفواتير وشاشة عرضها. */
+export const INVOICE_STATUS_COLORS: Record<string, string> = {
+    paid: 'border-green-200 bg-green-50 text-green-700',
+    partially_paid: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300',
+    due: 'border-red-200 bg-red-50 text-red-700',
+    cancelled: 'border-border bg-muted/60 text-muted-foreground',
+    returned: 'border-red-300 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
+};
+
 /**
- * الاشتقاق الوحيد لطبيعة المستند المطبوع: الفاتورة غير المعتمدة (آجل) ليست مستنداً
- * ضريبياً فتُطبع كعرض سعر، وبعد الاعتماد تصبح فاتورة ضريبية (B2B) إن كان للعميل رقم
- * ضريبي، وإلا فاتورة ضريبية مبسطة (B2C).
+ * الاشتقاق الوحيد لطبيعة المستند المطبوع: الفاتورة غير المعتمدة (آجل أو مدفوعة
+ * جزئياً) ليست مستنداً ضريبياً فتُطبع كعرض سعر — العربون لا يقوم مقام السداد —
+ * وبعد اكتمال السداد تصبح فاتورة ضريبية (B2B) إن كان للعميل رقم ضريبي، وإلا
+ * فاتورة ضريبية مبسطة (B2C).
  *
  * تستخدمه كل صفحات الطباعة وشاشة عرض الفاتورة — لا تكرّر الشرط في مكان آخر.
  */

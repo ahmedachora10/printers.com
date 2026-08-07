@@ -4,6 +4,7 @@ namespace App\Http\Resources\Invoice;
 
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
+use App\Models\InvoicePayment;
 use App\Models\ProductInvoice;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
@@ -74,6 +75,12 @@ class InvoiceResource extends JsonResource
             ? $this->invoiceAgents->whereNotNull('agent_payment_id')->isNotEmpty()
             : $this->agent_payment_id !== null;
 
+        // الدفعات (عربون + دفعات لاحقة): المحصَّل والمتبقي مصدرهما صفوف الدفعات،
+        // بينما total_amount يبقى السعر المتفق عليه.
+        $paidAmount = $this->resource->paidAmount();
+        $paymentRemaining = $this->resource->remainingAmount();
+        $canRecordPayment = $user !== null && $user->can('recordPayment', $this->resource);
+
         $canEdit = $user !== null && $isServiceInvoice && $user->can('update', $this->resource);
         $canReturn = $user !== null
             && $isServiceInvoice
@@ -124,6 +131,19 @@ class InvoiceResource extends JsonResource
             'refundedTotal' => $refundedTotal,
             'refundableRemaining' => $refundableRemaining,
             'isFullyRefunded' => $refundedTotal > 0 && $refundableRemaining <= 0,
+            'paidAmount' => $paidAmount,
+            'paymentRemaining' => $paymentRemaining,
+            'canRecordPayment' => $canRecordPayment,
+            'payments' => $this->whenLoaded('payments', fn () => $this->payments
+                ->sortBy('paid_at')
+                ->map(fn (InvoicePayment $payment) => [
+                    'id' => $payment->id,
+                    'amount' => (float) $payment->amount,
+                    'paidAt' => $payment->paid_at?->toIso8601String(),
+                    'paymentMethod' => $payment->paymentMethod?->name,
+                    'recordedByName' => $payment->recordedBy?->name,
+                    'notes' => $payment->notes,
+                ])->values()->all()),
             'canRefund' => $canRefund,
             'canApprovePayment' => $canApprovePayment,
             'canEdit' => $canEdit,

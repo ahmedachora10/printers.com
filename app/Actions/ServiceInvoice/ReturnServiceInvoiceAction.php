@@ -56,18 +56,23 @@ class ReturnServiceInvoiceAction
 
         return DB::transaction(function () use ($invoice, $actor, $reason) {
             $wasSettled = $invoice->status === InvoiceStatusEnum::PAID;
-            $refundable = $this->refundableRemaining($invoice);
+            $refundable = $this->refundableCollected($invoice);
 
-            if ($wasSettled && $refundable > 0) {
-                // The refund is what reverses the unpaid commission here (pro rata
-                // over what is left to refund), so it must not be reversed again.
+            if ($refundable > 0) {
+                // The refund is what reverses the unpaid commission of a settled
+                // invoice (pro rata over what is left to refund), so that invoice
+                // must not be reversed again below.
                 $this->createRefund->handle([
                     'source_type' => InvoiceTypeEnum::SERVICE->value,
                     'invoice_id' => $invoice->id,
                     'amount' => $refundable,
                     'reason' => $reason ?: "استرجاع الفاتورة {$invoice->invoice_number}",
                 ], $actor);
-            } elseif (! $wasSettled) {
+            }
+
+            if (! $wasSettled) {
+                // آجلة أو مدفوعة جزئياً: لم تُعتمد بعد فلا صفوف عمولة لها عادةً،
+                // والعكس هنا يغطّي ما قد يكون تراكم عليها.
                 $this->reverseUnpaidCommission($invoice);
             }
 
@@ -82,16 +87,17 @@ class ReturnServiceInvoiceAction
     }
 
     /**
-     * What is still refundable on the invoice — its total less any partial
-     * refunds already booked against it.
+     * ما يُردّ للعميل: ما حُصِّل منه فعلاً — إجمالُ الفاتورة إن سُدِّدت عند البيع،
+     * أو مجموع دفعاتها إن كان قد قُبض عليها عربون — منقوصاً منه ما سبق ردّه.
+     * الفاتورة الآجلة لم يُقبض منها شيء فلا يُردّ عنها شيء.
      */
-    private function refundableRemaining(ServiceInvoice $invoice): float
+    private function refundableCollected(ServiceInvoice $invoice): float
     {
         $alreadyRefunded = (float) Refund::query()
             ->where('invoice_type', $invoice->getMorphClass())
             ->where('invoice_id', $invoice->id)
             ->sum('amount');
 
-        return max(0, round((float) $invoice->total_amount - $alreadyRefunded, 2));
+        return max(0, round($invoice->paidAmount() - $alreadyRefunded, 2));
     }
 }

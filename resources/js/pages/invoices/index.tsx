@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
+import { INVOICE_STATUS_COLORS } from '@/lib/invoice';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
@@ -19,13 +20,6 @@ import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'الفواتير', href: '/invoices' }];
-
-const STATUS_COLORS: Record<string, string> = {
-    paid: 'border-green-200 bg-green-50 text-green-700',
-    due: 'border-red-200 bg-red-50 text-red-700',
-    cancelled: 'border-border bg-muted/60 text-muted-foreground',
-    returned: 'border-red-300 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
-};
 
 const TYPE_COLORS: Record<string, string> = {
     product: 'border-blue-200 bg-blue-50 text-blue-700',
@@ -112,9 +106,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     }
 
     function buildParams(s: string, fv: Record<string, string>, from: string, to: string) {
-        return Object.fromEntries(
-            Object.entries({ search: s, ...fv, date_from: from, date_to: to }).filter(([, v]) => v !== ''),
-        );
+        return Object.fromEntries(Object.entries({ search: s, ...fv, date_from: from, date_to: to }).filter(([, v]) => v !== ''));
     }
 
     const reload = (s: string, fv: Record<string, string>, from: string, to: string) => {
@@ -156,11 +148,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 key: 'invoiceNumber',
                 header: 'رقم الفاتورة',
                 cell: (item) => (
-                    <Link
-                        href={`/invoices/${item.type}/${item.id}`}
-                        className="font-medium text-foreground hover:underline"
-                        dir="ltr"
-                    >
+                    <Link href={`/invoices/${item.type}/${item.id}`} className="text-foreground font-medium hover:underline" dir="ltr">
                         {item.invoiceNumber}
                     </Link>
                 ),
@@ -206,13 +194,9 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 cell: (item) => (
                     <div className="group flex items-start justify-start gap-1.5">
                         <div className="min-w-0">
-                            {item.customerName ? (
-                                <span>{item.customerName}</span>
-                            ) : (
-                                <span className="text-muted-foreground">عميل نقدي</span>
-                            )}
+                            {item.customerName ? <span>{item.customerName}</span> : <span className="text-muted-foreground">عميل نقدي</span>}
                             {item.customerPhone && (
-                                <div className="text-xs text-muted-foreground" dir="ltr">
+                                <div className="text-muted-foreground text-xs" dir="ltr">
                                     {item.customerPhone}
                                 </div>
                             )}
@@ -242,8 +226,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                       {
                           key: 'branchName',
                           header: 'الفرع',
-                          cell: (item: InvoiceListItem) =>
-                              item.branchName ?? <span className="text-muted-foreground">—</span>,
+                          cell: (item: InvoiceListItem) => item.branchName ?? <span className="text-muted-foreground">—</span>,
                       },
                   ]
                 : []),
@@ -251,17 +234,29 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 key: 'totalAmount',
                 header: 'الإجمالي',
                 cell: (item) => (
-                    <span className="tabular-nums font-semibold" dir="ltr">
+                    <span className="font-semibold tabular-nums" dir="ltr">
                         {formatCurrency(item.totalAmount)}
                     </span>
                 ),
+            },
+            {
+                key: 'remainingAmount',
+                header: 'المتبقي',
+                cell: (item) =>
+                    item.remainingAmount > 0 ? (
+                        <span className="font-semibold text-amber-700 tabular-nums dark:text-amber-400" dir="ltr">
+                            {formatCurrency(item.remainingAmount)}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground">—</span>
+                    ),
             },
             {
                 key: 'status',
                 header: 'الحالة',
                 cell: (item) => {
                     const badge = (
-                        <Badge variant="outline" className={STATUS_COLORS[item.status]}>
+                        <Badge variant="outline" className={INVOICE_STATUS_COLORS[item.status]}>
                             {item.statusLabel}
                         </Badge>
                     );
@@ -349,9 +344,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                         searchValue={search}
                         onSearchChange={handleSearchChange}
                         filters={[
-                            ...(availableTypes.length > 1
-                                ? [{ key: 'type', placeholder: 'النوع', options: availableTypes }]
-                                : []),
+                            ...(availableTypes.length > 1 ? [{ key: 'type', placeholder: 'النوع', options: availableTypes }] : []),
                             ...(branches
                                 ? [
                                       {
@@ -366,6 +359,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                                 placeholder: 'الحالة',
                                 options: [
                                     { value: 'paid', label: 'مدفوعة' },
+                                    { value: 'partially_paid', label: 'مدفوعة جزئياً' },
                                     { value: 'due', label: 'آجلة' },
                                     { value: 'cancelled', label: 'ملغاة' },
                                     { value: 'returned', label: 'مرتجع' },
@@ -432,9 +426,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                         <DialogTitle>{editingItem?.customerId ? 'تعديل بيانات العميل' : 'إضافة عميل للفاتورة'}</DialogTitle>
                         <DialogDescription>
                             الفاتورة {editingItem?.invoiceNumber}
-                            {editingItem && !editingItem.customerId
-                                ? ' — عميل نقدي غير مسجَّل، أدخل الاسم ورقم الجوال لتسجيله.'
-                                : ''}
+                            {editingItem && !editingItem.customerId ? ' — عميل نقدي غير مسجَّل، أدخل الاسم ورقم الجوال لتسجيله.' : ''}
                         </DialogDescription>
                     </DialogHeader>
                     <InvoiceCustomerFields

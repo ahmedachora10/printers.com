@@ -32,6 +32,7 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
     const grossVat = invoice.subtotal * (invoice.vatPct / 100);
     const grossTotal = invoice.subtotal + grossVat;
     const doc = invoiceDocument(invoice);
+    const hasPayments = (invoice.payments?.length ?? 0) > 0;
 
     return (
         <div dir="rtl" className="mx-auto max-w-sm bg-white p-4 font-sans text-sm text-black">
@@ -138,6 +139,18 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                     <span>الإجمالي</span>
                     <span>{formatCurrency(grossTotal)}</span>
                 </div>
+                {hasPayments && (
+                    <>
+                        <div className="flex justify-between">
+                            <span>المدفوع (عربون)</span>
+                            <span>{formatCurrency(invoice.paidAmount)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold">
+                            <span>المتبقي</span>
+                            <span>{formatCurrency(invoice.paymentRemaining)}</span>
+                        </div>
+                    </>
+                )}
             </div>
 
             {zatcaQr && (
@@ -156,6 +169,7 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
     const grossVat = invoice.subtotal * (invoice.vatPct / 100);
     const grossTotal = invoice.subtotal + grossVat;
     const doc = invoiceDocument(invoice);
+    const hasPayments = (invoice.payments?.length ?? 0) > 0;
 
     return (
         <div dir="rtl" className="mx-auto max-w-3xl bg-white p-10 font-sans text-sm text-black">
@@ -279,6 +293,19 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
                         <span>الإجمالي</span>
                         <span dir="ltr">{formatCurrency(grossTotal)}</span>
                     </div>
+                    {/* العربون وما بقي على العميل — تُطبع متى سُجِّلت دفعة على الفاتورة. */}
+                    {hasPayments && (
+                        <>
+                            <div className="flex justify-between">
+                                <span className="text-neutral-500">المدفوع (عربون)</span>
+                                <span dir="ltr">{formatCurrency(invoice.paidAmount)}</span>
+                            </div>
+                            <div className="flex justify-between border-t border-black pt-1 font-bold">
+                                <span>المتبقي</span>
+                                <span dir="ltr">{formatCurrency(invoice.paymentRemaining)}</span>
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 

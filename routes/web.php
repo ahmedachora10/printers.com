@@ -25,6 +25,7 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoicePaymentController;
 use App\Http\Controllers\InvoiceReceiptController;
 use App\Http\Controllers\LoyaltyController;
 use App\Http\Controllers\NotificationController;
@@ -180,6 +181,12 @@ Route::middleware(['auth'])->group(function () {
             Route::patch('{invoice}/payment-method', [ServiceInvoiceController::class, 'updatePaymentMethod'])->name('update-payment-method');
             Route::post('{invoice}/receipt', [InvoiceReceiptController::class, 'store'])->name('receipt');
         });
+
+        // دفعات الفاتورة (عربون + دفعات لاحقة) — لكلا نوعي الفواتير. من يعتمد
+        // الفاتورة هو من يسجّل تحصيلها؛ التحقق النهائي في InvoicePaymentController.
+        Route::post('invoices/{type}/{id}/payments', [InvoicePaymentController::class, 'store'])
+            ->whereIn('type', ['product', 'service'])->whereNumber('id')
+            ->name('invoices.payments.store');
     });
 
     // Customer details of a service invoice — shared by the accountant's review

@@ -1,5 +1,5 @@
 export type InvoiceType = 'product' | 'service';
-export type InvoiceStatus = 'paid' | 'due' | 'cancelled' | 'returned';
+export type InvoiceStatus = 'paid' | 'partially_paid' | 'due' | 'cancelled' | 'returned';
 /** حالة موعد التسليم مقارنةً باليوم — تُحسب على الخادم (DeliveryStatusEnum). */
 export type DeliveryStatus = 'overdue' | 'today' | 'upcoming';
 
@@ -34,6 +34,16 @@ export interface InvoiceRefund {
     stockReversed: boolean;
     userName: string | null;
     createdAt: string | null;
+}
+
+/** دفعة واحدة على الفاتورة — عربون أو دفعة لاحقة. */
+export interface InvoicePayment {
+    id: number;
+    amount: number;
+    paidAt: string | null;
+    paymentMethod: string | null;
+    recordedByName: string | null;
+    notes: string | null;
 }
 
 export interface InvoiceAgent {
@@ -84,6 +94,12 @@ export interface Invoice {
     refundedTotal: number;
     refundableRemaining: number;
     isFullyRefunded: boolean;
+    /** ما حُصِّل من الفاتورة فعلاً (مجموع الدفعات، أو الإجمالي إن سُدِّدت عند البيع) */
+    paidAmount: number;
+    /** المتبقي على العميل */
+    paymentRemaining: number;
+    canRecordPayment: boolean;
+    payments?: InvoicePayment[];
     canRefund: boolean;
     canApprovePayment: boolean;
     canEdit: boolean;
@@ -99,6 +115,9 @@ export interface InvoiceListItem {
     serviceNames: string[];
     invoiceNumber: string;
     totalAmount: number;
+    /** ما حُصِّل من الفاتورة، والمتبقي على العميل (صفر للملغاة والمرتجعة) */
+    paidAmount: number;
+    remainingAmount: number;
     status: InvoiceStatus;
     statusLabel: string;
     /** Why a reviewer rejected the invoice — service invoices only. */
