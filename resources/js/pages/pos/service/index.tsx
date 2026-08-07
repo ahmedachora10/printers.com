@@ -1,6 +1,6 @@
 import { noteExamplesPlaceholder } from '@/components/branch-services/note-examples-field';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
-import { PosCartTable } from '@/components/pos/cart-table';
+import { LineChip, LineField, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,7 @@ import {
     type ServiceCartLine,
 } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Award, CalendarClock, Paperclip, Printer, Save, Search, Tag, X } from 'lucide-react';
+import { Award, BadgePercent, CalendarClock, Package, Paperclip, Printer, Ruler, Save, Search, StickyNote, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -1213,170 +1213,220 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                               ) : null
                                         : undefined
                                 }
+                                // A sqm line has no price until its dimensions are entered — open it
+                                // on arrival so the cashier is not left hunting for the fields.
+                                isLineDetailsInitiallyOpen={(line) => line.pricingType === 'sqm' && (!line.widthCm || !line.heightCm)}
+                                renderLineSummary={(line) => {
+                                    if (!line.branchServiceId) return null;
+                                    const isSqm = line.pricingType === 'sqm';
+                                    const hasDimensions = !!line.widthCm && !!line.heightCm;
+                                    const materials = lineMaterialsTotal(line);
+                                    const note = line.notes.trim();
+
+                                    if (!isSqm && !line.agentId && materials <= 0 && !note) return null;
+
+                                    return (
+                                        <>
+                                            {isSqm &&
+                                                (hasDimensions ? (
+                                                    <LineChip>
+                                                        <Ruler className="size-3" />
+                                                        {line.widthCm}×{line.heightCm} سم — {round2(lineAreaSqm(line))} م²
+                                                    </LineChip>
+                                                ) : (
+                                                    <LineChip tone="warning">
+                                                        <Ruler className="size-3" /> أدخل الأبعاد
+                                                    </LineChip>
+                                                ))}
+
+                                            {!!line.agentId && (
+                                                <LineChip tone="info">
+                                                    <BadgePercent className="size-3" /> عمولة {formatCurrency(lineAgentCommission(line, vatPct))}
+                                                </LineChip>
+                                            )}
+
+                                            {materials > 0 && (
+                                                <LineChip>
+                                                    <Package className="size-3" /> خامات {formatCurrency(materials)}
+                                                </LineChip>
+                                            )}
+
+                                            {note && (
+                                                <LineChip>
+                                                    <StickyNote className="size-3 shrink-0" />
+                                                    <span className="truncate">{note}</span>
+                                                </LineChip>
+                                            )}
+                                        </>
+                                    );
+                                }}
                                 renderLineDetails={(line) => {
                                     if (!line.branchServiceId) return null;
                                     const isSqm = line.pricingType === 'sqm';
                                     const hasAgent = !!line.agentId;
-                                    const commissionPreview = lineAgentCommission(line, vatPct);
 
                                     return (
-                                        <div className="space-y-2">
-                                        <div className="flex flex-wrap items-end gap-3">
+                                        <>
                                             {isSqm && (
-                                                <>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-muted-foreground text-xs">العرض (سم)</Label>
-                                                        <Input
-                                                            type="number"
-                                                            min={1}
-                                                            step="0.1"
-                                                            value={line.widthCm ?? ''}
-                                                            onChange={(e) =>
-                                                                setDimensions(line, {
-                                                                    widthCm: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
-                                                                })
-                                                            }
-                                                            className="h-8 w-24 text-center"
-                                                            placeholder="100"
-                                                        />
+                                                <LineSection title="مقاس القطعة" aside={`سعر المتر: ${formatCurrency(line.pricePerSqm)}`}>
+                                                    <div className="grid gap-3 sm:grid-cols-3">
+                                                        <LineField label="العرض (سم)" htmlFor={`width-${line.key}`}>
+                                                            <Input
+                                                                id={`width-${line.key}`}
+                                                                type="number"
+                                                                min={1}
+                                                                step="0.1"
+                                                                value={line.widthCm ?? ''}
+                                                                onChange={(e) =>
+                                                                    setDimensions(line, {
+                                                                        widthCm: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                                                                    })
+                                                                }
+                                                                className="h-9 text-center"
+                                                                placeholder="100"
+                                                            />
+                                                        </LineField>
+                                                        <LineField label="الطول (سم)" htmlFor={`height-${line.key}`}>
+                                                            <Input
+                                                                id={`height-${line.key}`}
+                                                                type="number"
+                                                                min={1}
+                                                                step="0.1"
+                                                                value={line.heightCm ?? ''}
+                                                                onChange={(e) =>
+                                                                    setDimensions(line, {
+                                                                        heightCm: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                                                                    })
+                                                                }
+                                                                className="h-9 text-center"
+                                                                placeholder="70"
+                                                            />
+                                                        </LineField>
+                                                        <LineField label="سعر القطعة">
+                                                            <LineReadout>{formatCurrency(sqmUnitPrice(line))}</LineReadout>
+                                                        </LineField>
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-muted-foreground text-xs">الطول (سم)</Label>
-                                                        <Input
-                                                            type="number"
-                                                            min={1}
-                                                            step="0.1"
-                                                            value={line.heightCm ?? ''}
-                                                            onChange={(e) =>
-                                                                setDimensions(line, {
-                                                                    heightCm: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
-                                                                })
-                                                            }
-                                                            className="h-8 w-24 text-center"
-                                                            placeholder="70"
-                                                        />
-                                                    </div>
-                                                    <p className="text-muted-foreground pb-1.5 text-xs">
-                                                        {line.widthCm && line.heightCm
-                                                            ? `المساحة: ${round2(lineAreaSqm(line))} م² × ${formatCurrency(line.pricePerSqm)} = ${formatCurrency(sqmUnitPrice(line))} للقطعة`
-                                                            : `سعر المتر: ${formatCurrency(line.pricePerSqm)}`}
-                                                    </p>
-                                                </>
+                                                    {line.widthCm && line.heightCm ? (
+                                                        <p className="text-muted-foreground text-[11px]">
+                                                            المساحة {round2(lineAreaSqm(line))} م² × {formatCurrency(line.pricePerSqm)} للمتر.
+                                                        </p>
+                                                    ) : (
+                                                        <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                                                            أدخل العرض والطول ليُحتسب سعر القطعة.
+                                                        </p>
+                                                    )}
+                                                </LineSection>
                                             )}
 
                                             {hasAgent && (
-                                                <>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-muted-foreground text-xs">نوع العمولة</Label>
-                                                        <Select
-                                                            value={line.agentCommissionType ?? 'percentage'}
-                                                            onValueChange={(v) =>
-                                                                updateLine(line.key, { agentCommissionType: v as LineAgentCommissionType })
+                                                <LineSection title="عمولة صاحب العمولة" aside="تُدفع للمندوب لاحقاً — لا تُخصم من العميل">
+                                                    <div className="grid gap-3 sm:grid-cols-3">
+                                                        <LineField label="نوع العمولة">
+                                                            <Select
+                                                                value={line.agentCommissionType ?? 'percentage'}
+                                                                onValueChange={(v) =>
+                                                                    updateLine(line.key, { agentCommissionType: v as LineAgentCommissionType })
+                                                                }
+                                                            >
+                                                                <SelectTrigger className="h-9 w-full">
+                                                                    <SelectValue />
+                                                                </SelectTrigger>
+                                                                <SelectContent>
+                                                                    <SelectItem value="percentage">نسبة %</SelectItem>
+                                                                    <SelectItem value="fixed">مبلغ ثابت</SelectItem>
+                                                                    {isSqm && <SelectItem value="per_sqm">لكل م²</SelectItem>}
+                                                                </SelectContent>
+                                                            </Select>
+                                                        </LineField>
+                                                        <LineField
+                                                            label={
+                                                                line.agentCommissionType === 'percentage'
+                                                                    ? 'النسبة (%)'
+                                                                    : line.agentCommissionType === 'per_sqm'
+                                                                      ? 'ر.س / م²'
+                                                                      : 'المبلغ (ر.س)'
                                                             }
+                                                            htmlFor={`agent-value-${line.key}`}
                                                         >
-                                                            <SelectTrigger className="h-8 w-32">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="percentage">نسبة %</SelectItem>
-                                                                <SelectItem value="fixed">مبلغ ثابت</SelectItem>
-                                                                {isSqm && <SelectItem value="per_sqm">لكل م²</SelectItem>}
-                                                            </SelectContent>
-                                                        </Select>
+                                                            <Input
+                                                                id={`agent-value-${line.key}`}
+                                                                type="number"
+                                                                min={0}
+                                                                step="0.01"
+                                                                max={line.agentCommissionType === 'percentage' ? 100 : undefined}
+                                                                value={line.agentCommissionValue}
+                                                                onChange={(e) =>
+                                                                    updateLine(line.key, {
+                                                                        agentCommissionValue: Math.max(0, Number(e.target.value) || 0),
+                                                                    })
+                                                                }
+                                                                className="h-9 text-center"
+                                                            />
+                                                        </LineField>
+                                                        <LineField label="العمولة المحتسبة">
+                                                            <LineReadout tone="info">{formatCurrency(lineAgentCommission(line, vatPct))}</LineReadout>
+                                                        </LineField>
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-muted-foreground text-xs">
-                                                            {line.agentCommissionType === 'percentage'
-                                                                ? 'النسبة (%)'
-                                                                : line.agentCommissionType === 'per_sqm'
-                                                                  ? 'ر.س / م²'
-                                                                  : 'المبلغ (ر.س)'}
-                                                        </Label>
-                                                        <Input
-                                                            type="number"
-                                                            min={0}
-                                                            step="0.01"
-                                                            max={line.agentCommissionType === 'percentage' ? 100 : undefined}
-                                                            value={line.agentCommissionValue}
-                                                            onChange={(e) =>
-                                                                updateLine(line.key, {
-                                                                    agentCommissionValue: Math.max(0, Number(e.target.value) || 0),
-                                                                })
-                                                            }
-                                                            className="h-8 w-24 text-center"
-                                                        />
-                                                    </div>
-                                                    <p className="pb-1.5 text-xs font-medium text-sky-700 dark:text-sky-400">
-                                                        العمولة: {formatCurrency(commissionPreview)}
-                                                    </p>
-                                                </>
+                                                </LineSection>
                                             )}
-                                        </div>
 
-                                        {/* تكلفة الخامات — داخلية بالكامل: لا تظهر للعميل ولا تغيّر
-                                            الإجمالي، وإنما تُخصم من أساس عمولة الموظف وحده. */}
-                                        <div className="flex flex-wrap items-end gap-3">
-                                            <label
-                                                className="flex cursor-pointer items-center gap-2 pb-1.5 text-xs"
-                                                htmlFor={`materials-${line.key}`}
+                                            {/* تكلفة الخامات — داخلية بالكامل: لا تظهر للعميل ولا تغيّر
+                                                الإجمالي، وإنما تُخصم من أساس عمولة الموظف وحده. */}
+                                            <LineSection
+                                                title={
+                                                    <label className="flex cursor-pointer items-center gap-2" htmlFor={`materials-${line.key}`}>
+                                                        <Checkbox
+                                                            id={`materials-${line.key}`}
+                                                            checked={line.hasMaterials}
+                                                            onCheckedChange={(checked) => updateLine(line.key, { hasMaterials: checked === true })}
+                                                        />
+                                                        <span>تكلفة الخامات</span>
+                                                    </label>
+                                                }
+                                                aside="داخلية — تُخصم من عمولة الموظف ولا تظهر للعميل"
                                             >
-                                                <Checkbox
-                                                    id={`materials-${line.key}`}
-                                                    checked={line.hasMaterials}
-                                                    onCheckedChange={(checked) =>
-                                                        updateLine(line.key, { hasMaterials: checked === true })
-                                                    }
-                                                />
-                                                <span>خامات</span>
-                                            </label>
-
-                                            {line.hasMaterials && (
-                                                <>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-muted-foreground text-xs">
-                                                            تكلفة الخامات للوحدة (ر.س)
-                                                        </Label>
-                                                        <Input
-                                                            type="number"
-                                                            min={0}
-                                                            step="0.01"
-                                                            value={line.materialsCost}
-                                                            onChange={(e) =>
-                                                                updateLine(line.key, {
-                                                                    materialsCost: Math.max(0, Number(e.target.value) || 0),
-                                                                })
-                                                            }
-                                                            className="h-8 w-28 text-center"
-                                                        />
+                                                {line.hasMaterials && (
+                                                    <div className="grid gap-3 sm:grid-cols-3">
+                                                        <LineField label="التكلفة للوحدة (ر.س)" htmlFor={`materials-cost-${line.key}`}>
+                                                            <Input
+                                                                id={`materials-cost-${line.key}`}
+                                                                type="number"
+                                                                min={0}
+                                                                step="0.01"
+                                                                value={line.materialsCost}
+                                                                onChange={(e) =>
+                                                                    updateLine(line.key, {
+                                                                        materialsCost: Math.max(0, Number(e.target.value) || 0),
+                                                                    })
+                                                                }
+                                                                className="h-9 text-center"
+                                                            />
+                                                        </LineField>
+                                                        <LineField label={`الإجمالي (× ${line.qty})`}>
+                                                            <LineReadout>{formatCurrency(lineMaterialsTotal(line))}</LineReadout>
+                                                        </LineField>
                                                     </div>
-                                                    <p className="text-muted-foreground pb-1.5 text-xs">
-                                                        الإجمالي: {formatCurrency(lineMaterialsTotal(line))} — تُخصم من عمولة
-                                                        الموظف ولا تظهر للعميل
-                                                    </p>
-                                                </>
-                                            )}
-                                        </div>
+                                                )}
+                                            </LineSection>
 
-                                        {/* Free-text detail — printed under the service name on the invoice */}
-                                        <div className="space-y-1">
-                                            <Label className="text-muted-foreground text-xs" htmlFor={`notes-${line.key}`}>
-                                                تفاصيل إضافية للخدمة (اختياري)
-                                            </Label>
-                                            <textarea
-                                                id={`notes-${line.key}`}
-                                                rows={2}
-                                                maxLength={500}
-                                                value={line.notes}
-                                                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                                                    updateLine(line.key, { notes: e.target.value })
-                                                }
-                                                placeholder={
-                                                    noteExamplesPlaceholder(line.noteExamples) ?? 'مثال: ورق مقوّى 300 جرام — تسليم الخميس'
-                                                }
-                                                className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[56px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                                            />
-                                        </div>
-                                        </div>
+                                            {/* Free-text detail — printed under the service name on the invoice */}
+                                            <LineSection title="تفاصيل إضافية للخدمة (اختياري)" aside={`${line.notes.length}/500`}>
+                                                <textarea
+                                                    id={`notes-${line.key}`}
+                                                    rows={2}
+                                                    maxLength={500}
+                                                    value={line.notes}
+                                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
+                                                        updateLine(line.key, { notes: e.target.value })
+                                                    }
+                                                    placeholder={
+                                                        noteExamplesPlaceholder(line.noteExamples) ?? 'مثال: ورق مقوّى 300 جرام — تسليم الخميس'
+                                                    }
+                                                    className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[56px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                                />
+                                                <p className="text-muted-foreground text-[11px]">تُطبع أسفل اسم الخدمة في الفاتورة.</p>
+                                            </LineSection>
+                                        </>
                                     );
                                 }}
                             />
