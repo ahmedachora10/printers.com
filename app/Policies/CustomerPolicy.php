@@ -43,7 +43,7 @@ class CustomerPolicy
         }
 
         return $user->branchId === $customer->branch_id
-            && ($user->roleName->isBranchAdmin() || $user->roleName->isAccountant());
+            && ($user->roleName->isBranchAdmin() || $user->roleName->isAccountant() || $user->roleName->isEmployee());
     }
 
     /**

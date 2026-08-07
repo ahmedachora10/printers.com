@@ -1,30 +1,56 @@
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
-import { FilterBar } from '@/components/filter-bar';
 import DeliveryBadge from '@/components/invoices/delivery-badge';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
+import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
+import DateRangeBar from '@/components/reports/date-range-bar';
+import { FilterSelect } from '@/components/reports/filter-fields';
+import { FilterModal } from '@/components/reports/filter-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { INVOICE_STATUS_COLORS } from '@/lib/invoice';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
 import { Link, router } from '@inertiajs/react';
-import { Eye, Info, Loader2, Pencil, Printer, Undo2, UserPlus } from 'lucide-react';
+import { Eye, Info, Loader2, Pencil, Printer, Search, Undo2, UserPlus, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'الفواتير', href: '/invoices' }];
 
+const INVOICES_URL = '/invoices';
+
 const TYPE_COLORS: Record<string, string> = {
     product: 'border-blue-200 bg-blue-50 text-blue-700',
     service: 'border-purple-200 bg-purple-50 text-purple-700',
 };
+
+const STATUS_OPTIONS = [
+    { value: 'paid', label: 'مدفوعة' },
+    { value: 'partially_paid', label: 'مدفوعة جزئياً' },
+    { value: 'due', label: 'آجلة' },
+    { value: 'cancelled', label: 'ملغاة' },
+    { value: 'returned', label: 'مرتجع' },
+];
+
+// موعد التسليم يخص فواتير الخدمات، فاختيار أيٍّ من الخيارين يُقصي فواتير
+// المنتجات من النتيجة.
+const DELIVERY_OPTIONS = [
+    { value: 'today', label: 'تسليم اليوم' },
+    { value: 'overdue', label: 'متأخر عن موعده' },
+];
+
+/** Modal-only filters — the search box and the date range apply on their own. */
+const MODAL_KEYS = ['type', 'branch_id', 'status', 'delivery'];
 
 interface Props {
     items: PaginatedInvoice;
@@ -35,15 +61,27 @@ interface Props {
 }
 
 export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, branches, filters }: Props) {
-    const [search, setSearch] = useState(filters.search ?? '');
-    const [filterValues, setFilterValues] = useState<Record<string, string>>({
-        type: filters.type ?? '',
-        status: filters.status ?? '',
-        branch_id: filters.branch_id ?? '',
-        delivery: filters.delivery ?? '',
-    });
-    const [dateFrom, setDateFrom] = useState(filters.date_from ?? '');
-    const [dateTo, setDateTo] = useState(filters.date_to ?? '');
+    // Filtering follows the report pages: the selects live in a modal, the date
+    // range stays visible above the table, and applied values show as removable
+    // chips. 'all' is the cleared value for the selects — useReportFilters drops
+    // it from the query, so the controller keeps seeing an absent parameter.
+    const defaults = useMemo<FilterValues>(
+        () => ({ search: '', type: 'all', status: 'all', branch_id: 'all', delivery: 'all', date_from: '', date_to: '' }),
+        [],
+    );
+
+    const applied: FilterValues = {
+        search: filters.search ?? '',
+        type: filters.type ?? 'all',
+        status: filters.status ?? 'all',
+        branch_id: filters.branch_id ?? 'all',
+        delivery: filters.delivery ?? 'all',
+        date_from: filters.date_from ?? '',
+        date_to: filters.date_to ?? '',
+    };
+    const f = useReportFilters(INVOICES_URL, applied, defaults);
+
+    const [search, setSearch] = useState(applied.search);
     const [returnItem, setReturnItem] = useState<InvoiceListItem | null>(null);
     const [returnReason, setReturnReason] = useState('');
     const [returning, setReturning] = useState(false);
@@ -105,42 +143,40 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         );
     }
 
-    function buildParams(s: string, fv: Record<string, string>, from: string, to: string) {
-        return Object.fromEntries(Object.entries({ search: s, ...fv, date_from: from, date_to: to }).filter(([, v]) => v !== ''));
-    }
-
-    const reload = (s: string, fv: Record<string, string>, from: string, to: string) => {
-        router.get('/invoices', buildParams(s, fv, from, to), { preserveState: true, replace: true });
-    };
-
+    // Typing searches on its own after a short pause; every other filter applies
+    // on click, so the list never reloads mid-keystroke.
     const handleSearchChange = (value: string) => {
         setSearch(value);
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        searchTimeout.current = setTimeout(() => reload(value, filterValues, dateFrom, dateTo), 400);
+        searchTimeout.current = setTimeout(() => f.replace('search', value), 400);
     };
 
-    const handleFilterChange = (key: string, val: string) => {
-        const next = { ...filterValues, [key]: val };
-        setFilterValues(next);
-        reload(search, next, dateFrom, dateTo);
-    };
-
-    const handleDateChange = (which: 'from' | 'to', val: string) => {
-        const from = which === 'from' ? val : dateFrom;
-        const to = which === 'to' ? val : dateTo;
-        if (which === 'from') setDateFrom(val);
-        else setDateTo(val);
-        reload(search, filterValues, from, to);
-    };
-
-    const handleClearAll = () => {
-        setSearch('');
-        setFilterValues({ type: '', status: '', branch_id: '', delivery: '' });
-        setDateFrom('');
-        setDateTo('');
+    const handleReset = () => {
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        router.get('/invoices', {}, { preserveState: true, replace: true });
+        setSearch('');
+        f.reset();
     };
+
+    const modalActiveCount = MODAL_KEYS.filter((key) => f.isActive(key)).length;
+
+    const chips: FilterChip[] = [];
+    // No chips for the search box or the date range — both stay visible above.
+    if (f.isActive('type')) {
+        const label = availableTypes.find((t) => t.value === applied.type)?.label ?? applied.type;
+        chips.push({ key: 'type', label: `النوع: ${label}`, onRemove: () => f.remove('type') });
+    }
+    if (f.isActive('branch_id')) {
+        const name = branches?.find((b) => b.id.toString() === applied.branch_id)?.name ?? applied.branch_id;
+        chips.push({ key: 'branch_id', label: `الفرع: ${name}`, onRemove: () => f.remove('branch_id') });
+    }
+    if (f.isActive('status')) {
+        const label = STATUS_OPTIONS.find((o) => o.value === applied.status)?.label ?? applied.status;
+        chips.push({ key: 'status', label: `الحالة: ${label}`, onRemove: () => f.remove('status') });
+    }
+    if (f.isActive('delivery')) {
+        const label = DELIVERY_OPTIONS.find((o) => o.value === applied.delivery)?.label ?? applied.delivery;
+        chips.push({ key: 'delivery', label: `التسليم: ${label}`, onRemove: () => f.remove('delivery') });
+    }
 
     const columns = useMemo<ColumnDef<InvoiceListItem>[]>(
         () => [
@@ -333,73 +369,82 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-2xl font-bold">الفواتير</h1>
+                    <FilterModal
+                        open={f.open}
+                        onOpenChange={f.onOpenChange}
+                        onApply={f.apply}
+                        onReset={handleReset}
+                        activeCount={modalActiveCount}
+                        title="تصفية الفواتير"
+                    >
+                        {availableTypes.length > 1 && (
+                            <FilterSelect
+                                label="النوع"
+                                value={f.draft.type}
+                                onChange={(v) => f.setField('type', v)}
+                                allLabel="كل الأنواع"
+                                options={availableTypes}
+                            />
+                        )}
+                        {branches && (
+                            <FilterSelect
+                                label="الفرع"
+                                value={f.draft.branch_id}
+                                onChange={(v) => f.setField('branch_id', v)}
+                                allLabel="كل الفروع"
+                                options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                            />
+                        )}
+                        <FilterSelect
+                            label="الحالة"
+                            value={f.draft.status}
+                            onChange={(v) => f.setField('status', v)}
+                            allLabel="كل الحالات"
+                            options={STATUS_OPTIONS}
+                        />
+                        <FilterSelect
+                            label="موعد التسليم"
+                            value={f.draft.delivery}
+                            onChange={(v) => f.setField('delivery', v)}
+                            allLabel="كل المواعيد"
+                            options={DELIVERY_OPTIONS}
+                        />
+                    </FilterModal>
                 </div>
 
-                <div className="mb-6">
-                    <FilterBar
-                        searchable
-                        searchPlaceholder="بحث برقم الفاتورة أو اسم الموظف..."
-                        searchValue={search}
-                        onSearchChange={handleSearchChange}
-                        filters={[
-                            ...(availableTypes.length > 1 ? [{ key: 'type', placeholder: 'النوع', options: availableTypes }] : []),
-                            ...(branches
-                                ? [
-                                      {
-                                          key: 'branch_id',
-                                          placeholder: 'الفرع',
-                                          options: branches.map((b) => ({ value: b.id.toString(), label: b.name })),
-                                      },
-                                  ]
-                                : []),
-                            {
-                                key: 'status',
-                                placeholder: 'الحالة',
-                                options: [
-                                    { value: 'paid', label: 'مدفوعة' },
-                                    { value: 'partially_paid', label: 'مدفوعة جزئياً' },
-                                    { value: 'due', label: 'آجلة' },
-                                    { value: 'cancelled', label: 'ملغاة' },
-                                    { value: 'returned', label: 'مرتجع' },
-                                ],
-                            },
-                            // موعد التسليم يخص فواتير الخدمات، فاختيار أيٍّ من
-                            // الخيارين يُقصي فواتير المنتجات من النتيجة.
-                            {
-                                key: 'delivery',
-                                placeholder: 'التسليم',
-                                options: [
-                                    { value: 'today', label: 'تسليم اليوم' },
-                                    { value: 'overdue', label: 'متأخر عن موعده' },
-                                ],
-                            },
-                        ]}
-                        filterValues={filterValues}
-                        onFilterChange={handleFilterChange}
-                        onClearAll={handleClearAll}
-                        actions={
-                            <div className="flex items-center gap-2">
-                                <Input
-                                    type="date"
-                                    value={dateFrom}
-                                    onChange={(e) => handleDateChange('from', e.target.value)}
-                                    className="h-9 w-40 text-sm"
-                                    aria-label="من تاريخ"
-                                />
-                                <span className="text-muted-foreground">—</span>
-                                <Input
-                                    type="date"
-                                    value={dateTo}
-                                    onChange={(e) => handleDateChange('to', e.target.value)}
-                                    className="h-9 w-40 text-sm"
-                                    aria-label="إلى تاريخ"
-                                />
-                            </div>
-                        }
-                    />
-                </div>
+                <Card className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border px-4 py-3.5">
+                    <div className="space-y-1">
+                        <Label htmlFor="invoice-search" className="text-muted-foreground text-xs">
+                            بحث
+                        </Label>
+                        <div className="relative">
+                            <Search className="text-muted-foreground pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2" />
+                            <Input
+                                id="invoice-search"
+                                value={search}
+                                onChange={(e) => handleSearchChange(e.target.value)}
+                                placeholder="رقم الفاتورة أو اسم الموظف..."
+                                className={cn('h-8 w-full ps-9 pe-8 text-sm sm:w-72', search && 'border-primary/40 bg-primary/5')}
+                            />
+                            {search && (
+                                <button
+                                    type="button"
+                                    onClick={() => handleSearchChange('')}
+                                    className="text-muted-foreground hover:text-foreground absolute end-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 transition-colors"
+                                    aria-label="مسح البحث"
+                                >
+                                    <X className="size-3.5" />
+                                </button>
+                            )}
+                        </div>
+                    </div>
+
+                    <DateRangeBar filters={f} from={applied.date_from} to={applied.date_to} fromKey="date_from" toKey="date_to" extended />
+                </Card>
+
+                <ActiveFilterChips chips={chips} />
 
                 <DataTable
                     columns={columns}

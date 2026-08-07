@@ -33,12 +33,33 @@ const SHORTCUTS: Shortcut[] = [
     { label: 'هذا الشهر', range: () => ({ from: iso(startOfMonth()), to: iso(new Date()) }) },
 ];
 
+/** Wider ranges — only useful on long-lived lists, so they are opt-in. */
+const EXTENDED_SHORTCUTS: Shortcut[] = [
+    { label: 'آخر 30 يوماً', range: () => ({ from: iso(shift(-29)), to: iso(new Date()) }) },
+    {
+        label: 'الشهر الماضي',
+        range: () => {
+            const now = new Date();
+            // Day 0 of this month is the last day of the previous one.
+            return {
+                from: iso(new Date(now.getFullYear(), now.getMonth() - 1, 1)),
+                to: iso(new Date(now.getFullYear(), now.getMonth(), 0)),
+            };
+        },
+    },
+];
+
 interface Props {
     /** The page's filter state — the single source of truth for every filter. */
     filters: UseReportFilters;
     /** Currently applied range, as YYYY-MM-DD. */
     from: string;
     to: string;
+    /** Query keys the range is stored under — list pages use date_from/date_to. */
+    fromKey?: string;
+    toKey?: string;
+    /** Append آخر 30 يوماً / الشهر الماضي to the shortcuts. */
+    extended?: boolean;
 }
 
 /**
@@ -47,15 +68,17 @@ interface Props {
  * costs a trip through the filter modal. Navigating through useReportFilters
  * keeps the page's other filters applied.
  */
-export default function DateRangeBar({ filters, from, to }: Props) {
-    const go = (next: { from: string; to: string }) => filters.replaceMany(next);
+export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKey = 'to', extended = false }: Props) {
+    const go = (next: { from: string; to: string }) => filters.replaceMany({ [fromKey]: next.from, [toKey]: next.to });
 
     const isCurrent = (range: { from: string; to: string }) => range.from === from && range.to === to;
+
+    const shortcuts = extended ? [...SHORTCUTS, ...EXTENDED_SHORTCUTS] : SHORTCUTS;
 
     return (
         <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
             <div className="flex flex-wrap gap-1.5">
-                {SHORTCUTS.map((shortcut) => {
+                {shortcuts.map((shortcut) => {
                     const range = shortcut.range();
                     return (
                         <Button
@@ -73,11 +96,11 @@ export default function DateRangeBar({ filters, from, to }: Props) {
 
             <div className="flex items-end gap-2">
                 <div className="space-y-1">
-                    <Label htmlFor="range-from" className="text-muted-foreground text-xs">
+                    <Label htmlFor={`range-${fromKey}`} className="text-muted-foreground text-xs">
                         من
                     </Label>
                     <Input
-                        id="range-from"
+                        id={`range-${fromKey}`}
                         type="date"
                         value={from}
                         max={to || undefined}
@@ -87,11 +110,11 @@ export default function DateRangeBar({ filters, from, to }: Props) {
                     />
                 </div>
                 <div className="space-y-1">
-                    <Label htmlFor="range-to" className="text-muted-foreground text-xs">
+                    <Label htmlFor={`range-${toKey}`} className="text-muted-foreground text-xs">
                         إلى
                     </Label>
                     <Input
-                        id="range-to"
+                        id={`range-${toKey}`}
                         type="date"
                         value={to}
                         min={from || undefined}
