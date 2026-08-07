@@ -42,6 +42,8 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
         agent_commission_per_sqm: branchService?.agentCommissionPerSqm ?? 0,
         note_examples: branchService?.noteExamples ?? [],
         is_tahazir: branchService?.isTahazir ?? false,
+        has_materials: branchService?.hasMaterials ?? false,
+        materials_cost: branchService?.materialsCost ?? 0,
         is_active: branchService?.isActive ?? true,
     });
 
@@ -57,6 +59,8 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                 agent_commission_per_sqm: branchService.agentCommissionPerSqm ?? 0,
                 note_examples: branchService.noteExamples ?? [],
                 is_tahazir: branchService.isTahazir ?? false,
+                has_materials: branchService.hasMaterials ?? false,
+                materials_cost: branchService.materialsCost ?? 0,
                 is_active: branchService.isActive ?? true,
             });
         } else {
@@ -226,7 +230,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                     {/* Ready-made detail phrases — become the POS placeholder */}
                     <NoteExamplesField value={data.note_examples} onChange={(next) => setData('note_examples', next)} error={errors.note_examples} />
 
-                    {/* Tahazir + Active switches */}
+                    {/* Tahazir + Materials + Active switches */}
                     <div className="flex flex-col gap-3 pt-1">
                         <div className="flex items-center justify-between">
                             <Label htmlFor="bs-tahazir" className="cursor-pointer">
@@ -234,6 +238,37 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                             </Label>
                             <Switch id="bs-tahazir" checked={data.is_tahazir} onCheckedChange={(checked) => setData('is_tahazir', checked)} />
                         </div>
+
+                        {/* الخامات: التكلفة الافتراضية تُعبّئ خانة السطر في نقطة البيع
+                            وتبقى قابلة للتعديل هناك. تُخصم من عمولة الموظف وحدها. */}
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="bs-materials" className="cursor-pointer">
+                                لها خامات
+                            </Label>
+                            <Switch
+                                id="bs-materials"
+                                checked={data.has_materials}
+                                onCheckedChange={(checked) => setData('has_materials', checked)}
+                            />
+                        </div>
+
+                        {data.has_materials && (
+                            <div className="grid gap-2">
+                                <Label htmlFor="bs-materials-cost">تكلفة الخامات للوحدة (ر.س)</Label>
+                                <Input
+                                    id="bs-materials-cost"
+                                    type="number"
+                                    min={0}
+                                    step="0.01"
+                                    value={data.materials_cost}
+                                    onChange={(e) => setData('materials_cost', parseFloat(e.target.value) || 0)}
+                                />
+                                <InputError message={errors.materials_cost} />
+                                <p className="text-muted-foreground text-xs">
+                                    قيمة مقترحة فقط — الموظف يعدّلها لكل فاتورة. لا تظهر للعميل ولا تدخل في الإجمالي.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="flex items-center justify-between">
                             <Label htmlFor="bs-active" className="cursor-pointer">

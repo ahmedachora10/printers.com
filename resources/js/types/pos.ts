@@ -23,6 +23,9 @@ export interface PosService {
     /** ready-made detail phrases set by the branch admin for this service */
     noteExamples: string[];
     isTahazir: boolean;
+    /** هل للخدمة خامات، وتكلفتها الافتراضية للوحدة الواحدة */
+    hasMaterials: boolean;
+    materialsCost: number;
 }
 
 export interface ServiceCartLine {
@@ -40,6 +43,10 @@ export interface ServiceCartLine {
     maxDiscountPct: number;
     baseCommissionPct: number;
     isTahazir: boolean;
+    /** تكلفة الخامات لهذا السطر — داخلية، تُخصم من أساس عمولة الموظف فقط */
+    hasMaterials: boolean;
+    /** المبلغ للوحدة الواحدة؛ يُضرب في الكمية */
+    materialsCost: number;
     isManual: boolean;
     pricingType: ServicePricingType;
     pricePerSqm: number;
@@ -100,6 +107,9 @@ export interface EditServiceInvoiceLine {
     maxDiscountPct: number;
     baseCommissionPct: number;
     isTahazir: boolean;
+    /** لقطة الخامات المحفوظة على السطر — لا القيمة الافتراضية للخدمة */
+    hasMaterials: boolean;
+    materialsCost: number;
     pricingType: ServicePricingType;
     pricePerSqm: number;
     agentCommissionPerSqm: number;

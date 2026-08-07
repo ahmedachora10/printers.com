@@ -51,6 +51,8 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         agent_commission_per_sqm: 0,
         note_examples: [],
         is_tahazir: false,
+        has_materials: false,
+        materials_cost: 0,
         is_active: true,
     });
 
@@ -62,6 +64,8 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         agent_commission_per_sqm: 0,
         note_examples: [],
         is_tahazir: false,
+        has_materials: false,
+        materials_cost: 0,
         is_active: true,
     });
 
@@ -86,6 +90,8 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
             agent_commission_per_sqm: 0,
             note_examples: [],
             is_tahazir: false,
+            has_materials: false,
+            materials_cost: 0,
             is_active: true,
         });
     }
@@ -100,6 +106,8 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
             agent_commission_per_sqm: service.agentCommissionPerSqm ?? 0,
             note_examples: service.noteExamples ?? [],
             is_tahazir: service.isTahazir,
+            has_materials: service.hasMaterials ?? false,
+            materials_cost: service.materialsCost ?? 0,
             is_active: service.isActive,
         });
     }
@@ -293,6 +301,8 @@ interface FieldsProps {
         agent_commission_per_sqm: number;
         note_examples: string[];
         is_tahazir: boolean;
+        has_materials: boolean;
+        materials_cost: number;
         is_active: boolean;
     };
     errors: Partial<Record<string, string>>;
@@ -397,11 +407,40 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                 idPrefix="bs-manage"
             />
 
+            {/* الخامات: تكلفة افتراضية تُعبّئ خانة السطر في نقطة البيع وتُخصم
+                من أساس عمولة الموظف وحده — لا تظهر للعميل ولا تدخل الإجمالي. */}
+            {data.has_materials && (
+                <div className="space-y-1">
+                    <Label className="text-xs">تكلفة الخامات للوحدة (ر.س)</Label>
+                    <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        className="h-8 text-sm"
+                        value={data.materials_cost}
+                        onChange={(e) => setData('materials_cost', parseFloat(e.target.value) || 0)}
+                        dir="ltr"
+                    />
+                    <InputError message={errors.materials_cost} />
+                </div>
+            )}
+
             <div className="flex items-center gap-6">
                 <div className="flex items-center gap-2">
                     <Checkbox id="bs-tahazir" checked={data.is_tahazir} onCheckedChange={(checked) => setData('is_tahazir', checked === true)} />
                     <Label htmlFor="bs-tahazir" className="cursor-pointer text-xs">
                         تحاضر
+                    </Label>
+                </div>
+
+                <div className="flex items-center gap-2">
+                    <Checkbox
+                        id="bs-materials"
+                        checked={data.has_materials}
+                        onCheckedChange={(checked) => setData('has_materials', checked === true)}
+                    />
+                    <Label htmlFor="bs-materials" className="cursor-pointer text-xs">
+                        لها خامات
                     </Label>
                 </div>
 

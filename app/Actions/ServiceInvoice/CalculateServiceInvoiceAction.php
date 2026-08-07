@@ -113,6 +113,12 @@ class CalculateServiceInvoiceAction
             $commissionPct = (float) ($commissionRates[$branchService->id] ?? 0);
             $commissionAmount = round($lineSubtotal * $commissionPct / 100, 2);
 
+            // تكلفة الخامات: المواد التي استهلكها تنفيذ هذا السطر. القيمة تأتي من
+            // تعريف الخدمة افتراضياً وتبقى قابلة للتعديل في نقطة البيع، وقد تُفعَّل
+            // لخدمة بلا خامات معرّفة (خامات استثنائية) أو تُطفأ لخدمة تحملها.
+            // المبلغ للوحدة الواحدة فيُضرب في الكمية.
+            [$materialsCost, $materialsTotal] = $this->lineMaterials($line, $branchService, $qty);
+
             [$lineAgentId, $agentCommissionType, $agentCommissionValue, $agentCommissionAmount] =
                 $this->lineAgentCommission($line, $branchService, $lineAgents, $lineSubtotal, $qty, $widthCm, $heightCm, $vatPct);
 
@@ -131,6 +137,8 @@ class CalculateServiceInvoiceAction
                 'subtotal' => $lineSubtotal,
                 'commission_pct' => $commissionPct,
                 'commission_amount' => $commissionAmount,
+                'materials_cost' => $materialsCost,
+                'materials_total' => $materialsTotal,
                 'is_tahazir' => $branchService->is_tahazir,
                 'agent_id' => $lineAgentId,
                 'agent_commission_type' => $agentCommissionType,
@@ -252,17 +260,28 @@ class CalculateServiceInvoiceAction
 
         // Employee commission is earned on the net service value the customer
         // actually pays — after every invoice-level deduction (tier, coupon,
-        // agent discount, points) and after VAT is stripped out. Each line's raw
-        // commission is scaled by the ratio of that net value to the gross
-        // subtotal, sharing the reduction across lines proportionally; the scaled
-        // amounts are what get persisted to the lines and the immutable commission
-        // ledger, so the employee is actually paid the reduced figure. Agent
-        // rebate sits on top of the total and leaves this base untouched.
+        // agent discount, points), after VAT is stripped out, and after the cost
+        // of the materials the centre consumed is taken off: that cost is not
+        // profit, so no commission is owed on it. Each line takes its share of
+        // the net value proportionally to its gross subtotal, subtracts its own
+        // materials, and only then applies the employee's rate. The results are
+        // what get persisted to the lines and the immutable commission ledger, so
+        // the employee is actually paid the reduced figure. Agent rebate and the
+        // per-line commission owner sit outside this base and are untouched.
+        //
+        // Materials are deliberately NOT scaled by the ratio: they are a real SAR
+        // cost that does not shrink because the customer was given a discount. A
+        // heavily discounted line can therefore have its whole base eaten — the
+        // clamp stops it at zero rather than letting commission go negative.
         $commissionRatio = $subtotal > 0 ? $netBeforeVat / $subtotal : 0.0;
         $totalCommission = 0.0;
 
         foreach ($lines as $i => $line) {
-            $scaledCommission = round($line['commission_amount'] * $commissionRatio, 2);
+            $lineNet = round($line['subtotal'] * $commissionRatio, 2);
+            $materials = min($line['materials_total'], $lineNet);
+            $commissionBase = round($lineNet - $materials, 2);
+
+            $scaledCommission = round($commissionBase * $line['commission_pct'] / 100, 2);
             $lines[$i]['commission_amount'] = $scaledCommission;
             $totalCommission += $scaledCommission;
         }
@@ -323,6 +342,36 @@ class CalculateServiceInvoiceAction
             ->whereIn('id', $ids)
             ->get()
             ->keyBy('id');
+    }
+
+    /**
+     * Resolve a line's materials cost. The POS toggle decides whether the line
+     * carries materials at all and is independent of the service definition: it
+     * is merely prefilled from it, so a service with no materials can still be
+     * charged an exceptional one and a service that normally has them can be
+     * cleared. The submitted amount wins whenever the toggle is on; the service
+     * default only fills in when the POS sent nothing.
+     *
+     * @param  array<string, mixed>  $line
+     * @return array{0: float, 1: float} per-unit cost, line total
+     */
+    private function lineMaterials(array $line, BranchService $branchService, int $qty): array
+    {
+        $hasMaterials = array_key_exists('has_materials', $line)
+            ? (bool) $line['has_materials']
+            : (bool) $branchService->has_materials;
+
+        if (! $hasMaterials) {
+            return [0.0, 0.0];
+        }
+
+        $cost = isset($line['materials_cost']) && $line['materials_cost'] !== ''
+            ? (float) $line['materials_cost']
+            : (float) $branchService->materials_cost;
+
+        $cost = round(max(0.0, $cost), 2);
+
+        return [$cost, round($cost * $qty, 2)];
     }
 
     /**

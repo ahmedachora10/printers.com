@@ -14,6 +14,9 @@ export interface BranchService {
     /** ready-made detail phrases shown as the POS placeholder for this service */
     noteExamples: string[];
     isTahazir: boolean;
+    /** هل للخدمة خامات، وتكلفتها الافتراضية للوحدة الواحدة */
+    hasMaterials: boolean;
+    materialsCost: number;
     isActive: boolean;
     createdAt: string | null;
     updatedAt: string | null;
@@ -29,6 +32,8 @@ export interface BranchServiceFormData {
     agent_commission_per_sqm: number;
     note_examples: string[];
     is_tahazir: boolean;
+    has_materials: boolean;
+    materials_cost: number;
     is_active: boolean;
     [key: string]: number | boolean | ServicePricingType | string[];
 }
@@ -41,6 +46,8 @@ export interface BranchServiceUpdateData {
     agent_commission_per_sqm: number;
     note_examples: string[];
     is_tahazir: boolean;
+    has_materials: boolean;
+    materials_cost: number;
     is_active: boolean;
     [key: string]: number | boolean | ServicePricingType | string[];
 }

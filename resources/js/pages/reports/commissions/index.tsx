@@ -18,7 +18,7 @@ import {
     type CommissionReportSummaryRow,
     type CommissionReportTotals,
 } from '@/types/report';
-import { Banknote, Download, Handshake, TrendingUp, Wallet } from 'lucide-react';
+import { Banknote, Download, Handshake, Package, TrendingUp, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير العمولات', href: '/reports/commissions' }];
@@ -42,8 +42,9 @@ const dayColumns: ColumnDef<CommissionReportDayRow>[] = [
     { key: 'date', header: 'التاريخ', className: 'font-medium', cell: (row) => formatDate(row.date) },
     { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
     { key: 'earned', header: 'إجمالي العمولة', cell: (row) => formatCurrency(row.earned) },
-    { key: 'tahazir', header: 'عمولات - خامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.tahazir) },
+    { key: 'tahazir', header: 'عمولات - تحضير', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.tahazir) },
     { key: 'lineCommission', header: 'للعمولات', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
+    { key: 'materials', header: 'تكلفة الخامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.materials) },
     { key: 'paid', header: 'المصروف', className: 'text-green-600', cell: (row) => formatCurrency(row.paid) },
     { key: 'pending', header: 'المستحق', className: 'text-amber-600', cell: (row) => formatCurrency(row.pending) },
 ];
@@ -54,8 +55,9 @@ const summaryColumns: ColumnDef<CommissionReportSummaryRow>[] = [
     { key: 'userName', header: 'الموظف', className: 'font-medium', cell: (row) => row.userName },
     { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
     { key: 'earned', header: 'إجمالي العمولة', cell: (row) => formatCurrency(row.earned) },
-    { key: 'tahazir', header: 'عمولات - خامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.tahazir) },
+    { key: 'tahazir', header: 'عمولات - تحضير', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.tahazir) },
     { key: 'lineCommission', header: 'للعمولات', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
+    { key: 'materials', header: 'تكلفة الخامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.materials) },
     { key: 'paid', header: 'المصروف', className: 'text-green-600', cell: (row) => formatCurrency(row.paid) },
     {
         key: 'pending',
@@ -98,6 +100,12 @@ const detailColumns: ColumnDef<CommissionReportLine>[] = [
         header: 'للعمولات',
         className: 'text-sky-600',
         cell: (line) => (line.lineCommission > 0 ? formatCurrency(line.lineCommission) : <span className="text-muted-foreground">—</span>),
+    },
+    {
+        key: 'materials',
+        header: 'تكلفة الخامات',
+        className: 'text-muted-foreground',
+        cell: (line) => (line.materials > 0 ? formatCurrency(line.materials) : <span className="text-muted-foreground">—</span>),
     },
     {
         key: 'status',
@@ -205,7 +213,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                 <ActiveFilterChips chips={chips} />
 
                 {/* Summary cards */}
-                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
                     <SummaryCard icon={<TrendingUp className="size-4" />} label="إجمالي العمولات" value={formatCurrency(totals.earned)} />
                     <SummaryCard
                         icon={<Banknote className="size-4" />}
@@ -221,7 +229,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                     />
                     <SummaryCard
                         icon={<Wallet className="size-4" />}
-                        label="عمولات - خامات"
+                        label="عمولات - تحضير"
                         value={formatCurrency(totals.tahazir)}
                         valueClass="text-muted-foreground"
                     />
@@ -230,6 +238,13 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                         label="للعمولات (المناديب)"
                         value={formatCurrency(totals.lineCommission)}
                         valueClass="text-sky-600"
+                    />
+                    {/* تكلفة الخامات المخصومة من أساس العمولة — داخلية بالكامل */}
+                    <SummaryCard
+                        icon={<Package className="size-4" />}
+                        label="تكلفة الخامات"
+                        value={formatCurrency(totals.materials)}
+                        valueClass="text-muted-foreground"
                     />
                 </div>
 

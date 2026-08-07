@@ -8,6 +8,8 @@ export interface CommissionReportSummaryRow {
     tahazir: number;
     /** Agent (مندوب) line-commissions on the approved invoices this employee raised. */
     lineCommission: number;
+    /** تكلفة الخامات المخصومة من أساس العمولة على تلك الفواتير — داخلية. */
+    materials: number;
 }
 
 /** One calendar day of the filtered range — quiet days are present and read zero. */
@@ -19,6 +21,7 @@ export interface CommissionReportDayRow {
     pending: number;
     tahazir: number;
     lineCommission: number;
+    materials: number;
 }
 
 export interface CommissionReportLine {
@@ -31,6 +34,8 @@ export interface CommissionReportLine {
     amount: number;
     /** The مندوب's share of this same line — shown beside `amount`, never added to it. */
     lineCommission: number;
+    /** تكلفة خامات هذا السطر — خُصمت أصلاً من `amount`، تُعرض للتوضيح. */
+    materials: number;
     isTahazir: boolean;
     tierApplied: number | null;
     sourceType: string;
@@ -45,6 +50,7 @@ export interface CommissionReportTotals {
     pending: number;
     tahazir: number;
     lineCommission: number;
+    materials: number;
     lineCount: number;
 }
 

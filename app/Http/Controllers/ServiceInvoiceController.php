@@ -103,6 +103,10 @@ class ServiceInvoiceController extends Controller
                         'pricePerSqm' => (float) ($service['pricePerSqm'] ?? 0),
                         'agentCommissionPerSqm' => (float) ($service['agentCommissionPerSqm'] ?? 0),
                         'noteExamples' => $service['noteExamples'] ?? [],
+                        // الخامات تأتي من السطر المحفوظ لا من الخدمة: اللقطة هي
+                        // الحقيقة عند التعديل، فقد عُدّل المبلغ وقت الفوترة.
+                        'hasMaterials' => (float) $line->materials_cost > 0,
+                        'materialsCost' => (float) $line->materials_cost,
                         'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
                         'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
                         'agentId' => $line->agent_id,
@@ -485,9 +489,11 @@ class ServiceInvoiceController extends Controller
                 // placeholder of the line's free-text detail box.
                 'noteExamples' => array_values($service->note_examples ?? []),
                 'isTahazir' => $service->is_tahazir,
+                // تكلفة الخامات الافتراضية — تُعبّئ خانة السطر وتبقى قابلة للتعديل.
+                'hasMaterials' => $service->has_materials,
+                'materialsCost' => (float) $service->materials_cost,
             ])
             ->filter(fn ($service) => $service['name'] !== null)
             ->values();
     }
-
 }
