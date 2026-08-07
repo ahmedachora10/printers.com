@@ -5,6 +5,7 @@ import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox'
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -85,6 +86,12 @@ const lineAreaSqm = (line: ServiceCartLine) => ((line.widthCm ?? 0) / 100) * ((l
 const sqmUnitPrice = (line: ServiceCartLine) => round2(lineAreaSqm(line) * line.pricePerSqm);
 
 /**
+ * تكلفة خامات السطر كاملة — المبلغ للوحدة مضروباً في الكمية، كما يفعل الخادم.
+ * صفر حين يكون المفتاح مُطفأً حتى لو حملت الخدمة قيمة افتراضية.
+ */
+const lineMaterialsTotal = (line: ServiceCartLine) => (line.hasMaterials ? round2(round2(Math.max(0, line.materialsCost)) * line.qty) : 0);
+
+/**
  * The line's commission-owner share — mirrors the server formulas. Only the
  * percentage case divides VAT out of its base; a fixed or per-sqm rate is an
  * agreed SAR figure with no tax inside it to strip.
@@ -126,6 +133,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 maxDiscountPct: l.maxDiscountPct,
                 baseCommissionPct: l.baseCommissionPct,
                 isTahazir: l.isTahazir,
+                hasMaterials: l.hasMaterials ?? false,
+                materialsCost: l.materialsCost ?? 0,
                 isManual: false,
                 pricingType: l.pricingType ?? 'unit',
                 pricePerSqm: l.pricePerSqm ?? 0,
@@ -216,8 +225,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     );
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
-    // Gross line commission before invoice-level discounts; scaled down below.
-    const grossCommission = useMemo(() => round2(cart.reduce((sum, l) => sum + (lineTotal(l) * l.baseCommissionPct) / 100, 0)), [cart]);
+    // إجمالي تكلفة الخامات — داخلي، لا يمسّ ما يدفعه العميل.
+    const materialsTotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineMaterialsTotal(l), 0)), [cart]);
     const selectedAgents = useMemo(() => agents.filter((a) => agentIds.includes(a.id)), [agentIds, agents]);
     const selectedPaymentMethod = useMemo(() => paymentMethods.find((m) => m.id === paymentMethodId) ?? null, [paymentMethods, paymentMethodId]);
     const requiresReceipt = selectedPaymentMethod?.requiresAttachment ?? false;
@@ -266,13 +275,24 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // netBeforeVat. The customer's total is unaffected.
     const netBeforeVat = useMemo(() => round2(taxableBase / (1 + vatPct / 100)), [taxableBase, vatPct]);
     // Employee commission is earned on that net value, after every invoice-level
-    // discount (tier, coupon, agent discount, points), mirroring the server:
-    // scale the gross commission by netBeforeVat / subtotal. Stays an estimate —
-    // it uses the service base rate, not the employee's own rate.
-    const commission = useMemo(
-        () => (subtotal > 0 ? round2((grossCommission * netBeforeVat) / subtotal) : 0),
-        [grossCommission, netBeforeVat, subtotal],
-    );
+    // discount (tier, coupon, agent discount, points) and after the line's own
+    // materials cost. Mirrors the server line by line: each line takes its share
+    // of netBeforeVat proportionally to its gross subtotal, subtracts its
+    // materials (never scaled — a real SAR cost, clamped so commission can't go
+    // negative), then applies the rate. Stays an estimate — it uses the service
+    // base rate, not the employee's own rate.
+    const commission = useMemo(() => {
+        if (subtotal <= 0) return 0;
+        const ratio = netBeforeVat / subtotal;
+
+        return round2(
+            cart.reduce((sum, l) => {
+                const lineNet = round2(lineTotal(l) * ratio);
+                const materials = Math.min(lineMaterialsTotal(l), lineNet);
+                return sum + round2((round2(lineNet - materials) * l.baseCommissionPct) / 100);
+            }, 0),
+        );
+    }, [cart, netBeforeVat, subtotal]);
     const vatAmount = useMemo(() => round2((taxableBase * vatPct) / 100), [taxableBase, vatPct]);
     const total = useMemo(() => round2(taxableBase + vatAmount), [taxableBase, vatAmount]);
     // Each rebate-mode agent earns independently on the net-of-VAT value; the
@@ -311,6 +331,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     maxDiscountPct: s.maxDiscountPct,
                     baseCommissionPct: s.baseCommissionPct,
                     isTahazir: s.isTahazir,
+                    hasMaterials: s.hasMaterials,
+                    materialsCost: s.materialsCost,
                     isManual: false,
                     pricingType: s.pricingType,
                     pricePerSqm: s.pricePerSqm,
@@ -383,6 +405,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 maxDiscountPct: 0,
                 baseCommissionPct: 0,
                 isTahazir: false,
+                hasMaterials: false,
+                materialsCost: 0,
                 isManual: true,
                 pricingType: 'unit',
                 pricePerSqm: 0,
@@ -411,6 +435,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             maxDiscountPct: s.maxDiscountPct,
             baseCommissionPct: s.baseCommissionPct,
             isTahazir: s.isTahazir,
+            // الخامات تُعاد تعبئتها من الخدمة الجديدة — الخدمة تغيّرت فتغيّرت موادها.
+            hasMaterials: s.hasMaterials,
+            materialsCost: s.materialsCost,
             discountPct: Math.min(cap, line.discountPct),
             pricingType: s.pricingType,
             pricePerSqm: s.pricePerSqm,
@@ -561,6 +588,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 discount_pct: l.discountPct,
                 width_cm: l.pricingType === 'sqm' ? l.widthCm : null,
                 height_cm: l.pricingType === 'sqm' ? l.heightCm : null,
+                has_materials: l.hasMaterials,
+                materials_cost: l.hasMaterials ? l.materialsCost : 0,
                 agent_id: l.agentId,
                 agent_commission_type: l.agentId ? l.agentCommissionType : null,
                 agent_commission_value: l.agentId ? l.agentCommissionValue : null,
@@ -871,6 +900,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 <div className="text-muted-foreground flex justify-between text-xs">
                                     <span>عمولات أصحاب العمولة (البنود)</span>
                                     <span>{formatCurrency(lineAgentsCommission)}</span>
+                                </div>
+                            )}
+                            {materialsTotal > 0 && (
+                                <div className="text-muted-foreground flex justify-between text-xs">
+                                    <span>تكلفة الخامات (لا تُحتسب على العميل)</span>
+                                    <span>{formatCurrency(materialsTotal)}</span>
                                 </div>
                             )}
                             <div className="text-muted-foreground flex justify-between text-xs">
@@ -1273,6 +1308,50 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                     </div>
                                                     <p className="pb-1.5 text-xs font-medium text-sky-700 dark:text-sky-400">
                                                         العمولة: {formatCurrency(commissionPreview)}
+                                                    </p>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        {/* تكلفة الخامات — داخلية بالكامل: لا تظهر للعميل ولا تغيّر
+                                            الإجمالي، وإنما تُخصم من أساس عمولة الموظف وحده. */}
+                                        <div className="flex flex-wrap items-end gap-3">
+                                            <label
+                                                className="flex cursor-pointer items-center gap-2 pb-1.5 text-xs"
+                                                htmlFor={`materials-${line.key}`}
+                                            >
+                                                <Checkbox
+                                                    id={`materials-${line.key}`}
+                                                    checked={line.hasMaterials}
+                                                    onCheckedChange={(checked) =>
+                                                        updateLine(line.key, { hasMaterials: checked === true })
+                                                    }
+                                                />
+                                                <span>خامات</span>
+                                            </label>
+
+                                            {line.hasMaterials && (
+                                                <>
+                                                    <div className="space-y-1">
+                                                        <Label className="text-muted-foreground text-xs">
+                                                            تكلفة الخامات للوحدة (ر.س)
+                                                        </Label>
+                                                        <Input
+                                                            type="number"
+                                                            min={0}
+                                                            step="0.01"
+                                                            value={line.materialsCost}
+                                                            onChange={(e) =>
+                                                                updateLine(line.key, {
+                                                                    materialsCost: Math.max(0, Number(e.target.value) || 0),
+                                                                })
+                                                            }
+                                                            className="h-8 w-28 text-center"
+                                                        />
+                                                    </div>
+                                                    <p className="text-muted-foreground pb-1.5 text-xs">
+                                                        الإجمالي: {formatCurrency(lineMaterialsTotal(line))} — تُخصم من عمولة
+                                                        الموظف ولا تظهر للعميل
                                                     </p>
                                                 </>
                                             )}

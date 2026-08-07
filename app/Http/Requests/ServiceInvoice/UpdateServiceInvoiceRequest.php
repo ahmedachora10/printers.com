@@ -49,6 +49,9 @@ class UpdateServiceInvoiceRequest extends FormRequest
             'lines.*.discount_pct' => ['nullable', 'numeric', 'between:0,100'],
             'lines.*.width_cm' => ['nullable', 'numeric', 'min:1', 'max:99999'],
             'lines.*.height_cm' => ['nullable', 'numeric', 'min:1', 'max:99999'],
+            // تكلفة الخامات للوحدة الواحدة — داخلية، تُخصم من أساس عمولة الموظف.
+            'lines.*.has_materials' => ['nullable', 'boolean'],
+            'lines.*.materials_cost' => ['nullable', 'numeric', 'min:0'],
             'lines.*.agent_id' => ['nullable', 'integer', 'exists:users,id'],
             'lines.*.agent_commission_type' => ['nullable', 'required_with:lines.*.agent_id', Rule::enum(LineAgentCommissionTypeEnum::class)],
             'lines.*.agent_commission_value' => ['nullable', 'required_with:lines.*.agent_id', 'numeric', 'min:0'],

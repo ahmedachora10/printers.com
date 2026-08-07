@@ -39,6 +39,10 @@ class StoreBranchServiceRequest extends FormRequest
             'price_per_sqm' => ['nullable', 'required_if:pricing_type,sqm', 'numeric', 'min:0'],
             'agent_commission_per_sqm' => ['nullable', 'numeric', 'min:0'],
             'is_tahazir' => ['boolean'],
+            // الخامات: مفتاح + تكلفة افتراضية للوحدة تُعبَّأ في نقطة البيع. صفر
+            // مقبول — يعني «لها خامات لكن المبلغ يُدخَل مع كل فاتورة».
+            'has_materials' => ['boolean'],
+            'materials_cost' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ];
     }

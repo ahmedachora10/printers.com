@@ -24,6 +24,8 @@ class AttachBranchServiceAction
                 // through `using()`, so the array cast applies here too.
                 'note_examples' => $data['note_examples'] ?? [],
                 'is_tahazir' => $data['is_tahazir'] ?? false,
+                'has_materials' => $data['has_materials'] ?? false,
+                'materials_cost' => $data['materials_cost'] ?? 0,
                 'is_active' => $data['is_active'] ?? true,
             ]);
 

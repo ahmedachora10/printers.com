@@ -42,6 +42,7 @@ class CommissionReportController extends Controller
                 'pending' => (float) $summary->sum('pending'),
                 'tahazir' => (float) $summary->sum('tahazir'),
                 'lineCommission' => (float) $summary->sum('lineCommission'),
+                'materials' => (float) $summary->sum('materials'),
                 'lineCount' => $lines->count(),
             ],
             'filters' => [
@@ -190,6 +191,7 @@ class CommissionReportController extends Controller
             ->map(fn (array $row) => [
                 ...$row,
                 'lineCommission' => (float) ($lineCommissions[$row['userId']]['amount'] ?? 0.0),
+                'materials' => (float) ($lineCommissions[$row['userId']]['materials'] ?? 0.0),
             ]);
 
         // An employee whose invoices only earned agent commissions has no ledger
@@ -205,6 +207,7 @@ class CommissionReportController extends Controller
                 'pending' => 0.0,
                 'tahazir' => 0.0,
                 'lineCommission' => $row['amount'],
+                'materials' => $row['materials'],
             ]);
 
         return $rows->concat($missing->values())->sortBy('userName')->values();
@@ -268,7 +271,8 @@ class CommissionReportController extends Controller
                 'paid' => 0.0,
                 'pending' => 0.0,
                 'tahazir' => 0.0,
-                'lineCommission' => (float) ($lineCommissions[$day] ?? 0.0),
+                'lineCommission' => (float) ($lineCommissions[$day]['amount'] ?? 0.0),
+                'materials' => (float) ($lineCommissions[$day]['materials'] ?? 0.0),
             ];
         }
 
@@ -294,7 +298,8 @@ class CommissionReportController extends Controller
                 'paid' => $paid,
                 'pending' => max(0, $earned - $paid),
                 'tahazir' => (float) $row->tahazir,
-                'lineCommission' => (float) ($lineCommissions[$day] ?? 0.0),
+                'lineCommission' => (float) ($lineCommissions[$day]['amount'] ?? 0.0),
+                'materials' => (float) ($lineCommissions[$day]['materials'] ?? 0.0),
             ];
         }
 
@@ -331,6 +336,7 @@ class CommissionReportController extends Controller
                 'service_invoices.status as invoice_status',
                 'service_invoice_lines.service_name as service_name',
                 'service_invoice_lines.agent_commission_amount as agent_commission_amount',
+                'service_invoice_lines.materials_total as materials_total',
                 'commission_ledger.amount as amount',
                 'commission_ledger.is_tahazir as is_tahazir',
                 'commission_ledger.tier_applied as tier_applied',
@@ -348,6 +354,9 @@ class CommissionReportController extends Controller
                 // The مندوب's share of this same line — shown beside the
                 // employee's commission, never added to it.
                 'lineCommission' => (float) $row->agent_commission_amount,
+                // تكلفة خامات هذا السطر — خُصمت أصلاً من مبلغ العمولة المجاور،
+                // وتُعرض للتوضيح فقط.
+                'materials' => (float) $row->materials_total,
                 'amount' => (float) $row->amount,
                 'isTahazir' => (bool) $row->is_tahazir,
                 'tierApplied' => $row->tier_applied !== null ? (int) $row->tier_applied : null,
@@ -384,19 +393,21 @@ class CommissionReportController extends Controller
                 'service_invoices.user_id as user_id',
                 'users.name as user_name',
                 DB::raw('COALESCE(SUM(service_invoice_lines.agent_commission_amount), 0) as amount'),
+                DB::raw('COALESCE(SUM(service_invoice_lines.materials_total), 0) as materials'),
             ])
             ->map(fn ($row) => [
                 'userId' => (int) $row->user_id,
                 'userName' => $row->user_name,
                 'amount' => (float) $row->amount,
+                'materials' => (float) $row->materials,
             ]);
     }
 
     /**
-     * The same agent line-commissions, totalled per day.
+     * The same agent line-commissions and materials cost, totalled per day.
      *
      * @param  array<string, mixed>  $scope
-     * @return array<string, float> YYYY-MM-DD => amount
+     * @return array<string, array{amount: float, materials: float}> YYYY-MM-DD => totals
      */
     private function lineCommissionByDay(array $scope): array
     {
@@ -405,8 +416,12 @@ class CommissionReportController extends Controller
             ->get([
                 DB::raw('DATE(service_invoices.paid_at) as day'),
                 DB::raw('COALESCE(SUM(service_invoice_lines.agent_commission_amount), 0) as amount'),
+                DB::raw('COALESCE(SUM(service_invoice_lines.materials_total), 0) as materials'),
             ])
-            ->mapWithKeys(fn ($row) => [(string) $row->day => (float) $row->amount])
+            ->mapWithKeys(fn ($row) => [(string) $row->day => [
+                'amount' => (float) $row->amount,
+                'materials' => (float) $row->materials,
+            ]])
             ->all();
     }
 

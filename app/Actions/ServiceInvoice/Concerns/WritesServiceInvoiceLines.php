@@ -43,6 +43,8 @@ trait WritesServiceInvoiceLines
                 'subtotal' => $line['subtotal'],
                 'commission_pct' => $line['commission_pct'],
                 'commission_amount' => $line['commission_amount'],
+                'materials_cost' => $line['materials_cost'] ?? 0,
+                'materials_total' => $line['materials_total'] ?? 0,
                 'is_tahazir' => $line['is_tahazir'],
                 'agent_id' => $line['agent_id'] ?? null,
                 'agent_commission_type' => $line['agent_commission_type'] ?? null,

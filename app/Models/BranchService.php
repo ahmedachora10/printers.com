@@ -21,6 +21,8 @@ class BranchService extends Pivot
         'agent_commission_per_sqm',
         'note_examples',
         'is_tahazir',
+        'has_materials',
+        'materials_cost',
         'is_active',
     ];
 
@@ -32,6 +34,8 @@ class BranchService extends Pivot
         'agent_commission_per_sqm' => 'decimal:2',
         'note_examples' => 'array',
         'is_tahazir' => 'boolean',
+        'has_materials' => 'boolean',
+        'materials_cost' => 'decimal:2',
         'is_active' => 'boolean',
     ];
 
