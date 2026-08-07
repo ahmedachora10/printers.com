@@ -68,7 +68,7 @@ describe('Agent Portal', function () {
         $this->branchAdmin->update(['branch_id' => $this->branch->id]);
 
         $this->agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $this->agent->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
+        setAgentBranchTerms($this->agent, $this->branch->id, ['discount_mode' => 'rebate', 'rate' => 10]);
     });
 
     it('lets an agent open their portal', function () {

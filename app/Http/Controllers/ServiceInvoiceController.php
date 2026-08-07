@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Agent\ListBranchAgentsAction;
 use App\Actions\Customer\UpdateCustomerAction;
 use App\Actions\ServiceInvoice\AttachServiceInvoiceCustomerAction;
 use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
@@ -18,7 +19,6 @@ use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoicePaymentMethodRequest;
 use App\Http\Requests\ServiceInvoice\UpdateServiceInvoiceRequest;
-use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\Coupon;
@@ -41,18 +41,18 @@ use Inertia\Response;
 
 class ServiceInvoiceController extends Controller
 {
-    public function create(): Response
+    public function create(ListBranchAgentsAction $listBranchAgents): Response
     {
         Gate::authorize('create', ServiceInvoice::class);
 
-        return Inertia::render('pos/service/index', $this->posFormData(Auth::user()));
+        return Inertia::render('pos/service/index', $this->posFormData(Auth::user(), $listBranchAgents));
     }
 
     /**
      * Re-open a DUE invoice in the POS form for its owning employee to edit
      * (before an accountant approves it). The form is seeded from the invoice.
      */
-    public function edit(ServiceInvoice $invoice): Response
+    public function edit(ServiceInvoice $invoice, ListBranchAgentsAction $listBranchAgents): Response
     {
         Gate::authorize('update', $invoice);
 
@@ -69,7 +69,7 @@ class ServiceInvoiceController extends Controller
         $coupon = $invoice->coupon_id ? Coupon::find($invoice->coupon_id) : null;
 
         return Inertia::render('pos/service/index', [
-            ...$this->posFormData($user),
+            ...$this->posFormData($user, $listBranchAgents),
             'invoice' => [
                 'id' => $invoice->id,
                 'invoiceNumber' => $invoice->invoice_number,
@@ -428,7 +428,7 @@ class ServiceInvoiceController extends Controller
      *
      * @return array<string, mixed>
      */
-    private function posFormData(User $user): array
+    private function posFormData(User $user, ListBranchAgentsAction $listBranchAgents): array
     {
         $branchId = $user->branchId;
         $branch = Branch::find($branchId);
@@ -445,7 +445,7 @@ class ServiceInvoiceController extends Controller
 
         return [
             'services' => $this->branchServiceOptions($branchId, $user->id),
-            'agents' => $this->branchAgents($branchId),
+            'agents' => $listBranchAgents->handle($branchId),
             'paymentMethods' => $paymentMethods,
             'vatPct' => (float) ($branch->vat_rate_override ?? 15),
             'loyalty' => [
@@ -490,26 +490,4 @@ class ServiceInvoiceController extends Controller
             ->values();
     }
 
-    /**
-     * Active agents for the branch, with the terms the POS previews.
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function branchAgents(?int $branchId): Collection
-    {
-        return Agent::query()
-            ->where('branch_id', $branchId)
-            ->where('is_active', true)
-            ->with('agentProfile')
-            ->orderBy('name')
-            ->get()
-            ->map(fn (Agent $agent) => [
-                'id' => $agent->id,
-                'name' => $agent->name,
-                'discountMode' => $agent->agentProfile?->discount_mode?->value,
-                'discountType' => $agent->agentProfile?->discount_type?->value ?? 'percentage',
-                'rate' => (float) ($agent->agentProfile?->rate ?? 0),
-            ])
-            ->values();
-    }
 }

@@ -71,8 +71,10 @@ class CustomerController extends Controller
         $ids = $query->pluck('id');
         $stats = $this->loadPageStats($ids);
 
+        // An agent may work with several branches, so the pickable list follows
+        // the branch links rather than the primary branch_id column.
         $agents = Agent::select('id', 'name')
-            ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $branchId))
+            ->when(! $isSuperAdmin, fn ($q) => $q->forBranch($branchId))
             ->get();
 
         $branches = $isSuperAdmin ? Branch::select('id', 'name')->get() : [];

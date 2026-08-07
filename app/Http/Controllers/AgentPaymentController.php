@@ -25,23 +25,31 @@ class AgentPaymentController extends Controller
 
         $branchId = auth()->user()->branchId ?? null;
 
-        $outstanding = $this->outstandingByAgent($branchId);
+        $outstanding = $this->outstandingByAgentBranch($branchId);
 
+        // One settlement row per (agent × branch): an agent may work with several
+        // branches and each is paid separately, so a single merged figure would
+        // invite settling one branch against another's total.
         $agents = Agent::query()
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($branchId, fn ($q) => $q->forBranch($branchId))
+            ->with('agentBranches:id,name')
             ->orderBy('name')
             ->get()
-            ->map(fn (Agent $agent) => [
-                'id' => $agent->id,
-                'name' => $agent->name,
-                'isActive' => $agent->is_active,
-                'outstandingRebate' => round($outstanding[$agent->id]['rebate'] ?? 0, 2),
-                'outstandingInvoices' => $outstanding[$agent->id]['count'] ?? 0,
-            ])
+            ->flatMap(fn (Agent $agent) => $agent->agentBranches
+                ->when($branchId, fn ($branches) => $branches->where('id', $branchId))
+                ->map(fn (Branch $branch) => [
+                    'id' => $agent->id,
+                    'name' => $agent->name,
+                    'isActive' => $agent->is_active,
+                    'branchId' => $branch->id,
+                    'branchName' => $branch->name,
+                    'outstandingRebate' => round($outstanding[$agent->id.'-'.$branch->id]['rebate'] ?? 0, 2),
+                    'outstandingInvoices' => $outstanding[$agent->id.'-'.$branch->id]['count'] ?? 0,
+                ]))
             ->values();
 
         $payments = AgentPayment::query()
-            ->with(['agent:id,name', 'paidBy:id,name'])
+            ->with(['agent:id,name', 'branch:id,name', 'paidBy:id,name'])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->orderByDesc('paid_at')
             ->paginate(15)
@@ -70,17 +78,22 @@ class AgentPaymentController extends Controller
     }
 
     /**
-     * Sum of unpaid rebate (and invoice count) per agent, within scope.
+     * Sum of unpaid rebate (and invoice count) per agent *per branch*, within
+     * scope, keyed "agentId-branchId".
      *
-     * @return array<int, array{rebate: float, count: int}>
+     * The branch dimension is not cosmetic: each branch settles its own invoices,
+     * so a figure merged across branches could never be paid in one run.
+     *
+     * @return array<string, array{rebate: float, count: int}>
      */
-    private function outstandingByAgent(?int $branchId): array
+    private function outstandingByAgentBranch(?int $branchId): array
     {
         $outstanding = [];
 
-        $add = function (int $agentId, float $rebate, int $count) use (&$outstanding) {
-            $outstanding[$agentId]['rebate'] = ($outstanding[$agentId]['rebate'] ?? 0) + $rebate;
-            $outstanding[$agentId]['count'] = ($outstanding[$agentId]['count'] ?? 0) + $count;
+        $add = function (int $agentId, int $rowBranchId, float $rebate, int $count) use (&$outstanding) {
+            $key = $agentId.'-'.$rowBranchId;
+            $outstanding[$key]['rebate'] = ($outstanding[$key]['rebate'] ?? 0) + $rebate;
+            $outstanding[$key]['count'] = ($outstanding[$key]['count'] ?? 0) + $count;
         };
 
         // Only approved (paid) invoices count as outstanding rebate — a due
@@ -92,26 +105,30 @@ class AgentPaymentController extends Controller
             ->where('agent_rebate', '>', 0)
             ->where('status', InvoiceStatusEnum::PAID->value)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->groupBy('agent_id')
-            ->selectRaw('agent_id, SUM(agent_rebate) as rebate, COUNT(*) as cnt')
+            ->groupBy('agent_id', 'branch_id')
+            ->selectRaw('agent_id, branch_id, SUM(agent_rebate) as rebate, COUNT(*) as cnt')
             ->get()
-            ->each(fn ($row) => $add((int) $row->agent_id, (float) $row->rebate, (int) $row->cnt));
+            ->each(fn ($row) => $add((int) $row->agent_id, (int) $row->branch_id, (float) $row->rebate, (int) $row->cnt));
 
         // Service invoices settle each agent independently via the pivot. The
         // payable per row is the invoice-level rebate plus any per-line
-        // commissions accrued to the agent on that invoice.
+        // commissions accrued to the agent on that invoice. The branch lives on
+        // the invoice, so join rather than filter through whereHas.
         ServiceInvoiceAgent::query()
-            ->whereNull('agent_payment_id')
+            ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_agent.service_invoice_id')
+            ->whereNull('service_invoices.deleted_at')
+            ->whereNull('service_invoice_agent.agent_payment_id')
             ->where(fn ($q) => $q
-                ->where('rebate_amount', '>', 0)
-                ->orWhere('line_commission_amount', '>', 0))
-            ->whereHas('invoice', fn ($q) => $q
-                ->where('status', InvoiceStatusEnum::PAID->value)
-                ->when($branchId, fn ($qq) => $qq->where('branch_id', $branchId)))
-            ->groupBy('agent_id')
-            ->selectRaw('agent_id, SUM(rebate_amount + line_commission_amount) as rebate, COUNT(*) as cnt')
+                ->where('service_invoice_agent.rebate_amount', '>', 0)
+                ->orWhere('service_invoice_agent.line_commission_amount', '>', 0))
+            ->where('service_invoices.status', InvoiceStatusEnum::PAID->value)
+            ->when($branchId, fn ($q) => $q->where('service_invoices.branch_id', $branchId))
+            ->groupBy('service_invoice_agent.agent_id', 'service_invoices.branch_id')
+            ->selectRaw('service_invoice_agent.agent_id, service_invoices.branch_id,
+                SUM(service_invoice_agent.rebate_amount + service_invoice_agent.line_commission_amount) as rebate,
+                COUNT(*) as cnt')
             ->get()
-            ->each(fn ($row) => $add((int) $row->agent_id, (float) $row->rebate, (int) $row->cnt));
+            ->each(fn ($row) => $add((int) $row->agent_id, (int) $row->branch_id, (float) $row->rebate, (int) $row->cnt));
 
         return $outstanding;
     }

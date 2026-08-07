@@ -5,14 +5,18 @@ namespace App\Http\Requests\Agent;
 use App\Enums\AgentDiscountModeEnum;
 use App\Enums\AgentDiscountTypeEnum;
 use App\Enums\AgentTypeEnum;
+use App\Http\Requests\Agent\Concerns\NormalizesAgentBranchTerms;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Enum;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Validator;
 
 class StoreAgentRequest extends FormRequest
 {
+    use NormalizesAgentBranchTerms;
+
     public function authorize(): bool
     {
         return true;
@@ -31,6 +35,14 @@ class StoreAgentRequest extends FormRequest
         // Default the discount type so existing callers (and the rate cap) keep
         // treating the rate as a percentage unless a fixed amount is chosen.
         $this->merge(['discount_type' => $this->input('discount_type', 'percentage')]);
+
+        $this->normalizeBranchTerms();
+
+        // The primary branch defaults to the first link when the form only sent
+        // the branch list.
+        if (! $this->filled('branch_id')) {
+            $this->merge(['branch_id' => $this->input('branches.0.branch_id')]);
+        }
     }
 
     /** @return array<string, mixed> */
@@ -58,6 +70,20 @@ class StoreAgentRequest extends FormRequest
             // Percentage rates are capped at 100; fixed SAR amounts are not.
             'rate' => ['required', 'numeric', 'min:0', Rule::when($this->input('discount_type') !== 'fixed', ['max:100'])],
             'commercial_reg_no' => ['nullable', 'string', 'max:100'],
+
+            // The branches this agent works with, each on its own terms.
+            ...$this->branchTermRules(),
         ];
+    }
+
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(fn (Validator $validator) => $this->validateBranchRateCaps($validator));
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return $this->branchTermMessages();
     }
 }

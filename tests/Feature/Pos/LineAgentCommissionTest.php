@@ -70,7 +70,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         ]);
 
         $this->agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $this->agent->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
+        setAgentBranchTerms($this->agent, $this->branch->id, ['discount_mode' => 'rebate', 'rate' => 10]);
     });
 
     it('computes a percentage commission on the line subtotal, without touching the total', function () {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Report\ResolveReportScope;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\AgentPayment;
+use App\Models\Branch;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoiceAgent;
 use Illuminate\Database\Eloquent\Collection as EloquentCollection;
@@ -18,11 +19,19 @@ class AgentPortalController extends Controller
     public function index(Request $request, ResolveReportScope $scope): Response
     {
         $agent = Auth::user();
-        $agent->loadMissing(['agentProfile', 'branch:id,name']);
+        $agent->loadMissing(['agentProfile', 'branch:id,name', 'agentBranches:id,name']);
 
         // Same convention as the reports: an unfiltered portal shows today only,
         // and the agent widens the range from the bar above the tables.
         ['from' => $from, 'to' => $to] = $scope->handle($request);
+
+        // An agent may work with several branches. The portal shows them merged
+        // — that is the whole point of one account across branches — with an
+        // optional narrowing to one of them.
+        $branchId = $request->filled('branch')
+            && $agent->agentBranches->contains('id', (int) $request->input('branch'))
+                ? (int) $request->input('branch')
+                : null;
 
         $summary = [
             'invoiceCount' => 0,
@@ -39,6 +48,7 @@ class AgentPortalController extends Controller
         $productBase = ProductInvoice::query()
             ->where('agent_id', $agent->id)
             ->where('status', InvoiceStatusEnum::PAID->value)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereBetween('created_at', [$from, $to]);
 
         $productRow = (clone $productBase)
@@ -54,13 +64,14 @@ class AgentPortalController extends Controller
         $summary['discountGiven'] += (float) $productRow->discount;
 
         (clone $productBase)
-            ->with(['user:id,name', 'lines:id,invoice_id,product_name'])
+            ->with(['user:id,name', 'branch:id,name', 'lines:id,invoice_id,product_name'])
             ->orderByDesc('created_at')
             ->limit(20)
-            ->get(['id', 'invoice_number', 'user_id', 'total_amount', 'agent_rebate', 'agent_discount', 'agent_payment_id', 'status', 'created_at'])
+            ->get(['id', 'invoice_number', 'user_id', 'branch_id', 'total_amount', 'agent_rebate', 'agent_discount', 'agent_payment_id', 'status', 'created_at'])
             ->each(fn ($r) => $invoices->push([
                 'type' => 'product',
                 'invoiceNumber' => $r->invoice_number,
+                'branchName' => $r->branch?->name,
                 'employeeName' => $r->user?->name,
                 'itemsLabel' => $this->describeLines($r->lines, 'product_name'),
                 'totalAmount' => (float) $r->total_amount,
@@ -80,6 +91,7 @@ class AgentPortalController extends Controller
         $serviceBase = ServiceInvoiceAgent::query()
             ->where('agent_id', $agent->id)
             ->whereHas('invoice', fn ($q) => $q->where('status', InvoiceStatusEnum::PAID->value)
+                ->when($branchId, fn ($qq) => $qq->where('branch_id', $branchId))
                 ->whereBetween('created_at', [$from, $to]));
 
         // Earned = invoice-level rebate plus per-line commissions; both are
@@ -98,8 +110,9 @@ class AgentPortalController extends Controller
 
         (clone $serviceBase)
             ->with([
-                'invoice:id,invoice_number,user_id,total_amount,status,created_at',
+                'invoice:id,invoice_number,user_id,branch_id,total_amount,status,created_at',
                 'invoice.user:id,name',
+                'invoice.branch:id,name',
                 'invoice.lines:id,invoice_id,service_name',
             ])
             ->orderByDesc('id')
@@ -108,6 +121,7 @@ class AgentPortalController extends Controller
             ->each(fn (ServiceInvoiceAgent $r) => $invoices->push([
                 'type' => 'service',
                 'invoiceNumber' => $r->invoice?->invoice_number,
+                'branchName' => $r->invoice?->branch?->name,
                 'employeeName' => $r->invoice?->user?->name,
                 'itemsLabel' => $this->describeLines($r->invoice?->lines, 'service_name'),
                 'totalAmount' => (float) ($r->invoice?->total_amount ?? 0),
@@ -134,11 +148,14 @@ class AgentPortalController extends Controller
 
         $payments = AgentPayment::query()
             ->where('agent_id', $agent->id)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->with('branch:id,name')
             ->whereBetween('paid_at', [$from, $to])
             ->orderByDesc('paid_at')
             ->limit(20)
             ->get()
             ->map(fn (AgentPayment $p) => [
+                'branchName' => $p->branch?->name,
                 'periodStart' => $p->period_start->format('d/m/Y'),
                 'periodEnd' => $p->period_end->format('d/m/Y'),
                 'totalInvoices' => $p->total_invoices,
@@ -150,11 +167,16 @@ class AgentPortalController extends Controller
         return Inertia::render('agent-portal/index', [
             'agent' => [
                 'name' => $agent->name,
-                'branchName' => $agent->branch?->name,
-                'discountMode' => $agent->agentProfile?->discount_mode?->value,
-                'discountModeLabel' => $agent->agentProfile?->discount_mode?->label(),
-                'discountType' => $agent->agentProfile?->discount_type?->value ?? 'percentage',
-                'rate' => (float) ($agent->agentProfile?->rate ?? 0),
+                // Terms differ per branch, so a single rate would be a lie for a
+                // multi-branch agent: send the whole list and let the page show it.
+                'branches' => $agent->agentBranches->map(fn (Branch $branch) => [
+                    'branchId' => $branch->id,
+                    'branchName' => $branch->name,
+                    'discountMode' => $branch->pivot->discount_mode?->value,
+                    'discountModeLabel' => $branch->pivot->discount_mode?->label(),
+                    'discountType' => $branch->pivot->discount_type?->value ?? 'percentage',
+                    'rate' => (float) $branch->pivot->rate,
+                ])->values(),
             ],
             'summary' => $summary,
             'recentInvoices' => $recentInvoices,
@@ -162,6 +184,7 @@ class AgentPortalController extends Controller
             'filters' => [
                 'from' => $from->toDateString(),
                 'to' => $to->toDateString(),
+                'branch' => $branchId ? (string) $branchId : null,
             ],
             'defaultDate' => now()->toDateString(),
         ]);

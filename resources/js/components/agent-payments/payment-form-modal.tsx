@@ -28,6 +28,9 @@ function todayIso(): string {
 export default function PaymentFormModal({ open, onOpenChange, agent }: Props) {
     const { data, setData, post, processing, errors, reset } = useForm({
         agent_id: agent?.id ?? 0,
+        // The settlement covers one branch: an agent may work with several, and
+        // each branch pays its own invoices.
+        branch_id: agent?.branchId ?? 0,
         period_start: '',
         period_end: todayIso(),
         notes: '',
@@ -36,6 +39,7 @@ export default function PaymentFormModal({ open, onOpenChange, agent }: Props) {
     useEffect(() => {
         setData({
             agent_id: agent?.id ?? 0,
+            branch_id: agent?.branchId ?? 0,
             period_start: '',
             period_end: todayIso(),
             notes: '',
@@ -57,7 +61,10 @@ export default function PaymentFormModal({ open, onOpenChange, agent }: Props) {
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-md">
                 <DialogHeader>
-                    <DialogTitle>تسجيل دفعة عمولة — {agent?.name}</DialogTitle>
+                    <DialogTitle>
+                        تسجيل دفعة عمولة — {agent?.name}
+                        {agent?.branchName && <span className="text-muted-foreground"> · {agent.branchName}</span>}
+                    </DialogTitle>
                 </DialogHeader>
 
                 <form id="agent-payment-form" onSubmit={handleSubmit} className="space-y-4 py-2">
@@ -66,7 +73,7 @@ export default function PaymentFormModal({ open, onOpenChange, agent }: Props) {
                         <span className="font-bold tabular-nums">{formatCurrency(agent?.outstandingRebate ?? 0)}</span>
                     </div>
                     <p className="text-muted-foreground text-xs">
-                        ستُحتسب الدفعة من الفواتير غير المدفوعة ضمن الفترة المحددة فقط.
+                        ستُحتسب الدفعة من فواتير هذا الفرع غير المدفوعة ضمن الفترة المحددة فقط.
                     </p>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -107,6 +114,7 @@ export default function PaymentFormModal({ open, onOpenChange, agent }: Props) {
                         <InputError message={errors.notes} />
                     </div>
                     <InputError message={errors.agent_id} />
+                    <InputError message={errors.branch_id} />
                 </form>
 
                 <DialogFooter>

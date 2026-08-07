@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -104,6 +105,36 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         // Pin the foreign key: this relation is also used on the Agent subclass,
         // where the default would wrongly infer `agent_id`.
         return $this->hasOne(AgentProfile::class, 'user_id');
+    }
+
+    /**
+     * The branches an agent works with, each carrying its own negotiated terms.
+     * Lives here rather than on Agent so the portal — which holds a plain User
+     * from the guard — can read it too.
+     *
+     * @return BelongsToMany<Branch, $this, AgentBranch>
+     */
+    public function agentBranches(): BelongsToMany
+    {
+        return $this->belongsToMany(Branch::class, 'agent_branch', 'agent_id', 'branch_id')
+            ->using(AgentBranch::class)
+            ->withPivot(['id', 'discount_mode', 'discount_type', 'rate'])
+            ->withTimestamps();
+    }
+
+    /**
+     * The terms agreed with one branch, or null when the agent is not linked to
+     * it — which is exactly what makes the agent unavailable in that branch.
+     * Reads an already-loaded relation when there is one, so callers that eager
+     * load a whole POS list do not fire a query per agent.
+     */
+    public function termsForBranch(int $branchId): ?AgentBranch
+    {
+        $branch = $this->relationLoaded('agentBranches')
+            ? $this->agentBranches->firstWhere('id', $branchId)
+            : $this->agentBranches()->where('branches.id', $branchId)->first();
+
+        return $branch?->pivot;
     }
 
     /** @return Attribute<Roles|null, never> */

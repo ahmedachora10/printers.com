@@ -20,15 +20,20 @@ class GenerateAgentPaymentAction
         $agent = Agent::findOrFail((int) $data['agent_id']);
         $start = (string) $data['period_start'];
         $end = (string) $data['period_end'];
+        $branchId = (int) $data['branch_id'];
 
-        return DB::transaction(function () use ($agent, $start, $end, $data) {
+        return DB::transaction(function () use ($agent, $start, $end, $branchId, $data) {
             $window = [$start.' 00:00:00', $end.' 23:59:59'];
 
+            // An agent may work with several branches, and each branch settles its
+            // own invoices — so every row collected here must belong to the branch
+            // being paid, or one branch would stamp another's dues as settled.
             // Product invoices still carry a single agent on the invoice row. Only
             // approved (paid) invoices are settled — a rebate is not payable while
             // the invoice is still due.
             $productRows = ProductInvoice::query()
                 ->where('agent_id', $agent->id)
+                ->where('branch_id', $branchId)
                 ->whereNull('agent_payment_id')
                 ->where('agent_rebate', '>', 0)
                 ->where('status', InvoiceStatusEnum::PAID->value)
@@ -48,6 +53,7 @@ class GenerateAgentPaymentAction
                     ->orWhere('line_commission_amount', '>', 0))
                 ->whereHas('invoice', fn ($q) => $q
                     ->where('status', InvoiceStatusEnum::PAID->value)
+                    ->where('branch_id', $branchId)
                     ->whereBetween('created_at', $window))
                 ->lockForUpdate()
                 ->get(['id', 'rebate_amount', 'line_commission_amount']);
@@ -59,13 +65,13 @@ class GenerateAgentPaymentAction
 
             if ($totalInvoices === 0) {
                 throw ValidationException::withMessages([
-                    'agent_id' => 'لا توجد عمولات مستحقة لهذا المندوب في الفترة المحددة.',
+                    'agent_id' => 'لا توجد عمولات مستحقة لهذا المندوب في هذا الفرع خلال الفترة المحددة.',
                 ]);
             }
 
             $payment = AgentPayment::create([
                 'agent_id' => $agent->id,
-                'branch_id' => $agent->branch_id,
+                'branch_id' => $branchId,
                 'period_start' => $start,
                 'period_end' => $end,
                 'total_invoices' => $totalInvoices,

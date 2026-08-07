@@ -1,5 +1,9 @@
 <?php
 
+use App\Models\User;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\TestCase;
+
 /*
 |--------------------------------------------------------------------------
 | Test Case
@@ -11,8 +15,8 @@
 |
 */
 
-pest()->extend(Tests\TestCase::class)
-    ->use(Illuminate\Foundation\Testing\RefreshDatabase::class)
+pest()->extend(TestCase::class)
+    ->use(RefreshDatabase::class)
     ->in('Feature');
 
 /*
@@ -44,4 +48,27 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Set the terms an agent (مندوب) works on inside one branch.
+ *
+ * An agent may be linked to several branches on different terms, so the rate and
+ * mode live on the `agent_branch` link — `agent_profiles` only holds the defaults
+ * an operator sees pre-filled. Every calculator reads the link, so this is what a
+ * test must set to control an invoice's agent discount or rebate.
+ *
+ * @param  array<string, mixed>  $terms  discount_mode / discount_type / rate
+ */
+function setAgentBranchTerms(User $agent, int $branchId, array $terms): void
+{
+    $agent->agentBranches()->syncWithoutDetaching([
+        $branchId => [
+            'discount_mode' => $terms['discount_mode'] ?? $agent->agentProfile->discount_mode->value,
+            'discount_type' => $terms['discount_type'] ?? $agent->agentProfile->discount_type->value,
+            'rate' => $terms['rate'] ?? $agent->agentProfile->rate,
+        ],
+    ]);
+
+    $agent->unsetRelation('agentBranches');
 }

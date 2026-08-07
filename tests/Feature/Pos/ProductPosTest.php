@@ -248,7 +248,7 @@ describe('Product POS', function () {
 
     it('applies an agent discount to the taxable base', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $agent->agentProfile->update(['discount_mode' => 'discount', 'rate' => 10]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'discount', 'rate' => 10]);
 
         $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
 
@@ -263,7 +263,7 @@ describe('Product POS', function () {
 
     it('records an agent rebate without deducting it from the total', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $agent->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'rebate', 'rate' => 10]);
 
         $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
 
@@ -277,7 +277,7 @@ describe('Product POS', function () {
 
     it('applies a fixed agent discount to the taxable base', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $agent->agentProfile->update(['discount_mode' => 'discount', 'discount_type' => 'fixed', 'rate' => 5]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'discount', 'discount_type' => 'fixed', 'rate' => 5]);
 
         $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
 
@@ -292,7 +292,7 @@ describe('Product POS', function () {
 
     it('records a fixed agent rebate without deducting it from the total', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $agent->agentProfile->update(['discount_mode' => 'rebate', 'discount_type' => 'fixed', 'rate' => 8]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'rebate', 'discount_type' => 'fixed', 'rate' => 8]);
 
         $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
 

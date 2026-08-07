@@ -428,7 +428,7 @@ describe('Service POS', function () {
 
     it('applies an agent discount to the taxable base', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $agent->agentProfile->update(['discount_mode' => 'discount', 'rate' => 10]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'discount', 'rate' => 10]);
 
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
@@ -445,7 +445,7 @@ describe('Service POS', function () {
 
     it('reduces employee commission and its ledger row by an agent discount', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $agent->agentProfile->update(['discount_mode' => 'discount', 'rate' => 10]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'discount', 'rate' => 10]);
 
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
@@ -462,7 +462,7 @@ describe('Service POS', function () {
 
     it('does not reduce employee commission by an agent rebate', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $agent->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'rebate', 'rate' => 10]);
 
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
@@ -477,7 +477,7 @@ describe('Service POS', function () {
 
     it('records an agent rebate without deducting it from the total', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $agent->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'rebate', 'rate' => 10]);
 
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
@@ -494,7 +494,7 @@ describe('Service POS', function () {
 
     it('applies a fixed agent discount to the taxable base', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $agent->agentProfile->update(['discount_mode' => 'discount', 'discount_type' => 'fixed', 'rate' => 5]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'discount', 'discount_type' => 'fixed', 'rate' => 5]);
 
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
@@ -510,7 +510,7 @@ describe('Service POS', function () {
 
     it('records a fixed agent rebate without deducting it from the total', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $agent->agentProfile->update(['discount_mode' => 'rebate', 'discount_type' => 'fixed', 'rate' => 8]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'rebate', 'discount_type' => 'fixed', 'rate' => 8]);
 
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
@@ -527,7 +527,7 @@ describe('Service POS', function () {
     it('caps a fixed agent discount at the invoice base', function () {
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
         // A fixed discount larger than the base must not push the total negative.
-        $agent->agentProfile->update(['discount_mode' => 'discount', 'discount_type' => 'fixed', 'rate' => 500]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'discount', 'discount_type' => 'fixed', 'rate' => 500]);
 
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$agent->id]]));
 
@@ -539,9 +539,9 @@ describe('Service POS', function () {
 
     it('records several agents sharing the rebate on one invoice', function () {
         $a = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $a->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 10]);
+        setAgentBranchTerms($a, $this->branch->id, ['discount_mode' => 'rebate', 'rate' => 10]);
         $b = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $b->agentProfile->update(['discount_mode' => 'rebate', 'rate' => 5]);
+        setAgentBranchTerms($b, $this->branch->id, ['discount_mode' => 'rebate', 'rate' => 5]);
 
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$a->id, $b->id]]));
 
@@ -557,9 +557,9 @@ describe('Service POS', function () {
 
     it('sums the discounts of several discount-mode agents', function () {
         $a = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $a->agentProfile->update(['discount_mode' => 'discount', 'rate' => 10]);
+        setAgentBranchTerms($a, $this->branch->id, ['discount_mode' => 'discount', 'rate' => 10]);
         $b = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $b->agentProfile->update(['discount_mode' => 'discount', 'rate' => 5]);
+        setAgentBranchTerms($b, $this->branch->id, ['discount_mode' => 'discount', 'rate' => 5]);
 
         $this->post(route('pos.service.store'), svcPayload(['agent_ids' => [$a->id, $b->id]]));
 

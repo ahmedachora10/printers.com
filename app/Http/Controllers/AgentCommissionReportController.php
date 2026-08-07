@@ -290,7 +290,9 @@ class AgentCommissionReportController extends Controller
     private function agentOptions(array $scope): Collection
     {
         return Agent::query()
-            ->when($scope['branchId'], fn ($q) => $q->where('branch_id', $scope['branchId']))
+            // Agents are picked by the branches they work with, not by the single
+            // primary branch_id column.
+            ->when($scope['branchId'], fn ($q) => $q->forBranch($scope['branchId']))
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (Agent $agent) => ['id' => $agent->id, 'name' => $agent->name])

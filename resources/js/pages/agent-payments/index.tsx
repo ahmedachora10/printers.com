@@ -30,6 +30,7 @@ export default function AgentPaymentsIndex({ agents, payments }: Props) {
     const columns = useMemo<ColumnDef<AgentPaymentRow>[]>(
         () => [
             { key: 'agent', header: 'المندوب', cell: (p) => <span className="font-medium">{p.agentName ?? '—'}</span> },
+            { key: 'branch', header: 'الفرع', cell: (p) => p.branchName ?? '—' },
             {
                 key: 'period',
                 header: 'الفترة',
@@ -73,9 +74,11 @@ export default function AgentPaymentsIndex({ agents, payments }: Props) {
                         ) : (
                             <div className="divide-y">
                                 {agents.map((a) => (
-                                    <div key={a.id} className="flex items-center justify-between gap-4 py-3">
+                                    <div key={`${a.id}-${a.branchId}`} className="flex items-center justify-between gap-4 py-3">
                                         <div className="flex items-center gap-2">
                                             <span className="font-medium">{a.name}</span>
+                                            {/* Each branch of a multi-branch agent is settled on its own row. */}
+                                            <Badge variant="secondary">{a.branchName}</Badge>
                                             {!a.isActive && (
                                                 <Badge variant="outline" className="text-muted-foreground">
                                                     غير نشط
@@ -120,7 +123,7 @@ export default function AgentPaymentsIndex({ agents, payments }: Props) {
             </div>
 
             <PaymentFormModal
-                key={paying?.id ?? 'none'}
+                key={paying ? `${paying.id}-${paying.branchId}` : 'none'}
                 open={!!paying}
                 onOpenChange={(open) => !open && setPaying(null)}
                 agent={paying}

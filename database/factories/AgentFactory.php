@@ -36,12 +36,45 @@ class AgentFactory extends Factory
         return $this->afterCreating(function (Agent $agent) {
             $agent->addRole(Roles::AGENT->value);
 
-            AgentProfile::factory()->create(['user_id' => $agent->id]);
+            $profile = AgentProfile::factory()->create(['user_id' => $agent->id]);
             // Refresh so the freshly created profile is available on the instance
             // (reading the relation before creating it would cache a null).
             $agent->load('agentProfile');
 
+            // Link the primary branch on the terms just generated. Availability
+            // is decided by this pivot, so an agent without it would be invisible
+            // in every branch — link it here the way the migration backfills it.
+            if ($agent->branch_id) {
+                $agent->agentBranches()->syncWithoutDetaching([
+                    $agent->branch_id => [
+                        'discount_mode' => $profile->discount_mode->value,
+                        'discount_type' => $profile->discount_type->value,
+                        'rate' => $profile->rate,
+                    ],
+                ]);
+            }
+
             Cache::forget('user_role_'.$agent->id);
+        });
+    }
+
+    /**
+     * Link extra branches beyond the primary one, each on its own terms.
+     *
+     * @param  array<int, array<string, mixed>>  $terms  branchId => term overrides
+     */
+    public function inBranches(array $terms): static
+    {
+        return $this->afterCreating(function (Agent $agent) use ($terms) {
+            foreach ($terms as $branchId => $override) {
+                $agent->agentBranches()->syncWithoutDetaching([
+                    $branchId => [
+                        'discount_mode' => $override['discount_mode'] ?? $agent->agentProfile->discount_mode->value,
+                        'discount_type' => $override['discount_type'] ?? $agent->agentProfile->discount_type->value,
+                        'rate' => $override['rate'] ?? $agent->agentProfile->rate,
+                    ],
+                ]);
+            }
         });
     }
 }

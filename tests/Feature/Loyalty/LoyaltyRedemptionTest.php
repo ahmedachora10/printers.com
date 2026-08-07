@@ -195,7 +195,7 @@ describe('Loyalty redemption & tier discount', function () {
     it('suppresses the tier discount on an agent invoice', function () {
         LoyaltyConfig::factory()->create(['branch_id' => $this->branch->id, 'gold_discount_pct' => 8]);
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
-        $agent->agentProfile->update(['discount_mode' => 'discount', 'rate' => 10]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'discount', 'rate' => 10]);
         $customer = makeIndividual(['tier' => CustomerTierEnum::Gold, 'cumulative_spend' => 5000]);
 
         post(route('pos.product.store'), loyaltyPayload([

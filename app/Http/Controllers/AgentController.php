@@ -28,11 +28,13 @@ class AgentController extends Controller
         $branchId = auth()->user()->branchId ?? null;
 
         $items = Agent::query()
-            ->with(['branch', 'agentProfile'])
+            ->with(['branch', 'agentProfile', 'agentBranches:id,name'])
+            // An agent may be linked to several branches, so visibility follows
+            // the links rather than the primary branch_id column.
             // Branch-admins/accountants are locked to their own branch.
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($branchId, fn ($q) => $q->forBranch($branchId))
             // Super-admins (no own branch) may optionally narrow to one branch.
-            ->when(! $branchId && $request->filled('branch_id'), fn ($q) => $q->where('branch_id', (int) $request->input('branch_id')))
+            ->when(! $branchId && $request->filled('branch_id'), fn ($q) => $q->forBranch((int) $request->input('branch_id')))
             ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
                 $search = $request->input('search');
                 $q->where('name', 'like', '%'.$search.'%')
