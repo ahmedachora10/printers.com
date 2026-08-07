@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Agent;
 
+use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -38,6 +39,18 @@ class AgentResource extends JsonResource
                 'label' => $profile->discount_type->label(),
             ] : null,
             'rate' => (float) ($profile?->rate ?? 0),
+            // The branches this agent works with, each on its own terms. This —
+            // not branchId — is what decides where the agent may be invoiced;
+            // branchId only names the primary branch.
+            'branches' => $this->whenLoaded('agentBranches', fn () => $this->agentBranches
+                ->map(fn (Branch $branch) => [
+                    'branchId' => $branch->id,
+                    'branchName' => $branch->name,
+                    'discountMode' => $branch->pivot->discount_mode?->value,
+                    'discountType' => $branch->pivot->discount_type?->value,
+                    'rate' => (float) $branch->pivot->rate,
+                ])
+                ->values(), []),
             'commercialRegNo' => $profile?->commercial_reg_no,
             'createdAt' => $this->created_at?->format('d/m/Y'),
         ];

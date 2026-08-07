@@ -318,9 +318,8 @@ class CalculateServiceInvoiceAction
         }
 
         return Agent::query()
-            ->where('branch_id', $branchId)
+            ->forBranch($branchId)
             ->where('is_active', true)
-            ->with('agentProfile')
             ->whereIn('id', $ids)
             ->get()
             ->keyBy('id');
@@ -356,9 +355,11 @@ class CalculateServiceInvoiceAction
             return [null, null, null, 0.0];
         }
 
+        // Presence in the collection already means the agent is linked to this
+        // branch — resolveLineAgents() filters on that link.
         $agent = $lineAgents->get($agentId);
 
-        if (! $agent || ! $agent->agentProfile) {
+        if (! $agent) {
             throw ValidationException::withMessages([
                 'lines' => 'أحد أصحاب العمولة المحددين غير صالح لهذا الفرع.',
             ]);

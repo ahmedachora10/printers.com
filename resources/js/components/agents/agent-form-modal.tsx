@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { type Agent, type AgentDiscountMode, type AgentDiscountType, type AgentType, type EnumOption } from '@/types/agent';
 import { useForm } from '@inertiajs/react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useEffect } from 'react';
 import InputError from '../input-error';
 
@@ -31,11 +32,45 @@ interface Props {
     branches?: Branch[] | null;
 }
 
+/**
+ * One agent↔branch link as the form holds it, before it is posted. The index
+ * signature is what makes the row assignable to Inertia's FormDataConvertible.
+ */
+interface BranchTermRow {
+    [key: string]: string;
+    branch_id: string;
+    discount_mode: AgentDiscountMode;
+    discount_type: AgentDiscountType;
+    rate: string;
+}
+
+function blankRow(branchId?: number): BranchTermRow {
+    return {
+        branch_id: branchId?.toString() ?? '',
+        discount_mode: 'discount',
+        discount_type: 'percentage',
+        rate: '',
+    };
+}
+
+function rowsFor(agent: Agent | undefined, branches: Branch[] | null | undefined): BranchTermRow[] {
+    if (agent?.branches?.length) {
+        return agent.branches.map((b) => ({
+            branch_id: b.branchId.toString(),
+            discount_mode: b.discountMode ?? 'discount',
+            discount_type: b.discountType ?? 'percentage',
+            rate: b.rate?.toString() ?? '',
+        }));
+    }
+
+    return [blankRow(branches?.[0]?.id)];
+}
+
 export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, discountModes, branches }: Props) {
     const isEdit = !!agent;
     const isSuperAdmin = Array.isArray(branches);
 
-    const { data, setData, post, put, processing, errors, reset } = useForm({
+    const { data, setData, post, put, processing, errors, reset, transform } = useForm({
         name: agent?.name ?? '',
         username: agent?.username ?? '',
         email: agent?.email ?? '',
@@ -45,10 +80,9 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
         branch_id: agent?.branchId?.toString() ?? (branches?.[0]?.id?.toString() ?? ''),
         is_active: agent?.isActive ?? true,
         agent_type: (agent?.agentType?.value ?? 'individual') as AgentType,
-        discount_mode: (agent?.discountMode?.value ?? 'discount') as AgentDiscountMode,
-        discount_type: (agent?.discountType?.value ?? 'percentage') as AgentDiscountType,
-        rate: agent?.rate?.toString() ?? '',
         commercial_reg_no: agent?.commercialRegNo ?? '',
+        // The terms are per branch; an agent may work with several at once.
+        branches: rowsFor(agent, branches),
     });
 
     useEffect(() => {
@@ -63,18 +97,42 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                 branch_id: agent.branchId?.toString() ?? (branches?.[0]?.id?.toString() ?? ''),
                 is_active: agent.isActive ?? true,
                 agent_type: (agent.agentType?.value ?? 'individual') as AgentType,
-                discount_mode: (agent.discountMode?.value ?? 'discount') as AgentDiscountMode,
-                discount_type: (agent.discountType?.value ?? 'percentage') as AgentDiscountType,
-                rate: agent.rate?.toString() ?? '',
                 commercial_reg_no: agent.commercialRegNo ?? '',
+                branches: rowsFor(agent, branches),
             });
         } else {
             reset();
         }
     }, [agent, open]);
 
+    function updateRow(index: number, patch: Partial<BranchTermRow>) {
+        setData(
+            'branches',
+            data.branches.map((row, i) => (i === index ? ({ ...row, ...patch } as BranchTermRow) : row)),
+        );
+    }
+
+    function addRow() {
+        const taken = new Set(data.branches.map((r) => r.branch_id));
+        const next = branches?.find((b) => !taken.has(b.id.toString()));
+        setData('branches', [...data.branches, blankRow(next?.id)]);
+    }
+
+    function removeRow(index: number) {
+        setData('branches', data.branches.filter((_, i) => i !== index));
+    }
+
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+
+        // The flat profile fields mirror the primary branch's terms — they are
+        // the defaults an operator sees pre-filled when linking a new branch.
+        transform((payload) => ({
+            ...payload,
+            discount_mode: payload.branches[0]?.discount_mode ?? 'discount',
+            discount_type: payload.branches[0]?.discount_type ?? 'percentage',
+            rate: payload.branches[0]?.rate ?? '0',
+        }));
 
         if (isEdit) {
             put(update.url(agent), {
@@ -97,28 +155,6 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                 </DialogHeader>
 
                 <form id="agent-form" onSubmit={handleSubmit} className="space-y-4 py-2">
-                    {isSuperAdmin && (
-                        <div className="space-y-1">
-                            <Label htmlFor="agent-branch">الفرع</Label>
-                            <Select
-                                value={data.branch_id}
-                                onValueChange={(val) => setData('branch_id', val)}
-                            >
-                                <SelectTrigger id="agent-branch">
-                                    <SelectValue placeholder="اختر الفرع" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {branches!.map((b) => (
-                                        <SelectItem key={b.id} value={b.id.toString()}>
-                                            {b.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <InputError message={errors.branch_id} />
-                        </div>
-                    )}
-
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <Label htmlFor="agent-name">الاسم</Label>
@@ -240,61 +276,121 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <Label htmlFor="agent-mode">نمط العمولة</Label>
-                            <Select
-                                value={data.discount_mode}
-                                onValueChange={(val) => setData('discount_mode', val as AgentDiscountMode)}
-                            >
-                                <SelectTrigger id="agent-mode">
-                                    <SelectValue placeholder="اختر النمط" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {discountModes.map((m) => (
-                                        <SelectItem key={m.value} value={m.value}>
-                                            {m.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <InputError message={errors.discount_mode} />
+                    {/* Branch links: each branch negotiates its own mode and rate,
+                        and the agent may only be invoiced in the branches listed here. */}
+                    <div className="space-y-3 rounded-lg border p-4">
+                        <div className="flex items-center justify-between">
+                            <Label className="text-base">الفروع وشروط كل فرع</Label>
+                            {isSuperAdmin && (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={addRow}
+                                    disabled={data.branches.length >= (branches?.length ?? 0)}
+                                >
+                                    <Plus className="size-4" /> إضافة فرع
+                                </Button>
+                            )}
                         </div>
 
-                        <div className="space-y-1">
-                            <Label htmlFor="agent-discount-type">نوع الخصم</Label>
-                            <Select
-                                value={data.discount_type}
-                                onValueChange={(val) => setData('discount_type', val as AgentDiscountType)}
-                            >
-                                <SelectTrigger id="agent-discount-type">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="percentage">نسبة مئوية %</SelectItem>
-                                    <SelectItem value="fixed">مبلغ ثابت ر.س</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <InputError message={errors.discount_type} />
-                        </div>
-                    </div>
+                        {data.branches.map((row, index) => (
+                            <div key={index} className="space-y-2 rounded-md border bg-muted/30 p-3">
+                                {isSuperAdmin && (
+                                    <div className="flex items-end gap-2">
+                                        <div className="flex-1 space-y-1">
+                                            <Label htmlFor={`agent-branch-${index}`}>الفرع</Label>
+                                            <Select
+                                                value={row.branch_id}
+                                                onValueChange={(val) => updateRow(index, { branch_id: val })}
+                                            >
+                                                <SelectTrigger id={`agent-branch-${index}`}>
+                                                    <SelectValue placeholder="اختر الفرع" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {branches!.map((b) => (
+                                                        <SelectItem key={b.id} value={b.id.toString()}>
+                                                            {b.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        {data.branches.length > 1 && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                onClick={() => removeRow(index)}
+                                                aria-label="إزالة الفرع"
+                                            >
+                                                <Trash2 className="size-4 text-destructive" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                )}
+                                <InputError message={errors[`branches.${index}.branch_id` as keyof typeof errors]} />
 
-                    <div className="space-y-1">
-                        <Label htmlFor="agent-rate">
-                            {data.discount_type === 'percentage' ? 'النسبة (%)' : 'المبلغ (ر.س)'}
-                        </Label>
-                        <Input
-                            id="agent-rate"
-                            type="number"
-                            min="0"
-                            max={data.discount_type === 'percentage' ? '100' : undefined}
-                            step="0.01"
-                            value={data.rate}
-                            onChange={(e) => setData('rate', e.target.value)}
-                            placeholder="0.00"
-                            dir="ltr"
-                        />
-                        <InputError message={errors.rate} />
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="space-y-1">
+                                        <Label htmlFor={`agent-mode-${index}`}>نمط العمولة</Label>
+                                        <Select
+                                            value={row.discount_mode}
+                                            onValueChange={(val) => updateRow(index, { discount_mode: val as AgentDiscountMode })}
+                                        >
+                                            <SelectTrigger id={`agent-mode-${index}`}>
+                                                <SelectValue placeholder="اختر النمط" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {discountModes.map((m) => (
+                                                    <SelectItem key={m.value} value={m.value}>
+                                                        {m.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label htmlFor={`agent-discount-type-${index}`}>نوع الخصم</Label>
+                                        <Select
+                                            value={row.discount_type}
+                                            onValueChange={(val) => updateRow(index, { discount_type: val as AgentDiscountType })}
+                                        >
+                                            <SelectTrigger id={`agent-discount-type-${index}`}>
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="percentage">نسبة مئوية %</SelectItem>
+                                                <SelectItem value="fixed">مبلغ ثابت ر.س</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label htmlFor={`agent-rate-${index}`}>
+                                            {row.discount_type === 'percentage' ? 'النسبة (%)' : 'المبلغ (ر.س)'}
+                                        </Label>
+                                        <Input
+                                            id={`agent-rate-${index}`}
+                                            type="number"
+                                            min="0"
+                                            max={row.discount_type === 'percentage' ? '100' : undefined}
+                                            step="0.01"
+                                            value={row.rate}
+                                            onChange={(e) => updateRow(index, { rate: e.target.value })}
+                                            placeholder="0.00"
+                                            dir="ltr"
+                                        />
+                                    </div>
+                                </div>
+                                <InputError message={errors[`branches.${index}.rate` as keyof typeof errors]} />
+                                <InputError message={errors[`branches.${index}.discount_mode` as keyof typeof errors]} />
+                            </div>
+                        ))}
+
+                        <InputError message={errors.branches} />
+                        <InputError message={errors.branch_id} />
                     </div>
 
                     <div className="flex items-center justify-between rounded-lg border px-4 py-3">

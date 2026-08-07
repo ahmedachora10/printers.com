@@ -2,6 +2,7 @@ import { DataTable, type ColumnDef } from '@/components/data-table';
 import DateRangeBar from '@/components/reports/date-range-bar';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useReportFilters } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
@@ -10,13 +11,19 @@ import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'بوابة المندوب', href: '/agent-portal' }];
 
-interface AgentInfo {
-    name: string;
-    branchName: string | null;
+/** The terms this agent works on inside one branch — one entry per branch. */
+interface BranchTerms {
+    branchId: number;
+    branchName: string;
     discountMode: 'discount' | 'rebate' | null;
     discountModeLabel: string | null;
     discountType: 'percentage' | 'fixed';
     rate: number;
+}
+
+interface AgentInfo {
+    name: string;
+    branches: BranchTerms[];
 }
 
 interface Summary {
@@ -30,6 +37,8 @@ interface Summary {
 interface InvoiceRow {
     type: 'product' | 'service';
     invoiceNumber: string;
+    /** Which branch raised it — an agent may work with several. */
+    branchName: string | null;
     /** Who raised the invoice. */
     employeeName: string | null;
     /** First service/product on the invoice, plus a count of the rest. */
@@ -45,6 +54,7 @@ interface InvoiceRow {
 }
 
 interface PaymentRow {
+    branchName: string | null;
     periodStart: string;
     periodEnd: string;
     totalInvoices: number;
@@ -58,7 +68,7 @@ interface Props {
     summary: Summary;
     recentInvoices: InvoiceRow[];
     payments: PaymentRow[];
-    filters: { from: string; to: string };
+    filters: { from: string; to: string; branch: string | null };
     /** Today — the range the portal opens on. */
     defaultDate: string;
 }
@@ -75,10 +85,18 @@ function StatCard({ label, value, accent }: { label: string; value: string; acce
 }
 
 export default function AgentPortalIndex({ agent, summary, recentInvoices, payments, filters, defaultDate }: Props) {
-    // The portal's only filter is the range, but it goes through the same hook as
-    // the reports so DateRangeBar behaves identically everywhere.
-    const f = useReportFilters('/agent-portal', filters, { from: defaultDate, to: defaultDate });
-    const isRebate = agent.discountMode === 'rebate';
+    // The range and the branch both go through the same hook as the reports so
+    // DateRangeBar behaves identically everywhere.
+    const f = useReportFilters(
+        '/agent-portal',
+        { from: filters.from, to: filters.to, branch: filters.branch ?? 'all' },
+        { from: defaultDate, to: defaultDate, branch: 'all' },
+    );
+    // An agent may be on rebate terms in one branch and discount terms in
+    // another, so the rebate columns show when any branch pays a rebate.
+    const isMultiBranch = agent.branches.length > 1;
+    const isRebate = agent.branches.some((b) => b.discountMode === 'rebate');
+    const hasDiscount = agent.branches.some((b) => b.discountMode === 'discount');
     // Per-line commissions can accrue to any agent, whatever their invoice-level mode.
     const hasLineCommission = recentInvoices.some((i) => i.lineCommission > 0);
 
@@ -94,6 +112,9 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                 ),
             },
             { key: 'type', header: 'النوع', cell: (i) => (i.type === 'service' ? 'خدمة' : 'منتجات') },
+            ...(isMultiBranch
+                ? [{ key: 'branch', header: 'الفرع', cell: (i: InvoiceRow) => i.branchName ?? '—' }]
+                : []),
             {
                 key: 'service',
                 header: 'الخدمة',
@@ -145,11 +166,14 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                   ]
                 : []),
         ],
-        [isRebate, hasLineCommission],
+        [isRebate, hasLineCommission, isMultiBranch],
     );
 
     const paymentColumns = useMemo<ColumnDef<PaymentRow>[]>(
         () => [
+            ...(isMultiBranch
+                ? [{ key: 'branch', header: 'الفرع', cell: (p: PaymentRow) => p.branchName ?? '—' }]
+                : []),
             {
                 key: 'period',
                 header: 'الفترة',
@@ -171,33 +195,59 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                 ),
             },
         ],
-        [],
+        [isMultiBranch],
     );
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="space-y-6 p-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-start justify-between gap-4">
                     <div>
                         <h1 className="text-2xl font-bold">مرحباً، {agent.name}</h1>
-                        <p className="text-muted-foreground text-sm">
-                            {agent.branchName ?? ''} · {agent.discountModeLabel ?? ''} {agent.rate}
-                            {agent.discountType === 'fixed' ? ' ر.س' : '%'}
-                        </p>
+                        {/* Terms differ per branch, so name each branch's own. */}
+                        <div className="text-muted-foreground mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                            {agent.branches.map((b) => (
+                                <span key={b.branchId}>
+                                    {b.branchName} · {b.discountModeLabel ?? ''} {b.rate}
+                                    {b.discountType === 'fixed' ? ' ر.س' : '%'}
+                                </span>
+                            ))}
+                        </div>
                     </div>
+
+                    {isMultiBranch && (
+                        <div className="w-56">
+                            <Select value={f.draft.branch ?? 'all'} onValueChange={(val) => f.replace('branch', val)}>
+                                <SelectTrigger aria-label="تصفية بالفرع">
+                                    <SelectValue placeholder="كل الفروع" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">كل الفروع</SelectItem>
+                                    {agent.branches.map((b) => (
+                                        <SelectItem key={b.branchId} value={b.branchId.toString()}>
+                                            {b.branchName}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
                 </div>
 
                 <DateRangeBar filters={f} from={filters.from} to={filters.to} />
 
                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     <StatCard label="عدد الفواتير" value={String(summary.invoiceCount)} />
-                    {isRebate ? (
+                    {/* Mixed terms across branches: show both sides rather than
+                        letting one branch's mode hide the other's figures. */}
+                    {isRebate && (
                         <>
                             <StatCard label="إجمالي العمولة" value={formatCurrency(summary.rebateEarned)} />
                             <StatCard label="العمولة المدفوعة" value={formatCurrency(summary.rebatePaid)} />
                             <StatCard label="العمولة المستحقة" value={formatCurrency(summary.rebateOutstanding)} accent />
                         </>
-                    ) : (
+                    )}
+                    {hasDiscount && (
                         <StatCard label="إجمالي الخصومات الممنوحة" value={formatCurrency(summary.discountGiven)} />
                     )}
                 </div>

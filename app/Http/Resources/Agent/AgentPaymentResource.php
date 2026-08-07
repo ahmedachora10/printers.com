@@ -17,6 +17,9 @@ class AgentPaymentResource extends JsonResource
         return [
             'id' => $this->id,
             'agentName' => $this->agent?->name,
+            // A payment settles one branch of a possibly multi-branch agent, so
+            // naming the branch is what distinguishes two rows for one agent.
+            'branchName' => $this->branch?->name,
             'periodStart' => $this->period_start->format('d/m/Y'),
             'periodEnd' => $this->period_end->format('d/m/Y'),
             'totalInvoices' => $this->total_invoices,

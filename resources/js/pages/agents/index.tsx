@@ -77,8 +77,12 @@ export default function AgentsIndex({ items, agentTypes, discountModes, branches
                 ? [
                       {
                           key: 'branch',
-                          header: 'الفرع',
-                          cell: (item: Agent) => item.branchName ?? '—',
+                          header: 'الفروع',
+                          // An agent may work with several branches at once.
+                          cell: (item: Agent) =>
+                              item.branches?.length
+                                  ? item.branches.map((b) => b.branchName).join('، ')
+                                  : (item.branchName ?? '—'),
                       },
                   ]
                 : []),
@@ -95,17 +99,33 @@ export default function AgentsIndex({ items, agentTypes, discountModes, branches
             {
                 key: 'mode',
                 header: 'نمط العمولة',
-                cell: (item) => item.discountMode?.label ?? '—',
+                // Terms are per branch, so show «متعدد» rather than one branch's
+                // mode standing in for all of them.
+                cell: (item) => {
+                    const modes = new Set(item.branches?.map((b) => b.discountMode));
+
+                    return modes.size > 1 ? 'متعدد' : (item.discountMode?.label ?? '—');
+                },
             },
             {
                 key: 'rate',
                 header: 'القيمة',
-                cell: (item) => (
-                    <span className="tabular-nums">
-                        {item.rate}
-                        {item.discountType?.value === 'fixed' ? ' ر.س' : '%'}
-                    </span>
-                ),
+                cell: (item) => {
+                    const rates = new Set(item.branches?.map((b) => `${b.rate}-${b.discountType}`));
+
+                    if (rates.size > 1) {
+                        return <span className="text-muted-foreground">متعدد</span>;
+                    }
+
+                    const terms = item.branches?.[0];
+
+                    return (
+                        <span className="tabular-nums">
+                            {terms?.rate ?? item.rate}
+                            {(terms?.discountType ?? item.discountType?.value) === 'fixed' ? ' ر.س' : '%'}
+                        </span>
+                    );
+                },
             },
             {
                 key: 'status',

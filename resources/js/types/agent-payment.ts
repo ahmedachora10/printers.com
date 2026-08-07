@@ -1,7 +1,13 @@
+/**
+ * One settlement row: an agent's unpaid balance *in one branch*. A multi-branch
+ * agent yields one row per branch, since each branch is paid separately.
+ */
 export interface AgentOutstanding {
     id: number;
     name: string;
     isActive: boolean;
+    branchId: number;
+    branchName: string;
     outstandingRebate: number;
     outstandingInvoices: number;
 }
@@ -9,6 +15,7 @@ export interface AgentOutstanding {
 export interface AgentPaymentRow {
     id: number;
     agentName: string | null;
+    branchName: string | null;
     periodStart: string;
     periodEnd: string;
     totalInvoices: number;

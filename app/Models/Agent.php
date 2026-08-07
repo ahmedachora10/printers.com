@@ -30,6 +30,29 @@ class Agent extends User
     }
 
     /**
+     * Agents linked to one branch. This — not users.branch_id — decides where an
+     * agent is available; branch_id only records the primary branch. A null
+     * branch matches nothing, mirroring the single-branch behaviour it replaces.
+     *
+     * @param  Builder<covariant Agent>  $query
+     */
+    public function scopeForBranch(Builder $query, ?int $branchId): void
+    {
+        $query->whereHas('agentBranches', fn (Builder $q) => $q->where('branches.id', $branchId));
+    }
+
+    /**
+     * Eager load only the terms for the branch in hand, so `termsForBranch()`
+     * resolves from memory.
+     *
+     * @param  Builder<covariant Agent>  $query
+     */
+    public function scopeWithBranchTerms(Builder $query, ?int $branchId): void
+    {
+        $query->with(['agentBranches' => fn ($q) => $q->where('branches.id', $branchId)]);
+    }
+
+    /**
      * Agents share the `users` table. Laratrust stores role/permission pivots
      * polymorphically under the User morph type (rows are created as User), so
      * report User here — otherwise the `roles` relation would constrain

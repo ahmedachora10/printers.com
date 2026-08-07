@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Agent\ListBranchAgentsAction;
 use App\Actions\ProductInvoice\CreateProductInvoiceAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Http\Requests\ProductInvoice\StoreProductInvoiceRequest;
-use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\LoyaltyConfig;
 use App\Models\Product;
@@ -14,7 +14,6 @@ use App\Models\ProductInvoice;
 use App\Notifications\DueInvoiceNotification;
 use App\Support\BranchNotifiables;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
@@ -23,7 +22,7 @@ use Inertia\Response;
 
 class ProductInvoiceController extends Controller
 {
-    public function create(): Response
+    public function create(ListBranchAgentsAction $listBranchAgents): Response
     {
         Gate::authorize('create', ProductInvoice::class);
 
@@ -47,7 +46,7 @@ class ProductInvoiceController extends Controller
         $loyalty = $branchId ? LoyaltyConfig::forBranch($branchId) : null;
         $loyaltyActive = (bool) ($loyalty?->is_active);
 
-        $agents = $this->branchAgents($branchId);
+        $agents = $listBranchAgents->handle($branchId);
 
         $paymentMethods = $branch
             ? $branch->enabledPaymentMethods()->map(fn ($method) => [
@@ -138,26 +137,4 @@ class ProductInvoiceController extends Controller
         ]);
     }
 
-    /**
-     * Active agents for the branch, with the terms the POS previews.
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function branchAgents(?int $branchId): Collection
-    {
-        return Agent::query()
-            ->where('branch_id', $branchId)
-            ->where('is_active', true)
-            ->with('agentProfile')
-            ->orderBy('name')
-            ->get()
-            ->map(fn (Agent $agent) => [
-                'id' => $agent->id,
-                'name' => $agent->name,
-                'discountMode' => $agent->agentProfile?->discount_mode?->value,
-                'discountType' => $agent->agentProfile?->discount_type?->value ?? 'percentage',
-                'rate' => (float) ($agent->agentProfile?->rate ?? 0),
-            ])
-            ->values();
-    }
 }

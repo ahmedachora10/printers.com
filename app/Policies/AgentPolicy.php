@@ -56,8 +56,19 @@ class AgentPolicy
         return $user->roleName->isSuperAdmin();
     }
 
+    /**
+     * An agent may be linked to several branches, so the actor shares a branch
+     * with them when their own branch is among those links — not merely when it
+     * matches the agent's primary `branch_id`.
+     */
     private function sharesBranch(User $user, User $agent): bool
     {
-        return $user->roleName->isSuperAdmin() || $user->branchId === $agent->branch_id;
+        if ($user->roleName->isSuperAdmin()) {
+            return true;
+        }
+
+        $branchId = $user->branchId;
+
+        return $branchId !== null && $agent->termsForBranch($branchId) !== null;
     }
 }

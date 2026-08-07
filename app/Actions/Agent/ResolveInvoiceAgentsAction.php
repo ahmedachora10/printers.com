@@ -32,17 +32,20 @@ class ResolveInvoiceAgentsAction
         }
 
         $agents = Agent::query()
-            ->where('branch_id', $branchId)
+            ->forBranch($branchId)
+            ->withBranchTerms($branchId)
             ->where('is_active', true)
-            ->with('agentProfile')
             ->whereIn('id', $ids)
             ->get()
             ->keyBy('id');
 
-        return $ids->map(function (int $id) use ($agents) {
+        return $ids->map(function (int $id) use ($agents, $branchId) {
             $agent = $agents->get($id);
+            // Terms come from the branch link — the same مندوب may carry a
+            // different rate in each branch they work with.
+            $terms = $agent?->termsForBranch($branchId);
 
-            if (! $agent || ! $agent->agentProfile) {
+            if (! $terms) {
                 throw ValidationException::withMessages([
                     'agent_ids' => 'أحد المناديب المحددين غير صالح لهذا الفرع.',
                 ]);
@@ -50,9 +53,9 @@ class ResolveInvoiceAgentsAction
 
             return [
                 'agentId' => $agent->id,
-                'mode' => $agent->agentProfile->discount_mode,
-                'type' => $agent->agentProfile->discount_type ?? AgentDiscountTypeEnum::Percentage,
-                'rate' => (float) $agent->agentProfile->rate,
+                'mode' => $terms->discount_mode,
+                'type' => $terms->discount_type ?? AgentDiscountTypeEnum::Percentage,
+                'rate' => (float) $terms->rate,
             ];
         })->all();
     }

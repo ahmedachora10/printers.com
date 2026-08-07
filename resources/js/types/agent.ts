@@ -2,6 +2,19 @@ export type AgentType = 'individual' | 'company';
 export type AgentDiscountMode = 'discount' | 'rebate';
 export type AgentDiscountType = 'percentage' | 'fixed';
 
+/**
+ * The terms an agent works on inside one branch. An agent may be linked to
+ * several branches, each with its own mode and rate — this link, not `branchId`,
+ * decides where the agent may be put on an invoice.
+ */
+export interface AgentBranchTerms {
+    branchId: number;
+    branchName: string;
+    discountMode: AgentDiscountMode | null;
+    discountType: AgentDiscountType | null;
+    rate: number;
+}
+
 export interface Agent {
     id: number;
     name: string;
@@ -24,6 +37,7 @@ export interface Agent {
         label: string;
     } | null;
     rate: number;
+    branches: AgentBranchTerms[];
     commercialRegNo: string | null;
     createdAt: string;
 }
