@@ -3,7 +3,6 @@ import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox'
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -65,6 +64,8 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
     // from a preloaded list, so 10k+ customers never ship to the browser.
     const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(null);
     const customerId = selectedCustomer ? String(selectedCustomer.id) : 'none';
+    // No agent picker on this screen — the agent comes from the customer's own
+    // link and still drives the invoice discount / rebate.
     const [agentId, setAgentId] = useState<string>('none');
     const [walkinName, setWalkinName] = useState('');
     const [walkinPhone, setWalkinPhone] = useState('');
@@ -101,16 +102,6 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
         if (!term) return [];
         return products.filter((p) => p.name.toLowerCase().includes(term) || p.sku.toLowerCase().includes(term)).slice(0, 8);
     }, [products, search]);
-
-    // The agent list stays preloaded (small); the walk-in / no-agent sentinel sits
-    // first so the cashier can return to it from the list.
-    const agentOptions = useMemo<ComboboxOption[]>(
-        () => [
-            { value: 'none', label: '— بدون مندوب —' },
-            ...agents.map((a) => ({ value: String(a.id), label: `${a.name} (${a.discountMode === 'rebate' ? 'عمولة' : 'خصم'} ${a.rate}${a.discountType === 'fixed' ? ' ر.س' : '%'})` })),
-        ],
-        [agents],
-    );
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
     const selectedAgent = useMemo(() => (agentId === 'none' ? null : (agents.find((a) => String(a.id) === agentId) ?? null)), [agentId, agents]);
@@ -376,35 +367,6 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                             )}
                         </CardContent>
                     </Card>
-
-                    {/* Agent */}
-                    {agents.length > 0 && (
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-base">المندوب</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-2">
-                                <Combobox
-                                    options={agentOptions}
-                                    value={agentId === 'none' ? '' : agentId}
-                                    onChange={(v) => setAgentId(v || 'none')}
-                                    placeholder="— بدون مندوب —"
-                                    searchPlaceholder="بحث عن مندوب"
-                                    emptyText="لا يوجد مندوب مطابق"
-                                    triggerClassName="w-full"
-                                    className="w-[var(--radix-popover-trigger-width)] min-w-56"
-                                />
-                                {selectedAgent && (
-                                    <p className="text-muted-foreground text-xs">
-                                        {selectedAgent.discountMode === 'rebate'
-                                            ? `عمولة مرتجعة ${selectedAgent.rate}${selectedAgent.discountType === 'fixed' ? ' ر.س' : '%'} تُحتسب على الإجمالي`
-                                            : `خصم ${selectedAgent.rate}${selectedAgent.discountType === 'fixed' ? ' ر.س' : '%'} على الفاتورة`}
-                                    </p>
-                                )}
-                                {errors.agent_id && <p className="text-destructive text-xs">{errors.agent_id}</p>}
-                            </CardContent>
-                        </Card>
-                    )}
 
                     {/* Status */}
                     <Card>

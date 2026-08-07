@@ -6,7 +6,6 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Combobox, type ComboboxOption } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -161,7 +160,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     const [customerErrors, setCustomerErrors] = useState<InvoiceCustomerErrors>({});
     const [savingCustomer, setSavingCustomer] = useState(false);
     const customerId = selectedCustomer ? String(selectedCustomer.id) : 'none';
-    // A service invoice may carry several agents (shared rebate).
+    // A service invoice may carry several agents (shared rebate). There is no
+    // longer a picker on this screen — agents come from the customer's own link
+    // (or from the invoice being edited) and still drive discount/rebate.
     const [agentIds, setAgentIds] = useState<number[]>(invoice?.agentIds ?? []);
     const [walkinName, setWalkinName] = useState('');
     const [walkinPhone, setWalkinPhone] = useState('');
@@ -210,19 +211,6 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         if (!term) return [];
         return services.filter((s) => s.name.toLowerCase().includes(term)).slice(0, 8);
     }, [services, search]);
-
-    // The agent list stays preloaded (small); only agents not yet added appear
-    // in the picker so the cashier can stack several onto one invoice.
-    const agentOptions = useMemo<ComboboxOption[]>(
-        () =>
-            agents
-                .filter((a) => !agentIds.includes(a.id))
-                .map((a) => ({
-                    value: String(a.id),
-                    label: `${a.name} (${a.discountMode === 'rebate' ? 'عمولة' : 'خصم'} ${a.rate}${a.discountType === 'fixed' ? ' ر.س' : '%'})`,
-                })),
-        [agents, agentIds],
-    );
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
     // إجمالي تكلفة الخامات — داخلي، لا يمسّ ما يدفعه العميل.
@@ -702,57 +690,6 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                             )}
                         </CardContent>
                     </Card>
-
-                    {/* Agents — several may be attached to one invoice */}
-                    {agents.length > 0 && (
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-base">المناديب</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-2">
-                                <Combobox
-                                    options={agentOptions}
-                                    value=""
-                                    onChange={(v) => {
-                                        const id = Number(v);
-                                        if (id) setAgentIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-                                    }}
-                                    placeholder="— إضافة مندوب —"
-                                    searchPlaceholder="بحث عن مندوب"
-                                    emptyText="لا يوجد مندوب مطابق"
-                                    triggerClassName="w-full"
-                                    className="w-[var(--radix-popover-trigger-width)] min-w-56"
-                                />
-                                {selectedAgents.length > 0 && (
-                                    <div className="space-y-1.5">
-                                        {selectedAgents.map((a) => (
-                                            <div
-                                                key={a.id}
-                                                className="bg-muted/40 flex items-center justify-between gap-2 rounded-md border px-2 py-1.5"
-                                            >
-                                                <div className="min-w-0 text-xs">
-                                                    <p className="truncate font-medium">{a.name}</p>
-                                                    <p className="text-muted-foreground">
-                                                        {a.discountMode === 'rebate'
-                                                            ? `عمولة مرتجعة ${a.rate}${a.discountType === 'fixed' ? ' ر.س' : '%'} على الإجمالي`
-                                                            : `خصم ${a.rate}${a.discountType === 'fixed' ? ' ر.س' : '%'} على الفاتورة`}
-                                                    </p>
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setAgentIds((prev) => prev.filter((id) => id !== a.id))}
-                                                    className="text-muted-foreground hover:text-destructive shrink-0"
-                                                >
-                                                    <X className="size-4" />
-                                                </button>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                                {errors.agent_ids && <p className="text-destructive text-xs">{errors.agent_ids}</p>}
-                            </CardContent>
-                        </Card>
-                    )}
 
                     {/* Status */}
                     <Card>
