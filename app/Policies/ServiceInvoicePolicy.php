@@ -50,6 +50,16 @@ class ServiceInvoicePolicy
     }
 
     /**
+     * Recording a deposit or an instalment is the same authority as settling the
+     * invoice outright — an accountant or branch admin in the invoice's branch —
+     * and only while the invoice still awaits money.
+     */
+    public function recordPayment(User $user, ServiceInvoice $invoice): bool
+    {
+        return $this->updateStatus($user, $invoice) && $invoice->status->acceptsPayment();
+    }
+
+    /**
      * The employee who raised an invoice may re-edit it only while it is still
      * DUE (before an accountant approves it). After approval it is locked.
      */

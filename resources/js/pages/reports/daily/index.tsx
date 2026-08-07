@@ -12,7 +12,7 @@ import { formatCurrency, formatDate } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { type DailyReportFilters, type DailyReportRow, type DailyReportTotals } from '@/types/daily-report';
 import { Head } from '@inertiajs/react';
-import { CalendarDays, CreditCard, Download, ShoppingCart, TrendingUp, Wallet } from 'lucide-react';
+import { Banknote, CalendarDays, CreditCard, Download, ShoppingCart, TrendingUp, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'التقرير اليومي', href: '/reports/daily' }];
@@ -35,25 +35,12 @@ interface Props {
     isSuperAdmin: boolean;
 }
 
-export default function DailyReportIndex({
-    rows,
-    totals,
-    showPurchases,
-    detailed,
-    filters,
-    defaultDate,
-    branches,
-    employees,
-    isSuperAdmin,
-}: Props) {
+export default function DailyReportIndex({ rows, totals, showPurchases, detailed, filters, defaultDate, branches, employees, isSuperAdmin }: Props) {
     const canPickBranch = isSuperAdmin && branches.length > 0;
 
     // Today is the cleared state of the date fields, so an untouched report shows
     // no date chips and clearing one snaps that end back to today.
-    const defaults = useMemo<FilterValues>(
-        () => ({ from: defaultDate, to: defaultDate, branch: 'all', employee: '' }),
-        [defaultDate],
-    );
+    const defaults = useMemo<FilterValues>(() => ({ from: defaultDate, to: defaultDate, branch: 'all', employee: '' }), [defaultDate]);
 
     const applied: FilterValues = {
         from: filters.from ?? defaultDate,
@@ -85,9 +72,7 @@ export default function DailyReportIndex({
     }
 
     const columns = useMemo<ColumnDef<DailyReportRow>[]>(() => {
-        const cols: ColumnDef<DailyReportRow>[] = [
-            { key: 'date', header: 'التاريخ', className: 'font-medium', cell: (row) => formatDate(row.date) },
-        ];
+        const cols: ColumnDef<DailyReportRow>[] = [{ key: 'date', header: 'التاريخ', className: 'font-medium', cell: (row) => formatDate(row.date) }];
 
         if (detailed) {
             cols.push({
@@ -101,6 +86,8 @@ export default function DailyReportIndex({
             { key: 'products', header: 'المنتجات', cell: (row) => formatCurrency(row.products) },
             { key: 'services', header: 'الخدمات', cell: (row) => formatCurrency(row.services) },
             { key: 'total', header: 'الإجمالي', className: 'font-semibold text-green-600', cell: (row) => formatCurrency(row.total) },
+            // المحصَّل: ما دخل الصندوق فعلاً ذلك اليوم (دفعات الفواتير)، لا ما استُحق.
+            { key: 'collected', header: 'المحصَّل', className: 'font-medium text-sky-600', cell: (row) => formatCurrency(row.collected) },
             { key: 'commission', header: 'عمولة الموظفين', className: 'text-amber-600', cell: (row) => formatCurrency(row.commission) },
         );
 
@@ -164,6 +151,12 @@ export default function DailyReportIndex({
                         valueClass="text-green-600"
                     />
                     <SummaryCard
+                        icon={<Banknote className="size-4" />}
+                        label="المحصَّل"
+                        value={formatCurrency(totals.collected)}
+                        valueClass="text-sky-600"
+                    />
+                    <SummaryCard
                         icon={<Wallet className="size-4" />}
                         label="عمولة الموظفين"
                         value={formatCurrency(totals.commission)}
@@ -208,6 +201,7 @@ export default function DailyReportIndex({
                                     <TableCell className="font-bold">{formatCurrency(totals.products)}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.services)}</TableCell>
                                     <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
+                                    <TableCell className="font-bold text-sky-600">{formatCurrency(totals.collected)}</TableCell>
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.commission)}</TableCell>
                                     {showPurchases && <TableCell className="font-bold text-rose-600">{formatCurrency(totals.purchases)}</TableCell>}
                                     {showPurchases && <TableCell className="font-bold">{formatCurrency(totals.remaining)}</TableCell>}

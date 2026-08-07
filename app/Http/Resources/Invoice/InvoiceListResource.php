@@ -18,6 +18,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string $status
  * @property string $invoice_number
  * @property string $total_amount
+ * @property string|null $paid_amount
  * @property int|null $customer_id
  * @property string|null $customer_name
  * @property string|null $customer_phone
@@ -64,6 +65,10 @@ class InvoiceListResource extends JsonResource
                 : [],
             'invoiceNumber' => $this->invoice_number,
             'totalAmount' => (float) $this->total_amount,
+            // ما حُصِّل وما بقي على العميل. الفاتورة التي سُدِّدت عند البيع لا تحمل
+            // صفوف دفعات، فالمحصَّل منها إجمالُها؛ والملغاة/المرتجعة لا مطالبة عليها.
+            'paidAmount' => $this->collectedAmount($status),
+            'remainingAmount' => $this->remainingAmount($status),
             'status' => $status->value,
             'statusLabel' => $status->label(),
             // Feeds the tooltip on the "ملغاة" badge so the employee sees why
@@ -97,5 +102,30 @@ class InvoiceListResource extends JsonResource
             'returnLocked' => $isOwnerEmployee && $status === InvoiceStatusEnum::RETURNED,
             'canEditCustomer' => $canEditCustomer,
         ];
+    }
+
+    /**
+     * ما حُصِّل من الفاتورة: مجموع دفعاتها إن وُجدت، وإلا إجمالُها إن كانت مسدَّدة.
+     * `paid_amount` يأتي من استعلام الاتحاد كمجموع صفوف invoice_payments.
+     */
+    private function collectedAmount(InvoiceStatusEnum $status): float
+    {
+        $collected = round((float) $this->paid_amount, 2);
+
+        if ($collected > 0.0) {
+            return $collected;
+        }
+
+        return $status === InvoiceStatusEnum::PAID ? round((float) $this->total_amount, 2) : 0.0;
+    }
+
+    /** المتبقي على العميل — صفر للفاتورة الملغاة أو المرتجعة، فلا مطالبة عليها. */
+    private function remainingAmount(InvoiceStatusEnum $status): float
+    {
+        if ($status === InvoiceStatusEnum::CANCELLED || $status === InvoiceStatusEnum::RETURNED) {
+            return 0.0;
+        }
+
+        return round(max((float) $this->total_amount - $this->collectedAmount($status), 0), 2);
     }
 }

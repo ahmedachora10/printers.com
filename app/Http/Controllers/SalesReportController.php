@@ -8,6 +8,8 @@ use App\Enums\InvoiceStatusEnum;
 use App\Exports\SalesReportExport;
 use App\Http\Requests\Report\SalesReportFilterRequest;
 use App\Models\Branch;
+use App\Models\ProductInvoice;
+use App\Models\ServiceInvoice;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Carbon;
@@ -18,12 +20,36 @@ use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
+/**
+ * Realized-revenue sales report (M17).
+ *
+ * The unit of aggregation is a *collection event*, not an invoice: an invoice
+ * settled by a deposit plus later payments (عربون + دفعات لاحقة) contributes one
+ * row per recorded payment, each landing on the day the money actually came in.
+ * An invoice settled outright at the till carries no payment rows at all, so it
+ * contributes a single event worth its whole total, dated by paid_at — which is
+ * exactly what this report has always counted.
+ *
+ * Every invoice-level figure (subtotal, discounts, VAT) is prorated by the share
+ * of the total that the payment represents, so the identity
+ * `subtotal − discounts + VAT = total` still holds on partial collections. For a
+ * fully collected invoice the share is 1 and nothing changes.
+ */
 class SalesReportController extends Controller
 {
-    /** Sum of every discount column, shared by totals and breakdowns. */
-    private const DISCOUNTS = '(tier_discount_amount + coupon_discount + points_discount + agent_discount)';
+    /** The statuses that have money behind them: fully or partly collected. */
+    private const COLLECTED_STATUSES = [
+        InvoiceStatusEnum::PAID->value,
+        InvoiceStatusEnum::PARTIALLY_PAID->value,
+    ];
 
     public function __construct(private readonly BuildReportDayRange $dayRange) {}
+
+    /** Sum of every discount column of one invoice table, under an alias. */
+    private function discounts(string $alias): string
+    {
+        return "({$alias}.tier_discount_amount + {$alias}.coupon_discount + {$alias}.points_discount + {$alias}.agent_discount)";
+    }
 
     public function index(SalesReportFilterRequest $request, ResolveReportScope $resolveScope): Response
     {
@@ -79,21 +105,95 @@ class SalesReportController extends Controller
     }
 
     /**
-     * Base query for one invoice table with all scope filters applied. Because
-     * DB::table() bypasses the SoftDeletes global scope, deleted rows are
-     * excluded explicitly. Only paid invoices count as realized revenue, dated
-     * by paid_at.
+     * Every collection event of one invoice table, with the scope filters
+     * applied — the base of every figure in this report.
+     *
+     * Two sources are unioned:
+     *  A. one row per recorded payment (deposit or instalment), dated by that
+     *     payment and carrying its own payment method;
+     *  B. one row per paid invoice that has no payment rows at all — settled in
+     *     one go at the till — worth its whole total and dated by paid_at.
+     *
+     * Because DB::table() bypasses the SoftDeletes global scope, deleted rows
+     * are excluded explicitly.
      *
      * @param  array<string, mixed>  $scope
      */
     private function baseQuery(string $table, array $scope): Builder
     {
-        return DB::table($table)
-            ->where($table.'.status', InvoiceStatusEnum::PAID->value)
-            ->whereNull($table.'.deleted_at')
-            ->when($scope['branchId'], fn ($q) => $q->where($table.'.branch_id', $scope['branchId']))
-            ->when($scope['from'], fn ($q) => $q->where($table.'.paid_at', '>=', $scope['from']))
-            ->when($scope['to'], fn ($q) => $q->where($table.'.paid_at', '<=', $scope['to']));
+        $morphClass = $this->morphClassFor($table);
+        $discounts = $this->discounts('i');
+        // حصة الدفعة من الفاتورة: تُوزَّع بها أرقامُ الفاتورة (الفرعي، الخصومات،
+        // الضريبة) فتبقى المعادلة متسقة على التحصيل الجزئي. الضرب في 1.0 يفرض
+        // قسمةً عشرية — SQLite يقسم الأعداد الصحيحة قسمةً صحيحة فتصير الحصة صفراً.
+        $share = '(p.amount * 1.0) / NULLIF(i.total_amount, 0)';
+
+        $payments = DB::table('invoice_payments as p')
+            ->join($table.' as i', 'i.id', '=', 'p.invoice_id')
+            ->where('p.invoice_type', $morphClass)
+            ->whereNull('i.deleted_at')
+            ->whereIn('i.status', self::COLLECTED_STATUSES)
+            ->select([
+                DB::raw('i.id as invoice_id'),
+                DB::raw('i.invoice_number as invoice_number'),
+                DB::raw('i.branch_id as branch_id'),
+                DB::raw('i.user_id as user_id'),
+                DB::raw('COALESCE(p.payment_method_id, i.payment_method_id) as payment_method_id'),
+                DB::raw('p.paid_at as realized_at'),
+                DB::raw('p.amount as realized'),
+                DB::raw("i.subtotal * ({$share}) as subtotal_share"),
+                DB::raw("{$discounts} * ({$share}) as discounts_share"),
+                DB::raw("i.vat_amount * ({$share}) as vat_share"),
+            ]);
+
+        $direct = DB::table($table.' as i')
+            ->whereNull('i.deleted_at')
+            ->where('i.status', InvoiceStatusEnum::PAID->value)
+            ->whereNotExists(fn ($q) => $q->from('invoice_payments as p')
+                ->where('p.invoice_type', $morphClass)
+                ->whereColumn('p.invoice_id', 'i.id'))
+            ->select([
+                DB::raw('i.id as invoice_id'),
+                DB::raw('i.invoice_number as invoice_number'),
+                DB::raw('i.branch_id as branch_id'),
+                DB::raw('i.user_id as user_id'),
+                DB::raw('i.payment_method_id as payment_method_id'),
+                DB::raw('i.paid_at as realized_at'),
+                DB::raw('i.total_amount as realized'),
+                DB::raw('i.subtotal as subtotal_share'),
+                DB::raw("{$discounts} as discounts_share"),
+                DB::raw('i.vat_amount as vat_share'),
+            ]);
+
+        return DB::query()
+            ->fromSub($payments->unionAll($direct), 'events')
+            ->whereNotNull('events.realized_at')
+            ->when($scope['branchId'], fn ($q) => $q->where('events.branch_id', $scope['branchId']))
+            ->when($scope['from'], fn ($q) => $q->where('events.realized_at', '>=', $scope['from']))
+            ->when($scope['to'], fn ($q) => $q->where('events.realized_at', '<=', $scope['to']));
+    }
+
+    /** The morph class stored on invoice_payments for one invoice table. */
+    private function morphClassFor(string $table): string
+    {
+        return $table === 'product_invoices' ? ProductInvoice::class : ServiceInvoice::class;
+    }
+
+    /**
+     * The aggregate columns every breakdown selects — an invoice may span
+     * several collection events, so it is counted once, distinctly.
+     *
+     * @return array<int, mixed>
+     */
+    private function sumColumns(): array
+    {
+        return [
+            DB::raw('COUNT(DISTINCT events.invoice_id) as c'),
+            DB::raw('COALESCE(SUM(events.subtotal_share), 0) as subtotal'),
+            DB::raw('COALESCE(SUM(events.discounts_share), 0) as discounts'),
+            DB::raw('COALESCE(SUM(events.vat_share), 0) as vat'),
+            DB::raw('COALESCE(SUM(events.realized), 0) as total'),
+        ];
     }
 
     /**
@@ -108,13 +208,7 @@ class SalesReportController extends Controller
         $count = 0;
 
         foreach ($this->tablesForType($type) as $table) {
-            $row = $this->baseQuery($table, $scope)->first([
-                DB::raw('COUNT(*) as c'),
-                DB::raw('COALESCE(SUM(subtotal), 0) as subtotal'),
-                DB::raw('COALESCE(SUM('.self::DISCOUNTS.'), 0) as discounts'),
-                DB::raw('COALESCE(SUM(vat_amount), 0) as vat'),
-                DB::raw('COALESCE(SUM(total_amount), 0) as total'),
-            ]);
+            $row = $this->baseQuery($table, $scope)->first($this->sumColumns());
 
             $count += (int) $row->c;
             $subtotal += (float) $row->subtotal;
@@ -144,13 +238,7 @@ class SalesReportController extends Controller
         $rows = [];
 
         foreach ($this->tablesForType($type) as $table) {
-            $row = $this->baseQuery($table, $scope)->first([
-                DB::raw('COUNT(*) as c'),
-                DB::raw('COALESCE(SUM(subtotal), 0) as subtotal'),
-                DB::raw('COALESCE(SUM('.self::DISCOUNTS.'), 0) as discounts'),
-                DB::raw('COALESCE(SUM(vat_amount), 0) as vat'),
-                DB::raw('COALESCE(SUM(total_amount), 0) as total'),
-            ]);
+            $row = $this->baseQuery($table, $scope)->first($this->sumColumns());
 
             $rows[] = [
                 'type' => $table === 'product_invoices' ? 'product' : 'service',
@@ -184,11 +272,11 @@ class SalesReportController extends Controller
 
         foreach ($this->tablesForType($type) as $table) {
             $rows = $this->baseQuery($table, $scope)
-                ->groupBy(DB::raw('DATE(paid_at)'))
+                ->groupBy(DB::raw('DATE(events.realized_at)'))
                 ->get([
-                    DB::raw('DATE(paid_at) as day'),
-                    DB::raw('COUNT(*) as c'),
-                    DB::raw('COALESCE(SUM(total_amount), 0) as total'),
+                    DB::raw('DATE(events.realized_at) as day'),
+                    DB::raw('COUNT(DISTINCT events.invoice_id) as c'),
+                    DB::raw('COALESCE(SUM(events.realized), 0) as total'),
                 ]);
 
             foreach ($rows as $row) {
@@ -216,13 +304,13 @@ class SalesReportController extends Controller
 
         foreach ($this->tablesForType($type) as $table) {
             $rows = $this->baseQuery($table, $scope)
-                ->join('users', 'users.id', '=', $table.'.user_id')
-                ->groupBy($table.'.user_id', 'users.name')
+                ->join('users', 'users.id', '=', 'events.user_id')
+                ->groupBy('events.user_id', 'users.name')
                 ->get([
-                    $table.'.user_id as user_id',
+                    DB::raw('events.user_id as user_id'),
                     'users.name as user_name',
-                    DB::raw('COUNT(*) as c'),
-                    DB::raw('COALESCE(SUM('.$table.'.total_amount), 0) as total'),
+                    DB::raw('COUNT(DISTINCT events.invoice_id) as c'),
+                    DB::raw('COALESCE(SUM(events.realized), 0) as total'),
                 ]);
 
             foreach ($rows as $row) {
@@ -248,13 +336,13 @@ class SalesReportController extends Controller
 
         foreach ($this->tablesForType($type) as $table) {
             $rows = $this->baseQuery($table, $scope)
-                ->leftJoin('payment_methods', 'payment_methods.id', '=', $table.'.payment_method_id')
-                ->groupBy($table.'.payment_method_id', 'payment_methods.name')
+                ->leftJoin('payment_methods', 'payment_methods.id', '=', 'events.payment_method_id')
+                ->groupBy('events.payment_method_id', 'payment_methods.name')
                 ->get([
-                    $table.'.payment_method_id as method_id',
+                    DB::raw('events.payment_method_id as method_id'),
                     'payment_methods.name as method_name',
-                    DB::raw('COUNT(*) as c'),
-                    DB::raw('COALESCE(SUM('.$table.'.total_amount), 0) as total'),
+                    DB::raw('COUNT(DISTINCT events.invoice_id) as c'),
+                    DB::raw('COALESCE(SUM(events.realized), 0) as total'),
                 ]);
 
             foreach ($rows as $row) {
@@ -285,13 +373,13 @@ class SalesReportController extends Controller
 
         foreach ($this->tablesForType($type) as $table) {
             $rows = $this->baseQuery($table, $scope)
-                ->join('branches', 'branches.id', '=', $table.'.branch_id')
-                ->groupBy($table.'.branch_id', 'branches.name')
+                ->join('branches', 'branches.id', '=', 'events.branch_id')
+                ->groupBy('events.branch_id', 'branches.name')
                 ->get([
-                    $table.'.branch_id as branch_id',
+                    DB::raw('events.branch_id as branch_id'),
                     'branches.name as branch_name',
-                    DB::raw('COUNT(*) as c'),
-                    DB::raw('COALESCE(SUM('.$table.'.total_amount), 0) as total'),
+                    DB::raw('COUNT(DISTINCT events.invoice_id) as c'),
+                    DB::raw('COALESCE(SUM(events.realized), 0) as total'),
                 ]);
 
             foreach ($rows as $row) {
@@ -306,7 +394,9 @@ class SalesReportController extends Controller
     }
 
     /**
-     * Per-invoice detail rows for the Excel export, merged and sorted by date.
+     * Detail rows for the Excel export, merged and sorted by date — one row per
+     * collection event, so an invoice paid off in instalments lists each of them
+     * under the same invoice number.
      *
      * @param  array<string, mixed>  $scope
      * @return Collection<int, array<string, mixed>>
@@ -319,19 +409,19 @@ class SalesReportController extends Controller
             $typeLabel = $table === 'product_invoices' ? 'منتجات' : 'خدمات';
 
             $records = $this->baseQuery($table, $scope)
-                ->join('users', 'users.id', '=', $table.'.user_id')
-                ->leftJoin('branches', 'branches.id', '=', $table.'.branch_id')
-                ->leftJoin('payment_methods', 'payment_methods.id', '=', $table.'.payment_method_id')
+                ->join('users', 'users.id', '=', 'events.user_id')
+                ->leftJoin('branches', 'branches.id', '=', 'events.branch_id')
+                ->leftJoin('payment_methods', 'payment_methods.id', '=', 'events.payment_method_id')
                 ->get([
-                    $table.'.invoice_number as invoice_number',
-                    $table.'.paid_at as paid_at',
+                    DB::raw('events.invoice_number as invoice_number'),
+                    DB::raw('events.realized_at as paid_at'),
                     'branches.name as branch_name',
                     'users.name as user_name',
                     'payment_methods.name as method_name',
-                    $table.'.subtotal as subtotal',
-                    DB::raw(self::DISCOUNTS.' as discounts'),
-                    $table.'.vat_amount as vat',
-                    $table.'.total_amount as total',
+                    DB::raw('events.subtotal_share as subtotal'),
+                    DB::raw('events.discounts_share as discounts'),
+                    DB::raw('events.vat_share as vat'),
+                    DB::raw('events.realized as total'),
                 ]);
 
             foreach ($records as $r) {

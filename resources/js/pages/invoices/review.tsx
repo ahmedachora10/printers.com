@@ -1,5 +1,6 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
+import RecordPaymentModal from '@/components/invoices/record-payment-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +14,7 @@ import { formatCurrency } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { CheckCircle2, ChevronDown, ClipboardList, Paperclip, Pencil, User, UserPlus, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ClipboardList, Paperclip, Pencil, User, UserPlus, Wallet, XCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -45,6 +46,8 @@ interface ReviewInvoice {
     subtotal: number;
     vatAmount: number;
     totalAmount: number;
+    /** سقف الدفعة الأولى — يساوي الإجمالي، فالطابور لا يضم إلا ما لم يُقبض منه شيء. */
+    remainingAmount: number;
     lines: ReviewLine[];
 }
 
@@ -81,6 +84,7 @@ const formatDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateStri
 export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
     const { props } = usePage<SharedData>();
     const [paying, setPaying] = useState<ReviewInvoice | null>(null);
+    const [payingPartial, setPayingPartial] = useState<ReviewInvoice | null>(null);
     const [cancelling, setCancelling] = useState<ReviewInvoice | null>(null);
     const [reason, setReason] = useState('');
     const [reasonError, setReasonError] = useState<string | null>(null);
@@ -240,6 +244,20 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                             </div>
                                             <div className="flex shrink-0 items-center gap-2">
                                                 <span className="text-base font-bold">{formatCurrency(invoice.totalAmount)}</span>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    className="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
+                                                    aria-label="تسجيل عربون"
+                                                    title="تسجيل عربون"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        setPayingPartial(invoice);
+                                                    }}
+                                                >
+                                                    <Wallet className="size-4" />
+                                                </Button>
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
@@ -427,6 +445,11 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                                 <Button type="button" onClick={() => setPaying(invoice)}>
                                                     <CheckCircle2 className="size-4" /> اعتماد الدفع
                                                 </Button>
+                                                {/* أول دفعة تُخرج الفاتورة من طابور عروض الأسعار —
+                                                    ويُستكمل سدادها بعدها من صفحة الفاتورة. */}
+                                                <Button type="button" variant="outline" onClick={() => setPayingPartial(invoice)}>
+                                                    <Wallet className="size-4" /> تسجيل عربون
+                                                </Button>
                                                 <Button
                                                     type="button"
                                                     variant="outline"
@@ -448,6 +471,19 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                     </div>
                 )}
             </div>
+
+            {/* تسجيل دفعة (عربون أو دفعة لاحقة) */}
+            {payingPartial && (
+                <RecordPaymentModal
+                    open={!!payingPartial}
+                    onOpenChange={(open) => !open && setPayingPartial(null)}
+                    invoiceType="service"
+                    invoiceId={payingPartial.id}
+                    invoiceNumber={payingPartial.invoiceNumber}
+                    remaining={payingPartial.remainingAmount}
+                    paymentMethods={payingPartial.paymentMethodOptions}
+                />
+            )}
 
             {/* Mark-paid confirmation */}
             <Dialog open={!!paying} onOpenChange={(open) => !open && setPaying(null)}>

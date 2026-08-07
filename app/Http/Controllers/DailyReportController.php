@@ -9,6 +9,8 @@ use App\Enums\StockMovementTypeEnum;
 use App\Exports\DailyReportExport;
 use App\Http\Requests\Report\DailyReportFilterRequest;
 use App\Models\Branch;
+use App\Models\ProductInvoice;
+use App\Models\ServiceInvoice;
 use App\Models\User;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Carbon;
@@ -29,6 +31,13 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * purchases combine expenses and purchase-order receipts. When at least one
  * employee is selected the purchases/remaining columns are hidden, since those
  * are a branch-level figure not attributable to individual salespeople.
+ *
+ * Beside those accrual figures sits «المحصَّل»: the money that actually came in
+ * that day, read from invoice_payments (عربون + دفعات لاحقة) and dated by each
+ * payment. It is deliberately not the same number as «الإجمالي» — a day may
+ * raise invoices it has not collected, and collect on invoices raised earlier.
+ * An invoice settled outright at the till carries no payment rows, so its whole
+ * total is counted on its paid_at day.
  *
  * Several employees may be selected at once. With two or more the report turns
  * "detailed": one row per (day × employee) followed by a per-day total row. With
@@ -127,6 +136,7 @@ class DailyReportController extends Controller
                 'products' => 0.0,
                 'services' => 0.0,
                 'total' => 0.0,
+                'collected' => 0.0,
                 'commission' => 0.0,
                 'purchases' => 0.0,
                 'remaining' => 0.0,
@@ -156,6 +166,13 @@ class DailyReportController extends Controller
                 $buckets[$day][$employeeId]['total'] += (float) $row->net;
                 $buckets[$day][$employeeId]['vat'] += (float) $row->vat;
             }
+        }
+
+        foreach ($this->collectedDaily($scope, $employeeIds, $detailed) as $row) {
+            $day = (string) $row->day;
+            $employeeId = $detailed ? (int) $row->user_id : 0;
+            $ensure($day, $employeeId);
+            $buckets[$day][$employeeId]['collected'] += (float) $row->collected;
         }
 
         foreach ($this->commissionDaily($scope, $employeeIds, $detailed) as $row) {
@@ -216,6 +233,7 @@ class DailyReportController extends Controller
             'products' => $sum('products'),
             'services' => $sum('services'),
             'total' => $sum('total'),
+            'collected' => $sum('collected'),
             'commission' => $sum('commission'),
             'purchases' => 0.0,
             'remaining' => 0.0,
@@ -255,6 +273,71 @@ class DailyReportController extends Controller
             ->groupBy(DB::raw('DATE('.$table.'.created_at)'))
             ->when($detailed, fn ($q) => $q->groupBy($table.'.user_id'))
             ->get($columns);
+    }
+
+    /**
+     * ما حُصِّل فعلاً كل يوم: دفعات الفاتورة (عربون + دفعات لاحقة) مؤرَّخةً بيوم
+     * قبضها، تُضاف إليها الفواتير التي سُدِّدت عند البيع بلا صفوف دفعات فتُقيَّد
+     * بكامل إجمالها في يوم سدادها. تُنسب الدفعة لمنشئ فاتورتها في الوضع المفصّل.
+     *
+     * @param  array<string, mixed>  $scope
+     * @param  array<int, int>  $employeeIds
+     * @return Collection<int, \stdClass>
+     */
+    private function collectedDaily(array $scope, array $employeeIds, bool $detailed): Collection
+    {
+        $rows = collect();
+
+        foreach ([ProductInvoice::class, ServiceInvoice::class] as $model) {
+            $table = (new $model)->getTable();
+
+            $columns = [
+                DB::raw('DATE(p.paid_at) as day'),
+                DB::raw('COALESCE(SUM(p.amount), 0) as collected'),
+            ];
+
+            $direct = [
+                DB::raw('DATE(i.paid_at) as day'),
+                DB::raw('COALESCE(SUM(i.total_amount), 0) as collected'),
+            ];
+
+            if ($detailed) {
+                $columns[] = 'i.user_id';
+                $direct[] = 'i.user_id';
+            }
+
+            $payments = DB::table('invoice_payments as p')
+                ->join($table.' as i', 'i.id', '=', 'p.invoice_id')
+                ->where('p.invoice_type', $model)
+                ->whereNull('i.deleted_at')
+                ->where('i.status', '!=', InvoiceStatusEnum::CANCELLED->value)
+                ->when($scope['branchId'], fn ($q) => $q->where('i.branch_id', $scope['branchId']))
+                ->when($employeeIds !== [], fn ($q) => $q->whereIn('i.user_id', $employeeIds))
+                ->when($scope['from'], fn ($q) => $q->where('p.paid_at', '>=', $scope['from']))
+                ->when($scope['to'], fn ($q) => $q->where('p.paid_at', '<=', $scope['to']))
+                ->groupBy(DB::raw('DATE(p.paid_at)'))
+                ->when($detailed, fn ($q) => $q->groupBy('i.user_id'))
+                ->get($columns);
+
+            $settledAtTill = DB::table($table.' as i')
+                ->whereNull('i.deleted_at')
+                ->where('i.status', InvoiceStatusEnum::PAID->value)
+                ->whereNotNull('i.paid_at')
+                ->whereNotExists(fn ($q) => $q->from('invoice_payments as p')
+                    ->where('p.invoice_type', $model)
+                    ->whereColumn('p.invoice_id', 'i.id'))
+                ->when($scope['branchId'], fn ($q) => $q->where('i.branch_id', $scope['branchId']))
+                ->when($employeeIds !== [], fn ($q) => $q->whereIn('i.user_id', $employeeIds))
+                ->when($scope['from'], fn ($q) => $q->where('i.paid_at', '>=', $scope['from']))
+                ->when($scope['to'], fn ($q) => $q->where('i.paid_at', '<=', $scope['to']))
+                ->groupBy(DB::raw('DATE(i.paid_at)'))
+                ->when($detailed, fn ($q) => $q->groupBy('i.user_id'))
+                ->get($direct);
+
+            $rows = $rows->concat($payments)->concat($settledAtTill);
+        }
+
+        return $rows;
     }
 
     /**
@@ -349,6 +432,7 @@ class DailyReportController extends Controller
             'products' => (float) $details->sum('products'),
             'services' => (float) $details->sum('services'),
             'total' => (float) $details->sum('total'),
+            'collected' => (float) $details->sum('collected'),
             'commission' => (float) $details->sum('commission'),
             'purchases' => $showPurchases ? (float) $details->sum('purchases') : 0.0,
             'remaining' => $showPurchases ? (float) $details->sum('remaining') : 0.0,

@@ -1,6 +1,7 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import DeliveryBadge from '@/components/invoices/delivery-badge';
 import InvoiceNotes from '@/components/invoices/invoice-notes';
+import RecordPaymentModal, { type PaymentMethodOption } from '@/components/invoices/record-payment-modal';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -9,26 +10,20 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
-import { invoiceDocumentTitle } from '@/lib/invoice';
+import { INVOICE_STATUS_COLORS, invoiceDocumentTitle } from '@/lib/invoice';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice } from '@/types/invoice';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Ban, CheckCircle2, Paperclip, Pencil, Printer, ReceiptText, Undo2 } from 'lucide-react';
+import { Ban, CheckCircle2, Paperclip, Pencil, Printer, ReceiptText, Undo2, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
-const STATUS_COLORS: Record<string, string> = {
-    paid: 'border-green-200 bg-green-50 text-green-700',
-    due: 'border-red-200 bg-red-50 text-red-700',
-    cancelled: 'border-border bg-muted/60 text-muted-foreground',
-    returned: 'border-red-300 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
-};
-
 interface Props {
     invoice: Invoice;
+    paymentMethodOptions: PaymentMethodOption[];
 }
 
 type InvoiceLine = Invoice['lines'][number];
@@ -108,9 +103,10 @@ function TotalRow({ label, value, strong = false }: { label: string; value: stri
     );
 }
 
-export default function InvoiceShow({ invoice }: Props) {
+export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
     const { props } = usePage<SharedData>();
     const [refundOpen, setRefundOpen] = useState(false);
+    const [paymentOpen, setPaymentOpen] = useState(false);
     const [approveOpen, setApproveOpen] = useState(false);
     const [approving, setApproving] = useState(false);
     const [returnOpen, setReturnOpen] = useState(false);
@@ -160,6 +156,7 @@ export default function InvoiceShow({ invoice }: Props) {
     ];
 
     const printBase = `/invoices/${invoice.type}/${invoice.id}/print`;
+    const hasPayments = (invoice.payments?.length ?? 0) > 0;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -173,7 +170,7 @@ export default function InvoiceShow({ invoice }: Props) {
                             <h1 className="text-2xl font-bold" dir="ltr">
                                 {invoice.invoiceNumber}
                             </h1>
-                            <Badge variant="outline" className={STATUS_COLORS[invoice.status]}>
+                            <Badge variant="outline" className={INVOICE_STATUS_COLORS[invoice.status]}>
                                 {invoice.statusLabel}
                             </Badge>
                             <Badge variant="secondary">{invoice.typeLabel}</Badge>
@@ -190,6 +187,11 @@ export default function InvoiceShow({ invoice }: Props) {
                         {invoice.canApprovePayment && (
                             <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setApproveOpen(true)}>
                                 <CheckCircle2 className="size-4" /> اعتماد الفاتورة
+                            </Button>
+                        )}
+                        {invoice.canRecordPayment && (
+                            <Button variant="outline" onClick={() => setPaymentOpen(true)}>
+                                <Wallet className="size-4" /> تسجيل دفعة
                             </Button>
                         )}
                         {invoice.canRefund && (
@@ -246,6 +248,68 @@ export default function InvoiceShow({ invoice }: Props) {
                             )}
                         </div>
                     </div>
+                )}
+
+                {/* الدفعات: العربون وما تلاه، وما بقي على العميل. تُعرض متى وُجدت
+                    دفعة أو كانت الفاتورة ما تزال تقبل تحصيلاً. */}
+                {(hasPayments || invoice.canRecordPayment) && (
+                    <Card className="mb-6">
+                        <CardHeader className="pb-3">
+                            <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
+                                <span className="flex items-center gap-2">
+                                    <Wallet className="size-4" /> الدفعات
+                                </span>
+                                <span className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm font-normal">
+                                    <span className="text-muted-foreground">
+                                        المحصَّل:{' '}
+                                        <span className="font-semibold text-green-700 tabular-nums dark:text-green-400" dir="ltr">
+                                            {formatCurrency(invoice.paidAmount)}
+                                        </span>
+                                    </span>
+                                    <span className="text-muted-foreground">
+                                        المتبقي:{' '}
+                                        <span
+                                            className={`font-semibold tabular-nums ${invoice.paymentRemaining > 0 ? 'text-amber-700 dark:text-amber-400' : ''}`}
+                                            dir="ltr"
+                                        >
+                                            {formatCurrency(invoice.paymentRemaining)}
+                                        </span>
+                                    </span>
+                                </span>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            {hasPayments ? (
+                                <div className="divide-y">
+                                    {invoice.payments!.map((payment, i) => (
+                                        <div key={payment.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                                            <div className="flex flex-wrap items-center gap-3">
+                                                <Badge variant="outline">{i === 0 ? 'عربون' : `دفعة ${i + 1}`}</Badge>
+                                                <span className="text-muted-foreground tabular-nums" dir="ltr">
+                                                    {payment.paidAt ? formatDateTime(payment.paidAt) : '—'}
+                                                </span>
+                                                {payment.paymentMethod && <span className="text-muted-foreground">{payment.paymentMethod}</span>}
+                                                {payment.notes && <span className="text-muted-foreground text-xs">{payment.notes}</span>}
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-semibold tabular-nums" dir="ltr">
+                                                    {formatCurrency(payment.amount)}
+                                                </span>
+                                                <span className="text-muted-foreground text-xs">{payment.recordedByName ?? '—'}</span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="text-muted-foreground py-2 text-sm">لم تُسجَّل أي دفعة على هذه الفاتورة بعد.</p>
+                            )}
+                            {invoice.canRecordPayment && (
+                                <Button variant="outline" size="sm" className="mt-3" onClick={() => setPaymentOpen(true)}>
+                                    <Wallet className="size-4" /> تسجيل دفعة
+                                </Button>
+                            )}
+                        </CardContent>
+                    </Card>
                 )}
 
                 {invoice.refunds && invoice.refunds.length > 0 && (
@@ -394,6 +458,18 @@ export default function InvoiceShow({ invoice }: Props) {
                     </Card>
                 </div>
             </div>
+
+            {invoice.canRecordPayment && (
+                <RecordPaymentModal
+                    open={paymentOpen}
+                    onOpenChange={setPaymentOpen}
+                    invoiceType={invoice.type}
+                    invoiceId={invoice.id}
+                    invoiceNumber={invoice.invoiceNumber}
+                    remaining={invoice.paymentRemaining}
+                    paymentMethods={paymentMethodOptions}
+                />
+            )}
 
             {invoice.canRefund && (
                 <RefundFormModal
