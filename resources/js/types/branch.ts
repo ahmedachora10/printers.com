@@ -39,6 +39,23 @@ export interface BranchFormData {
     [key: string]: string | number | boolean | File | null;
 }
 
+/**
+ * The subset of BranchFormData a branch-admin may edit for their own branch
+ * from the settings screen — no `owner_id`, no `is_active`.
+ */
+export interface BranchProfileFormData {
+    name: string;
+    city_id: string;
+    phone: string;
+    address: string;
+    business_type: string;
+    commercial_reg_no: string;
+    tax_number: string;
+    vat_rate_override: number;
+    logo: File | null;
+    [key: string]: string | number | boolean | File | null;
+}
+
 export interface PaginatedBranch {
     data: Branch[];
     links: Record<string, string | null>;

@@ -2,16 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Branch\UpdateBranchProfileAction;
 use App\Actions\Setting\UpdateBranchPaymentMethodsAction;
 use App\Actions\Setting\UpdateGeneralSettingsAction;
 use App\Actions\Setting\UpdateInventoryAlertsAction;
 use App\Actions\Setting\UpdateLoyaltyConfigAction;
+use App\Http\Requests\Branch\UpdateBranchProfileRequest;
 use App\Http\Requests\Setting\UpdateBranchPaymentMethodsRequest;
 use App\Http\Requests\Setting\UpdateGeneralSettingsRequest;
 use App\Http\Requests\Setting\UpdateInventoryAlertsRequest;
 use App\Http\Requests\Setting\UpdateLoyaltyConfigRequest;
+use App\Http\Resources\Branch\BranchResource;
+use App\Http\Resources\City\CityResource;
 use App\Http\Resources\PaymentMethod\PaymentMethodResource;
 use App\Models\Branch;
+use App\Models\City;
 use App\Models\LoyaltyConfig;
 use App\Models\PaymentMethod;
 use App\Models\Setting;
@@ -42,8 +47,15 @@ class AppSettingController extends Controller
             'generalSettings' => [
                 'appName' => Setting::get('app_name', null, 'مركز الناسخ للطباعة'),
                 'defaultVatPct' => Setting::get('default_vat_pct', null, '15.00'),
-                'vatOverridePct' => $branch?->vat_rate_override,
             ],
+            // Only a branch's own manager gets the branch-data tab; super-admins
+            // edit every branch on /branches instead.
+            'branchProfile' => $branch && Gate::allows('update', $branch)
+                ? new BranchResource($branch->load('city'))
+                : null,
+            'cities' => CityResource::collection(
+                City::query()->where('is_active', true)->orderBy('name')->get()
+            ),
             'inventoryAlerts' => [
                 'minStockAlertThreshold' => Setting::get('min_stock_alert_threshold', $branchId, '10'),
             ],
@@ -73,6 +85,21 @@ class AppSettingController extends Controller
         $action->handle($request->validated(), auth()->user());
 
         return back()->with('success', 'تم حفظ الإعدادات العامة بنجاح');
+    }
+
+    public function updateBranchProfile(UpdateBranchProfileRequest $request, UpdateBranchProfileAction $action): RedirectResponse
+    {
+        $branchId = auth()->user()->branchId;
+
+        abort_if($branchId === null, 403, 'لا يمكن تعديل بيانات الفرع بدون فرع محدد.');
+
+        $branch = Branch::findOrFail($branchId);
+
+        Gate::authorize('update', $branch);
+
+        $action->handle($branch, $request->validated(), auth()->user());
+
+        return back()->with('success', 'تم حفظ بيانات الفرع بنجاح');
     }
 
     public function updateInventoryAlerts(UpdateInventoryAlertsRequest $request, UpdateInventoryAlertsAction $action): RedirectResponse
