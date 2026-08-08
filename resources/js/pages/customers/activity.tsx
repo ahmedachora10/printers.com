@@ -23,6 +23,7 @@ import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAx
 
 const STATUS_COLORS: Record<string, string> = {
     paid: 'border-green-200 bg-green-50 text-green-700',
+    partially_paid: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300',
     due: 'border-red-200 bg-red-50 text-red-700',
     cancelled: 'border-border bg-muted/60 text-muted-foreground',
     returned: 'border-red-300 bg-red-100 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-300',
@@ -30,6 +31,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
     paid: 'مدفوع',
+    partially_paid: 'مدفوع جزئياً',
     due: 'مستحق',
     cancelled: 'ملغي',
     returned: 'مرتجع',

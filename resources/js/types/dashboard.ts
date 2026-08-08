@@ -1,3 +1,5 @@
+import type { InvoiceStatus } from './invoice';
+
 export interface DashboardKpis {
     todaySales: number | null;
     monthSales: number | null;
@@ -42,7 +44,9 @@ export interface DashboardRecentInvoice {
     invoiceNumber: string;
     customerName: string | null;
     total: number;
-    status: 'paid' | 'due' | 'cancelled' | 'returned';
+    // نفس اتحاد حالات الفاتورة لا نسخة منه: أي حالة جديدة في InvoiceStatusEnum
+    // تكسر البناء هنا بدل أن تسقط الصفحة وقت التشغيل.
+    status: InvoiceStatus;
     createdAt: string | null;
 }
 
