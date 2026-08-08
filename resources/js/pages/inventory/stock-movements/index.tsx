@@ -180,20 +180,20 @@ export default function StockMovementsIndex({ items, products, types, filters }:
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
                         actions={
-                            <div className="flex items-center gap-2">
+                            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                                 <Input
                                     type="date"
                                     value={from}
                                     onChange={(e) => handleDateChange('from', e.target.value)}
-                                    className="h-9 w-40 text-sm"
+                                    className="h-9 w-full text-sm sm:w-40"
                                     aria-label="من تاريخ"
                                 />
-                                <span className="text-muted-foreground">—</span>
+                                <span className="text-muted-foreground hidden sm:inline">—</span>
                                 <Input
                                     type="date"
                                     value={to}
                                     onChange={(e) => handleDateChange('to', e.target.value)}
-                                    className="h-9 w-40 text-sm"
+                                    className="h-9 w-full text-sm sm:w-40"
                                     aria-label="إلى تاريخ"
                                 />
                             </div>

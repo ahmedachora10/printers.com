@@ -53,11 +53,25 @@ interface PosCartTableProps<T extends PosCartLineBase> {
 function QuantityStepper({ qty, onChange }: { qty: number; onChange: (delta: number) => void }) {
     return (
         <div className="bg-background inline-flex items-center rounded-md border">
-            <Button type="button" size="icon" variant="ghost" className="size-7 rounded-none" onClick={() => onChange(-1)}>
+            <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-11 rounded-none md:size-7"
+                onClick={() => onChange(-1)}
+                aria-label="إنقاص الكمية"
+            >
                 <Minus className="size-3" />
             </Button>
             <span className="w-8 text-center text-sm font-medium tabular-nums">{qty}</span>
-            <Button type="button" size="icon" variant="ghost" className="size-7 rounded-none" onClick={() => onChange(1)}>
+            <Button
+                type="button"
+                size="icon"
+                variant="ghost"
+                className="size-11 rounded-none md:size-7"
+                onClick={() => onChange(1)}
+                aria-label="زيادة الكمية"
+            >
                 <Plus className="size-3" />
             </Button>
         </div>
@@ -193,10 +207,10 @@ export function PosCartTable<T extends PosCartLineBase>({
                 step="0.01"
                 value={line.unitPrice}
                 onChange={(e) => onPriceChange(line, Math.max(0, Number(e.target.value) || 0))}
-                className="h-8 text-center"
+                className="h-11 text-center md:h-8"
             />
         ) : (
-            <span className="flex h-8 items-center justify-center text-sm tabular-nums">{formatCurrency(line.unitPrice)}</span>
+            <span className="flex h-11 items-center text-sm tabular-nums md:h-8 md:justify-center">{formatCurrency(line.unitPrice)}</span>
         );
 
     const discountControl = (line: T) => (
@@ -206,7 +220,7 @@ export function PosCartTable<T extends PosCartLineBase>({
             max={getMaxDiscount(line)}
             value={line.discountPct}
             onChange={(e) => onDiscountChange(line, Number(e.target.value))}
-            className="h-8 text-center"
+            className="h-11 text-center md:h-8"
         />
     );
 
@@ -215,7 +229,7 @@ export function PosCartTable<T extends PosCartLineBase>({
             type="button"
             size="icon"
             variant="ghost"
-            className="text-muted-foreground hover:text-destructive size-7"
+            className="text-muted-foreground hover:text-destructive size-11 md:size-7"
             onClick={() => onRemove(line.key)}
             aria-label={`حذف ${line.name || itemLabel}`}
         >
@@ -234,7 +248,7 @@ export function PosCartTable<T extends PosCartLineBase>({
                     type="button"
                     onClick={() => toggleLine(line.key)}
                     aria-expanded={isOpen}
-                    className="hover:bg-accent/60 flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-right transition"
+                    className="hover:bg-accent/60 flex min-h-11 w-full items-center gap-2 rounded-md px-2 py-1.5 text-right transition md:min-h-0"
                 >
                     <ChevronDown className={cn('text-muted-foreground size-3.5 shrink-0 transition-transform', isOpen && 'rotate-180')} />
                     <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
@@ -352,7 +366,7 @@ export function PosCartTable<T extends PosCartLineBase>({
                         })}
                     </div>
 
-                    <Button type="button" variant="outline" size="sm" className="w-full" onClick={onAddManual}>
+                    <Button type="button" variant="outline" size="sm" className="h-11 w-full md:h-8" onClick={onAddManual}>
                         <Plus className="size-4" /> سطر يدوي
                     </Button>
                 </>

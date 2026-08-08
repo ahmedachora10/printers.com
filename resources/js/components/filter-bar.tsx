@@ -102,7 +102,7 @@ export function FilterBar({
     return (
         <Card
             className={cn(
-                'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-md px-5 py-3.5',
+                'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-md px-4 py-3.5 sm:px-5',
                 className,
             )}
         >
@@ -168,14 +168,14 @@ export function FilterBar({
             <div className="flex flex-wrap items-center gap-2">
 
                 {searchable && (
-                    <div className="relative">
+                    <div className="relative w-full sm:w-auto">
                         <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={searchValue}
                             onChange={(e) => onSearchChange?.(e.target.value)}
                             placeholder={searchPlaceholder}
                             className={cn(
-                                'h-9 w-64 ps-9 text-sm',
+                                'h-9 w-full ps-9 text-sm sm:w-64',
                                 searchValue && 'border-primary/40 bg-primary/5',
                             )}
                         />
@@ -249,7 +249,9 @@ export function FilterBar({
                 )}
             </div>
 
-            {actions && <div className="flex items-center gap-2">{actions}</div>}
+            {/* Callers pass whole toolbars in here; let them wrap rather than
+                stretch the bar past a narrow viewport. */}
+            {actions && <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>}
         </Card>
     );
 }

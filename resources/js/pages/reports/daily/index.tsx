@@ -104,9 +104,9 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="التقرير اليومي" />
-            <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">التقرير اليومي</h1>
+            <div className="p-4 md:p-6">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                    <h1 className="text-xl font-bold md:text-2xl">التقرير اليومي</h1>
                     <div className="flex items-center gap-2">
                         <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
                             {canPickBranch && (
