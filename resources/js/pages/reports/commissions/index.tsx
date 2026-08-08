@@ -164,9 +164,9 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">تقرير العمولات</h1>
+            <div className="p-4 md:p-6">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                    <h1 className="text-xl font-bold md:text-2xl">تقرير العمولات</h1>
                     <div className="flex items-center gap-2">
                         <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
                             {canPickBranch && (
@@ -213,7 +213,10 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                 <ActiveFilterChips chips={chips} />
 
                 {/* Summary cards */}
-                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-6">
+                {/* Six tracks only once the window is wider than the sidebar plus
+                    six readable cards — at lg the content column is ~712px and the
+                    currency figures overflow their tracks. */}
+                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
                     <SummaryCard icon={<TrendingUp className="size-4" />} label="إجمالي العمولات" value={formatCurrency(totals.earned)} />
                     <SummaryCard
                         icon={<Banknote className="size-4" />}
@@ -310,14 +313,15 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
 
 function SummaryCard({ icon, label, value, valueClass }: { icon: React.ReactNode; label: string; value: string; valueClass?: string }) {
     return (
-        <Card>
+        <Card className="min-w-0">
             <CardHeader className="pb-2">
                 <CardTitle className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
-                    {icon} {label}
+                    <span className="shrink-0">{icon}</span>
+                    <span className="truncate">{label}</span>
                 </CardTitle>
             </CardHeader>
             <CardContent>
-                <p className={`text-2xl font-bold ${valueClass ?? ''}`}>{value}</p>
+                <p className={`truncate text-xl font-bold sm:text-2xl ${valueClass ?? ''}`}>{value}</p>
             </CardContent>
         </Card>
     );

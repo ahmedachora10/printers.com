@@ -29,6 +29,9 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'الفواتير', href: '/invo
 
 const INVOICES_URL = '/invoices';
 
+/** Row actions are thumb-sized on touch and shrink back to the table scale at md. */
+const ACTION_BUTTON = 'size-11 p-0 md:size-8';
+
 const TYPE_COLORS: Record<string, string> = {
     product: 'border-blue-200 bg-blue-50 text-blue-700',
     service: 'border-purple-200 bg-purple-50 text-purple-700',
@@ -237,11 +240,13 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                                 </div>
                             )}
                         </div>
+                        {/* Hover reveals nothing on a touch screen, so the pencil stays
+                            visible until md, where a pointer is likely. */}
                         {item.canEditCustomer && (
                             <Button
                                 variant="ghost"
                                 size="icon"
-                                className="h-6 w-6 shrink-0 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                                className="size-9 shrink-0 focus-visible:opacity-100 md:size-6 md:opacity-0 md:group-hover:opacity-100"
                                 aria-label={item.customerId ? 'تعديل بيانات العميل' : 'إضافة عميل'}
                                 title={item.customerId ? 'تعديل بيانات العميل' : 'إضافة عميل'}
                                 onClick={() => openCustomerEditor(item)}
@@ -325,18 +330,18 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 headerClassName: 'w-36',
                 cell: (item) => (
                     <div className="flex items-center gap-1.5">
-                        <Button variant="outline" size="sm" asChild>
-                            <Link href={`/invoices/${item.type}/${item.id}`}>
+                        <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
+                            <Link href={`/invoices/${item.type}/${item.id}`} aria-label="عرض">
                                 <Eye className="h-3.5 w-3.5" />
                             </Link>
                         </Button>
-                        <Button variant="outline" size="sm" asChild>
-                            <a href={`/invoices/${item.type}/${item.id}/print?format=a4`} target="_blank" rel="noreferrer">
+                        <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
+                            <a href={`/invoices/${item.type}/${item.id}/print?format=a4`} target="_blank" rel="noreferrer" aria-label="طباعة">
                                 <Printer className="h-3.5 w-3.5" />
                             </a>
                         </Button>
                         {item.canEdit && (
-                            <Button variant="outline" size="sm" asChild>
+                            <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
                                 <Link href={posService.edit(item.id).url} aria-label="تعديل">
                                     <Pencil className="h-3.5 w-3.5" />
                                 </Link>
@@ -346,7 +351,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                             <Button
                                 variant="outline"
                                 size="sm"
-                                className="text-destructive hover:text-destructive"
+                                className={cn(ACTION_BUTTON, 'text-destructive hover:text-destructive')}
                                 aria-label="استرجاع الفاتورة"
                                 title="استرجاع الفاتورة"
                                 onClick={() => setReturnItem(item)}
@@ -355,7 +360,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                             </Button>
                         )}
                         {item.returnLocked && (
-                            <Button variant="outline" size="sm" disabled aria-label="مُرتجعة بالفعل" title="مُرتجعة بالفعل">
+                            <Button variant="outline" size="sm" className={ACTION_BUTTON} disabled aria-label="مُرتجعة بالفعل" title="مُرتجعة بالفعل">
                                 <Undo2 className="h-3.5 w-3.5" />
                             </Button>
                         )}
@@ -368,9 +373,9 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <div className="p-6">
+            <div className="p-4 md:p-6">
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                    <h1 className="text-2xl font-bold">الفواتير</h1>
+                    <h1 className="text-xl font-bold md:text-2xl">الفواتير</h1>
                     <FilterModal
                         open={f.open}
                         onOpenChange={f.onOpenChange}

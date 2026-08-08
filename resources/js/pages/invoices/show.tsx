@@ -163,11 +163,11 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
             <Head title={`${invoiceDocumentTitle(invoice)} ${invoice.invoiceNumber}`} />
             <Toaster position="top-center" richColors />
 
-            <div className="p-6">
+            <div className="p-4 md:p-6">
                 <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-                    <div className="space-y-1">
-                        <div className="flex items-center gap-3">
-                            <h1 className="text-2xl font-bold" dir="ltr">
+                    <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                            <h1 className="text-xl font-bold md:text-2xl" dir="ltr">
                                 {invoice.invoiceNumber}
                             </h1>
                             <Badge variant="outline" className={INVOICE_STATUS_COLORS[invoice.status]}>
@@ -183,7 +183,8 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                         </div>
                         {invoice.createdAt && <p className="text-muted-foreground text-sm">{formatDateTime(invoice.createdAt)}</p>}
                     </div>
-                    <div className="flex gap-2">
+                    {/* Full-width pairs on a phone; a single inline row once there is room. */}
+                    <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
                         {invoice.canApprovePayment && (
                             <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setApproveOpen(true)}>
                                 <CheckCircle2 className="size-4" /> اعتماد الفاتورة

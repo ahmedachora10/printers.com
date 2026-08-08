@@ -10,16 +10,18 @@ export function Breadcrumbs({ breadcrumbs }: { breadcrumbs: BreadcrumbItemType[]
                     <BreadcrumbList>
                         {breadcrumbs.map((item, index) => {
                             const isLast = index === breadcrumbs.length - 1;
+                            // A phone header has no room for the whole trail — the
+                            // current page alone survives, the ancestors return at sm.
                             return (
                                 <Fragment key={index}>
-                                    <BreadcrumbItem>
+                                    <BreadcrumbItem className={isLast ? 'min-w-0' : 'hidden sm:inline-flex'}>
                                         {isLast ? (
-                                            <BreadcrumbPage>{item.title}</BreadcrumbPage>
+                                            <BreadcrumbPage className="truncate">{item.title}</BreadcrumbPage>
                                         ) : (
                                             <BreadcrumbLink href={item.href}>{item.title}</BreadcrumbLink>
                                         )}
                                     </BreadcrumbItem>
-                                    {!isLast && <BreadcrumbSeparator />}
+                                    {!isLast && <BreadcrumbSeparator className="hidden sm:block" />}
                                 </Fragment>
                             );
                         })}

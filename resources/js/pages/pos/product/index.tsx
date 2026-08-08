@@ -1,4 +1,5 @@
 import { PosCartTable } from '@/components/pos/cart-table';
+import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -331,9 +332,12 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
             <Head title="نقطة البيع — فاتورة منتجات" />
             <Toaster position="top-center" richColors />
 
-            <div className="grid gap-4 p-4 lg:grid-cols-3">
-                {/* Sidebar — customer, status, coupon, totals, payment, actions */}
-                <div className="space-y-4 lg:col-span-1">
+            {/* pb-24 below lg clears the fixed total bar at the bottom. */}
+            <div className="grid gap-4 p-4 pb-24 lg:grid-cols-3 lg:pb-4">
+                {/* Sidebar — customer, status, coupon, totals, payment, actions.
+                    Below lg it follows the cart, so the cashier starts on the
+                    lines instead of scrolling past every setting first. */}
+                <div className="order-2 space-y-4 lg:order-none lg:col-span-1">
                     {/* Customer */}
                     <Card>
                         <CardHeader className="pb-3">
@@ -592,7 +596,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                 </div>
 
                 {/* Main — search + line editor */}
-                <div className="space-y-4 lg:col-span-2">
+                <div className="order-1 space-y-4 lg:order-none lg:col-span-2">
                     <div className="relative">
                         <Search className="text-muted-foreground absolute top-1/2 right-3 size-4 -translate-y-1/2" />
                         <Input
@@ -648,7 +652,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                         value={line.productId ? String(line.productId) : ''}
                                         onValueChange={(v) => selectLineProduct(line, Number(v))}
                                     >
-                                        <SelectTrigger className="h-8">
+                                        <SelectTrigger className="h-11 md:h-8">
                                             <SelectValue placeholder="اختر منتجاً" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -674,6 +678,14 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                     </Card>
                 </div>
             </div>
+
+            <PosStickyTotalBar
+                total={total}
+                lineCount={cart.length}
+                saveLabel="حفظ الفاتورة"
+                disabled={submitting || cart.length === 0}
+                onSave={() => submit(false)}
+            />
         </AppLayout>
     );
 }

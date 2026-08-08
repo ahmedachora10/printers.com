@@ -76,7 +76,9 @@ export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKe
     const shortcuts = extended ? [...SHORTCUTS, ...EXTENDED_SHORTCUTS] : SHORTCUTS;
 
     return (
-        <div className="flex flex-wrap items-end gap-x-4 gap-y-3">
+        // w-full + min-w-0 below sm: as a flex item this bar would otherwise hold
+        // its content width (~346px) and push a 360px page sideways.
+        <div className="flex w-full min-w-0 flex-wrap items-end gap-x-4 gap-y-3 sm:w-auto">
             <div className="flex flex-wrap gap-1.5">
                 {shortcuts.map((shortcut) => {
                     const range = shortcut.range();
@@ -86,6 +88,7 @@ export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKe
                             type="button"
                             size="sm"
                             variant={isCurrent(range) ? 'default' : 'outline'}
+                            className="h-9 sm:h-8"
                             onClick={() => go(range)}
                         >
                             {shortcut.label}
@@ -94,8 +97,10 @@ export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKe
                 })}
             </div>
 
-            <div className="flex items-end gap-2">
-                <div className="space-y-1">
+            {/* A date input will not render below ~170px, so on a phone the two
+                pickers stack instead of being squeezed side by side. */}
+            <div className="grid w-full grid-cols-1 gap-2 sm:flex sm:w-auto sm:items-end">
+                <div className="min-w-0 space-y-1">
                     <Label htmlFor={`range-${fromKey}`} className="text-muted-foreground text-xs">
                         من
                     </Label>
@@ -105,11 +110,11 @@ export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKe
                         value={from}
                         max={to || undefined}
                         onChange={(e) => e.target.value && go({ from: e.target.value, to })}
-                        className="h-8 w-36"
+                        className="h-9 w-full sm:h-8 sm:w-36"
                         dir="ltr"
                     />
                 </div>
-                <div className="space-y-1">
+                <div className="min-w-0 space-y-1">
                     <Label htmlFor={`range-${toKey}`} className="text-muted-foreground text-xs">
                         إلى
                     </Label>
@@ -119,7 +124,7 @@ export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKe
                         value={to}
                         min={from || undefined}
                         onChange={(e) => e.target.value && go({ from, to: e.target.value })}
-                        className="h-8 w-36"
+                        className="h-9 w-full sm:h-8 sm:w-36"
                         dir="ltr"
                     />
                 </div>

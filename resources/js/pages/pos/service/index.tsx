@@ -1,6 +1,7 @@
 import { noteExamplesPlaceholder } from '@/components/branch-services/note-examples-field';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
 import { LineChip, LineField, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
+import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -617,9 +618,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             <Head title={isEditing ? `تعديل فاتورة ${invoice!.invoiceNumber}` : 'نقطة البيع — فاتورة خدمة'} />
             <Toaster position="top-center" richColors />
 
-            <div className="grid gap-4 p-4 lg:grid-cols-3">
-                {/* Sidebar — customer, status, coupon, totals, payment, actions */}
-                <div className="space-y-4 lg:col-span-1">
+            {/* pb-24 below lg clears the fixed total bar at the bottom. */}
+            <div className="grid gap-4 p-4 pb-24 lg:grid-cols-3 lg:pb-4">
+                {/* Sidebar — customer, status, coupon, totals, payment, actions.
+                    Below lg it follows the cart, so the employee starts on the
+                    lines instead of scrolling past every setting first. */}
+                <div className="order-2 space-y-4 lg:order-none lg:col-span-1">
                     {/* Customer */}
                     <Card>
                         <CardHeader className="pb-3">
@@ -1023,7 +1027,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 </div>
 
                 {/* Main — search + line editor */}
-                <div className="space-y-4 lg:col-span-2">
+                <div className="order-1 space-y-4 lg:order-none lg:col-span-2">
                     <div className="relative">
                         <Search className="text-muted-foreground absolute top-1/2 right-3 size-4 -translate-y-1/2" />
                         <Input
@@ -1101,7 +1105,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                         value={line.branchServiceId ? String(line.branchServiceId) : ''}
                                         onValueChange={(v) => selectLineService(line, Number(v))}
                                     >
-                                        <SelectTrigger className="h-8">
+                                        <SelectTrigger className="h-11 md:h-8">
                                             <SelectValue placeholder="اختر خدمة" />
                                         </SelectTrigger>
                                         <SelectContent>
@@ -1135,7 +1139,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                       value={line.agentId ? String(line.agentId) : 'none'}
                                                       onValueChange={(v) => setLineAgent(line, v === 'none' ? null : Number(v))}
                                                   >
-                                                      <SelectTrigger className="h-8 w-full">
+                                                      <SelectTrigger className="h-11 w-full md:h-8">
                                                           <SelectValue placeholder="— بدون —" />
                                                       </SelectTrigger>
                                                       <SelectContent>
@@ -1371,6 +1375,14 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     </Card>
                 </div>
             </div>
+
+            <PosStickyTotalBar
+                total={total}
+                lineCount={cart.length}
+                saveLabel={isEditing ? 'تحديث الفاتورة' : 'حفظ الفاتورة'}
+                disabled={submitting || cart.length === 0}
+                onSave={() => submit(false)}
+            />
         </AppLayout>
     );
 }

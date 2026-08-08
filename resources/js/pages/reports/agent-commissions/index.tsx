@@ -127,9 +127,9 @@ export default function AgentCommissionReportIndex({ rows, lines, totals, filter
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="عمولات المناديب" />
-            <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">عمولات المناديب</h1>
+            <div className="p-4 md:p-6">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                    <h1 className="text-xl font-bold md:text-2xl">عمولات المناديب</h1>
                     <div className="flex items-center gap-2">
                         {(canPickBranch || canPickAgent) && (
                             <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>

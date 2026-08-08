@@ -74,8 +74,8 @@ export default function AgentPaymentsIndex({ agents, payments }: Props) {
                         ) : (
                             <div className="divide-y">
                                 {agents.map((a) => (
-                                    <div key={`${a.id}-${a.branchId}`} className="flex items-center justify-between gap-4 py-3">
-                                        <div className="flex items-center gap-2">
+                                    <div key={`${a.id}-${a.branchId}`} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 py-3">
+                                        <div className="flex min-w-0 flex-wrap items-center gap-2">
                                             <span className="font-medium">{a.name}</span>
                                             {/* Each branch of a multi-branch agent is settled on its own row. */}
                                             <Badge variant="secondary">{a.branchName}</Badge>

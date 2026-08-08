@@ -232,7 +232,7 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                             return (
                                 <Card key={invoice.id}>
                                     <CardHeader className="cursor-pointer pb-3" onClick={() => toggleExpanded(invoice.id)}>
-                                        <div className="flex items-start justify-between gap-2">
+                                        <div className="flex flex-wrap items-start justify-between gap-2">
                                             {/* Collapsed: who raised it and for how much. Everything
                                                 else waits behind «عرض». */}
                                             <div className="space-y-1">
