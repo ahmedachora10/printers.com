@@ -299,6 +299,7 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('app-settings', [AppSettingController::class, 'index'])->name('app-settings.index');
         Route::put('app-settings/general', [AppSettingController::class, 'updateGeneral'])->name('app-settings.update-general');
+        Route::put('app-settings/branch-profile', [AppSettingController::class, 'updateBranchProfile'])->name('app-settings.update-branch-profile');
         Route::put('app-settings/inventory-alerts', [AppSettingController::class, 'updateInventoryAlerts'])->name('app-settings.update-inventory-alerts');
         Route::put('app-settings/payment-methods', [AppSettingController::class, 'updatePaymentMethods'])->name('app-settings.update-payment-methods');
         Route::put('app-settings/loyalty', [AppSettingController::class, 'updateLoyalty'])->name('app-settings.update-loyalty');

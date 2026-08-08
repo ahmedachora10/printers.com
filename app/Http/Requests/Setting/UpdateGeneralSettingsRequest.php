@@ -17,7 +17,6 @@ class UpdateGeneralSettingsRequest extends FormRequest
         return [
             'app_name' => ['nullable', 'string', 'max:255'],
             'default_vat_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
-            'vat_override_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ];
     }
 }

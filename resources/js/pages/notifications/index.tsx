@@ -9,6 +9,7 @@ import { type AppNotification, type PaginatedNotifications } from '@/types/notif
 import { Head, router } from '@inertiajs/react';
 import {
     Bell,
+    Building2,
     CalendarClock,
     Check,
     CheckCheck,
@@ -33,6 +34,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
     ShoppingBasket,
     ClipboardCheck,
     CalendarClock,
+    Building2,
 };
 
 interface Props {

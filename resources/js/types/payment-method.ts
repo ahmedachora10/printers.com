@@ -8,7 +8,6 @@ export interface PaymentMethod {
 export interface AppSettingsGeneralData {
     appName: string | null;
     defaultVatPct: string | null;
-    vatOverridePct: string | null;
 }
 
 export interface AppSettingsInventoryData {

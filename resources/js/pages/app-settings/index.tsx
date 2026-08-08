@@ -8,6 +8,7 @@ import {
     updateLoyalty,
     updatePaymentMethods,
 } from '@/actions/App/Http/Controllers/AppSettingController';
+import BranchProfileTab from '@/components/app-settings/branch-profile-tab';
 import PaymentMethodFormModal from '@/components/app-settings/payment-method-form-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,8 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
+import { type Branch } from '@/types/branch';
+import { type City } from '@/types/city';
 import {
     type AppSettingsGeneralData,
     type AppSettingsInventoryData,
@@ -36,15 +39,26 @@ import { CreditCard, Paperclip, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 
-const VALID_TABS = ['general', 'payment-methods', 'loyalty', 'inventory-alerts'] as const;
+const VALID_TABS = ['general', 'branch-profile', 'payment-methods', 'loyalty', 'inventory-alerts'] as const;
 type TabValue = (typeof VALID_TABS)[number];
 
-function getInitialTab(): TabValue {
+function getInitialTab(isSuperAdmin: boolean, hasBranchProfile: boolean): TabValue {
+    // `general` holds global-only settings and `branch-profile` needs an owned
+    // branch, so neither is a safe landing tab for every role.
+    const fallback: TabValue = isSuperAdmin
+        ? 'general'
+        : hasBranchProfile
+          ? 'branch-profile'
+          : 'payment-methods';
+
     if (typeof window !== 'undefined') {
         const param = new URLSearchParams(window.location.search).get('tab') as TabValue;
+        if (param === 'general' && !isSuperAdmin) return fallback;
+        if (param === 'branch-profile' && !hasBranchProfile) return fallback;
         if (VALID_TABS.includes(param)) return param;
     }
-    return 'general';
+
+    return fallback;
 }
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -53,6 +67,9 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 interface Props {
     generalSettings: AppSettingsGeneralData;
+    /** Non-null only for the manager of that branch — super-admins use /branches. */
+    branchProfile: Branch | null;
+    cities: City[];
     inventoryAlerts: AppSettingsInventoryData;
     paymentMethods: PaymentMethod[];
     enabledPaymentMethodIds: number[];
@@ -63,6 +80,8 @@ interface Props {
 
 export default function AppSettingsIndex({
     generalSettings,
+    branchProfile,
+    cities,
     inventoryAlerts,
     paymentMethods,
     enabledPaymentMethodIds,
@@ -70,7 +89,7 @@ export default function AppSettingsIndex({
     loyaltyConfig,
     canConfigureLoyalty,
 }: Props) {
-    const [activeTab, setActiveTab] = useState<TabValue>(getInitialTab);
+    const [activeTab, setActiveTab] = useState<TabValue>(() => getInitialTab(isSuperAdmin, !!branchProfile));
     const [pmFormOpen, setPmFormOpen] = useState(false);
     const [editing, setEditing] = useState<PaymentMethod | null>(null);
     const [deleting, setDeleting] = useState<PaymentMethod | null>(null);
@@ -84,7 +103,6 @@ export default function AppSettingsIndex({
     const generalForm = useForm({
         app_name: generalSettings.appName ?? '',
         default_vat_pct: generalSettings.defaultVatPct ?? '15.00',
-        vat_override_pct: generalSettings.vatOverridePct?.toString() ?? '',
     });
 
     const inventoryForm = useForm({
@@ -165,73 +183,60 @@ export default function AppSettingsIndex({
 
                 <Tabs value={activeTab} onValueChange={handleTabChange} dir="rtl">
                     <TabsList className="mb-6 w-full justify-start">
-                        <TabsTrigger value="general">عام</TabsTrigger>
+                        {isSuperAdmin && <TabsTrigger value="general">عام</TabsTrigger>}
+                        {branchProfile && <TabsTrigger value="branch-profile">بيانات الفرع</TabsTrigger>}
                         <TabsTrigger value="payment-methods">طرق الدفع</TabsTrigger>
                         <TabsTrigger value="loyalty">برنامج الولاء</TabsTrigger>
                         <TabsTrigger value="inventory-alerts">تنبيهات المخزون</TabsTrigger>
                     </TabsList>
 
-                    {/* ── General ─────────────────────────────────────── */}
-                    <TabsContent value="general">
-                        <div className="rounded-lg border p-6">
-                            <h2 className="mb-4 text-lg font-semibold">الإعدادات العامة</h2>
-                            <form onSubmit={submitGeneral} className="space-y-4">
-                                {isSuperAdmin && (
-                                    <>
-                                        <div className="space-y-1">
-                                            <Label htmlFor="app-name">اسم التطبيق</Label>
-                                            <Input
-                                                id="app-name"
-                                                value={generalForm.data.app_name}
-                                                onChange={(e) => generalForm.setData('app_name', e.target.value)}
-                                            />
-                                            <InputError message={generalForm.errors.app_name} />
-                                        </div>
-
-                                        <div className="space-y-1">
-                                            <Label htmlFor="default-vat">نسبة ضريبة القيمة المضافة الافتراضية (%)</Label>
-                                            <Input
-                                                id="default-vat"
-                                                type="number"
-                                                step="0.01"
-                                                min="0"
-                                                max="100"
-                                                value={generalForm.data.default_vat_pct}
-                                                onChange={(e) => generalForm.setData('default_vat_pct', e.target.value)}
-                                            />
-                                            <p className="text-muted-foreground text-xs">
-                                                التغييرات لا تُطبَّق بأثر رجعي على الفواتير السابقة.
-                                            </p>
-                                            <InputError message={generalForm.errors.default_vat_pct} />
-                                        </div>
-                                    </>
-                                )}
-
-                                {!isSuperAdmin && (
+                    {/* ── General (global settings, super-admin only) ──── */}
+                    {isSuperAdmin && (
+                        <TabsContent value="general">
+                            <div className="rounded-lg border p-6">
+                                <h2 className="mb-4 text-lg font-semibold">الإعدادات العامة</h2>
+                                <form onSubmit={submitGeneral} className="space-y-4">
                                     <div className="space-y-1">
-                                        <Label htmlFor="vat-override">نسبة ضريبة القيمة المضافة للفرع (%)</Label>
+                                        <Label htmlFor="app-name">اسم التطبيق</Label>
                                         <Input
-                                            id="vat-override"
+                                            id="app-name"
+                                            value={generalForm.data.app_name}
+                                            onChange={(e) => generalForm.setData('app_name', e.target.value)}
+                                        />
+                                        <InputError message={generalForm.errors.app_name} />
+                                    </div>
+
+                                    <div className="space-y-1">
+                                        <Label htmlFor="default-vat">نسبة ضريبة القيمة المضافة الافتراضية (%)</Label>
+                                        <Input
+                                            id="default-vat"
                                             type="number"
                                             step="0.01"
                                             min="0"
                                             max="100"
-                                            value={generalForm.data.vat_override_pct}
-                                            onChange={(e) => generalForm.setData('vat_override_pct', e.target.value)}
+                                            value={generalForm.data.default_vat_pct}
+                                            onChange={(e) => generalForm.setData('default_vat_pct', e.target.value)}
                                         />
                                         <p className="text-muted-foreground text-xs">
                                             التغييرات لا تُطبَّق بأثر رجعي على الفواتير السابقة.
                                         </p>
-                                        <InputError message={generalForm.errors.vat_override_pct} />
+                                        <InputError message={generalForm.errors.default_vat_pct} />
                                     </div>
-                                )}
 
-                                <Button type="submit" disabled={generalForm.processing}>
-                                    {generalForm.processing ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
-                                </Button>
-                            </form>
-                        </div>
-                    </TabsContent>
+                                    <Button type="submit" disabled={generalForm.processing}>
+                                        {generalForm.processing ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
+                                    </Button>
+                                </form>
+                            </div>
+                        </TabsContent>
+                    )}
+
+                    {/* ── Branch data (the branch's own manager) ───────── */}
+                    {branchProfile && (
+                        <TabsContent value="branch-profile">
+                            <BranchProfileTab branch={branchProfile} cities={cities} />
+                        </TabsContent>
+                    )}
 
                     {/* ── Payment Methods ──────────────────────────────── */}
                     <TabsContent value="payment-methods">
