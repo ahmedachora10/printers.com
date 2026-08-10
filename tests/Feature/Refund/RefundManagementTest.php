@@ -149,6 +149,59 @@ describe('Refunds', function () {
             ])->assertForbidden();
     });
 
+    // ── المحاسب والمرتجع بعد الاعتماد (تاسك 42) ────────────────────
+
+    it('forbids the accountant from refunding an approved invoice', function () {
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole(Roles::ACCOUNTANT->value);
+
+        // refundableProductInvoice تُنشئ فاتورة معتمدة (paid).
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin);
+
+        $this->actingAs($accountant)
+            ->post(route('refunds.store'), [
+                'source_type' => 'product',
+                'invoice_id' => $invoice->id,
+                'amount' => 10,
+                'reason' => 'بعد الاعتماد',
+            ])->assertForbidden();
+
+        expect(Refund::where('invoice_id', $invoice->id)->count())->toBe(0);
+    });
+
+    it('hides the refund button from the accountant on an approved invoice', function () {
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole(Roles::ACCOUNTANT->value);
+
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin);
+
+        $this->actingAs($accountant)
+            ->get(route('invoices.show', ['type' => 'product', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('invoice.canRefund', false));
+    });
+
+    it('still lets the branch admin refund an approved invoice', function () {
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin);
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 10,
+            'reason' => 'قرار إداري',
+        ])->assertRedirect();
+
+        expect(Refund::where('invoice_id', $invoice->id)->count())->toBe(1);
+    });
+
+    it('keeps the refunds screen open to the accountant', function () {
+        // المنع على إنشاء المرتجع لفاتورة معتمدة، لا على الشاشة والتقارير.
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole(Roles::ACCOUNTANT->value);
+
+        $this->actingAs($accountant)->get(route('refunds.index'))->assertOk();
+    });
+
     // ── PRODUCT REFUND + STOCK ─────────────────────────────────────
 
     it('records a product refund and returns stock when requested', function () {

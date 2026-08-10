@@ -33,8 +33,10 @@ class InvoiceResource extends JsonResource
         $refundableRemaining = round($total - $refundedTotal, 2);
 
         $user = $request->user();
+        // الفاتورة تُمرَّر إلى الصلاحية: المحاسب يُمنع من مرتجع فاتورة معتمدة
+        // (تاسك 42)، فيختفي الزر تلقائياً بلا شرط مكرَّر في الواجهة.
         $canRefund = $user !== null
-            && $user->can('create', Refund::class)
+            && $user->can('create', [Refund::class, $this->resource])
             && ($user->roleName->isSuperAdmin() || $user->branchId === $this->branch_id)
             && $this->status !== InvoiceStatusEnum::CANCELLED
             && $refundableRemaining > 0;

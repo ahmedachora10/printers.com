@@ -7,7 +7,9 @@ use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Http\Requests\Refund\StoreRefundRequest;
 use App\Http\Resources\Refund\RefundResource;
+use App\Models\ProductInvoice;
 use App\Models\Refund;
+use App\Models\ServiceInvoice;
 use App\Notifications\RefundProcessedNotification;
 use App\Support\BranchNotifiables;
 use Illuminate\Http\JsonResponse;
@@ -49,7 +51,9 @@ class RefundController extends Controller
 
     public function store(StoreRefundRequest $request, CreateRefundAction $action): RedirectResponse
     {
-        Gate::authorize('create', Refund::class);
+        // الصلاحية تُفحص على الفاتورة المقصودة لا على الشاشة: المحاسب ممنوع من
+        // مرتجع فاتورة معتمدة (تاسك 42)، فيُردّ بـ 403 هنا لا بإخفاء الزر وحده.
+        Gate::authorize('create', [Refund::class, $this->refundTarget($request)]);
 
         $refund = $action->handle($request->validated(), $request->user());
 
@@ -125,5 +129,16 @@ class RefundController extends Controller
         }
 
         return response()->json(['found' => false, 'message' => 'لم يتم العثور على فاتورة بهذا الرقم.']);
+    }
+
+    /**
+     * الفاتورة التي يُطلب المرتجع عليها، لتُفحص الصلاحية على حالتها. تُعاد null
+     * إن لم تُعثر — عندها تتكفّل قواعد التحقق في الـ Action بالرفض.
+     */
+    private function refundTarget(StoreRefundRequest $request): ProductInvoice|ServiceInvoice|null
+    {
+        $type = InvoiceTypeEnum::tryFrom((string) $request->validated('source_type'));
+
+        return $type?->modelClass()::find($request->validated('invoice_id'));
     }
 }
