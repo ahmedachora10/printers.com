@@ -8,6 +8,7 @@ use App\Models\ServiceInvoice;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\DatabaseNotification;
 
 uses(RefreshDatabase::class);
 
@@ -255,6 +256,31 @@ describe('Agent Payments', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('agents.0.outstandingRebate', 0)
                 ->where('agents.0.outstandingInvoices', 0));
+    });
+
+    it('notifies the agent when their commission is disbursed', function () {
+        rebateInvoice($this->branch->id, $this->agent->id, 40);
+
+        $this->post(route('agent-payments.store'), [
+            'agent_id' => $this->agent->id,
+            'branch_id' => $this->branch->id,
+            'period_start' => now()->subDay()->toDateString(),
+            'period_end' => now()->addDay()->toDateString(),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $notification = DatabaseNotification::query()
+            ->where('notifiable_id', $this->agent->id)
+            ->firstOrFail();
+
+        // The pivot is polymorphic on User (Agent::getMorphClass), so the agent
+        // reads the notification back as the User they log in as.
+        expect($notification->notifiable_type)->toBe(User::class)
+            ->and($notification->data['type'])->toBe('agent_commission_paid')
+            ->and($notification->data['url'])->toBe(route('agent-portal.index'))
+            ->and($notification->data['body'])
+            ->toContain('40.00')
+            ->toContain($this->branch->name)
+            ->toContain('1 فاتورة');
     });
 
     it('prevents a branch-admin from paying an agent in another branch', function () {

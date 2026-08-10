@@ -11,8 +11,10 @@ use App\Models\AgentPayment;
 use App\Models\Branch;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoiceAgent;
+use App\Notifications\AgentCommissionPaidNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -59,7 +61,7 @@ class AgentPaymentController extends Controller
             'agents' => $agents,
             // Resource collection => { data, links, meta } shape the page expects.
             'payments' => AgentPaymentResource::collection($payments),
-            'branches' => auth()->user()->roleName?->isSuperAdmin()
+            'branches' => Auth::user()->roleName?->isSuperAdmin()
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,
         ]);
@@ -72,7 +74,10 @@ class AgentPaymentController extends Controller
         $agent = Agent::findOrFail((int) $request->validated('agent_id'));
         Gate::authorize('pay', $agent);
 
-        $action->handle($request->validated());
+        $payment = $action->handle($request->validated());
+
+        // Mirrors CommissionController::pay() — the payee learns of the payout.
+        $agent->notify(new AgentCommissionPaidNotification($payment->load('branch')));
 
         return back(fallback: route('agent-payments.index'))->with('success', 'تم تسجيل دفعة العمولة بنجاح');
     }
