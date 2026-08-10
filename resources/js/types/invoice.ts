@@ -44,6 +44,8 @@ export interface InvoicePayment {
     paymentMethod: string | null;
     recordedByName: string | null;
     notes: string | null;
+    /** رابط إيصال هذه الدفعة (محمي بالصلاحية)، أو null إن لم يُرفق شيء */
+    receiptUrl: string | null;
 }
 
 export interface InvoiceAgent {

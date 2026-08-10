@@ -298,7 +298,21 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                                                 <span className="text-muted-foreground tabular-nums" dir="ltr">
                                                     {payment.paidAt ? formatDateTime(payment.paidAt) : '—'}
                                                 </span>
-                                                {payment.paymentMethod && <span className="text-muted-foreground">{payment.paymentMethod}</span>}
+                                                {/* الدفعات القديمة قد لا تحمل طريقة دفع — تُعرض «غير محدّدة»
+                                                    ولا تُجبر على التصحيح، فالجدول للإضافة فقط. */}
+                                                <span className={payment.paymentMethod ? 'text-muted-foreground' : 'text-muted-foreground/70 italic'}>
+                                                    {payment.paymentMethod ?? 'غير محدّدة'}
+                                                </span>
+                                                {payment.receiptUrl && (
+                                                    <a
+                                                        href={payment.receiptUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="text-primary inline-flex items-center gap-1 text-xs hover:underline"
+                                                    >
+                                                        <Paperclip className="size-3" /> الإيصال
+                                                    </a>
+                                                )}
                                                 {payment.notes && <span className="text-muted-foreground text-xs">{payment.notes}</span>}
                                             </div>
                                             <div className="flex items-center gap-3">

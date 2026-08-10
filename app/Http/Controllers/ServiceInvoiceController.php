@@ -197,7 +197,9 @@ class ServiceInvoiceController extends Controller
             $branch = Branch::find($branchId);
 
             return [$branchId => $branch
-                ? $branch->enabledPaymentMethods()->map(fn ($m) => ['id' => $m->id, 'name' => $m->name])->values()
+                ? $branch->enabledPaymentMethods()
+                    ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'requiresAttachment' => (bool) $m->requires_attachment])
+                    ->values()
                 : collect()];
         });
 
@@ -207,7 +209,11 @@ class ServiceInvoiceController extends Controller
 
                 // Keep the current method selectable even if it was later disabled.
                 if ($invoice->paymentMethod && ! $options->contains('id', $invoice->payment_method_id)) {
-                    $options = $options->prepend(['id' => $invoice->payment_method_id, 'name' => $invoice->paymentMethod->name]);
+                    $options = $options->prepend([
+                        'id' => $invoice->payment_method_id,
+                        'name' => $invoice->paymentMethod->name,
+                        'requiresAttachment' => (bool) $invoice->paymentMethod->requires_attachment,
+                    ]);
                 }
 
                 return [

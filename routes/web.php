@@ -228,6 +228,10 @@ Route::middleware(['auth'])->group(function () {
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('print');
             Route::get('{type}/{id}/receipt', [InvoiceReceiptController::class, 'show'])
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('receipt');
+
+            // إيصال دفعة بعينها — الصلاحية مأخوذة من الفاتورة الأم داخل المتحكِّم.
+            Route::get('payments/{payment}/receipt', [InvoiceReceiptController::class, 'payment'])
+                ->name('payments.receipt');
         });
 
         // Employee commission report (M18): managers see their branch; employees

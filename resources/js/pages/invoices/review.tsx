@@ -41,7 +41,7 @@ interface ReviewInvoice {
     branchName: string | null;
     paymentMethod: string | null;
     paymentMethodId: number | null;
-    paymentMethodOptions: { id: number; name: string }[];
+    paymentMethodOptions: { id: number; name: string; requiresAttachment?: boolean }[];
     receiptUrl: string | null;
     subtotal: number;
     vatAmount: number;

@@ -83,7 +83,8 @@ class InvoiceController extends Controller
             'branch',
             'refunds' => fn ($q) => $q->with('user:id,name')->latest(),
             // بطاقة «الدفعات»: العربون وما تلاه، مع من سجّلها وبأي طريقة.
-            'payments' => fn ($q) => $q->with(['paymentMethod:id,name', 'recordedBy:id,name'])->oldest('paid_at'),
+            // media يُحمَّل مسبقاً لأن receiptUrl() يقرأه لكل دفعة على حدة.
+            'payments' => fn ($q) => $q->with(['paymentMethod:id,name', 'recordedBy:id,name', 'media'])->oldest('paid_at'),
         ]);
 
         // Product invoices carry a single agent on the row; service invoices list
@@ -97,9 +98,12 @@ class InvoiceController extends Controller
         return Inertia::render('invoices/show', [
             'invoice' => new InvoiceResource($invoice),
             // خيارات طريقة الدفع لنافذة «تسجيل دفعة» — دفعة واحدة قد تُقبض بطريقة
-            // غير التي أُصدرت بها الفاتورة.
+            // غير التي أُصدرت بها الفاتورة. requiresAttachment تُملي على النافذة
+            // إظهار حقل الإيصال وفرضه.
             'paymentMethodOptions' => $invoice->branch
-                ? $invoice->branch->enabledPaymentMethods()->map(fn ($m) => ['id' => $m->id, 'name' => $m->name])->values()
+                ? $invoice->branch->enabledPaymentMethods()
+                    ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'requiresAttachment' => (bool) $m->requires_attachment])
+                    ->values()
                 : [],
         ]);
     }

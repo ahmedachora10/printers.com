@@ -143,6 +143,7 @@ class InvoiceResource extends JsonResource
                     'paymentMethod' => $payment->paymentMethod?->name,
                     'recordedByName' => $payment->recordedBy?->name,
                     'notes' => $payment->notes,
+                    'receiptUrl' => $payment->receiptUrl(),
                 ])->values()->all()),
             'canRefund' => $canRefund,
             'canApprovePayment' => $canApprovePayment,

@@ -10,6 +10,7 @@ use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use App\Models\User;
 use Carbon\CarbonInterface;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -38,10 +39,11 @@ class RecordInvoicePaymentAction
 
     /**
      * @param  array{amount: float|string, paid_at?: string|null, payment_method_id?: int|null, notes?: string|null}  $data
+     * @param  UploadedFile|null  $receipt  إيصال التحويل حين تشترطه طريقة الدفع
      */
-    public function handle(ProductInvoice|ServiceInvoice $invoice, array $data, User $actor): InvoicePayment
+    public function handle(ProductInvoice|ServiceInvoice $invoice, array $data, User $actor, ?UploadedFile $receipt = null): InvoicePayment
     {
-        return DB::transaction(function () use ($invoice, $data, $actor) {
+        return DB::transaction(function () use ($invoice, $data, $actor, $receipt) {
             // قفل صف الفاتورة يُسلسل الدفعات المتزامنة، فلا يمرّ تحصيلان معاً
             // فيتجاوز مجموعُهما الإجمالي.
             $invoice = $invoice->newQuery()->whereKey($invoice->getKey())->lockForUpdate()->firstOrFail();
@@ -88,6 +90,10 @@ class RecordInvoicePaymentAction
                 'recorded_by' => $actor->id,
                 'notes' => $data['notes'] ?? null,
             ]);
+
+            if ($receipt !== null) {
+                $payment->addMedia($receipt)->toMediaCollection(InvoicePayment::RECEIPT_COLLECTION);
+            }
 
             if (round($collected + $amount, 2) >= $total) {
                 $this->settle($invoice, $paidAt);
