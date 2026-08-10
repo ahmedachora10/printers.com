@@ -33,6 +33,44 @@ describe('Customer Management', function () {
         $this->actingAs($this->branchAdmin);
     });
 
+    // ── المحاسب خارج سجلّ العملاء (تاسك 40) ────────────────────────
+
+    it('keeps the accountant out of the customer register', function () {
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole('accountant');
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
+        $this->actingAs($accountant);
+
+        $this->get(route('customers.index'))->assertForbidden();
+        $this->get(route('customers.show', $customer))->assertForbidden();
+        $this->get(route('customers.export'))->assertForbidden();
+        $this->post(route('customers.store'), [
+            'full_name' => 'عميل جديد',
+            'phone' => '0500000111',
+            'customer_type' => 'individual',
+        ])->assertForbidden();
+        $this->put(route('customers.update', $customer), [
+            'full_name' => 'اسم معدّل',
+            'phone' => $customer->phone,
+            'customer_type' => 'individual',
+        ])->assertForbidden();
+        $this->delete(route('customers.destroy', $customer))->assertForbidden();
+    });
+
+    it('still lets the accountant look a customer up from the product POS', function () {
+        // ⚠️ البيع الآجل يتوقّف على هذين المسارين — إخفاء الشاشة يجب ألا يمسّهما.
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole('accountant');
+        Customer::factory()->create(['branch_id' => $this->branch->id, 'full_name' => 'شركة الأفق']);
+        $this->actingAs($accountant);
+
+        $this->getJson(route('pos.customers.search', ['q' => 'الأفق']))
+            ->assertOk()
+            ->assertJsonPath('data.0.fullName', 'شركة الأفق');
+
+        $this->getJson(route('customers.outstanding-balance'))->assertOk();
+    });
+
     // ── INDEX ──────────────────────────────────────────────────────
 
     it('allows branch-admin to view customer list', function () {

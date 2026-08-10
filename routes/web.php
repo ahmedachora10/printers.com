@@ -153,9 +153,6 @@ Route::middleware(['auth'])->group(function () {
 
         Route::resource('expenses', ExpenseController::class)
             ->only(['index', 'store', 'update', 'destroy']);
-
-        Route::resource('agents', AgentController::class)
-            ->only(['index', 'store', 'update', 'destroy']);
     });
 
     Route::middleware('role:branch-admin|super-admin|employee')->group(function () {
@@ -197,16 +194,20 @@ Route::middleware(['auth'])->group(function () {
             ->name('invoices.service.update-customer');
     });
 
+    // ⚠️ يبقيان في متناول المحاسب بعد تاسك 40: نقطة بيع المنتجات تحتاج البحث عن
+    // عميل وقراءة رصيده لربطه بفاتورة آجلة. ويجب أن يسبقا Route::resource أدناه
+    // وإلا التقط customers/{customer} المسارَ الثابت وحاول ربطه كمعرّف.
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
-        // Read-only in-app price list over the same catalogue tree as the
-        // public M19 page — staff reference it while quoting a customer.
-        Route::get('services/price-list', [ServicePriceListController::class, 'index'])
-            ->name('services.price-list');
-
         Route::get('pos/customers/search', [CustomerController::class, 'posSearch'])
             ->name('pos.customers.search');
         Route::get('customers/outstanding-balance', [CustomerController::class, 'outstandingBalance'])
             ->name('customers.outstanding-balance');
+    });
+
+    // سجلّ العملاء: مدير الفرع والسوبر أدمن والموظف (الموظف يسجّل عميل فاتورته).
+    // المحاسب خارجه بقرار العميل (تاسك 40) — ولا يزال يبحث عن العميل داخل نقطة
+    // البيع، ويرى اسمه على الفاتورة التي يحصّلها.
+    Route::middleware('role:branch-admin|super-admin|employee')->group(function () {
         Route::get('customers/export', [CustomerController::class, 'export'])
             ->name('customers.export');
         Route::resource('customers', CustomerController::class);
@@ -219,6 +220,13 @@ Route::middleware(['auth'])->group(function () {
         // analytics; visible to whoever can view the customer profile.
         Route::get('customers/{customer}/activity', [CustomerActivityController::class, 'show'])
             ->name('customers.activity');
+    });
+
+    Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
+        // Read-only in-app price list over the same catalogue tree as the
+        // public M19 page — staff reference it while quoting a customer.
+        Route::get('services/price-list', [ServicePriceListController::class, 'index'])
+            ->name('services.price-list');
 
         Route::prefix('invoices')->name('invoices.')->group(function () {
             Route::get('/', [InvoiceController::class, 'index'])->name('index');
@@ -294,6 +302,10 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {
+        // بيانات المناديب لمدير الفرع وحده — نُزعت من المحاسب في تاسك 40.
+        Route::resource('agents', AgentController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+
         Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
             ->name('users.toggle-status');
         Route::get('users/{user}/service-commissions', [UserController::class, 'showServiceCommissions'])

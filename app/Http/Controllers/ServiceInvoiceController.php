@@ -297,7 +297,9 @@ class ServiceInvoiceController extends Controller
         $customer = $invoice->customer;
 
         if ($customer === null) {
-            Gate::authorize('create', Customer::class);
+            // من الفاتورة لا من السجلّ: المحاسب يسجّل عميل الفاتورة التي يراجعها
+            // وإن كان ممنوعاً من شاشة العملاء (تاسك 40).
+            Gate::authorize('createFromInvoice', Customer::class);
 
             $attachAction->handle($invoice, $request->validated());
 

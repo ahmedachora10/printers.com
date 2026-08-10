@@ -94,6 +94,9 @@ describe('Agent Payments', function () {
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         expect(AgentPayment::where('agent_id', $this->agent->id)->count())->toBe(1);
+
+        // ولا يزال ممنوعاً من بيانات المندوب نفسها (تاسك 40) — هذا هو التبادل.
+        $this->get(route('agents.index'))->assertForbidden();
     });
 
     it('forbids the accountant from disbursing to an agent of another branch', function () {

@@ -206,21 +206,22 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             // ---- Customers & Agents ----
+            // العملاء والمناديب خارج نطاق المحاسب (تاسك 40)، وصرف عمولاتهم من
+            // نصيبه (تاسك 41) — تبادلٌ مقصود لا سهو.
             [
                 'title' => 'العملاء',
                 'url' => route('customers.index'),
                 'icon' => 'User',
                 'group' => 'crm',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
                 'title' => 'المناديب',
                 'url' => route('agents.index'),
                 'icon' => 'Handshake',
                 'group' => 'crm',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
-            // صرف عمولة المندوب من نصيب المحاسب (تاسك 41).
             [
                 'title' => 'مدفوعات المناديب',
                 'url' => route('agent-payments.index'),

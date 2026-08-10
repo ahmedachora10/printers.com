@@ -5,6 +5,12 @@ namespace App\Policies;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
+/**
+ * صلاحيات المناديب — تبادلٌ صريح بقرار العميل (تاسكا 40 و41): يُنزع من المحاسب
+ * التحكّم ببيانات المندوب (عرضاً وإنشاءً وتعديلاً وحذفاً) وتبقى لمدير الفرع
+ * وحده، ويُمنح المحاسب بدلاً منها **صرف** عمولة المندوب. أي عكس التوزيع السابق
+ * تماماً: كان يعدّل ولا يصرف، فصار يصرف ولا يعدّل.
+ */
 class AgentPolicy
 {
     use HandlesAuthorization;
@@ -12,8 +18,7 @@ class AgentPolicy
     public function viewAny(User $user): bool
     {
         return $user->roleName->isSuperAdmin()
-            || $user->roleName->isBranchAdmin()
-            || $user->roleName->isAccountant();
+            || $user->roleName->isBranchAdmin();
     }
 
     public function view(User $user, User $agent): bool

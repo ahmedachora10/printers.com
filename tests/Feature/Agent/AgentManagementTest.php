@@ -53,12 +53,14 @@ describe('Agent Management', function () {
                 ->has('items.data', 3));
     });
 
-    it('allows accountant to view agent list', function () {
+    it('keeps the accountant out of the agent register', function () {
+        // تاسك 40: بيانات المندوب لمدير الفرع وحده. المحاسب يصرف العمولة
+        // (تاسك 41) ولا يمسّ السجلّ نفسه — تبادلٌ صريح لا سهو.
         $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
         $accountant->addRole(Roles::ACCOUNTANT->value);
         $this->actingAs($accountant);
 
-        $this->get(route('agents.index'))->assertOk();
+        $this->get(route('agents.index'))->assertForbidden();
     });
 
     it('prevents employee from viewing agent list', function () {

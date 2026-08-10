@@ -194,7 +194,7 @@ class CustomerController extends Controller
 
     public function outstandingBalance(): Response
     {
-        Gate::authorize('viewAny', Customer::class);
+        Gate::authorize('viewOutstanding', Customer::class);
 
         $branchId = Auth::user()->branchId;
 
