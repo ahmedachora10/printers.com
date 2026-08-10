@@ -22,6 +22,7 @@ use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpenseReportController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\InvoiceController;
@@ -285,6 +286,14 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.daily.export');
         Route::get('reports/daily', [DailyReportController::class, 'index'])
             ->name('reports.daily');
+
+        // Expense report (تاسك 32): the aggregate reading of /expenses — totals,
+        // per-category and per-day breakdowns, and a drill-down. Same audience
+        // and branch scoping as the sales report.
+        Route::get('reports/expenses/export', [ExpenseReportController::class, 'export'])
+            ->name('reports.expenses.export');
+        Route::get('reports/expenses', [ExpenseReportController::class, 'index'])
+            ->name('reports.expenses');
 
         // Agent (مندوب) commissions: what each agent earned and what is still
         // owed — the counter side of the agent portal.
