@@ -433,6 +433,7 @@ class ServiceInvoiceController extends Controller
                 'phone' => $invoice->branch?->phone,
                 'address' => $invoice->branch?->address,
                 'taxNumber' => $isQuotation ? null : $invoice->branch?->tax_number,
+                'logoUrl' => $invoice->branch?->getFirstMediaUrl('logo') ?: null,
             ],
         ]);
     }

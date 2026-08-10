@@ -203,16 +203,13 @@ class CalculateServiceInvoiceAction
         $requestedPoints = (int) ($data['redeem_points'] ?? 0);
         [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($customer, $loyaltyEligible, $config, $requestedPoints, $afterAgent);
 
-        $taxableBase = round($afterAgent - $pointsDiscount, 2);
-        $vatAmount = round($taxableBase * $vatPct / 100, 2);
-        $total = round($taxableBase + $vatAmount, 2);
-
-        // Every commission on this invoice is earned on the value net of VAT: the
-        // tax belongs to the state, not to the sale, so it is stripped out of the
-        // base before any percentage is taken. The prices entered at the POS are
-        // treated as VAT-inclusive for this purpose only — the customer's total is
-        // still taxableBase + VAT and is unaffected.
-        $netBeforeVat = round($taxableBase / (1 + $vatPct / 100), 2);
+        // الأسعار المُدخلة في نقطة البيع شاملة لضريبة القيمة المضافة: ما يبقى بعد
+        // كامل سلسلة الخصومات هو ما يدفعه العميل بالضبط، والضريبة تُستخرج من
+        // داخله لا تُضاف فوقه. الضريبة تُحسب بالطرح (الإجمالي − الصافي) لا بالضرب
+        // في الصافي، حتى يبقى net + vat = total بالقرش مهما كان التقريب.
+        $total = round($afterAgent - $pointsDiscount, 2);
+        $netBeforeVat = round($total / (1 + $vatPct / 100), 2);
+        $vatAmount = round($total - $netBeforeVat, 2);
 
         // Rebate is computed on that net value, independently per agent.
         foreach ($agents as $i => $agent) {

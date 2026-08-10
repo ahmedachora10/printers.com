@@ -81,9 +81,9 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        // total 34.50 × 0.5 = 17.25 → FLOOR = 17
-        expect($customer->refresh()->points_balance)->toBe(17)
-            ->and((float) $customer->cumulative_spend)->toBe(34.50);
+        // الإجمالي شامل الضريبة = 30؛ 30 × 0.5 = 15 → FLOOR = 15
+        expect($customer->refresh()->points_balance)->toBe(15)
+            ->and((float) $customer->cumulative_spend)->toBe(30.00);
 
         $invoice = ProductInvoice::firstOrFail();
         $this->assertDatabaseHas('loyalty_transactions', [
@@ -91,8 +91,8 @@ describe('Loyalty earning', function () {
             'invoice_id' => $invoice->id,
             'invoice_type' => ProductInvoice::class,
             'type' => 'earn',
-            'points' => 17,
-            'balance_after' => 17,
+            'points' => 15,
+            'balance_after' => 15,
         ]);
     });
 
@@ -102,12 +102,12 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        // 100 + FLOOR(34.50) = 134
-        expect($customer->refresh()->points_balance)->toBe(134);
+        // 100 + FLOOR(30.00) = 130
+        expect($customer->refresh()->points_balance)->toBe(130);
         $this->assertDatabaseHas('loyalty_transactions', [
             'customer_id' => $customer->id,
-            'points' => 34,
-            'balance_after' => 134,
+            'points' => 30,
+            'balance_after' => 130,
         ]);
     });
 

@@ -58,10 +58,10 @@ describe('Loyalty redemption & tier discount', function () {
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
         $invoice = ProductInvoice::firstOrFail();
-        // subtotal 30, gold 8% = 2.40, taxable 27.60, VAT 15% = 4.14, total 31.74
+        // subtotal 30، خصم الذهبي 8% = 2.40، فالإجمالي 27.60 شامل الضريبة
         expect((float) $invoice->tier_discount_pct)->toBe(8.00)
             ->and((float) $invoice->tier_discount_amount)->toBe(2.40)
-            ->and((float) $invoice->total_amount)->toBe(31.74);
+            ->and((float) $invoice->total_amount)->toBe(27.60);
     });
 
     it('does not give a tier discount to an untiered customer', function () {
@@ -88,13 +88,13 @@ describe('Loyalty redemption & tier discount', function () {
         ]));
 
         $invoice = ProductInvoice::firstOrFail();
-        // subtotal 30, points 500/100 = 5 discount, taxable 25, VAT 3.75, total 28.75
+        // subtotal 30، استبدال 500/100 = 5، فالإجمالي 25 شامل الضريبة
         expect((int) $invoice->points_redeemed)->toBe(500)
             ->and((float) $invoice->points_discount)->toBe(5.00)
-            ->and((float) $invoice->total_amount)->toBe(28.75);
+            ->and((float) $invoice->total_amount)->toBe(25.00);
 
-        // 1000 − 500 redeemed = 500, then earn FLOOR(28.75) = 28 → 528
-        expect($customer->refresh()->points_balance)->toBe(528);
+        // 1000 − 500 redeemed = 500, then earn FLOOR(25.00) = 25 → 525
+        expect($customer->refresh()->points_balance)->toBe(525);
 
         $this->assertDatabaseHas('loyalty_transactions', [
             'customer_id' => $customer->id,
@@ -105,7 +105,7 @@ describe('Loyalty redemption & tier discount', function () {
         $this->assertDatabaseHas('loyalty_transactions', [
             'customer_id' => $customer->id,
             'type' => 'earn',
-            'balance_after' => 528,
+            'balance_after' => 525,
         ]);
     });
 
@@ -128,10 +128,10 @@ describe('Loyalty redemption & tier discount', function () {
         ]));
 
         $invoice = ProductInvoice::firstOrFail();
-        // 30 − 2.40 tier = 27.60 − 5 points = 22.60 taxable, VAT 3.39, total 25.99
+        // 30 − 2.40 خصم فئة − 5 نقاط = 22.60 إجمالاً شاملاً للضريبة
         expect((float) $invoice->tier_discount_amount)->toBe(2.40)
             ->and((float) $invoice->points_discount)->toBe(5.00)
-            ->and((float) $invoice->total_amount)->toBe(25.99);
+            ->and((float) $invoice->total_amount)->toBe(22.60);
     });
 
     it('rejects redeeming fewer than the minimum points', function () {
@@ -204,9 +204,9 @@ describe('Loyalty redemption & tier discount', function () {
         ]));
 
         $invoice = ProductInvoice::firstOrFail();
-        // B2B: no tier discount; agent 10% of 30 = 3, taxable 27, VAT 4.05, total 31.05
+        // B2B: no tier discount; خصم المندوب 10% من 30 = 3، فالإجمالي 27 شامل الضريبة
         expect((float) $invoice->tier_discount_amount)->toBe(0.00)
             ->and((float) $invoice->agent_discount)->toBe(3.00)
-            ->and((float) $invoice->total_amount)->toBe(31.05);
+            ->and((float) $invoice->total_amount)->toBe(27.00);
     });
 });

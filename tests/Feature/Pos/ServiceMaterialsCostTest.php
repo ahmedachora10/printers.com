@@ -111,9 +111,10 @@ describe('Materials cost (الخامات) before commission', function () {
 
         $invoice = ServiceInvoice::firstOrFail();
 
+        // السعر شامل الضريبة: 100 يدفعها العميل، صافيها 86.96 وضريبتها 13.04
         expect((float) $invoice->subtotal)->toEqual(100.00)
-            ->and((float) $invoice->vat_amount)->toEqual(15.00)
-            ->and((float) $invoice->total_amount)->toEqual(115.00);
+            ->and((float) $invoice->vat_amount)->toEqual(13.04)
+            ->and((float) $invoice->total_amount)->toEqual(100.00);
     });
 
     it('earns the full net commission when the line carries no materials', function () {

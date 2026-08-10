@@ -283,7 +283,11 @@ export function PosCartTable<T extends PosCartLineBase>({
                                 <TableRow className="bg-muted/40 hover:bg-muted/40">
                                     <TableHead className="h-9 text-right">{itemLabel}</TableHead>
                                     <TableHead className="h-9 w-[8rem] text-center">الكمية</TableHead>
-                                    <TableHead className="h-9 w-[7rem] text-center">السعر</TableHead>
+                                    {/* الأسعار المُدخلة شاملة للضريبة — التنويه هنا لأن هذا هو الحقل الذي يكتب فيه الموظف. */}
+                                    <TableHead className="h-9 w-[7rem] text-center leading-tight">
+                                        السعر
+                                        <span className="text-muted-foreground block text-[10px] font-normal">شامل الضريبة</span>
+                                    </TableHead>
                                     {hasAgentColumn && <TableHead className="h-9 w-[9rem] text-center">{lineAgentLabel}</TableHead>}
                                     <TableHead className="h-9 w-[6rem] text-center">خصم %</TableHead>
                                     <TableHead className="h-9 w-[7rem] text-center">الإجمالي</TableHead>
@@ -346,7 +350,7 @@ export function PosCartTable<T extends PosCartLineBase>({
                                         <LineField label="الكمية">
                                             <QuantityStepper qty={line.qty} onChange={(delta) => onQtyChange(line, delta)} />
                                         </LineField>
-                                        <LineField label="السعر">{priceControl(line)}</LineField>
+                                        <LineField label="السعر (شامل الضريبة)">{priceControl(line)}</LineField>
                                         {hasAgentColumn && (
                                             <div className="col-span-2">
                                                 <LineField label={lineAgentLabel}>{renderLineAgent!(line)}</LineField>

@@ -1,4 +1,6 @@
 import InvoiceNotes from '@/components/invoices/invoice-notes';
+import { BranchIdentity, ThermalBranchHeader } from '@/components/invoices/print-header';
+import { ThermalTotals, printTotals } from '@/components/invoices/print-totals';
 import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
 import { formatCurrency, formatDateTime, formatDateTimeNumeric } from '@/lib/utils';
 import { type Invoice } from '@/types/invoice';
@@ -12,6 +14,9 @@ interface Props {
     format: 'a4' | 'thermal';
     zatcaQr: string | null;
 }
+
+/** تسميات الخصومات في مقاس A4، بترتيب مصفوفة printTotals. */
+const A4_DISCOUNT_LABELS = ['خصم الفئة', 'خصم الكوبون', 'خصم المندوب', 'استبدال النقاط'];
 
 function PrintToolbar() {
     return (
@@ -28,19 +33,13 @@ function PrintToolbar() {
 }
 
 function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | null }) {
-    // إجمالي بدون خصم الخصومات: يُحسب على المجموع الفرعي بالكامل
-    const grossVat = invoice.subtotal * (invoice.vatPct / 100);
-    const grossTotal = invoice.subtotal + grossVat;
     const doc = invoiceDocument(invoice);
     const hasPayments = (invoice.payments?.length ?? 0) > 0;
 
     return (
         <div dir="rtl" className="mx-auto max-w-sm bg-white p-4 font-sans text-sm text-black">
             <div className="text-center">
-                <h1 className="text-base font-bold">{invoice.branch.name ?? 'مركز الناسخ للطباعة'}</h1>
-                {invoice.branch.phone && <p className="text-xs">{invoice.branch.phone}</p>}
-                {invoice.branch.address && <p className="text-xs">{invoice.branch.address}</p>}
-                {invoice.branch.taxNumber && <p className="text-xs">الرقم الضريبي: {invoice.branch.taxNumber}</p>}
+                <ThermalBranchHeader branch={invoice.branch} />
                 <h2 className="mt-2 text-sm font-bold">{doc.title}</h2>
                 {doc.isQuotation && <p className="mt-1 text-[10px] font-semibold">{QUOTATION_DISCLAIMER}</p>}
             </div>
@@ -127,18 +126,7 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
             <div className="my-3 border-t border-dashed border-black" />
 
             <div className="space-y-0.5 text-xs">
-                <div className="flex justify-between">
-                    <span>المجموع الفرعي</span>
-                    <span>{formatCurrency(invoice.subtotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                    <span>الضريبة ({invoice.vatPct}%)</span>
-                    <span>{formatCurrency(grossVat)}</span>
-                </div>
-                <div className="mt-1 flex justify-between border-t border-black pt-1 text-sm font-bold">
-                    <span>الإجمالي</span>
-                    <span>{formatCurrency(grossTotal)}</span>
-                </div>
+                <ThermalTotals invoice={invoice} />
                 {hasPayments && (
                     <>
                         <div className="flex justify-between">
@@ -165,27 +153,20 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
 }
 
 function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | null }) {
-    // إجمالي بدون خصم الخصومات: يُحسب على المجموع الفرعي بالكامل
-    const grossVat = invoice.subtotal * (invoice.vatPct / 100);
-    const grossTotal = invoice.subtotal + grossVat;
+    const totals = printTotals(invoice);
     const doc = invoiceDocument(invoice);
     const hasPayments = (invoice.payments?.length ?? 0) > 0;
 
     return (
         <div dir="rtl" className="mx-auto max-w-3xl bg-white p-10 font-sans text-sm text-black">
-            {/* Header */}
+            {/* Header — البيانات يميناً والشعار يساراً (dir=rtl يقلب justify-between). */}
             <div className="flex items-start justify-between gap-6 border-b-2 border-black pb-6">
                 <div className="space-y-1">
                     <h1 className="text-xl font-bold">{invoice.branch.name ?? 'مركز الناسخ للطباعة'}</h1>
-                    {invoice.branch.address && <p className="text-xs">{invoice.branch.address}</p>}
-                    {invoice.branch.phone && (
-                        <p className="text-xs" dir="ltr">
-                            {invoice.branch.phone}
-                        </p>
-                    )}
-                    {invoice.branch.taxNumber && <p className="text-xs">الرقم الضريبي: {invoice.branch.taxNumber}</p>}
+                    <BranchIdentity branch={invoice.branch} className="space-y-1 text-xs" />
                 </div>
-                {invoice.branch.logoUrl && <img src={invoice.branch.logoUrl} alt="logo" className="h-20 w-auto object-contain" />}
+                {/* لا صورة مكسورة ولا فراغ: الفرع بلا شعار يكتفي باسمه في الكتلة اليمنى. */}
+                {invoice.branch.logoUrl && <img src={invoice.branch.logoUrl} alt="" className="h-20 w-auto object-contain" />}
             </div>
 
             <div className="my-6 text-center">
@@ -283,15 +264,23 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
                 <div className="w-64 space-y-1">
                     <div className="flex justify-between">
                         <span className="text-neutral-500">المجموع الفرعي</span>
-                        <span dir="ltr">{formatCurrency(invoice.subtotal)}</span>
+                        <span dir="ltr">{formatCurrency(totals.subtotal)}</span>
                     </div>
+                    {totals.discounts.map((discount, i) =>
+                        discount > 0 ? (
+                            <div key={i} className="flex justify-between">
+                                <span className="text-neutral-500">{A4_DISCOUNT_LABELS[i]}</span>
+                                <span dir="ltr">−{formatCurrency(discount)}</span>
+                            </div>
+                        ) : null,
+                    )}
                     <div className="flex justify-between">
                         <span className="text-neutral-500">الضريبة ({invoice.vatPct}%)</span>
-                        <span dir="ltr">{formatCurrency(grossVat)}</span>
+                        <span dir="ltr">{formatCurrency(totals.vatAmount)}</span>
                     </div>
                     <div className="flex justify-between border-t-2 border-black pt-1 text-base font-bold">
                         <span>الإجمالي</span>
-                        <span dir="ltr">{formatCurrency(grossTotal)}</span>
+                        <span dir="ltr">{formatCurrency(totals.total)}</span>
                     </div>
                     {/* العربون وما بقي على العميل — تُطبع متى سُجِّلت دفعة على الفاتورة. */}
                     {hasPayments && (

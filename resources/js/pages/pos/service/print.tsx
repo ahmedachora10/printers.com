@@ -1,4 +1,6 @@
 import InvoiceNotes from '@/components/invoices/invoice-notes';
+import { ThermalBranchHeader } from '@/components/invoices/print-header';
+import { ThermalTotals } from '@/components/invoices/print-totals';
 import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
 import { formatCurrency, formatDateTime, formatDateTimeNumeric } from '@/lib/utils';
 import service from '@/routes/pos/service';
@@ -40,10 +42,7 @@ export default function ServiceInvoicePrint({ invoice, branch }: Props) {
 
             {/* Header */}
             <div className="text-center">
-                <h1 className="text-base font-bold">{branch.name ?? 'مركز الناسخ للطباعة'}</h1>
-                {branch.phone && <p className="text-xs">{branch.phone}</p>}
-                {branch.address && <p className="text-xs">{branch.address}</p>}
-                {branch.taxNumber && <p className="text-xs">الرقم الضريبي: {branch.taxNumber}</p>}
+                <ThermalBranchHeader branch={branch} />
                 <h2 className="mt-2 text-sm font-bold">{doc.title}</h2>
                 {doc.isQuotation && <p className="mt-1 text-[10px] font-semibold">{QUOTATION_DISCLAIMER}</p>}
             </div>
@@ -137,42 +136,7 @@ export default function ServiceInvoicePrint({ invoice, branch }: Props) {
 
             {/* Totals */}
             <div className="space-y-0.5 text-xs">
-                <div className="flex justify-between">
-                    <span>المجموع الفرعي</span>
-                    <span>{formatCurrency(invoice.subtotal)}</span>
-                </div>
-                {invoice.tierDiscountAmount > 0 && (
-                    <div className="flex justify-between">
-                        <span>خصم الفئة</span>
-                        <span>−{formatCurrency(invoice.tierDiscountAmount)}</span>
-                    </div>
-                )}
-                {invoice.couponDiscount > 0 && (
-                    <div className="flex justify-between">
-                        <span>خصم الكوبون</span>
-                        <span>−{formatCurrency(invoice.couponDiscount)}</span>
-                    </div>
-                )}
-                {invoice.agentDiscount > 0 && (
-                    <div className="flex justify-between">
-                        <span>خصم المندوب</span>
-                        <span>−{formatCurrency(invoice.agentDiscount)}</span>
-                    </div>
-                )}
-                {invoice.pointsDiscount > 0 && (
-                    <div className="flex justify-between">
-                        <span>استبدال النقاط</span>
-                        <span>−{formatCurrency(invoice.pointsDiscount)}</span>
-                    </div>
-                )}
-                <div className="flex justify-between">
-                    <span>الضريبة ({invoice.vatPct}%)</span>
-                    <span>{formatCurrency(invoice.vatAmount)}</span>
-                </div>
-                <div className="mt-1 flex justify-between border-t border-black pt-1 text-sm font-bold">
-                    <span>الإجمالي</span>
-                    <span>{formatCurrency(invoice.totalAmount)}</span>
-                </div>
+                <ThermalTotals invoice={invoice} />
                 {invoice.hasPayments && (
                     <>
                         <div className="flex justify-between">

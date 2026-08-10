@@ -196,4 +196,6 @@ export interface PosBranch {
     phone: string | null;
     address: string | null;
     taxNumber: string | null;
+    /** شعار الفرع كما يُطبع أعلى الإيصال — null إن لم يرفع الفرع شعاراً */
+    logoUrl: string | null;
 }
