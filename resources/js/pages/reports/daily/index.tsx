@@ -88,6 +88,8 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
             { key: 'total', header: 'الإجمالي', className: 'font-semibold text-green-600', cell: (row) => formatCurrency(row.total) },
             // المحصَّل: ما دخل الصندوق فعلاً ذلك اليوم (دفعات الفواتير)، لا ما استُحق.
             { key: 'collected', header: 'المحصَّل', className: 'font-medium text-sky-600', cell: (row) => formatCurrency(row.collected) },
+            // المرتجعات مطروحة أصلاً من المحصَّل — تُعرض ليُرى سببُ نقصه.
+            { key: 'refunds', header: 'المرتجعات', className: 'text-rose-600', cell: (row) => formatCurrency(row.refunds) },
             { key: 'commission', header: 'عمولة الموظفين', className: 'text-amber-600', cell: (row) => formatCurrency(row.commission) },
         );
 
@@ -202,6 +204,7 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
                                     <TableCell className="font-bold">{formatCurrency(totals.services)}</TableCell>
                                     <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
                                     <TableCell className="font-bold text-sky-600">{formatCurrency(totals.collected)}</TableCell>
+                                    <TableCell className="font-bold text-rose-600">{formatCurrency(totals.refunds)}</TableCell>
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.commission)}</TableCell>
                                     {showPurchases && <TableCell className="font-bold text-rose-600">{formatCurrency(totals.purchases)}</TableCell>}
                                     {showPurchases && <TableCell className="font-bold">{formatCurrency(totals.remaining)}</TableCell>}

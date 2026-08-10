@@ -6,6 +6,7 @@ use App\Models\Branch;
 use App\Models\CommissionLedger;
 use App\Models\Expense;
 use App\Models\ProductInvoice;
+use App\Models\Refund;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\StockMovement;
@@ -164,6 +165,71 @@ describe('Daily Report', function () {
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
             ->assertInertia(fn ($page) => $page->where('totals.products', 77.39));
+    });
+
+    // ── المرتجع والإلغاء في التقرير اليومي (تاسك 43) ───────────────
+
+    it('drops a returned invoice out of sales and out of collected', function () {
+        // فاتورة معتمدة ثم مرتجعة: كانت تبقى ضمن المبيعات والمحصَّل والضريبة.
+        dailyProductInvoice($this->branch, $this->branchAdmin, [
+            'status' => 'returned', 'paid_at' => now(), 'vat_amount' => 15, 'total_amount' => 115,
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.products', 0)
+                ->where('totals.collected', 0)
+                ->where('totals.vat', 0));
+    });
+
+    it('subtracts a partial refund from the collected amount and shows it', function () {
+        $invoice = dailyProductInvoice($this->branch, $this->branchAdmin, [
+            'status' => 'paid', 'paid_at' => now(), 'vat_amount' => 15, 'total_amount' => 115,
+        ]);
+
+        Refund::create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'invoice_type' => ProductInvoice::class,
+            'amount' => 40,
+            'reason' => 'مرتجع جزئي',
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page
+                // حُصِّل 115 ورُدَّ 40، فالصافي 75 — والمرتجع ظاهر في عموده.
+                ->where('totals.collected', 75)
+                ->where('totals.refunds', 40)
+                // المبيعات المستحقة لا تتأثر: الفاتورة قائمة ولم تُرتجع كلها.
+                ->where('totals.products', 100));
+    });
+
+    it('agrees with the commission report on the same day', function () {
+        // تاسك 10: عمولة فاتورة مرتجعة غير مدفوعة تسقط من التقريرين معاً، فلا
+        // يعطيان رقمين مختلفين لليوم نفسه.
+        $employee = User::factory()->create(['branch_id' => $this->branch->id]);
+        $employee->addRole(Roles::EMPLOYEE->value);
+
+        $returned = dailyServiceInvoice($this->branch, $employee, ['status' => 'returned']);
+        $line = ServiceInvoiceLine::create([
+            'invoice_id' => $returned->id,
+            'service_name' => 'طباعة',
+            'qty' => 1,
+            'unit_price' => 200,
+            'discount_pct' => 0,
+            'subtotal' => 200,
+            'commission_pct' => 10,
+            'commission_amount' => 20,
+        ]);
+        ledgerRow($this->branch, $employee, ['invoice_line_id' => $line->id, 'amount' => 20]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page->where('totals.commission', 0));
     });
 
     it('counts due invoices but excludes cancelled ones', function () {

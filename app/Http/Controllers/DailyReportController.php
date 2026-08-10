@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Report\BuildReportDayRange;
+use App\Actions\Report\ExcludeReturnedCommission;
 use App\Actions\Report\ResolveReportScope;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\StockMovementTypeEnum;
@@ -134,6 +135,7 @@ class DailyReportController extends Controller
                 'services' => 0.0,
                 'total' => 0.0,
                 'collected' => 0.0,
+                'refunds' => 0.0,
                 'commission' => 0.0,
                 'purchases' => 0.0,
                 'remaining' => 0.0,
@@ -172,6 +174,15 @@ class DailyReportController extends Controller
             $buckets[$day][$employeeId]['collected'] += (float) $row->collected;
         }
 
+        // المرتجعات تُعرض في عمودها ثم تُطرح من المحصَّل — العميل يريد رؤيتها،
+        // لا إخفاء صفوفها.
+        foreach ($this->refundsDaily($scope, $employeeIds, $detailed) as $row) {
+            $day = (string) $row->day;
+            $employeeId = $detailed ? (int) $row->user_id : 0;
+            $ensure($day, $employeeId);
+            $buckets[$day][$employeeId]['refunds'] += (float) $row->refunded;
+        }
+
         foreach ($this->commissionDaily($scope, $employeeIds, $detailed) as $row) {
             $day = (string) $row->day;
             $employeeId = $detailed ? (int) $row->user_id : 0;
@@ -195,8 +206,10 @@ class DailyReportController extends Controller
             uasort($dayRows, fn (array $a, array $b) => strcmp((string) $a['employeeName'], (string) $b['employeeName']));
 
             foreach ($dayRows as $row) {
+                // المرتجع مالٌ خرج فعلاً، فيُخصم من المحصَّل ومن الصافي المتبقي.
+                $row['collected'] -= $row['refunds'];
                 $row['remaining'] = $showPurchases
-                    ? $row['total'] - $row['commission'] - $row['purchases']
+                    ? $row['total'] - $row['refunds'] - $row['commission'] - $row['purchases']
                     : 0.0;
 
                 $rows[] = $row;
@@ -230,7 +243,10 @@ class DailyReportController extends Controller
             'products' => $sum('products'),
             'services' => $sum('services'),
             'total' => $sum('total'),
+            // صفوف اليوم خُصمت منها مرتجعاتها قبل بلوغ هذه الدالة، فالمجموع
+            // يجمع محصَّلاً صافياً.
             'collected' => $sum('collected'),
+            'refunds' => $sum('refunds'),
             'commission' => $sum('commission'),
             'purchases' => 0.0,
             'remaining' => 0.0,
@@ -265,7 +281,7 @@ class DailyReportController extends Controller
         }
 
         return DB::table($table)
-            ->where($table.'.status', '!=', InvoiceStatusEnum::CANCELLED->value)
+            ->whereNotIn($table.'.status', InvoiceStatusEnum::excludedFromRevenue())
             ->whereNull($table.'.deleted_at')
             ->when($scope['branchId'], fn ($q) => $q->where($table.'.branch_id', $scope['branchId']))
             ->when($employeeIds !== [], fn ($q) => $q->whereIn($table.'.user_id', $employeeIds))
@@ -311,7 +327,7 @@ class DailyReportController extends Controller
                 ->join($table.' as i', 'i.id', '=', 'p.invoice_id')
                 ->where('p.invoice_type', $model)
                 ->whereNull('i.deleted_at')
-                ->where('i.status', '!=', InvoiceStatusEnum::CANCELLED->value)
+                ->whereNotIn('i.status', InvoiceStatusEnum::excludedFromRevenue())
                 ->when($scope['branchId'], fn ($q) => $q->where('i.branch_id', $scope['branchId']))
                 ->when($employeeIds !== [], fn ($q) => $q->whereIn('i.user_id', $employeeIds))
                 ->when($scope['from'], fn ($q) => $q->where('p.paid_at', '>=', $scope['from']))
@@ -342,8 +358,59 @@ class DailyReportController extends Controller
     }
 
     /**
+     * ما رُدَّ فعلاً للعملاء كل يوم، مؤرَّخاً بيوم تسجيل المرتجع. يشمل المرتجع
+     * الجزئي والكامل، ويُنسب لمنشئ الفاتورة في الوضع المفصّل لا لمن سجّل المرتجع
+     * — الأثر على مبيعات ذلك الموظف لا على من نفّذ الردّ.
+     *
+     * جدول refunds كان خارج هذا التقرير كلياً، فكان المحصَّل مضخّماً بقيمة كل
+     * مرتجع جزئي.
+     *
+     * @param  array<string, mixed>  $scope
+     * @param  array<int, int>  $employeeIds
+     * @return Collection<int, \stdClass>
+     */
+    private function refundsDaily(array $scope, array $employeeIds, bool $detailed): Collection
+    {
+        $rows = collect();
+
+        foreach ([ProductInvoice::class, ServiceInvoice::class] as $model) {
+            $table = (new $model)->getTable();
+
+            $columns = [
+                DB::raw('DATE(r.created_at) as day'),
+                DB::raw('COALESCE(SUM(r.amount), 0) as refunded'),
+            ];
+
+            if ($detailed) {
+                $columns[] = 'i.user_id';
+            }
+
+            $rows = $rows->concat(
+                DB::table('refunds as r')
+                    ->join($table.' as i', 'i.id', '=', 'r.invoice_id')
+                    ->where('r.invoice_type', $model)
+                    ->whereNull('r.deleted_at')
+                    ->whereNull('i.deleted_at')
+                    ->when($scope['branchId'], fn ($q) => $q->where('r.branch_id', $scope['branchId']))
+                    ->when($employeeIds !== [], fn ($q) => $q->whereIn('i.user_id', $employeeIds))
+                    ->when($scope['from'], fn ($q) => $q->where('r.created_at', '>=', $scope['from']))
+                    ->when($scope['to'], fn ($q) => $q->where('r.created_at', '<=', $scope['to']))
+                    ->groupBy(DB::raw('DATE(r.created_at)'))
+                    ->when($detailed, fn ($q) => $q->groupBy('i.user_id'))
+                    ->get($columns)
+            );
+        }
+
+        return $rows;
+    }
+
+    /**
      * Realized commission (commission_ledger) grouped by earned_at day (and by
      * employee in detailed mode).
+     *
+     * تُسقَط منه صفوف الفواتير المرتجعة غير المدفوعة، تماماً كما يفعل تقرير
+     * العمولات (تاسك 10)، عبر ExcludeReturnedCommission المشترك — وإلا أعطى
+     * التقريران رقمين مختلفين لليوم نفسه.
      *
      * @param  array<string, mixed>  $scope
      * @param  array<int, int>  $employeeIds
@@ -360,11 +427,15 @@ class DailyReportController extends Controller
             $columns[] = 'user_id';
         }
 
-        return DB::table('commission_ledger')
+        $query = DB::table('commission_ledger')
             ->when($scope['branchId'], fn ($q) => $q->where('branch_id', $scope['branchId']))
             ->when($employeeIds !== [], fn ($q) => $q->whereIn('user_id', $employeeIds))
             ->when($scope['from'], fn ($q) => $q->where('earned_at', '>=', $scope['from']))
-            ->when($scope['to'], fn ($q) => $q->where('earned_at', '<=', $scope['to']))
+            ->when($scope['to'], fn ($q) => $q->where('earned_at', '<=', $scope['to']));
+
+        ExcludeReturnedCommission::apply($query);
+
+        return $query
             ->groupBy(DB::raw('DATE(earned_at)'))
             ->when($detailed, fn ($q) => $q->groupBy('user_id'))
             ->get($columns);
@@ -434,6 +505,7 @@ class DailyReportController extends Controller
             'services' => (float) $details->sum('services'),
             'total' => (float) $details->sum('total'),
             'collected' => (float) $details->sum('collected'),
+            'refunds' => (float) $details->sum('refunds'),
             'commission' => (float) $details->sum('commission'),
             'purchases' => $showPurchases ? (float) $details->sum('purchases') : 0.0,
             'remaining' => $showPurchases ? (float) $details->sum('remaining') : 0.0,

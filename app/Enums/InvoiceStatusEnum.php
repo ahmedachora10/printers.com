@@ -52,4 +52,16 @@ enum InvoiceStatusEnum: string
     {
         return array_map(fn ($case) => $case->value, self::cases());
     }
+
+    /**
+     * الحالات التي لا تُحتسب مبيعاتٍ ولا تحصيلاً: الملغاة لم تصر بيعاً قط،
+     * والمرتجعة اعتُمدت ثم أُعيدت فبطل أثرها. مصدرٌ واحد لكل التقارير حتى لا
+     * تتفرّع القاعدة مرة أخرى — نسيان «المرتجعة» هو ما ضخّم التقرير اليومي.
+     *
+     * @return array<int, string>
+     */
+    public static function excludedFromRevenue(): array
+    {
+        return [self::CANCELLED->value, self::RETURNED->value];
+    }
 }

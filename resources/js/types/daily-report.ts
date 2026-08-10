@@ -8,8 +8,10 @@ export interface DailyReportRow {
     products: number;
     services: number;
     total: number;
-    /** ما حُصِّل فعلاً في اليوم من دفعات الفواتير — يختلف عن الإجمالي المستحق. */
+    /** ما حُصِّل فعلاً في اليوم من دفعات الفواتير، صافياً بعد طرح المرتجعات. */
     collected: number;
+    /** ما رُدَّ للعملاء في اليوم — مطروح أصلاً من collected ومن remaining. */
+    refunds: number;
     commission: number;
     purchases: number;
     remaining: number;
@@ -22,6 +24,7 @@ export interface DailyReportTotals {
     services: number;
     total: number;
     collected: number;
+    refunds: number;
     commission: number;
     purchases: number;
     remaining: number;

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Report\BuildReportDayRange;
+use App\Actions\Report\ExcludeReturnedCommission;
 use App\Enums\CommissionSourceTypeEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\Roles;
@@ -143,38 +144,24 @@ class CommissionReportController extends Controller
 
     /**
      * Aggregate query: the ledger rows that still represent money, with the
-     * unpaid commission of returned invoices left out (تاسك 10).
-     *
-     * Returning an invoice writes a negative offsetting row rather than touching
-     * the immutable ledger, so netting alone only balances when the report window
-     * happens to span both the earning and the return. Dropping both rows instead
-     * makes "المستحق" right in every window. Commission that was already **paid**
-     * stays counted: that money left the till and is never clawed back (M14).
+     * unpaid commission of returned invoices left out (تاسك 10). القاعدة نفسها
+     * يستدعيها التقرير اليومي عبر ExcludeReturnedCommission، فلا يفترقان.
      *
      * @param  array<string, mixed>  $scope
      */
     private function moneyQuery(array $scope): Builder
     {
         return $this->baseQuery($scope)
-            ->when($scope['status'] !== 'returned', fn ($q) => $q->where(
-                fn ($q) => $q->whereNotNull('commission_ledger.paid_at')
-                    ->orWhereNotExists(fn ($sub) => $this->returnedInvoiceSubquery($sub)),
-            ));
+            ->when($scope['status'] !== 'returned',
+                fn ($q) => ExcludeReturnedCommission::apply($q));
     }
 
     /**
      * Correlated subquery: does this ledger row belong to a returned invoice?
-     * Written as EXISTS rather than a join so it composes with every caller
-     * (the detail query already joins the same tables).
      */
     private function returnedInvoiceSubquery(Builder $query): Builder
     {
-        return $query->selectRaw('1')
-            ->from('service_invoice_lines')
-            ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_lines.invoice_id')
-            ->whereColumn('service_invoice_lines.id', 'commission_ledger.invoice_line_id')
-            ->where('commission_ledger.invoice_line_type', ServiceInvoiceLine::class)
-            ->where('service_invoices.status', InvoiceStatusEnum::RETURNED->value);
+        return ExcludeReturnedCommission::returnedInvoice($query);
     }
 
     /**
