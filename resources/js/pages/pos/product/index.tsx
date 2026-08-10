@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
+import { invoiceTotals } from '@/lib/invoice';
 import { formatCurrency } from '@/lib/utils';
 import product from '@/routes/pos/product';
 import { type BreadcrumbItem, type SharedData } from '@/types';
@@ -138,11 +139,23 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
         if (pts <= 0) return 0;
         return round2(Math.min(pts / loyalty.redemptionRate, afterAgent));
     }, [loyaltyOn, redeemPoints, loyalty.redemptionRate, afterAgent]);
-    const taxableBase = useMemo(() => round2(afterAgent - pointsDiscount), [afterAgent, pointsDiscount]);
-    const vatAmount = useMemo(() => round2((taxableBase * vatPct) / 100), [taxableBase, vatPct]);
-    const total = useMemo(() => round2(taxableBase + vatAmount), [taxableBase, vatAmount]);
+    // الأسعار المُدخلة شاملة للضريبة: ما يبقى بعد الخصومات هو الإجمالي الذي
+    // يدفعه العميل، والضريبة تُستخرج من داخله بالطرح. مطابق للخادم حرفياً.
+    const total = useMemo(() => round2(afterAgent - pointsDiscount), [afterAgent, pointsDiscount]);
     // The rebate is earned on the value net of VAT — mirrors the server.
-    const netBeforeVat = useMemo(() => round2(taxableBase / (1 + vatPct / 100)), [taxableBase, vatPct]);
+    const netBeforeVat = useMemo(() => round2(total / (1 + vatPct / 100)), [total, vatPct]);
+    const vatAmount = useMemo(() => round2(total - netBeforeVat), [total, netBeforeVat]);
+    // تفكيك ما يُعرض للكاشير — نفس اشتقاق شاشة الفاتورة والطباعة.
+    const totals = useMemo(
+        () =>
+            invoiceTotals({
+                vatPct,
+                vatAmount,
+                totalAmount: total,
+                discounts: [tierDiscount, couponDiscount, agentDiscount, pointsDiscount],
+            }),
+        [vatPct, vatAmount, total, tierDiscount, couponDiscount, agentDiscount, pointsDiscount],
+    );
     const agentRebate = useMemo(
         () =>
             selectedAgent?.discountMode === 'rebate'
@@ -467,40 +480,40 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                         <CardContent className="space-y-2 py-4 text-sm">
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">المجموع الفرعي</span>
-                                <span>{formatCurrency(subtotal)}</span>
+                                <span>{formatCurrency(totals.subtotal)}</span>
                             </div>
-                            {tierDiscount > 0 && (
+                            {totals.discounts[0] > 0 && (
                                 <div className="flex justify-between text-green-600 dark:text-green-400">
                                     <span>خصم الفئة{selectedCustomer ? ` (${selectedCustomer.tierLabel})` : ''}</span>
-                                    <span>−{formatCurrency(tierDiscount)}</span>
+                                    <span>−{formatCurrency(totals.discounts[0])}</span>
                                 </div>
                             )}
-                            {couponDiscount > 0 && (
+                            {totals.discounts[1] > 0 && (
                                 <div className="flex justify-between text-green-600 dark:text-green-400">
                                     <span>خصم الكوبون</span>
-                                    <span>−{formatCurrency(couponDiscount)}</span>
+                                    <span>−{formatCurrency(totals.discounts[1])}</span>
                                 </div>
                             )}
-                            {agentDiscount > 0 && (
+                            {totals.discounts[2] > 0 && (
                                 <div className="flex justify-between text-green-600 dark:text-green-400">
                                     <span>خصم المندوب</span>
-                                    <span>−{formatCurrency(agentDiscount)}</span>
+                                    <span>−{formatCurrency(totals.discounts[2])}</span>
                                 </div>
                             )}
-                            {pointsDiscount > 0 && (
+                            {totals.discounts[3] > 0 && (
                                 <div className="flex justify-between text-green-600 dark:text-green-400">
                                     <span>استبدال النقاط</span>
-                                    <span>−{formatCurrency(pointsDiscount)}</span>
+                                    <span>−{formatCurrency(totals.discounts[3])}</span>
                                 </div>
                             )}
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">الضريبة ({vatPct}%)</span>
-                                <span>{formatCurrency(vatAmount)}</span>
+                                <span>{formatCurrency(totals.vatAmount)}</span>
                             </div>
                             <Separator />
                             <div className="flex justify-between text-lg font-bold">
-                                <span>الإجمالي</span>
-                                <span>{formatCurrency(total)}</span>
+                                <span>الإجمالي (شامل الضريبة)</span>
+                                <span>{formatCurrency(totals.total)}</span>
                             </div>
                             {agentRebate > 0 && (
                                 <div className="text-muted-foreground flex justify-between text-xs">

@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
-import { INVOICE_STATUS_COLORS, invoiceDocumentTitle } from '@/lib/invoice';
+import { INVOICE_STATUS_COLORS, invoiceDocumentTitle, invoiceTotals } from '@/lib/invoice';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
@@ -112,6 +112,15 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
     const [returnOpen, setReturnOpen] = useState(false);
     const [returnReason, setReturnReason] = useState('');
     const [returning, setReturning] = useState(false);
+
+    // الأسعار المُدخلة شاملة للضريبة، فالمجموع الفرعي والخصومات تُعرض صافيةً منها
+    // ويبقى الإجمالي هو ما يدفعه العميل — نفس اشتقاق صفحة الطباعة.
+    const totals = invoiceTotals({
+        vatPct: invoice.vatPct,
+        vatAmount: invoice.vatAmount,
+        totalAmount: invoice.totalAmount,
+        discounts: [invoice.tierDiscountAmount, invoice.couponDiscount, invoice.agentDiscount, invoice.pointsDiscount],
+    });
 
     useEffect(() => {
         if (props.success) {
@@ -383,16 +392,14 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                             <Separator className="my-4" />
 
                             <div className="ms-auto max-w-xs space-y-2">
-                                <TotalRow label="المجموع الفرعي" value={formatCurrency(invoice.subtotal)} />
-                                {invoice.tierDiscountAmount > 0 && (
-                                    <TotalRow label="خصم المستوى" value={`−${formatCurrency(invoice.tierDiscountAmount)}`} />
-                                )}
-                                {invoice.couponDiscount > 0 && <TotalRow label="خصم الكوبون" value={`−${formatCurrency(invoice.couponDiscount)}`} />}
-                                {invoice.agentDiscount > 0 && <TotalRow label="خصم المندوب" value={`−${formatCurrency(invoice.agentDiscount)}`} />}
-                                {invoice.pointsDiscount > 0 && <TotalRow label="خصم النقاط" value={`−${formatCurrency(invoice.pointsDiscount)}`} />}
-                                <TotalRow label={`الضريبة (${invoice.vatPct}%)`} value={formatCurrency(invoice.vatAmount)} />
+                                <TotalRow label="المجموع الفرعي" value={formatCurrency(totals.subtotal)} />
+                                {totals.discounts[0] > 0 && <TotalRow label="خصم المستوى" value={`−${formatCurrency(totals.discounts[0])}`} />}
+                                {totals.discounts[1] > 0 && <TotalRow label="خصم الكوبون" value={`−${formatCurrency(totals.discounts[1])}`} />}
+                                {totals.discounts[2] > 0 && <TotalRow label="خصم المندوب" value={`−${formatCurrency(totals.discounts[2])}`} />}
+                                {totals.discounts[3] > 0 && <TotalRow label="خصم النقاط" value={`−${formatCurrency(totals.discounts[3])}`} />}
+                                <TotalRow label={`الضريبة (${invoice.vatPct}%)`} value={formatCurrency(totals.vatAmount)} />
                                 <Separator className="my-1" />
-                                <TotalRow label="الإجمالي" value={formatCurrency(invoice.totalAmount)} strong />
+                                <TotalRow label="الإجمالي" value={formatCurrency(totals.total)} strong />
                                 {invoice.agents
                                     .filter((a) => a.rebate > 0)
                                     .map((a, i) => (

@@ -84,9 +84,11 @@ describe('Product POS', function () {
 
         expect($invoice->status->value)->toBe('paid')
             ->and($invoice->paid_at)->not->toBeNull()
+            // الأسعار شاملة للضريبة: 30 مُدخلة = 30 يدفعها العميل،
+            // صافيها 30 ÷ 1.15 = 26.09 والضريبة المستخرجة 3.91.
             ->and((float) $invoice->subtotal)->toBe(30.00)
-            ->and((float) $invoice->vat_amount)->toBe(4.50)
-            ->and((float) $invoice->total_amount)->toBe(34.50)
+            ->and((float) $invoice->vat_amount)->toBe(3.91)
+            ->and((float) $invoice->total_amount)->toBe(30.00)
             ->and($invoice->invoice_number)->toBe(sprintf('INV-%03d-%05d', $this->branch->id, 1))
             ->and($invoice->lines)->toHaveCount(1);
 
@@ -109,9 +111,10 @@ describe('Product POS', function () {
         ]));
 
         $invoice = ProductInvoice::firstOrFail();
-        // 2 * 10 * 0.5 = 10 subtotal, VAT 15% = 1.5, total 11.5
+        // 2 * 10 * 0.5 = 10 subtotal شامل الضريبة، فالإجمالي 10 والضريبة 1.30
         expect((float) $invoice->subtotal)->toBe(10.00)
-            ->and((float) $invoice->total_amount)->toBe(11.50);
+            ->and((float) $invoice->vat_amount)->toBe(1.30)
+            ->and((float) $invoice->total_amount)->toBe(10.00);
     });
 
     it('saves a due invoice with no paid_at', function () {
@@ -139,9 +142,10 @@ describe('Product POS', function () {
         $this->post(route('pos.product.store'), posPayload());
 
         $invoice = ProductInvoice::firstOrFail();
+        // 30 شاملة ضريبة 10%: صافيها 27.27 والضريبة المستخرجة 2.73
         expect((float) $invoice->vat_pct)->toBe(10.00)
-            ->and((float) $invoice->vat_amount)->toBe(3.00)
-            ->and((float) $invoice->total_amount)->toBe(33.00);
+            ->and((float) $invoice->vat_amount)->toBe(2.73)
+            ->and((float) $invoice->total_amount)->toBe(30.00);
     });
 
     it('increments the invoice sequence per branch', function () {
@@ -229,11 +233,11 @@ describe('Product POS', function () {
         $this->post(route('pos.product.store'), posPayload(['coupon_code' => 'SAVE10']));
 
         $invoice = ProductInvoice::firstOrFail();
-        // subtotal 30, coupon 3, taxable 27, VAT 15% = 4.05, total 31.05
+        // subtotal 30، كوبون 3، فالإجمالي 27 شامل الضريبة: صافيه 23.48 والضريبة 3.52
         expect((float) $invoice->subtotal)->toBe(30.00)
             ->and((float) $invoice->coupon_discount)->toBe(3.00)
-            ->and((float) $invoice->vat_amount)->toBe(4.05)
-            ->and((float) $invoice->total_amount)->toBe(31.05)
+            ->and((float) $invoice->vat_amount)->toBe(3.52)
+            ->and((float) $invoice->total_amount)->toBe(27.00)
             ->and($invoice->coupon_id)->toBe($coupon->id);
 
         expect($coupon->refresh()->used_count)->toBe(1);
@@ -253,11 +257,11 @@ describe('Product POS', function () {
         $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
 
         $invoice = ProductInvoice::firstOrFail();
-        // subtotal 30, agent discount 10% = 3, taxable 27, VAT 15% = 4.05, total 31.05
+        // subtotal 30، خصم المندوب 10% = 3، فالإجمالي 27 شامل الضريبة
         expect((float) $invoice->subtotal)->toBe(30.00)
             ->and((float) $invoice->agent_discount)->toBe(3.00)
             ->and((float) $invoice->agent_rebate)->toBe(0.00)
-            ->and((float) $invoice->total_amount)->toBe(31.05)
+            ->and((float) $invoice->total_amount)->toBe(27.00)
             ->and($invoice->agent_id)->toBe($agent->id);
     });
 
@@ -268,9 +272,9 @@ describe('Product POS', function () {
         $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
 
         $invoice = ProductInvoice::firstOrFail();
-        // subtotal 30, taxable 30, VAT 15% = 4.50, total 34.50. The rebate is
-        // earned net of VAT: 30 / 1.15 = 26.09, at 10% = 2.61.
-        expect((float) $invoice->total_amount)->toBe(34.50)
+        // subtotal 30 شاملة الضريبة، فالإجمالي 30. الريبيت يُحتسب على الصافي:
+        // 30 ÷ 1.15 = 26.09، وبنسبة 10% = 2.61 — لم يتغيّر بتغيّر عرض الضريبة.
+        expect((float) $invoice->total_amount)->toBe(30.00)
             ->and((float) $invoice->agent_discount)->toBe(0.00)
             ->and((float) $invoice->agent_rebate)->toBe(2.61);
     });
@@ -282,11 +286,11 @@ describe('Product POS', function () {
         $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
 
         $invoice = ProductInvoice::firstOrFail();
-        // subtotal 30, fixed agent discount 5, taxable 25, VAT 15% = 3.75, total 28.75
+        // subtotal 30، خصم ثابت 5، فالإجمالي 25 شامل الضريبة
         expect((float) $invoice->subtotal)->toBe(30.00)
             ->and((float) $invoice->agent_discount)->toBe(5.00)
             ->and((float) $invoice->agent_rebate)->toBe(0.00)
-            ->and((float) $invoice->total_amount)->toBe(28.75)
+            ->and((float) $invoice->total_amount)->toBe(25.00)
             ->and($invoice->agent_id)->toBe($agent->id);
     });
 
@@ -297,8 +301,8 @@ describe('Product POS', function () {
         $this->post(route('pos.product.store'), posPayload(['agent_id' => $agent->id]));
 
         $invoice = ProductInvoice::firstOrFail();
-        // subtotal 30, taxable 30, VAT 15% = 4.50, total 34.50, fixed rebate 8
-        expect((float) $invoice->total_amount)->toBe(34.50)
+        // subtotal 30 شاملة الضريبة، فالإجمالي 30، والريبيت الثابت 8
+        expect((float) $invoice->total_amount)->toBe(30.00)
             ->and((float) $invoice->agent_discount)->toBe(0.00)
             ->and((float) $invoice->agent_rebate)->toBe(8.00);
     });

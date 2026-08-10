@@ -50,3 +50,49 @@ export function invoiceDocumentTitle(invoice: DocumentSource): string {
 
 /** التنويه المطبوع أسفل عرض السعر. */
 export const QUOTATION_DISCLAIMER = 'هذا العرض غير ملزم ولا يُعد فاتورة ضريبية';
+
+export interface TotalsBreakdownInput {
+    /** نسبة الضريبة المطبَّقة على هذه الفاتورة */
+    vatPct: number;
+    /** مبلغ الضريبة كما احتسبه الخادم (أو معاينة نقطة البيع) */
+    vatAmount: number;
+    /** الإجمالي الذي يدفعه العميل — شامل الضريبة */
+    totalAmount: number;
+    /** الخصومات كما تُطرح فعلاً من فاتورة العميل (شاملة للضريبة)، بترتيب العرض */
+    discounts: number[];
+}
+
+export interface TotalsBreakdown {
+    /** المجموع الفرعي صافياً من الضريبة، قبل خصومات الفاتورة */
+    subtotal: number;
+    /** الخصومات نفسها صافيةً من الضريبة، بنفس ترتيب المدخل */
+    discounts: number[];
+    vatAmount: number;
+    /** الإجمالي شامل الضريبة = ما يدفعه العميل */
+    total: number;
+}
+
+const round2 = (value: number): number => Math.round(value * 100) / 100;
+
+/**
+ * الاشتقاق الوحيد لعرض «المجموع الفرعي / الضريبة / الإجمالي» في كل شاشة تعرض
+ * فاتورة أو تعاينها. الأسعار المُدخلة في نقطة البيع شاملة للضريبة، فالإجمالي هو
+ * ما يدفعه العميل والضريبة مستخرَجة من داخله — لذا يُعرض المجموع الفرعي صافياً
+ * من الضريبة، وتُعرض الخصومات صافيةً منها كذلك حتى يجمع العمود بالقرش:
+ *
+ *   المجموع الفرعي − الخصومات + الضريبة = الإجمالي
+ *
+ * المجموع الفرعي مشتقّ من (الإجمالي − الضريبة) مضافاً إليه الخصومات الصافية،
+ * لا من مجموع الأسطر، حتى لا يُنتج التقريب فرق قرش في العمود.
+ */
+export function invoiceTotals({ vatPct, vatAmount, totalAmount, discounts }: TotalsBreakdownInput): TotalsBreakdown {
+    const netDiscounts = discounts.map((discount) => round2(discount / (1 + vatPct / 100)));
+    const net = round2(totalAmount - vatAmount);
+
+    return {
+        subtotal: round2(net + netDiscounts.reduce((sum, discount) => sum + discount, 0)),
+        discounts: netDiscounts,
+        vatAmount,
+        total: totalAmount,
+    };
+}

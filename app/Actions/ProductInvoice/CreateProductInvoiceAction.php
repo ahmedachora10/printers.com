@@ -146,14 +146,12 @@ class CreateProductInvoiceAction
             $requestedPoints = (int) ($data['redeem_points'] ?? 0);
             [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($customer, $loyaltyEligible, $config, $requestedPoints, $afterAgent);
 
-            $taxableBase = round($afterAgent - $pointsDiscount, 2);
-            $vatAmount = round($taxableBase * $vatPct / 100, 2);
-            $total = round($taxableBase + $vatAmount, 2);
-
-            // The rebate is earned on the value net of VAT — the tax belongs to
-            // the state, not to the sale. Matches the service invoice, so an
-            // agent is paid on the same basis whichever counter served them.
-            $netBeforeVat = round($taxableBase / (1 + $vatPct / 100), 2);
+            // الأسعار المُدخلة في نقطة البيع شاملة لضريبة القيمة المضافة: ما يبقى
+            // بعد كامل سلسلة الخصومات هو ما يدفعه العميل بالضبط، والضريبة تُستخرج
+            // من داخله بالطرح لا بالضرب. مطابق لفاتورة الخدمة تماماً.
+            $total = round($afterAgent - $pointsDiscount, 2);
+            $netBeforeVat = round($total / (1 + $vatPct / 100), 2);
+            $vatAmount = round($total - $netBeforeVat, 2);
 
             $agentRebate = $agentMode === AgentDiscountModeEnum::Rebate
                 ? $this->agentAmount($agentType, $agentRate, $netBeforeVat)

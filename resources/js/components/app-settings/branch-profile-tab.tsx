@@ -4,13 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ImageUpload } from '@/components/ui/image-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Branch, type BranchProfileFormData } from '@/types/branch';
 import { type City } from '@/types/city';
 import { router, useForm } from '@inertiajs/react';
@@ -37,16 +31,19 @@ export default function BranchProfileTab({ branch, cities }: Props) {
         e.preventDefault();
 
         // The logo makes this multipart, so the PUT is method-spoofed over POST.
-        router.post(updateBranchProfile.url(), { ...data, _method: 'put' }, {
-            forceFormData: true,
-            preserveScroll: true,
-            onSuccess: () => {
-                clearErrors();
-                setData('logo', null);
+        router.post(
+            updateBranchProfile.url(),
+            { ...data, _method: 'put' },
+            {
+                forceFormData: true,
+                preserveScroll: true,
+                onSuccess: () => {
+                    clearErrors();
+                    setData('logo', null);
+                },
+                onError: (errs) => Object.entries(errs).forEach(([k, v]) => setError(k as keyof BranchProfileFormData, v)),
             },
-            onError: (errs) =>
-                Object.entries(errs).forEach(([k, v]) => setError(k as keyof BranchProfileFormData, v)),
-        });
+        );
     }
 
     return (
@@ -66,6 +63,14 @@ export default function BranchProfileTab({ branch, cities }: Props) {
                         currentUrl={branch.logoUrl || undefined}
                         error={errors.logo}
                     />
+                    <p className="text-muted-foreground text-xs">PNG بخلفية شفافة، الارتفاع الأمثل 200px، والحد الأقصى للحجم 2 ميجابايت.</p>
+                    {/* الفرع بلا شعار يطبع اسمه نصاً — التنبيه هنا لأن هذا سبب الفراغ
+                        الذي يظهر أعلى يسار الفاتورة المطبوعة. */}
+                    {!branch.logoUrl && !data.logo && (
+                        <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+                            لم يُرفع شعار — سيظهر اسم الفرع نصاً في الفواتير المطبوعة.
+                        </div>
+                    )}
                 </div>
 
                 {/* Name + City */}
@@ -74,12 +79,7 @@ export default function BranchProfileTab({ branch, cities }: Props) {
                         <Label htmlFor="bp-name">
                             اسم الفرع <span className="text-destructive">*</span>
                         </Label>
-                        <Input
-                            id="bp-name"
-                            value={data.name}
-                            onChange={(e) => setData('name', e.target.value)}
-                            placeholder="أدخل اسم الفرع"
-                        />
+                        <Input id="bp-name" value={data.name} onChange={(e) => setData('name', e.target.value)} placeholder="أدخل اسم الفرع" />
                         <InputError message={errors.name} />
                     </div>
 
@@ -132,12 +132,7 @@ export default function BranchProfileTab({ branch, cities }: Props) {
                 {/* Address */}
                 <div className="space-y-1">
                     <Label htmlFor="bp-address">العنوان</Label>
-                    <Input
-                        id="bp-address"
-                        value={data.address}
-                        onChange={(e) => setData('address', e.target.value)}
-                        placeholder="أدخل العنوان"
-                    />
+                    <Input id="bp-address" value={data.address} onChange={(e) => setData('address', e.target.value)} placeholder="أدخل العنوان" />
                     <InputError message={errors.address} />
                 </div>
 
@@ -164,9 +159,7 @@ export default function BranchProfileTab({ branch, cities }: Props) {
                             placeholder="الرقم الضريبي"
                             dir="ltr"
                         />
-                        <p className="text-muted-foreground text-xs">
-                            يظهر على الفاتورة الضريبية ورمز QR؛ تأكّد من مطابقته لشهادة التسجيل الضريبي.
-                        </p>
+                        <p className="text-muted-foreground text-xs">يظهر على الفاتورة الضريبية ورمز QR؛ تأكّد من مطابقته لشهادة التسجيل الضريبي.</p>
                         <InputError message={errors.tax_number} />
                     </div>
                 </div>
@@ -186,9 +179,7 @@ export default function BranchProfileTab({ branch, cities }: Props) {
                         onChange={(e) => setData('vat_rate_override', parseFloat(e.target.value) || 0)}
                         dir="ltr"
                     />
-                    <p className="text-muted-foreground text-xs">
-                        التغييرات لا تُطبَّق بأثر رجعي على الفواتير السابقة.
-                    </p>
+                    <p className="text-muted-foreground text-xs">التغييرات لا تُطبَّق بأثر رجعي على الفواتير السابقة.</p>
                     <InputError message={errors.vat_rate_override} />
                 </div>
 

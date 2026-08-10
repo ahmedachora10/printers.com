@@ -150,22 +150,30 @@ describe('Daily Report', function () {
     });
 
     it('subtracts discounts from the net sales figure', function () {
+        // مجموع فرعي 100 وخصومات 11 → إجمالي 89 شامل الضريبة، ضريبته 11.61،
+        // فالصافي قبل الضريبة 77.39. الصافي مشتقّ من (الإجمالي − الضريبة).
         dailyProductInvoice($this->branch, $this->branchAdmin, [
             'tier_discount_amount' => 5,
             'coupon_discount' => 3,
             'points_discount' => 2,
             'agent_discount' => 1,
+            'vat_amount' => 11.61,
+            'total_amount' => 89,
         ]);
 
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
-            ->assertInertia(fn ($page) => $page->where('totals.products', 89));
+            ->assertInertia(fn ($page) => $page->where('totals.products', 77.39));
     });
 
     it('counts due invoices but excludes cancelled ones', function () {
         dailyProductInvoice($this->branch, $this->branchAdmin, ['status' => 'due', 'subtotal' => 100]);
-        dailyProductInvoice($this->branch, $this->branchAdmin, ['status' => 'paid', 'paid_at' => now(), 'subtotal' => 50]);
-        dailyProductInvoice($this->branch, $this->branchAdmin, ['status' => 'cancelled', 'subtotal' => 900]);
+        dailyProductInvoice($this->branch, $this->branchAdmin, [
+            'status' => 'paid', 'paid_at' => now(), 'subtotal' => 50, 'vat_amount' => 7.5, 'total_amount' => 57.5,
+        ]);
+        dailyProductInvoice($this->branch, $this->branchAdmin, [
+            'status' => 'cancelled', 'subtotal' => 900, 'vat_amount' => 135, 'total_amount' => 1035,
+        ]);
 
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))

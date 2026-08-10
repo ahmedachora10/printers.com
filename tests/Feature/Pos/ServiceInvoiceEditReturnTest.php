@@ -111,7 +111,8 @@ describe('Service invoice edit/return', function () {
             ->and((float) $invoice->subtotal)->toBe(50.00)
             // Net of VAT 50 / 1.15 = 43.48, at 10% = 4.35.
             ->and((float) $invoice->employee_commission)->toBe(4.35)
-            ->and((float) $invoice->total_amount)->toBe(57.50)
+            // السعر شامل الضريبة، فالإجمالي هو المجموع الفرعي نفسه.
+            ->and((float) $invoice->total_amount)->toBe(50.00)
             ->and($invoice->lines()->count())->toBe(1);
 
         // A due invoice carries no ledger yet; approving it writes the recomputed
@@ -172,7 +173,7 @@ describe('Service invoice edit/return', function () {
     });
 
     it('books a refund for the full total and reverses commission when returning a paid invoice', function () {
-        $invoice = makeOwnedDueInvoice(); // total 34.50, commission 2.61
+        $invoice = makeOwnedDueInvoice(); // total 30.00 شامل الضريبة، commission 2.61
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
 
         expect((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(2.61);
@@ -186,7 +187,7 @@ describe('Service invoice edit/return', function () {
 
         expect($invoice->trashed())->toBeFalse()
             ->and($invoice->status->value)->toBe('returned')
-            ->and((float) $refund->amount)->toBe(34.50)
+            ->and((float) $refund->amount)->toBe(30.00)
             ->and($refund->reason)->toBe('العميل ألغى الطلب')
             ->and($refund->user_id)->toBe($this->employee->id)
             // The reversal is a new negative row — the ledger is never mutated.
@@ -195,7 +196,7 @@ describe('Service invoice edit/return', function () {
     });
 
     it('refunds only the remainder when the invoice was already partially refunded', function () {
-        $invoice = makeOwnedDueInvoice(); // total 34.50, commission 2.61
+        $invoice = makeOwnedDueInvoice(); // total 30.00 شامل الضريبة، commission 2.61
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
 
         $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
@@ -212,8 +213,8 @@ describe('Service invoice edit/return', function () {
 
         expect($invoice->status->value)->toBe('returned')
             ->and(Refund::where('invoice_id', $invoice->id)->count())->toBe(2)
-            ->and((float) Refund::where('invoice_id', $invoice->id)->sum('amount'))->toBe(34.50)
-            // 0.76 reversed with the partial refund + 1.85 with the return = 2.61.
+            ->and((float) Refund::where('invoice_id', $invoice->id)->sum('amount'))->toBe(30.00)
+            // ما عُكس مع المرتجع الجزئي + ما عُكس مع الاسترجاع = 2.61 كاملة.
             ->and(round((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'), 2) + 0)->toBe(0.00);
     });
 
@@ -240,12 +241,12 @@ describe('Service invoice edit/return', function () {
             'cumulative_spend' => 0,
         ]);
 
-        $invoice = makeOwnedDueInvoice(); // total 34.50
+        $invoice = makeOwnedDueInvoice(); // total 30.00 شامل الضريبة
         $invoice->update(['customer_id' => $customer->id]);
 
-        // Approve → earns floor(34.5 * 1) = 34 points, spend +34.50.
+        // Approve → earns floor(30 * 1) = 30 points, spend +30.00.
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
-        expect($customer->refresh()->points_balance)->toBe(34);
+        expect($customer->refresh()->points_balance)->toBe(30);
 
         $this->actingAs($this->employee)->post(route('pos.service.return', $invoice))
             ->assertRedirect(route('invoices.index'));
@@ -257,7 +258,7 @@ describe('Service invoice edit/return', function () {
             ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(0.00)
             ->and(LoyaltyTransaction::where('customer_id', $customer->id)
                 ->where('type', LoyaltyTransactionTypeEnum::ManualAdjust)
-                ->where('points', -34)
+                ->where('points', -30)
                 ->exists())->toBeTrue();
     });
 

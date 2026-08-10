@@ -45,9 +45,6 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  */
 class DailyReportController extends Controller
 {
-    /** Sum of every discount column, shared by every invoice aggregate. */
-    private const DISCOUNTS = '(tier_discount_amount + coupon_discount + points_discount + agent_discount)';
-
     public function __construct(private readonly BuildReportDayRange $dayRange) {}
 
     public function index(DailyReportFilterRequest $request, ResolveReportScope $resolveScope): Response
@@ -253,9 +250,13 @@ class DailyReportController extends Controller
      */
     private function invoiceDaily(string $table, array $scope, array $employeeIds, bool $detailed): Collection
     {
+        // صافي المبيعات قبل الضريبة = الإجمالي − الضريبة. تُشتقّ من العمودين
+        // المخزّنين لا من (subtotal − الخصومات): الأخيرة تساوي الإجمالي شامل
+        // الضريبة منذ أن صارت أسعار نقطة البيع شاملة لها، فكانت ستُدخل الضريبة
+        // في «الصافي». الصيغة الحالية صحيحة للفواتير القديمة والجديدة معاً.
         $columns = [
             DB::raw('DATE('.$table.'.created_at) as day'),
-            DB::raw('COALESCE(SUM(subtotal - '.self::DISCOUNTS.'), 0) as net'),
+            DB::raw('COALESCE(SUM(total_amount - vat_amount), 0) as net'),
             DB::raw('COALESCE(SUM(vat_amount), 0) as vat'),
         ];
 

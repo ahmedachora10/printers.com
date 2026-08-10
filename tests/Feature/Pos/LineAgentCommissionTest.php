@@ -84,12 +84,12 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         $line = $invoice->lines->firstOrFail();
         $pivot = $invoice->invoiceAgents()->firstOrFail();
 
-        // Line subtotal 30, net of VAT 26.09 → 10% = 2.61. The customer's total
-        // stays 34.50 and the pivot row carries no invoice-level discount or rebate.
+        // Line subtotal 30, net of VAT 26.09 → 10% = 2.61. السعر شامل الضريبة
+        // فالإجمالي يبقى 30، والصف المحوري بلا خصم ولا ريبيت على مستوى الفاتورة.
         expect((float) $line->agent_commission_amount)->toBe(2.61)
             ->and($line->agent_id)->toBe($this->agent->id)
             ->and($line->agent_commission_type->value)->toBe('percentage')
-            ->and((float) $invoice->total_amount)->toBe(34.50)
+            ->and((float) $invoice->total_amount)->toBe(30.00)
             ->and((float) $invoice->agent_discount)->toBe(0.00)
             ->and($pivot->agent_id)->toBe($this->agent->id)
             ->and((float) $pivot->discount_amount)->toBe(0.00)

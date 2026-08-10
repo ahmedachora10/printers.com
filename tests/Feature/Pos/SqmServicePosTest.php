@@ -73,9 +73,10 @@ describe('Square-meter priced services', function () {
             ->and((float) $line->width_cm)->toBe(100.00)
             ->and((float) $line->height_cm)->toBe(70.00)
             ->and((float) $line->subtotal)->toBe(140.00)
+            // السعر شامل الضريبة: 140 يدفعها العميل، صافيها 121.74 وضريبتها 18.26
             ->and((float) $invoice->subtotal)->toBe(140.00)
-            ->and((float) $invoice->vat_amount)->toBe(21.00)
-            ->and((float) $invoice->total_amount)->toBe(161.00);
+            ->and((float) $invoice->vat_amount)->toBe(18.26)
+            ->and((float) $invoice->total_amount)->toBe(140.00);
     });
 
     it('rejects a sqm line without dimensions', function () {
