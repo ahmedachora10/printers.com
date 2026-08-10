@@ -7,6 +7,7 @@ use App\Actions\Customer\UpdateCustomerAction;
 use App\Actions\ServiceInvoice\AttachServiceInvoiceCustomerAction;
 use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
+use App\Actions\ServiceInvoice\MarkServiceInvoiceDeliveredAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
 use App\Actions\ServiceInvoice\ReturnServiceInvoiceAction;
 use App\Actions\ServiceInvoice\UpdateServiceInvoiceAction;
@@ -168,6 +169,20 @@ class ServiceInvoiceController extends Controller
 
         return to_route('invoices.index')
             ->with('success', "تم استرجاع الفاتورة {$invoice->invoice_number} بنجاح");
+    }
+
+    /**
+     * ختم «تم تسليم العمل» (تاسك 31) — يُترك المستخدم حيث هو، فالزر يُضغط من
+     * قائمة الفواتير كما يُضغط من صفحة الفاتورة.
+     */
+    public function deliver(ServiceInvoice $invoice, MarkServiceInvoiceDeliveredAction $action): RedirectResponse
+    {
+        Gate::authorize('deliver', $invoice);
+
+        $action->handle($invoice, Auth::user());
+
+        return back(fallback: route('invoices.index'))
+            ->with('success', "تم تسليم عمل الفاتورة {$invoice->invoice_number}");
     }
 
     /**

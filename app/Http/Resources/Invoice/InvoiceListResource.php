@@ -30,6 +30,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string|null $branch_name
  * @property string|null $cancellation_reason
  * @property string|null $delivery_at
+ * @property string|null $delivered_at
  */
 class InvoiceListResource extends JsonResource
 {
@@ -55,6 +56,16 @@ class InvoiceListResource extends JsonResource
         $canEditCustomer = $user !== null
             && $type === InvoiceTypeEnum::SERVICE
             && ($user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin() || $user->roleName->isAccountant());
+
+        // Who may stamp "تم تسليم العمل" from the list, mirroring
+        // ServiceInvoicePolicy::deliver — the owning employee or a reviewer, on a
+        // service invoice that is still live and not delivered yet. The list row
+        // is a raw union record, not a model, hence the repetition.
+        $canDeliver = $type === InvoiceTypeEnum::SERVICE
+            && ($isOwnerEmployee || $canEditCustomer)
+            && $this->delivered_at === null
+            && $status !== InvoiceStatusEnum::CANCELLED
+            && $status !== InvoiceStatusEnum::RETURNED;
 
         return [
             'id' => (int) $this->id,
@@ -86,13 +97,19 @@ class InvoiceListResource extends JsonResource
                 fn () => $this->branch_name,
             ),
             'createdAt' => $this->created_at,
-            // موعد تسليم العمل وحالته (متأخر / اليوم / قادم) — فواتير الخدمات فقط.
-            // الصف يأتي من استعلام اتحاد خام، فالتاريخ نص يُحوّل هنا.
+            // موعد تسليم العمل وحالته (تم التسليم / متأخر / اليوم / قادم) — فواتير
+            // الخدمات فقط. الصف يأتي من استعلام اتحاد خام، فالتاريخ نص يُحوّل هنا.
             'deliveryAt' => $this->delivery_at,
+            'deliveredAt' => $this->delivered_at,
             'deliveryStatus' => DeliveryStatusEnum::forInvoice(
+                $this->delivered_at !== null ? CarbonImmutable::parse($this->delivered_at) : null,
                 $this->delivery_at !== null ? CarbonImmutable::parse($this->delivery_at) : null,
                 $status,
             )?->value,
+            // زر «تم تسليم العمل» السريع في صف القائمة. الصف خام لا موديل، فتُكرَّر
+            // شروط ServiceInvoicePolicy::deliver هنا؛ الخادم يبقى صاحب القرار
+            // النهائي عند الضغط.
+            'canDeliver' => $canDeliver,
             'canEdit' => $isOwnerEmployee && $status === InvoiceStatusEnum::DUE,
             'canReturn' => $isOwnerEmployee
                 && $status !== InvoiceStatusEnum::CANCELLED

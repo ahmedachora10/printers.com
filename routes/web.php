@@ -192,6 +192,12 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
         Route::patch('invoices/service/{invoice}/customer', [ServiceInvoiceController::class, 'updateCustomer'])
             ->name('invoices.service.update-customer');
+
+        // «تم تسليم العمل» (تاسك 31): يختمه مَن يسلّم العمل للعميل عند الطاولة —
+        // صاحب الفاتورة أو مدير الفرع أو المحاسب. القرار لكل فاتورة على حدة في
+        // ServiceInvoicePolicy::deliver، لا على الميدلوير وحده.
+        Route::post('invoices/service/{invoice}/deliver', [ServiceInvoiceController::class, 'deliver'])
+            ->name('invoices.service.deliver');
     });
 
     // ⚠️ يبقيان في متناول المحاسب بعد تاسك 40: نقطة بيع المنتجات تحتاج البحث عن

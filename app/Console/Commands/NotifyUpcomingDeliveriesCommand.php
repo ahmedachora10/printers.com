@@ -28,6 +28,8 @@ class NotifyUpcomingDeliveriesCommand extends Command
 
         $invoices = ServiceInvoice::query()
             ->whereNotNull('delivery_at')
+            // عملٌ سُلّم بالفعل لا يُذكَّر به (تاسك 31).
+            ->whereNull('delivered_at')
             ->whereDate('delivery_at', $tomorrow->toDateString())
             ->whereNotIn('status', [InvoiceStatusEnum::CANCELLED->value, InvoiceStatusEnum::RETURNED->value])
             ->whereNotNull('user_id')

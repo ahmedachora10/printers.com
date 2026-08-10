@@ -1,7 +1,7 @@
 export type InvoiceType = 'product' | 'service';
 export type InvoiceStatus = 'paid' | 'partially_paid' | 'due' | 'cancelled' | 'returned';
 /** حالة موعد التسليم مقارنةً باليوم — تُحسب على الخادم (DeliveryStatusEnum). */
-export type DeliveryStatus = 'overdue' | 'today' | 'upcoming';
+export type DeliveryStatus = 'delivered' | 'overdue' | 'today' | 'upcoming';
 
 export interface InvoiceLine {
     name: string;
@@ -73,6 +73,10 @@ export interface Invoice {
     /** موعد تسليم العمل للعميل — فواتير الخدمات فقط */
     deliveryAt: string | null;
     deliveryStatus: DeliveryStatus | null;
+    /** ختم تسليم العمل الفعلي ومَن سلّمه (تاسك 31) */
+    deliveredAt: string | null;
+    deliveredByName: string | null;
+    canDeliver: boolean;
     subtotal: number;
     tierDiscountPct: number;
     tierDiscountAmount: number;
@@ -135,6 +139,9 @@ export interface InvoiceListItem {
     /** موعد تسليم العمل للعميل — فواتير الخدمات فقط */
     deliveryAt: string | null;
     deliveryStatus: DeliveryStatus | null;
+    /** ختم تسليم العمل الفعلي (تاسك 31) */
+    deliveredAt: string | null;
+    canDeliver: boolean;
     canEdit: boolean;
     canReturn: boolean;
     /** Owner of an invoice that is already returned — the control shows, disabled. */
@@ -155,6 +162,6 @@ export interface InvoiceFilters {
     date_from?: string;
     date_to?: string;
     branch_id?: string;
-    /** 'today' | 'overdue' — تصفية حسب موعد التسليم */
+    /** 'today' | 'overdue' | 'delivered' — تصفية حسب موعد التسليم */
     delivery?: string;
 }

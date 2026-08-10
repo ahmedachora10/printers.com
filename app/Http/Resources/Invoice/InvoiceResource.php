@@ -83,6 +83,10 @@ class InvoiceResource extends JsonResource
         $paymentRemaining = $this->resource->remainingAmount();
         $canRecordPayment = $user !== null && $user->can('recordPayment', $this->resource);
 
+        // «تم تسليم العمل» — الصلاحية وحدها تقرّر، وهي تُسقط المُسلَّمة والملغاة
+        // والمرتجعة، فلا شرط مكرَّر في الواجهة (تاسك 31).
+        $canDeliver = $user !== null && $isServiceInvoice && $user->can('deliver', $this->resource);
+
         $canEdit = $user !== null && $isServiceInvoice && $user->can('update', $this->resource);
         $canReturn = $user !== null
             && $isServiceInvoice
@@ -107,6 +111,10 @@ class InvoiceResource extends JsonResource
             // موعد تسليم العمل للعميل — لفواتير الخدمات وحدها؛ تسليم المنتجات فوري.
             'deliveryAt' => $isServiceInvoice ? $this->resource->delivery_at?->toIso8601String() : null,
             'deliveryStatus' => $isServiceInvoice ? $this->resource->deliveryStatus()?->value : null,
+            // ختم التسليم الفعلي ومَن سلّمه (تاسك 31).
+            'deliveredAt' => $isServiceInvoice ? $this->resource->delivered_at?->toIso8601String() : null,
+            'deliveredByName' => $isServiceInvoice ? $this->resource->deliveredBy?->name : null,
+            'canDeliver' => $canDeliver,
             'subtotal' => (float) $this->subtotal,
             'tierDiscountPct' => (float) $this->tier_discount_pct,
             'tierDiscountAmount' => (float) $this->tier_discount_amount,
