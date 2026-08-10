@@ -166,7 +166,9 @@ describe('Notification triggers', function () {
             'paid_at' => now(),
         ]);
 
-        $this->actingAs($this->accountant)
+        // مدير الفرع هو من يسجّل المرتجع على فاتورة معتمدة — المحاسب مُنع من ذلك
+        // في تاسك 42. المقصود هنا هو الإشعار لا الصلاحية.
+        $this->actingAs($this->admin)
             ->post(route('refunds.store'), [
                 'source_type' => 'product',
                 'invoice_id' => $invoice->id,

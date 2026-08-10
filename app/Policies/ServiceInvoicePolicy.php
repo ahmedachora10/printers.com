@@ -82,6 +82,27 @@ class ServiceInvoicePolicy
     }
 
     /**
+     * Who may stamp "تم تسليم العمل" (تاسك 31): whoever hands the finished work
+     * over the counter — the employee who raised the invoice, or a branch admin
+     * or accountant in its branch. An already-delivered, cancelled or returned
+     * invoice has nothing left to deliver, so the control disappears with it.
+     */
+    public function deliver(User $user, ServiceInvoice $invoice): bool
+    {
+        $isOwnerEmployee = $user->roleName->isEmployee() && $user->id === $invoice->user_id;
+
+        $isReviewer = ($user->roleName->isSuperAdmin()
+            || $user->roleName->isBranchAdmin()
+            || $user->roleName->isAccountant())
+            && ($user->roleName->isSuperAdmin() || $user->branchId === $invoice->branch_id);
+
+        return ($isOwnerEmployee || $isReviewer)
+            && $invoice->delivered_at === null
+            && $invoice->status !== InvoiceStatusEnum::CANCELLED
+            && $invoice->status !== InvoiceStatusEnum::RETURNED;
+    }
+
+    /**
      * The employee who raised an invoice may return it before OR after approval
      * (business rule: an accountant can never unwind an employee's invoice — they
      * cancel a due one or book a refund instead). Cancelled and already-returned

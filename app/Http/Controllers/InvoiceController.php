@@ -41,7 +41,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as paid_amount');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as delivered_at, null as paid_amount');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -83,13 +83,14 @@ class InvoiceController extends Controller
             'branch',
             'refunds' => fn ($q) => $q->with('user:id,name')->latest(),
             // بطاقة «الدفعات»: العربون وما تلاه، مع من سجّلها وبأي طريقة.
-            'payments' => fn ($q) => $q->with(['paymentMethod:id,name', 'recordedBy:id,name'])->oldest('paid_at'),
+            // media يُحمَّل مسبقاً لأن receiptUrl() يقرأه لكل دفعة على حدة.
+            'payments' => fn ($q) => $q->with(['paymentMethod:id,name', 'recordedBy:id,name', 'media'])->oldest('paid_at'),
         ]);
 
         // Product invoices carry a single agent on the row; service invoices list
         // several via the pivot, plus the per-line commission owners.
         if ($invoice instanceof ServiceInvoice) {
-            $invoice->load('invoiceAgents.agent:id,name', 'lines.lineAgent:id,name', 'cancelledBy:id,name');
+            $invoice->load('invoiceAgents.agent:id,name', 'lines.lineAgent:id,name', 'cancelledBy:id,name', 'deliveredBy:id,name');
         } else {
             $invoice->load('agent:id,name');
         }
@@ -97,9 +98,12 @@ class InvoiceController extends Controller
         return Inertia::render('invoices/show', [
             'invoice' => new InvoiceResource($invoice),
             // خيارات طريقة الدفع لنافذة «تسجيل دفعة» — دفعة واحدة قد تُقبض بطريقة
-            // غير التي أُصدرت بها الفاتورة.
+            // غير التي أُصدرت بها الفاتورة. requiresAttachment تُملي على النافذة
+            // إظهار حقل الإيصال وفرضه.
             'paymentMethodOptions' => $invoice->branch
-                ? $invoice->branch->enabledPaymentMethods()->map(fn ($m) => ['id' => $m->id, 'name' => $m->name])->values()
+                ? $invoice->branch->enabledPaymentMethods()
+                    ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'requiresAttachment' => (bool) $m->requires_attachment])
+                    ->values()
                 : [],
         ]);
     }
@@ -199,10 +203,15 @@ class InvoiceController extends Controller
             ? "{$table}.cancellation_reason"
             : DB::raw('null as cancellation_reason');
 
-        // موعد التسليم كذلك خاص بفواتير الخدمات — فرع المنتجات من الاتحاد يحشوه.
+        // موعد التسليم وختم التسليم الفعلي كلاهما خاص بفواتير الخدمات — فرع
+        // المنتجات من الاتحاد يحشوهما.
         $deliverySelect = $type === InvoiceTypeEnum::SERVICE
             ? "{$table}.delivery_at"
             : DB::raw('null as delivery_at');
+
+        $deliveredSelect = $type === InvoiceTypeEnum::SERVICE
+            ? "{$table}.delivered_at"
+            : DB::raw('null as delivered_at');
 
         // ما حُصِّل من الفاتورة عبر جدول الدفعات (عربون + دفعات لاحقة). الفاتورة
         // التي سُدِّدت عند البيع لا دفعات لها، فيُحسب عمود «المتبقي» في المورد من
@@ -228,16 +237,23 @@ class InvoiceController extends Controller
                 fn ($q) => $q->where("{$table}.status", $request->input('status')))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate("{$table}.created_at", '>=', $request->input('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate("{$table}.created_at", '<=', $request->input('date_to')))
-            // «تسليم اليوم / متأخر»: يخص فواتير الخدمات وحدها، فيُقصى فرع المنتجات
-            // من الاتحاد كاملاً بدل أن يُرجع صفوفاً بلا موعد. الملغاة والمرتجعة لا
-            // ينتظر أحد تسليمها — تماماً كما تقرّر DeliveryStatusEnum::forInvoice.
-            ->when($delivery === 'today' || $delivery === 'overdue', function ($q) use ($table, $type, $delivery) {
+            // «تسليم اليوم / متأخر / تم التسليم»: يخص فواتير الخدمات وحدها، فيُقصى
+            // فرع المنتجات من الاتحاد كاملاً بدل أن يُرجع صفوفاً بلا موعد. الملغاة
+            // والمرتجعة لا ينتظر أحد تسليمها، والمُسلَّمة تغادر «اليوم» و«المتأخر»
+            // إلى خانتها — تماماً كما تقرّر DeliveryStatusEnum::forInvoice.
+            ->when(in_array($delivery, ['today', 'overdue', 'delivered'], true), function ($q) use ($table, $type, $delivery) {
                 if ($type !== InvoiceTypeEnum::SERVICE) {
                     return $q->whereRaw('1 = 0');
                 }
 
+                $q->whereNotIn("{$table}.status", [InvoiceStatusEnum::CANCELLED->value, InvoiceStatusEnum::RETURNED->value]);
+
+                if ($delivery === 'delivered') {
+                    return $q->whereNotNull("{$table}.delivered_at");
+                }
+
                 return $q->whereNotNull("{$table}.delivery_at")
-                    ->whereNotIn("{$table}.status", [InvoiceStatusEnum::CANCELLED->value, InvoiceStatusEnum::RETURNED->value])
+                    ->whereNull("{$table}.delivered_at")
                     ->when(
                         $delivery === 'today',
                         fn ($q) => $q->whereDate("{$table}.delivery_at", today()),
@@ -266,6 +282,7 @@ class InvoiceController extends Controller
                 'branches.name as branch_name',
                 $cancellationSelect,
                 $deliverySelect,
+                $deliveredSelect,
             ])
             ->selectSub($paidSub, 'paid_amount');
     }

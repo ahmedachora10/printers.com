@@ -11,7 +11,9 @@ use App\Models\User;
 use App\Notifications\ServiceInvoiceReviewedNotification;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Testing\TestResponse;
 
 uses(RefreshDatabase::class);
@@ -58,12 +60,15 @@ function money(float $expected): Closure
     return fn ($actual) => round((float) $actual, 2) === round($expected, 2);
 }
 
-/** POST دفعة على فاتورة خدمة. */
+/**
+ * POST دفعة على فاتورة خدمة. طريقة الدفع إلزامية على الخادم، فتُملأ افتراضياً
+ * بالطريقة النقدية المهيّأة في beforeEach ما لم يمرّر الاختبار غيرها صراحةً.
+ */
 function postPayment(ServiceInvoice $invoice, array $payload): TestResponse
 {
     return test()->post(
         route('invoices.payments.store', ['type' => 'service', 'id' => $invoice->id]),
-        $payload,
+        array_merge(['payment_method_id' => test()->cash->id], $payload),
     );
 }
 
@@ -79,6 +84,11 @@ describe('Invoice payments', function () {
 
         $this->accountant = User::factory()->create(['branch_id' => $this->branch->id]);
         $this->accountant->addRole(Roles::ACCOUNTANT->value);
+
+        // طريقة الدفع إلزامية على كل دفعة، فالفرع يحتاج طريقة مفعّلة واحدة على
+        // الأقل. «تحويل بنكي» تشترط إيصالاً وتُستعمل في اختبارات المرفق.
+        $this->cash = PaymentMethod::factory()->create(['is_active' => true, 'requires_attachment' => false]);
+        $this->transfer = PaymentMethod::factory()->create(['is_active' => true, 'requires_attachment' => true]);
 
         $this->actingAs($this->accountant);
     });
@@ -212,6 +222,84 @@ describe('Invoice payments', function () {
             ->and($payment->notes)->toBe('عربون نقداً')
             ->and($payment->recorded_by)->toBe($this->accountant->id)
             ->and($payment->branch_id)->toBe($this->branch->id);
+    });
+
+    // ── طريقة الدفع إلزامية وإيصال التحويل (تاسك 38) ──────────────
+
+    it('rejects a payment with no payment method', function () {
+        $invoice = paymentTestInvoice();
+
+        // دفعة بلا طريقة تسقط من تفصيل طرق الدفع في التقارير — ترفضها القاعدة.
+        $this->post(
+            route('invoices.payments.store', ['type' => 'service', 'id' => $invoice->id]),
+            ['amount' => 40],
+        )->assertSessionHasErrors('payment_method_id');
+
+        expect($invoice->payments()->count())->toBe(0);
+    });
+
+    it('rejects a payment method that the branch has not enabled', function () {
+        $disabled = PaymentMethod::factory()->create(['is_active' => false]);
+        $invoice = paymentTestInvoice();
+
+        postPayment($invoice, ['amount' => 40, 'payment_method_id' => $disabled->id])
+            ->assertSessionHasErrors('payment_method_id');
+
+        expect($invoice->payments()->count())->toBe(0);
+    });
+
+    it('rejects a bank transfer with no receipt attached', function () {
+        $invoice = paymentTestInvoice();
+
+        postPayment($invoice, ['amount' => 40, 'payment_method_id' => $this->transfer->id])
+            ->assertSessionHasErrors('receipt');
+
+        expect($invoice->payments()->count())->toBe(0);
+    });
+
+    it('stores the receipt of a bank transfer and exposes it on the payment', function () {
+        Storage::fake('local');
+        $invoice = paymentTestInvoice();
+
+        postPayment($invoice, [
+            'amount' => 40,
+            'payment_method_id' => $this->transfer->id,
+            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        $payment = $invoice->payments()->firstOrFail();
+
+        expect($payment->receipt())->not->toBeNull()
+            ->and($payment->receiptUrl())->toBe(route('invoices.payments.receipt', ['payment' => $payment->id]));
+
+        // الإيصال على القرص الخاص ولا يُقدَّم إلا من المسار المحمي بالصلاحية.
+        $this->get($payment->receiptUrl())->assertOk();
+    });
+
+    it('needs no receipt for a method that does not require one', function () {
+        $invoice = paymentTestInvoice();
+
+        postPayment($invoice, ['amount' => 40])->assertRedirect()->assertSessionHasNoErrors();
+
+        expect($invoice->payments()->firstOrFail()->receipt())->toBeNull();
+    });
+
+    it('hides a payment receipt from staff of another branch', function () {
+        Storage::fake('local');
+        $invoice = paymentTestInvoice();
+
+        postPayment($invoice, [
+            'amount' => 40,
+            'payment_method_id' => $this->transfer->id,
+            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+        ])->assertRedirect();
+
+        $payment = $invoice->payments()->firstOrFail();
+
+        $outsider = User::factory()->create(['branch_id' => Branch::factory()->create()->id]);
+        $outsider->addRole(Roles::ACCOUNTANT->value);
+
+        $this->actingAs($outsider)->get($payment->receiptUrl())->assertForbidden();
     });
 
     // ── الظهور في القائمة والتقارير ────────────────────────────────

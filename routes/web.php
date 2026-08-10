@@ -22,6 +22,7 @@ use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\ExpenseReportController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\InvoiceController;
@@ -153,9 +154,6 @@ Route::middleware(['auth'])->group(function () {
 
         Route::resource('expenses', ExpenseController::class)
             ->only(['index', 'store', 'update', 'destroy']);
-
-        Route::resource('agents', AgentController::class)
-            ->only(['index', 'store', 'update', 'destroy']);
     });
 
     Route::middleware('role:branch-admin|super-admin|employee')->group(function () {
@@ -195,18 +193,28 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
         Route::patch('invoices/service/{invoice}/customer', [ServiceInvoiceController::class, 'updateCustomer'])
             ->name('invoices.service.update-customer');
+
+        // «تم تسليم العمل» (تاسك 31): يختمه مَن يسلّم العمل للعميل عند الطاولة —
+        // صاحب الفاتورة أو مدير الفرع أو المحاسب. القرار لكل فاتورة على حدة في
+        // ServiceInvoicePolicy::deliver، لا على الميدلوير وحده.
+        Route::post('invoices/service/{invoice}/deliver', [ServiceInvoiceController::class, 'deliver'])
+            ->name('invoices.service.deliver');
     });
 
+    // ⚠️ يبقيان في متناول المحاسب بعد تاسك 40: نقطة بيع المنتجات تحتاج البحث عن
+    // عميل وقراءة رصيده لربطه بفاتورة آجلة. ويجب أن يسبقا Route::resource أدناه
+    // وإلا التقط customers/{customer} المسارَ الثابت وحاول ربطه كمعرّف.
     Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
-        // Read-only in-app price list over the same catalogue tree as the
-        // public M19 page — staff reference it while quoting a customer.
-        Route::get('services/price-list', [ServicePriceListController::class, 'index'])
-            ->name('services.price-list');
-
         Route::get('pos/customers/search', [CustomerController::class, 'posSearch'])
             ->name('pos.customers.search');
         Route::get('customers/outstanding-balance', [CustomerController::class, 'outstandingBalance'])
             ->name('customers.outstanding-balance');
+    });
+
+    // سجلّ العملاء: مدير الفرع والسوبر أدمن والموظف (الموظف يسجّل عميل فاتورته).
+    // المحاسب خارجه بقرار العميل (تاسك 40) — ولا يزال يبحث عن العميل داخل نقطة
+    // البيع، ويرى اسمه على الفاتورة التي يحصّلها.
+    Route::middleware('role:branch-admin|super-admin|employee')->group(function () {
         Route::get('customers/export', [CustomerController::class, 'export'])
             ->name('customers.export');
         Route::resource('customers', CustomerController::class);
@@ -219,6 +227,13 @@ Route::middleware(['auth'])->group(function () {
         // analytics; visible to whoever can view the customer profile.
         Route::get('customers/{customer}/activity', [CustomerActivityController::class, 'show'])
             ->name('customers.activity');
+    });
+
+    Route::middleware('role:branch-admin|super-admin|accountant|employee')->group(function () {
+        // Read-only in-app price list over the same catalogue tree as the
+        // public M19 page — staff reference it while quoting a customer.
+        Route::get('services/price-list', [ServicePriceListController::class, 'index'])
+            ->name('services.price-list');
 
         Route::prefix('invoices')->name('invoices.')->group(function () {
             Route::get('/', [InvoiceController::class, 'index'])->name('index');
@@ -228,6 +243,10 @@ Route::middleware(['auth'])->group(function () {
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('print');
             Route::get('{type}/{id}/receipt', [InvoiceReceiptController::class, 'show'])
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('receipt');
+
+            // إيصال دفعة بعينها — الصلاحية مأخوذة من الفاتورة الأم داخل المتحكِّم.
+            Route::get('payments/{payment}/receipt', [InvoiceReceiptController::class, 'payment'])
+                ->name('payments.receipt');
         });
 
         // Employee commission report (M18): managers see their branch; employees
@@ -268,6 +287,14 @@ Route::middleware(['auth'])->group(function () {
         Route::get('reports/daily', [DailyReportController::class, 'index'])
             ->name('reports.daily');
 
+        // Expense report (تاسك 32): the aggregate reading of /expenses — totals,
+        // per-category and per-day breakdowns, and a drill-down. Same audience
+        // and branch scoping as the sales report.
+        Route::get('reports/expenses/export', [ExpenseReportController::class, 'export'])
+            ->name('reports.expenses.export');
+        Route::get('reports/expenses', [ExpenseReportController::class, 'index'])
+            ->name('reports.expenses');
+
         // Agent (مندوب) commissions: what each agent earned and what is still
         // owed — the counter side of the agent portal.
         Route::get('reports/agent-commissions/export', [AgentCommissionReportController::class, 'export'])
@@ -281,9 +308,18 @@ Route::middleware(['auth'])->group(function () {
             ->name('analytics.index');
     });
 
-    Route::middleware('role:branch-admin|super-admin')->group(function () {
+    // صرف عمولات المناديب — المحاسب هو من يصرف (تاسك 41)، بينما بيانات المندوب
+    // نفسها خارج نطاقه تماماً (تاسك 40). التحقق النهائي لكل مندوب على حدة يقع
+    // في المتحكِّم عبر AgentPolicy::pay، لا على الميدلوير وحده.
+    Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
         Route::resource('agent-payments', AgentPaymentController::class)
             ->only(['index', 'store']);
+    });
+
+    Route::middleware('role:branch-admin|super-admin')->group(function () {
+        // بيانات المناديب لمدير الفرع وحده — نُزعت من المحاسب في تاسك 40.
+        Route::resource('agents', AgentController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
 
         Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
             ->name('users.toggle-status');

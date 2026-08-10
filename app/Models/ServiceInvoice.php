@@ -41,6 +41,8 @@ class ServiceInvoice extends Model implements HasMedia
         'employee_commission',
         'notes',
         'delivery_at',
+        'delivered_at',
+        'delivered_by',
         'status',
         'paid_at',
         'cancellation_reason',
@@ -64,15 +66,16 @@ class ServiceInvoice extends Model implements HasMedia
         'paid_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'delivery_at' => 'datetime',
+        'delivered_at' => 'datetime',
     ];
 
     /**
-     * حالة موعد التسليم — متأخر / اليوم / قادم، أو null إن لم يُحدَّد موعد أو كانت
-     * الفاتورة ملغاة أو مرتجعة (لم يعد لها عمل يُسلَّم).
+     * حالة موعد التسليم — تم التسليم / متأخر / اليوم / قادم، أو null إن لم يُحدَّد
+     * موعد ولم تُسلَّم، أو كانت الفاتورة ملغاة أو مرتجعة (لم يعد لها عمل يُسلَّم).
      */
     public function deliveryStatus(): ?DeliveryStatusEnum
     {
-        return DeliveryStatusEnum::forInvoice($this->delivery_at, $this->status);
+        return DeliveryStatusEnum::forInvoice($this->delivered_at, $this->delivery_at, $this->status);
     }
 
     public function getActivitylogOptions(): LogOptions
@@ -109,6 +112,16 @@ class ServiceInvoice extends Model implements HasMedia
     public function cancelledBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'cancelled_by');
+    }
+
+    /**
+     * مَن سلّم العمل للعميل — يُعرض بجوار ختم التسليم في تفاصيل الفاتورة.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function deliveredBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'delivered_by');
     }
 
     /** @return BelongsTo<Customer, $this> */

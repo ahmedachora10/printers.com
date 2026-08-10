@@ -112,9 +112,7 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                 ),
             },
             { key: 'type', header: 'النوع', cell: (i) => (i.type === 'service' ? 'خدمة' : 'منتجات') },
-            ...(isMultiBranch
-                ? [{ key: 'branch', header: 'الفرع', cell: (i: InvoiceRow) => i.branchName ?? '—' }]
-                : []),
+            ...(isMultiBranch ? [{ key: 'branch', header: 'الفرع', cell: (i: InvoiceRow) => i.branchName ?? '—' }] : []),
             {
                 key: 'service',
                 header: 'الخدمة',
@@ -156,7 +154,9 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                               i.rebate + i.lineCommission <= 0 ? (
                                   <span className="text-muted-foreground">—</span>
                               ) : i.isRebatePaid ? (
-                                  <Badge variant="secondary">مدفوعة</Badge>
+                                  // «مستلمة» لا «مدفوعة»: المندوب يقرأ الحالة من طرفه هو
+                                  // (تاسك 41). تسمية واجهة فقط — isRebatePaid كما هو.
+                                  <Badge variant="secondary">مستلمة</Badge>
                               ) : (
                                   <Badge variant="outline" className="text-muted-foreground">
                                       معلقة
@@ -171,9 +171,7 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
 
     const paymentColumns = useMemo<ColumnDef<PaymentRow>[]>(
         () => [
-            ...(isMultiBranch
-                ? [{ key: 'branch', header: 'الفرع', cell: (p: PaymentRow) => p.branchName ?? '—' }]
-                : []),
+            ...(isMultiBranch ? [{ key: 'branch', header: 'الفرع', cell: (p: PaymentRow) => p.branchName ?? '—' }] : []),
             {
                 key: 'period',
                 header: 'الفترة',
@@ -243,13 +241,11 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                     {isRebate && (
                         <>
                             <StatCard label="إجمالي العمولة" value={formatCurrency(summary.rebateEarned)} />
-                            <StatCard label="العمولة المدفوعة" value={formatCurrency(summary.rebatePaid)} />
+                            <StatCard label="العمولة المستلمة" value={formatCurrency(summary.rebatePaid)} />
                             <StatCard label="العمولة المستحقة" value={formatCurrency(summary.rebateOutstanding)} accent />
                         </>
                     )}
-                    {hasDiscount && (
-                        <StatCard label="إجمالي الخصومات الممنوحة" value={formatCurrency(summary.discountGiven)} />
-                    )}
+                    {hasDiscount && <StatCard label="إجمالي الخصومات الممنوحة" value={formatCurrency(summary.discountGiven)} />}
                 </div>
 
                 <Card>

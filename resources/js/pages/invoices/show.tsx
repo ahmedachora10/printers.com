@@ -17,7 +17,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice } from '@/types/invoice';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Ban, CheckCircle2, Paperclip, Pencil, Printer, ReceiptText, Undo2, Wallet } from 'lucide-react';
+import { Ban, CheckCircle2, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -112,6 +112,8 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
     const [returnOpen, setReturnOpen] = useState(false);
     const [returnReason, setReturnReason] = useState('');
     const [returning, setReturning] = useState(false);
+    const [deliverOpen, setDeliverOpen] = useState(false);
+    const [delivering, setDelivering] = useState(false);
 
     // الأسعار المُدخلة شاملة للضريبة، فالمجموع الفرعي والخصومات تُعرض صافيةً منها
     // ويبقى الإجمالي هو ما يدفعه العميل — نفس اشتقاق صفحة الطباعة.
@@ -138,6 +140,24 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                 onFinish: () => {
                     setApproving(false);
                     setApproveOpen(false);
+                },
+            },
+        );
+    }
+
+    // «تم تسليم العمل» (تاسك 31): ختم لا يمسّ مبلغ الفاتورة ولا حالتها المالية —
+    // الفاتورة الآجلة تبقى آجلة بعد تسليم عملها.
+    function confirmDeliver() {
+        setDelivering(true);
+        router.post(
+            serviceInvoice.deliver(invoice.id).url,
+            {},
+            {
+                preserveScroll: true,
+                onError: (e) => toast.error((Object.values(e)[0] as string) ?? 'تعذّر تسجيل تسليم العمل.'),
+                onFinish: () => {
+                    setDelivering(false);
+                    setDeliverOpen(false);
                 },
             },
         );
@@ -202,6 +222,11 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                         {invoice.canRecordPayment && (
                             <Button variant="outline" onClick={() => setPaymentOpen(true)}>
                                 <Wallet className="size-4" /> تسجيل دفعة
+                            </Button>
+                        )}
+                        {invoice.canDeliver && (
+                            <Button className="bg-green-600 text-white hover:bg-green-700" onClick={() => setDeliverOpen(true)}>
+                                <PackageCheck className="size-4" /> تم تسليم العمل
                             </Button>
                         )}
                         {invoice.canRefund && (
@@ -298,7 +323,21 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                                                 <span className="text-muted-foreground tabular-nums" dir="ltr">
                                                     {payment.paidAt ? formatDateTime(payment.paidAt) : '—'}
                                                 </span>
-                                                {payment.paymentMethod && <span className="text-muted-foreground">{payment.paymentMethod}</span>}
+                                                {/* الدفعات القديمة قد لا تحمل طريقة دفع — تُعرض «غير محدّدة»
+                                                    ولا تُجبر على التصحيح، فالجدول للإضافة فقط. */}
+                                                <span className={payment.paymentMethod ? 'text-muted-foreground' : 'text-muted-foreground/70 italic'}>
+                                                    {payment.paymentMethod ?? 'غير محدّدة'}
+                                                </span>
+                                                {payment.receiptUrl && (
+                                                    <a
+                                                        href={payment.receiptUrl}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="text-primary inline-flex items-center gap-1 text-xs hover:underline"
+                                                    >
+                                                        <Paperclip className="size-3" /> الإيصال
+                                                    </a>
+                                                )}
                                                 {payment.notes && <span className="text-muted-foreground text-xs">{payment.notes}</span>}
                                             </div>
                                             <div className="flex items-center gap-3">
@@ -434,10 +473,29 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                                 <MetaRow label="الرقم الضريبي للعميل" value={<span dir="ltr">{invoice.customerTaxNumber}</span>} />
                             )}
                             <MetaRow label="طريقة الدفع" value={invoice.paymentMethod ?? '—'} />
-                            {invoice.deliveryAt && (
+                            {(invoice.deliveryAt || invoice.deliveredAt) && (
                                 <MetaRow
                                     label="موعد التسليم"
-                                    value={<DeliveryBadge deliveryAt={invoice.deliveryAt} deliveryStatus={invoice.deliveryStatus} />}
+                                    value={
+                                        <DeliveryBadge
+                                            deliveryAt={invoice.deliveryAt}
+                                            deliveryStatus={invoice.deliveryStatus}
+                                            deliveredAt={invoice.deliveredAt}
+                                        />
+                                    }
+                                />
+                            )}
+                            {invoice.deliveredAt && (
+                                <MetaRow
+                                    label="سُلّم في"
+                                    value={
+                                        <span>
+                                            {formatDateTime(invoice.deliveredAt)}
+                                            {invoice.deliveredByName && (
+                                                <span className="text-muted-foreground"> — بواسطة {invoice.deliveredByName}</span>
+                                            )}
+                                        </span>
+                                    }
                                 />
                             )}
                             {invoice.receiptUrl && (
@@ -504,6 +562,27 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                         </Button>
                         <Button onClick={confirmApprove} disabled={approving}>
                             <CheckCircle2 className="size-4" /> تأكيد الدفع
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delivery confirmation (تاسك 31) */}
+            <Dialog open={deliverOpen} onOpenChange={(open) => !open && !delivering && setDeliverOpen(false)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>تم تسليم العمل</DialogTitle>
+                        <DialogDescription>
+                            تُختم الفاتورة {invoice.invoiceNumber} بأن عملها سُلّم للعميل الآن، فتصير حالة موعد التسليم «تم تسليم العمل». لا يتغيّر
+                            شيء في مبلغ الفاتورة ولا في حالتها المالية.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeliverOpen(false)} disabled={delivering}>
+                            تراجع
+                        </Button>
+                        <Button className="bg-green-600 text-white hover:bg-green-700" onClick={confirmDeliver} disabled={delivering}>
+                            <PackageCheck className="size-4" /> تأكيد التسليم
                         </Button>
                     </DialogFooter>
                 </DialogContent>

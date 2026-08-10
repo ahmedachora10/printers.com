@@ -7,13 +7,15 @@ import { formatCurrency } from '@/lib/utils';
 import payments from '@/routes/invoices/payments';
 import { type InvoiceType } from '@/types/invoice';
 import { router } from '@inertiajs/react';
-import { Loader2, Wallet } from 'lucide-react';
+import { AlertTriangle, Loader2, Paperclip, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 export interface PaymentMethodOption {
     id: number;
     name: string;
+    /** طريقة تشترط إثبات تحويل — الإيصال إلزامي معها على كل دفعة. */
+    requiresAttachment?: boolean;
 }
 
 interface Props {
@@ -28,11 +30,14 @@ interface Props {
     onRecorded?: () => void;
 }
 
-const NO_METHOD = 'none';
-
 /**
  * تسجيل دفعة على فاتورة: عربوناً كانت أو دفعة لاحقة. السقف هو المتبقي — الخادم
  * يرفض أي مبلغ يتجاوزه، وهذا الحقل يمنع إرساله أصلاً.
+ *
+ * طريقة الدفع إلزامية ولا تُختار افتراضياً: دفعة بلا طريقة تسقط من تفصيل طرق
+ * الدفع في التقارير. والطريقة التي تشترط إيصالاً تفرض رفعه هنا كما تفرضه نقطة
+ * البيع على الفاتورة — الشرطان يتكرران على الخادم في StoreInvoicePaymentRequest،
+ * وهذه الواجهة راحةٌ لا حارس.
  */
 export default function RecordPaymentModal({
     open,
@@ -45,7 +50,8 @@ export default function RecordPaymentModal({
     onRecorded,
 }: Props) {
     const [amount, setAmount] = useState('');
-    const [methodId, setMethodId] = useState<string>(NO_METHOD);
+    const [methodId, setMethodId] = useState<string>('');
+    const [receipt, setReceipt] = useState<File | null>(null);
     const [notes, setNotes] = useState('');
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
@@ -54,31 +60,50 @@ export default function RecordPaymentModal({
     useEffect(() => {
         if (open) {
             setAmount('');
-            setMethodId(NO_METHOD);
+            setMethodId('');
+            setReceipt(null);
             setNotes('');
             setErrors({});
         }
     }, [open]);
 
+    const hasMethods = paymentMethods.length > 0;
+    const selectedMethod = paymentMethods.find((m) => String(m.id) === methodId);
+    const requiresReceipt = selectedMethod?.requiresAttachment ?? false;
+
     const parsed = Number(amount);
-    const isValid = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && parsed <= remaining + 0.001;
-    const settlesInvoice = isValid && Math.abs(remaining - parsed) < 0.005;
+    const amountValid = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && parsed <= remaining + 0.001;
+    const isValid = amountValid && hasMethods && methodId !== '' && (!requiresReceipt || receipt !== null);
+    const settlesInvoice = amountValid && Math.abs(remaining - parsed) < 0.005;
 
     function submit() {
-        if (!isValid) {
+        if (!amountValid) {
             setErrors({ amount: `أدخل مبلغاً بين 0.01 و ${remaining.toFixed(2)} ر.س.` });
             return;
         }
+        if (methodId === '') {
+            setErrors({ payment_method_id: 'طريقة الدفع مطلوبة.' });
+            return;
+        }
+        if (requiresReceipt && receipt === null) {
+            setErrors({ receipt: 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.' });
+            return;
+        }
+
         setSubmitting(true);
         setErrors({});
+        // الإيصال يجعل الطلب multipart، فيُجبَر forceFormData حتى حين لا ملف —
+        // فتبقى صيغة الإرسال واحدة مهما كانت طريقة الدفع.
         router.post(
             payments.store({ type: invoiceType, id: invoiceId }).url,
             {
                 amount: parsed,
-                payment_method_id: methodId === NO_METHOD ? null : Number(methodId),
+                payment_method_id: Number(methodId),
+                receipt,
                 notes: notes.trim() || null,
             },
             {
+                forceFormData: true,
                 preserveScroll: true,
                 onError: (e) => {
                     setErrors(e as Record<string, string>);
@@ -107,6 +132,14 @@ export default function RecordPaymentModal({
                 </DialogHeader>
 
                 <div className="space-y-4">
+                    {/* فرع بلا طرق دفع مفعّلة: يُعطَّل الحفظ ويُشرح السبب بدل إخفاء المنتقي بصمت. */}
+                    {!hasMethods && (
+                        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+                            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                            <span>لا توجد طرق دفع مفعّلة لهذا الفرع — فعّل طريقة دفع من الإعدادات قبل تسجيل الدفعات.</span>
+                        </div>
+                    )}
+
                     <div className="space-y-1.5">
                         <Label htmlFor="payment-amount">المبلغ (ر.س)</Label>
                         <div className="flex items-center gap-2">
@@ -132,23 +165,39 @@ export default function RecordPaymentModal({
                         )}
                     </div>
 
-                    {paymentMethods.length > 0 && (
+                    <div className="space-y-1.5">
+                        <Label htmlFor="payment-method">
+                            طريقة الدفع <span className="text-destructive">*</span>
+                        </Label>
+                        <Select value={methodId} onValueChange={setMethodId} disabled={submitting || !hasMethods}>
+                            <SelectTrigger id="payment-method">
+                                <SelectValue placeholder="اختر طريقة الدفع" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {paymentMethods.map((m) => (
+                                    <SelectItem key={m.id} value={String(m.id)}>
+                                        {m.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {errors.payment_method_id && <p className="text-destructive text-xs">{errors.payment_method_id}</p>}
+                    </div>
+
+                    {requiresReceipt && (
                         <div className="space-y-1.5">
-                            <Label htmlFor="payment-method">طريقة الدفع</Label>
-                            <Select value={methodId} onValueChange={setMethodId} disabled={submitting}>
-                                <SelectTrigger id="payment-method">
-                                    <SelectValue placeholder="— غير محددة —" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={NO_METHOD}>— غير محددة —</SelectItem>
-                                    {paymentMethods.map((m) => (
-                                        <SelectItem key={m.id} value={String(m.id)}>
-                                            {m.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {errors.payment_method_id && <p className="text-destructive text-xs">{errors.payment_method_id}</p>}
+                            <Label htmlFor="payment-receipt" className="flex items-center gap-1.5">
+                                <Paperclip className="size-3.5" /> إيصال التحويل <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                                id="payment-receipt"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,application/pdf"
+                                onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
+                                disabled={submitting}
+                            />
+                            <p className="text-muted-foreground text-xs">صورة (jpg, png, webp) أو ملف PDF، بحد أقصى 5 ميجابايت.</p>
+                            {errors.receipt && <p className="text-destructive text-xs">{errors.receipt}</p>}
                         </div>
                     )}
 

@@ -76,12 +76,41 @@ describe('Agent Payments', function () {
                 ->has('payments.meta.total'));
     });
 
-    it('prevents accountant from viewing the payments page', function () {
+    it('lets the accountant disburse the rebate of an agent of their own branch', function () {
+        // تاسك 41: المحاسب هو من يصرف — وهو ممنوع من سجلّ المندوب نفسه (تاسك 40).
         $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
         $accountant->addRole(Roles::ACCOUNTANT->value);
         $this->actingAs($accountant);
 
-        $this->get(route('agent-payments.index'))->assertForbidden();
+        rebateInvoice($this->branch->id, $this->agent->id, 25);
+
+        $this->get(route('agent-payments.index'))->assertOk();
+
+        $this->post(route('agent-payments.store'), [
+            'agent_id' => $this->agent->id,
+            'branch_id' => $this->branch->id,
+            'period_start' => now()->subDay()->toDateString(),
+            'period_end' => now()->addDay()->toDateString(),
+        ])->assertRedirect()->assertSessionHasNoErrors();
+
+        expect(AgentPayment::where('agent_id', $this->agent->id)->count())->toBe(1);
+
+        // ولا يزال ممنوعاً من بيانات المندوب نفسها (تاسك 40) — هذا هو التبادل.
+        $this->get(route('agents.index'))->assertForbidden();
+    });
+
+    it('forbids the accountant from disbursing to an agent of another branch', function () {
+        $otherBranch = Branch::factory()->create();
+        $accountant = User::factory()->create(['branch_id' => $otherBranch->id]);
+        $accountant->addRole(Roles::ACCOUNTANT->value);
+        $this->actingAs($accountant);
+
+        $this->post(route('agent-payments.store'), [
+            'agent_id' => $this->agent->id,
+            'branch_id' => $this->branch->id,
+            'period_start' => now()->subDay()->toDateString(),
+            'period_end' => now()->addDay()->toDateString(),
+        ])->assertForbidden();
     });
 
     it('reports the outstanding rebate per agent', function () {

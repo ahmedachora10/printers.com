@@ -28,7 +28,7 @@ class InvoicePaymentController extends Controller
         $invoice = $this->resolveInvoice($type, $id);
         Gate::authorize('recordPayment', $invoice);
 
-        $payment = $action->handle($invoice, $request->validated(), Auth::user());
+        $payment = $action->handle($invoice, $request->validated(), Auth::user(), $request->file('receipt'));
 
         $invoice->refresh();
 

@@ -20,7 +20,7 @@ class CommissionReportExport implements FromCollection, ShouldAutoSize, WithHead
     /** @return array<int, string> */
     public function headings(): array
     {
-        return ['الموظف', 'رقم الفاتورة', 'الخدمة', 'النوع', 'الشريحة', 'المصدر', 'المبلغ', 'للعمولات', 'تكلفة الخامات', 'الحالة', 'تاريخ الاستحقاق', 'تاريخ الصرف'];
+        return ['الموظف', 'رقم الفاتورة', 'الخدمة', 'النوع', 'الشريحة', 'المصدر', 'المبلغ', 'العمولات', 'تكلفة الخامات', 'الحالة', 'تاريخ الاستحقاق', 'تاريخ الصرف'];
     }
 
     /** @return Collection<int, mixed> */

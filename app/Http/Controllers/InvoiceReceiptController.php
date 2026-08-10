@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\InvoiceTypeEnum;
 use App\Http\Requests\Invoice\UploadReceiptRequest;
+use App\Models\InvoicePayment;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use Illuminate\Http\RedirectResponse;
@@ -24,6 +25,21 @@ class InvoiceReceiptController extends Controller
         Gate::authorize('view', $invoice);
 
         $media = $invoice->receipt();
+        abort_if($media === null, 404);
+
+        return $media->toInlineResponse($request);
+    }
+
+    /**
+     * Stream the receipt attached to a single payment. Authorization rides on
+     * the parent invoice — whoever may view the invoice may view the proof of
+     * what was collected against it.
+     */
+    public function payment(InvoicePayment $payment, Request $request): Response
+    {
+        Gate::authorize('view', $payment->invoice);
+
+        $media = $payment->receipt();
         abort_if($media === null, 404);
 
         return $media->toInlineResponse($request);

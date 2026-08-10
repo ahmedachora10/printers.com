@@ -7,6 +7,7 @@ use App\Actions\Customer\UpdateCustomerAction;
 use App\Actions\ServiceInvoice\AttachServiceInvoiceCustomerAction;
 use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
+use App\Actions\ServiceInvoice\MarkServiceInvoiceDeliveredAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
 use App\Actions\ServiceInvoice\ReturnServiceInvoiceAction;
 use App\Actions\ServiceInvoice\UpdateServiceInvoiceAction;
@@ -171,6 +172,20 @@ class ServiceInvoiceController extends Controller
     }
 
     /**
+     * ختم «تم تسليم العمل» (تاسك 31) — يُترك المستخدم حيث هو، فالزر يُضغط من
+     * قائمة الفواتير كما يُضغط من صفحة الفاتورة.
+     */
+    public function deliver(ServiceInvoice $invoice, MarkServiceInvoiceDeliveredAction $action): RedirectResponse
+    {
+        Gate::authorize('deliver', $invoice);
+
+        $action->handle($invoice, Auth::user());
+
+        return back(fallback: route('invoices.index'))
+            ->with('success', "تم تسليم عمل الفاتورة {$invoice->invoice_number}");
+    }
+
+    /**
      * Review queue of due service invoices awaiting an accountant/branch-admin
      * decision (settle or cancel). Super admins see every branch.
      */
@@ -197,7 +212,9 @@ class ServiceInvoiceController extends Controller
             $branch = Branch::find($branchId);
 
             return [$branchId => $branch
-                ? $branch->enabledPaymentMethods()->map(fn ($m) => ['id' => $m->id, 'name' => $m->name])->values()
+                ? $branch->enabledPaymentMethods()
+                    ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'requiresAttachment' => (bool) $m->requires_attachment])
+                    ->values()
                 : collect()];
         });
 
@@ -207,7 +224,11 @@ class ServiceInvoiceController extends Controller
 
                 // Keep the current method selectable even if it was later disabled.
                 if ($invoice->paymentMethod && ! $options->contains('id', $invoice->payment_method_id)) {
-                    $options = $options->prepend(['id' => $invoice->payment_method_id, 'name' => $invoice->paymentMethod->name]);
+                    $options = $options->prepend([
+                        'id' => $invoice->payment_method_id,
+                        'name' => $invoice->paymentMethod->name,
+                        'requiresAttachment' => (bool) $invoice->paymentMethod->requires_attachment,
+                    ]);
                 }
 
                 return [
@@ -291,7 +312,9 @@ class ServiceInvoiceController extends Controller
         $customer = $invoice->customer;
 
         if ($customer === null) {
-            Gate::authorize('create', Customer::class);
+            // من الفاتورة لا من السجلّ: المحاسب يسجّل عميل الفاتورة التي يراجعها
+            // وإن كان ممنوعاً من شاشة العملاء (تاسك 40).
+            Gate::authorize('createFromInvoice', Customer::class);
 
             $attachAction->handle($invoice, $request->validated());
 

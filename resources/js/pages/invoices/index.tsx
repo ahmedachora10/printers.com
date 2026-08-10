@@ -21,7 +21,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
 import { Link, router } from '@inertiajs/react';
-import { Eye, Info, Loader2, Pencil, Printer, Search, Undo2, UserPlus, X } from 'lucide-react';
+import { Eye, Info, Loader2, PackageCheck, Pencil, Printer, Search, Undo2, UserPlus, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -50,6 +50,7 @@ const STATUS_OPTIONS = [
 const DELIVERY_OPTIONS = [
     { value: 'today', label: 'تسليم اليوم' },
     { value: 'overdue', label: 'متأخر عن موعده' },
+    { value: 'delivered', label: 'تم التسليم' },
 ];
 
 /** Modal-only filters — the search box and the date range apply on their own. */
@@ -88,6 +89,9 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     const [returnItem, setReturnItem] = useState<InvoiceListItem | null>(null);
     const [returnReason, setReturnReason] = useState('');
     const [returning, setReturning] = useState(false);
+    // «تم تسليم العمل»: ختم لا رجعة فيه، فيمرّ بتأكيد ولو كان زراً سريعاً في الصف.
+    const [deliverItem, setDeliverItem] = useState<InvoiceListItem | null>(null);
+    const [delivering, setDelivering] = useState(false);
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
     // Customer name/phone/tax editing — service invoices only, gated by
@@ -141,6 +145,24 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                     setReturning(false);
                     setReturnItem(null);
                     setReturnReason('');
+                },
+            },
+        );
+    }
+
+    function confirmDeliver() {
+        if (!deliverItem) return;
+        setDelivering(true);
+        router.post(
+            serviceInvoice.deliver(deliverItem.id).url,
+            {},
+            {
+                preserveScroll: true,
+                onError: (e) => toast.error((Object.values(e)[0] as string) ?? 'تعذّر تسجيل تسليم العمل.'),
+                onSuccess: () => toast.success('تم تسليم العمل.'),
+                onFinish: () => {
+                    setDelivering(false);
+                    setDeliverItem(null);
                 },
             },
         );
@@ -221,8 +243,13 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 key: 'deliveryAt',
                 header: 'موعد التسليم',
                 cell: (item) =>
-                    item.deliveryAt ? (
-                        <DeliveryBadge deliveryAt={item.deliveryAt} deliveryStatus={item.deliveryStatus} showLabel />
+                    item.deliveryAt || item.deliveredAt ? (
+                        <DeliveryBadge
+                            deliveryAt={item.deliveryAt}
+                            deliveryStatus={item.deliveryStatus}
+                            deliveredAt={item.deliveredAt}
+                            showLabel
+                        />
                     ) : (
                         <span className="text-muted-foreground">—</span>
                     ),
@@ -340,6 +367,19 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                                 <Printer className="h-3.5 w-3.5" />
                             </a>
                         </Button>
+                        {/* زر سريع لفواتير الخدمة الحيّة التي لم يُسلَّم عملها بعد (تاسك 31). */}
+                        {item.canDeliver && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className={cn(ACTION_BUTTON, 'text-green-700 hover:text-green-800 dark:text-green-400')}
+                                aria-label="تم تسليم العمل"
+                                title="تم تسليم العمل"
+                                onClick={() => setDeliverItem(item)}
+                            >
+                                <PackageCheck className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
                         {item.canEdit && (
                             <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
                                 <Link href={posService.edit(item.id).url} aria-label="تعديل">
@@ -493,6 +533,26 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                         </Button>
                         <Button onClick={saveCustomer} disabled={savingCustomer}>
                             {savingCustomer && <Loader2 className="size-4 animate-spin" />} حفظ
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!deliverItem} onOpenChange={(open) => !open && !delivering && setDeliverItem(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>تم تسليم العمل</DialogTitle>
+                        <DialogDescription>
+                            تُختم الفاتورة {deliverItem?.invoiceNumber} بأن عملها سُلّم للعميل الآن، فتصير حالة موعد التسليم «تم تسليم العمل». لا
+                            يتغيّر شيء في مبلغ الفاتورة ولا في حالتها المالية.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeliverItem(null)} disabled={delivering}>
+                            تراجع
+                        </Button>
+                        <Button className="bg-green-600 text-white hover:bg-green-700" onClick={confirmDeliver} disabled={delivering}>
+                            {delivering ? <Loader2 className="size-4 animate-spin" /> : <PackageCheck className="size-4" />} تأكيد التسليم
                         </Button>
                     </DialogFooter>
                 </DialogContent>
