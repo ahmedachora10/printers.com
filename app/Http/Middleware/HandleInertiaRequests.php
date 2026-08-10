@@ -220,12 +220,13 @@ class HandleInertiaRequests extends Middleware
                 'group' => 'crm',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
+            // صرف عمولة المندوب من نصيب المحاسب (تاسك 41).
             [
                 'title' => 'مدفوعات المناديب',
                 'url' => route('agent-payments.index'),
                 'icon' => 'Wallet',
                 'group' => 'crm',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
                 'title' => 'برنامج الولاء',

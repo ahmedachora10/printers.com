@@ -285,10 +285,15 @@ Route::middleware(['auth'])->group(function () {
             ->name('analytics.index');
     });
 
-    Route::middleware('role:branch-admin|super-admin')->group(function () {
+    // صرف عمولات المناديب — المحاسب هو من يصرف (تاسك 41)، بينما بيانات المندوب
+    // نفسها خارج نطاقه تماماً (تاسك 40). التحقق النهائي لكل مندوب على حدة يقع
+    // في المتحكِّم عبر AgentPolicy::pay، لا على الميدلوير وحده.
+    Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
         Route::resource('agent-payments', AgentPaymentController::class)
             ->only(['index', 'store']);
+    });
 
+    Route::middleware('role:branch-admin|super-admin')->group(function () {
         Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
             ->name('users.toggle-status');
         Route::get('users/{user}/service-commissions', [UserController::class, 'showServiceCommissions'])

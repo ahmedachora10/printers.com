@@ -37,11 +37,15 @@ class AgentPolicy
     }
 
     /**
-     * Whether the actor may settle rebate payments for this agent.
+     * Whether the actor may settle rebate payments for this agent. The
+     * accountant disburses for the agents of his own branch — he is the one who
+     * hands over the money — even though he may no longer edit their record.
      */
     public function pay(User $user, User $agent): bool
     {
-        return ($user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin())
+        return ($user->roleName->isSuperAdmin()
+            || $user->roleName->isBranchAdmin()
+            || $user->roleName->isAccountant())
             && $this->sharesBranch($user, $agent);
     }
 
