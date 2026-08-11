@@ -1,4 +1,5 @@
 import { store, update } from '@/actions/App/Http/Controllers/BranchServiceController';
+import { store as storeServiceTemplate } from '@/actions/App/Http/Controllers/ServiceTemplateController';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -6,14 +7,17 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { type BranchService, type BranchServiceFormData } from '@/types/branch-service';
-import { useForm } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { router, useForm } from '@inertiajs/react';
+import { Plus } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import InputError from '../input-error';
 import NoteExamplesField from './note-examples-field';
 
 interface ServiceTemplateOption {
     id: number;
     name: string;
+    /** خدمة أنشأها هذا الفرع لنفسه، لا خدمة عامة (تاسك 45) */
+    isOwn?: boolean;
 }
 
 interface BranchOption {
@@ -67,6 +71,53 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
             reset();
         }
     }, [branchService, open]);
+
+    // ── خدمة جديدة يضيفها مدير الفرع بنفسه (تاسك 45) ──────────────────
+    // الخدمة تُنشأ مملوكةً لفرعه على الخادم، ثم تُنتقى تلقائياً حين تعود ضمن
+    // القائمة المحدَّثة — فلا يخرج من المودال ليعود إليه.
+    const [addingTemplate, setAddingTemplate] = useState(false);
+    const [templateName, setTemplateName] = useState('');
+    const [templateError, setTemplateError] = useState<string | undefined>();
+    const [creatingTemplate, setCreatingTemplate] = useState(false);
+    const awaitingTemplate = useRef<string | null>(null);
+
+    useEffect(() => {
+        if (!awaitingTemplate.current) return;
+
+        const created = serviceTemplates.find((t) => t.name === awaitingTemplate.current);
+        if (!created) return;
+
+        setData('service_template_id', created.id);
+        awaitingTemplate.current = null;
+        setAddingTemplate(false);
+        setTemplateName('');
+    }, [serviceTemplates]);
+
+    function createTemplate() {
+        const name = templateName.trim();
+
+        if (name === '') {
+            setTemplateError('أدخل اسم الخدمة.');
+            return;
+        }
+
+        setCreatingTemplate(true);
+        setTemplateError(undefined);
+
+        router.post(
+            storeServiceTemplate.url(),
+            { name, is_active: true },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: () => {
+                    awaitingTemplate.current = name;
+                },
+                onError: (errs) => setTemplateError(errs.name ?? 'تعذّر إنشاء الخدمة.'),
+                onFinish: () => setCreatingTemplate(false),
+            },
+        );
+    }
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -124,21 +175,70 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                 className="bg-muted/50 text-muted-foreground"
                             />
                         ) : (
-                            <Select
-                                value={data.service_template_id ? String(data.service_template_id) : ''}
-                                onValueChange={(val) => setData('service_template_id', Number(val))}
-                            >
-                                <SelectTrigger id="bs-template">
-                                    <SelectValue placeholder="اختر الخدمة" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {serviceTemplates.map((t) => (
-                                        <SelectItem key={t.id} value={String(t.id)}>
-                                            {t.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            <>
+                                <Select
+                                    value={data.service_template_id ? String(data.service_template_id) : ''}
+                                    onValueChange={(val) => setData('service_template_id', Number(val))}
+                                >
+                                    <SelectTrigger id="bs-template">
+                                        <SelectValue placeholder="اختر الخدمة" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {serviceTemplates.map((t) => (
+                                            <SelectItem key={t.id} value={String(t.id)}>
+                                                {t.name}
+                                                {t.isOwn && <span className="text-muted-foreground text-xs"> — خاصة بالفرع</span>}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+
+                                {addingTemplate ? (
+                                    <div className="bg-muted/40 mt-2 space-y-2 rounded-md border p-3">
+                                        <Label htmlFor="bs-new-template">اسم الخدمة الجديدة</Label>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                id="bs-new-template"
+                                                value={templateName}
+                                                onChange={(e) => setTemplateName(e.target.value)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter') {
+                                                        e.preventDefault();
+                                                        createTemplate();
+                                                    }
+                                                }}
+                                                placeholder="مثال: طباعة استيكرات"
+                                                autoFocus
+                                            />
+                                            <Button type="button" onClick={createTemplate} disabled={creatingTemplate}>
+                                                {creatingTemplate ? '...' : 'إضافة'}
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                onClick={() => {
+                                                    setAddingTemplate(false);
+                                                    setTemplateError(undefined);
+                                                }}
+                                                disabled={creatingTemplate}
+                                            >
+                                                إلغاء
+                                            </Button>
+                                        </div>
+                                        <InputError message={templateError} />
+                                        <p className="text-muted-foreground text-xs">تُضاف الخدمة لفرعك وحده ولا تظهر لبقية الفروع.</p>
+                                    </div>
+                                ) : (
+                                    <Button
+                                        type="button"
+                                        variant="link"
+                                        className="h-auto p-0 text-xs"
+                                        onClick={() => setAddingTemplate(true)}
+                                    >
+                                        <Plus className="size-3" /> لم تجد الخدمة؟ أضف خدمة جديدة
+                                    </Button>
+                                )}
+                            </>
                         )}
                         <InputError message={errors.service_template_id || errors.branch_id} />
                     </div>

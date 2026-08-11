@@ -51,14 +51,14 @@ describe('Square-meter priced services', function () {
         $this->sqmService = makeSqmService();
     });
 
-    it('derives the unit price from the dimensions, ignoring the client price', function () {
+    it('derives the unit price from the dimensions when none is typed', function () {
         $this->post(route('pos.service.store'), [
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->sqmService->id,
                 'qty' => 2,
-                // A spoofed client price must never be trusted for a sqm service.
-                'unit_price' => 999,
+                // لم يكتب الكاشير سعراً، فيؤول الأمر إلى المقاس × سعر المتر.
+                'unit_price' => 0,
                 'discount_pct' => 0,
                 'width_cm' => 100,
                 'height_cm' => 70,
@@ -77,6 +77,43 @@ describe('Square-meter priced services', function () {
             ->and((float) $invoice->subtotal)->toBe(140.00)
             ->and((float) $invoice->vat_amount)->toBe(18.26)
             ->and((float) $invoice->total_amount)->toBe(140.00);
+    });
+
+    it('keeps a price typed over the derived one', function () {
+        // تاسك 44: الكاشير يتفق مع العميل على سعر غير سعر المتر، فيكتبه ويُحفظ
+        // كما هو — والأبعاد تبقى مسجّلة لأنها جزء من الطلب وأساس عمولة المتر.
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $this->sqmService->id,
+                'qty' => 2,
+                'unit_price' => 90,
+                'discount_pct' => 0,
+                'width_cm' => 100,
+                'height_cm' => 70,
+            ]],
+        ])->assertRedirect(route('pos.service.create'));
+
+        $line = ServiceInvoice::firstOrFail()->lines->firstOrFail();
+
+        expect((float) $line->unit_price)->toBe(90.00)
+            ->and((float) $line->width_cm)->toBe(100.00)
+            ->and((float) $line->height_cm)->toBe(70.00)
+            ->and((float) $line->subtotal)->toBe(180.00);
+    });
+
+    it('still requires the dimensions even when a price is typed', function () {
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $this->sqmService->id,
+                'qty' => 1,
+                'unit_price' => 90,
+                'discount_pct' => 0,
+            ]],
+        ])->assertSessionHasErrors('lines');
+
+        expect(ServiceInvoice::count())->toBe(0);
     });
 
     it('rejects a sqm line without dimensions', function () {

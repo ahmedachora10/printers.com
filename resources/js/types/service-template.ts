@@ -5,6 +5,8 @@ export interface ServiceTemplate {
     name: string;
     description: string | null;
     isActive: boolean;
+    /** اسم الفرع المالك للخدمة الخاصة، أو null للخدمة العامة (تاسك 45) */
+    ownerBranchName?: string | null;
     branches?: BranchService[];
     createdAt: string;
     updatedAt: string;

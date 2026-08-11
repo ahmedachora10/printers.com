@@ -26,7 +26,7 @@ class ServiceTemplateController extends Controller
         Gate::authorize('viewAny', ServiceTemplate::class);
 
         $templates = ServiceTemplate::query()
-            ->with('branches')
+            ->with(['branches', 'branch:id,name'])
             ->when(
                 $request->input('search'),
                 fn ($q) => $q->where('name', 'like', '%'.$request->input('search').'%')
@@ -81,13 +81,27 @@ class ServiceTemplateController extends Controller
         ]);
     }
 
+    /**
+     * تاسك 45: يصلها السوبر أدمن ومدير الفرع معاً. ما ينشئه السوبر أدمن خدمة
+     * عامة (`branch_id = null`)، وما ينشئه مدير الفرع مملوكٌ لفرعه لا يراه غيره
+     * — والفرع يُقرأ من المستخدم لا من الطلب.
+     */
     public function store(StoreServiceTemplateRequest $request, CreateServiceTemplateAction $action): RedirectResponse
     {
         Gate::authorize('create', ServiceTemplate::class);
 
-        $action->handle($request->validated());
+        $user = $request->user();
+        $isBranchAdmin = $user->roleName?->isBranchAdmin() === true;
 
-        return back(fallback: route('service-templates.index'));
+        // مدير فرع بلا فرع مملوك لا ينشئ خدمة عامة بالخطأ.
+        abort_if($isBranchAdmin && $user->branchId === null, 403, 'No owned branch found.');
+
+        $action->handle([
+            ...$request->validated(),
+            'branch_id' => $isBranchAdmin ? $user->branchId : null,
+        ]);
+
+        return back(fallback: route($isBranchAdmin ? 'branch-services.index' : 'service-templates.index'));
     }
 
     public function update(UpdateServiceTemplateRequest $request, ServiceTemplate $serviceTemplate, UpdateServiceTemplateAction $action): RedirectResponse

@@ -83,8 +83,9 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('branches/{branch}/toggle-status', [BranchController::class, 'toggleStatus'])
             ->name('branches.toggle-status');
 
+        // `store` تعيش في مجموعة مدير الفرع أدناه: الإنشاء متاح للاثنين (تاسك 45).
         Route::resource('service-templates', ServiceTemplateController::class)
-            ->except(['create', 'edit']);
+            ->except(['create', 'edit', 'store']);
 
         Route::resource('payment-methods', PaymentMethodController::class)
             ->parameters(['payment-methods' => 'paymentMethod'])
@@ -339,6 +340,11 @@ Route::middleware(['auth'])->group(function () {
         Route::put('app-settings/inventory-alerts', [AppSettingController::class, 'updateInventoryAlerts'])->name('app-settings.update-inventory-alerts');
         Route::put('app-settings/payment-methods', [AppSettingController::class, 'updatePaymentMethods'])->name('app-settings.update-payment-methods');
         Route::put('app-settings/loyalty', [AppSettingController::class, 'updateLoyalty'])->name('app-settings.update-loyalty');
+
+        // تاسك 45: مدير الفرع ينشئ خدمة جديدة (مملوكة لفرعه) من شاشة خدمات
+        // الفرع دون الرجوع للأدمن؛ والسوبر أدمن يصلها من شاشته وينشئ بها عامة.
+        Route::post('service-templates', [ServiceTemplateController::class, 'store'])
+            ->name('service-templates.store');
 
         Route::put('branch-services/{branchService}/employee-commissions', [BranchServiceController::class, 'updateEmployeeCommissions'])
             ->name('branch-services.employee-commissions.update');

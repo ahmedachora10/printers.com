@@ -20,6 +20,8 @@ class ServiceTemplateResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'isActive' => $this->is_active,
+            // الفرع المالك للخدمة الخاصة، أو null للخدمة العامة (تاسك 45).
+            'ownerBranchName' => $this->whenLoaded('branch', fn () => $this->branch?->name),
             'branches' => BranchServiceResource::collection($this->whenLoaded('branches')),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),

@@ -183,6 +183,33 @@ describe('Daily Report', function () {
                 ->where('totals.vat', 0));
     });
 
+    it('does not subtract a fully returned invoice twice', function () {
+        // تاسك 46: الاسترجاع يضع الحالة `returned` **ويُنشئ صفّ مرتجع**. الفاتورة
+        // ساقطة أصلاً من المبيعات والمحصَّل، فطرح صفّ مرتجعها فوق ذلك كان يُخرج
+        // المحصَّل بالسالب. يبقى المبلغ ظاهراً في عمود المرتجعات للاطّلاع فقط.
+        $invoice = dailyProductInvoice($this->branch, $this->branchAdmin, [
+            'status' => 'returned', 'paid_at' => now(), 'vat_amount' => 15, 'total_amount' => 115,
+        ]);
+
+        Refund::create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'invoice_type' => ProductInvoice::class,
+            'amount' => 115,
+            'reason' => 'استرجاع الفاتورة',
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.collected', 0)
+                ->where('totals.refunds', 115)
+                ->where('totals.products', 0)
+                ->where('totals.remaining', 0));
+    });
+
     it('subtracts a partial refund from the collected amount and shows it', function () {
         $invoice = dailyProductInvoice($this->branch, $this->branchAdmin, [
             'status' => 'paid', 'paid_at' => now(), 'vat_amount' => 15, 'total_amount' => 115,

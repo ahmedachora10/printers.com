@@ -68,7 +68,13 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
                 sortable: true,
                 cell: (template) => (
                     <div>
-                        <p className="font-medium">{template.name}</p>
+                        <p className="font-medium">
+                            {template.name}
+                            {/* خدمة أنشأها مدير فرع لفرعه وحده (تاسك 45) */}
+                            {template.ownerBranchName && (
+                                <span className="text-muted-foreground me-2 text-xs font-normal">— خاصة بـ {template.ownerBranchName}</span>
+                            )}
+                        </p>
                         {template.description && <p className="text-muted-foreground line-clamp-1 text-xs">{template.description}</p>}
                     </div>
                 ),
