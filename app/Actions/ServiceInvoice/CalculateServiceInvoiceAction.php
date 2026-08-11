@@ -88,10 +88,12 @@ class CalculateServiceInvoiceAction
                 ]);
             }
 
-            // Sqm-priced services derive the per-piece price from the entered
-            // dimensions server-side — the client figure is never trusted. The
-            // per-piece price is rounded first so the JS preview (round2 on the
-            // same formula) and the stored DECIMAL(12,2) always agree.
+            // Sqm-priced services still require their dimensions — they are part
+            // of the order and feed the per-m² commission — but the price is no
+            // longer forced: العرض×الطول×سعر المتر يملأ الحقل في نقطة البيع
+            // ويبقى الكاشير قادراً على الكتابة فوقه (تاسك 44). ما يصل من الواجهة
+            // هو المعتمد، ويسقط التقدير من المقاس فقط حين لا يصل سعرٌ موجب —
+            // فلا تُحفظ قطعةٌ بصفر لمجرد أن الحقل لم يُملأ.
             $widthCm = isset($line['width_cm']) && $line['width_cm'] !== '' ? (float) $line['width_cm'] : null;
             $heightCm = isset($line['height_cm']) && $line['height_cm'] !== '' ? (float) $line['height_cm'] : null;
 
@@ -102,7 +104,13 @@ class CalculateServiceInvoiceAction
                     ]);
                 }
 
-                $unitPrice = round(($widthCm / 100) * ($heightCm / 100) * (float) $branchService->price_per_sqm, 2);
+                $submitted = round((float) ($line['unit_price'] ?? 0), 2);
+
+                // The derived price is rounded first so the JS preview (round2 on
+                // the same formula) and the stored DECIMAL(12,2) always agree.
+                $unitPrice = $submitted > 0
+                    ? $submitted
+                    : round(($widthCm / 100) * ($heightCm / 100) * (float) $branchService->price_per_sqm, 2);
             } else {
                 $widthCm = null;
                 $heightCm = null;

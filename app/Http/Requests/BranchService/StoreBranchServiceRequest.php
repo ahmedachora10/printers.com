@@ -26,7 +26,13 @@ class StoreBranchServiceRequest extends FormRequest
     {
         return [
             ...$this->noteExampleRules(),
-            'service_template_id' => ['required', 'exists:service_templates,id'],
+            // خدمة عامة أو مملوكة لهذا الفرع بعينه — لا تُربط خدمةُ فرعٍ آخر
+            // بفرعنا مهما كان دور الرابط (تاسك 45).
+            'service_template_id' => [
+                'required',
+                Rule::exists('service_templates', 'id')
+                    ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $this->input('branch_id'))),
+            ],
             'branch_id' => [
                 'required',
                 'exists:branches,id',
@@ -52,6 +58,7 @@ class StoreBranchServiceRequest extends FormRequest
         return [
             ...$this->noteExampleMessages(),
             'branch_id.unique' => 'هذا الفرع مرتبط بالفعل بقالب الخدمة هذا.',
+            'service_template_id.exists' => 'الخدمة غير متاحة لهذا الفرع.',
             'price_per_sqm.required_if' => 'أدخل سعر المتر المربع للخدمات المسعّرة بالمتر المربع.',
         ];
     }

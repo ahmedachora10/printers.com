@@ -454,12 +454,18 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         });
     }
 
-    /** Update a sqm line's dimensions and re-derive its per-piece price. */
+    /**
+     * Update a sqm line's dimensions and re-derive its per-piece price — unless
+     * the cashier already typed a price of their own over the derived one, which
+     * a change of measurements must not silently throw away (تاسك 44).
+     */
     function setDimensions(line: ServiceCartLine, patch: { widthCm?: number | null; heightCm?: number | null }) {
         const next = { ...line, ...patch };
+        const overridden = line.unitPrice > 0 && round2(line.unitPrice) !== sqmUnitPrice(line);
+
         updateLine(line.key, {
             ...patch,
-            unitPrice: sqmUnitPrice(next),
+            ...(overridden ? {} : { unitPrice: sqmUnitPrice(next) }),
         });
     }
 
@@ -1136,7 +1142,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                         ? `عمولة ${line.baseCommissionPct}% • بالمتر المربع`
                                         : `عمولة ${line.baseCommissionPct}%`
                                 }
-                                isPriceEditable={(line) => line.pricingType !== 'sqm'}
+                                // حتى سطر المتر المربع قابل لتحرير سعره: المقاس يملأ
+                                // الحقل والكاشير يكتب فوقه عند الاتفاق على سعر آخر.
+                                isPriceEditable={() => true}
                                 getMaxDiscount={(line) => (line.maxDiscountPct > 0 ? line.maxDiscountPct : 100)}
                                 getLineTotal={lineTotal}
                                 onQtyChange={changeQty}
@@ -1257,17 +1265,44 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                                 placeholder="70"
                                                             />
                                                         </LineField>
-                                                        <LineField label="سعر القطعة">
-                                                            <LineReadout>{formatCurrency(sqmUnitPrice(line))}</LineReadout>
+                                                        <LineField label="سعر القطعة" htmlFor={`sqm-price-${line.key}`}>
+                                                            <Input
+                                                                id={`sqm-price-${line.key}`}
+                                                                type="number"
+                                                                min={0}
+                                                                step="0.01"
+                                                                value={line.unitPrice || ''}
+                                                                onChange={(e) =>
+                                                                    updateLine(line.key, {
+                                                                        unitPrice: e.target.value === '' ? 0 : Math.max(0, Number(e.target.value)),
+                                                                    })
+                                                                }
+                                                                className="h-9 text-center"
+                                                                placeholder="0.00"
+                                                            />
                                                         </LineField>
                                                     </div>
                                                     {line.widthCm && line.heightCm ? (
                                                         <p className="text-muted-foreground text-[11px]">
-                                                            المساحة {round2(lineAreaSqm(line))} م² × {formatCurrency(line.pricePerSqm)} للمتر.
+                                                            المساحة {round2(lineAreaSqm(line))} م² × {formatCurrency(line.pricePerSqm)} للمتر ={' '}
+                                                            {formatCurrency(sqmUnitPrice(line))}.
+                                                            {round2(line.unitPrice) !== sqmUnitPrice(line) && (
+                                                                <>
+                                                                    {' '}
+                                                                    السعر مُعدَّل يدوياً —{' '}
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => updateLine(line.key, { unitPrice: sqmUnitPrice(line) })}
+                                                                        className="text-primary underline underline-offset-2"
+                                                                    >
+                                                                        إعادة الاحتساب من المقاس
+                                                                    </button>
+                                                                </>
+                                                            )}
                                                         </p>
                                                     ) : (
                                                         <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                                                            أدخل العرض والطول ليُحتسب سعر القطعة.
+                                                            أدخل العرض والطول ليُحتسب سعر القطعة — ويمكنك الكتابة فوقه.
                                                         </p>
                                                     )}
                                                 </LineSection>

@@ -49,9 +49,19 @@ class BranchServiceController extends Controller
 
         $branchServices = $query->latest()->paginate(20)->withQueryString();
 
-        $serviceTemplates = ServiceTemplate::where('is_active', true)
+        // الخدمات العامة + ما أنشأه هذا الفرع لنفسه (تاسك 45) — خدمات الفروع
+        // الأخرى لا تظهر هنا.
+        $serviceTemplates = ServiceTemplate::query()
+            ->where('is_active', true)
+            ->availableToBranch($branchId)
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'branch_id'])
+            ->map(fn (ServiceTemplate $t) => [
+                'id' => $t->id,
+                'name' => $t->name,
+                'isOwn' => $t->branch_id !== null,
+            ])
+            ->values();
 
         // Branch employees who can earn service commission, plus the per-employee
         // rates already set for the services on this page — so the service-side

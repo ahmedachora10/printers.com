@@ -136,6 +136,7 @@ class DailyReportController extends Controller
                 'total' => 0.0,
                 'collected' => 0.0,
                 'refunds' => 0.0,
+                'refundsDeductible' => 0.0,
                 'commission' => 0.0,
                 'purchases' => 0.0,
                 'remaining' => 0.0,
@@ -174,13 +175,15 @@ class DailyReportController extends Controller
             $buckets[$day][$employeeId]['collected'] += (float) $row->collected;
         }
 
-        // المرتجعات تُعرض في عمودها ثم تُطرح من المحصَّل — العميل يريد رؤيتها،
-        // لا إخفاء صفوفها.
+        // المرتجعات تُعرض في عمودها كاملةً — العميل يريد رؤيتها، لا إخفاء صفوفها —
+        // بينما لا يُطرح من المحصَّل إلا ما لم يُطرح مرة أخرى أصلاً (انظر تعليق
+        // refundsDaily).
         foreach ($this->refundsDaily($scope, $employeeIds, $detailed) as $row) {
             $day = (string) $row->day;
             $employeeId = $detailed ? (int) $row->user_id : 0;
             $ensure($day, $employeeId);
             $buckets[$day][$employeeId]['refunds'] += (float) $row->refunded;
+            $buckets[$day][$employeeId]['refundsDeductible'] += (float) $row->deductible;
         }
 
         foreach ($this->commissionDaily($scope, $employeeIds, $detailed) as $row) {
@@ -206,10 +209,12 @@ class DailyReportController extends Controller
             uasort($dayRows, fn (array $a, array $b) => strcmp((string) $a['employeeName'], (string) $b['employeeName']));
 
             foreach ($dayRows as $row) {
-                // المرتجع مالٌ خرج فعلاً، فيُخصم من المحصَّل ومن الصافي المتبقي.
-                $row['collected'] -= $row['refunds'];
+                // المرتجع مالٌ خرج فعلاً، فيُخصم من المحصَّل ومن الصافي المتبقي —
+                // لكن الجزء القابل للخصم فقط، وإلا خرجت الفاتورة المرتجعة كلياً
+                // مرتين فصار المحصَّل بالسالب.
+                $row['collected'] -= $row['refundsDeductible'];
                 $row['remaining'] = $showPurchases
-                    ? $row['total'] - $row['refunds'] - $row['commission'] - $row['purchases']
+                    ? $row['total'] - $row['refundsDeductible'] - $row['commission'] - $row['purchases']
                     : 0.0;
 
                 $rows[] = $row;
@@ -247,6 +252,7 @@ class DailyReportController extends Controller
             // يجمع محصَّلاً صافياً.
             'collected' => $sum('collected'),
             'refunds' => $sum('refunds'),
+            'refundsDeductible' => $sum('refundsDeductible'),
             'commission' => $sum('commission'),
             'purchases' => 0.0,
             'remaining' => 0.0,
@@ -365,6 +371,12 @@ class DailyReportController extends Controller
      * جدول refunds كان خارج هذا التقرير كلياً، فكان المحصَّل مضخّماً بقيمة كل
      * مرتجع جزئي.
      *
+     * لكل يوم رقمان: `refunded` وهو كل ما رُدّ ويُعرض في العمود، و`deductible`
+     * وهو ما يُطرح فعلاً من المحصَّل والمتبقي. الفاتورة المرتجعة بالكامل تصير
+     * حالتها `returned` فتسقط أصلاً من المبيعات ومن المحصَّل، فطرحُ صفّ مرتجعها
+     * فوق ذلك خصمٌ ثانٍ لنفس المبلغ — وهو ما كان يُخرج المحصَّل بالسالب. أما
+     * المرتجع الجزئي فتبقى فاتورته محتسبة، فيُخصم كما هو.
+     *
      * @param  array<string, mixed>  $scope
      * @param  array<int, int>  $employeeIds
      * @return Collection<int, \stdClass>
@@ -373,12 +385,18 @@ class DailyReportController extends Controller
     {
         $rows = collect();
 
+        // قيم enum ثابتة لا مدخلات مستخدم، فاقتباسها هنا آمن.
+        $excluded = collect(InvoiceStatusEnum::excludedFromRevenue())
+            ->map(fn (string $status) => "'".$status."'")
+            ->implode(', ');
+
         foreach ([ProductInvoice::class, ServiceInvoice::class] as $model) {
             $table = (new $model)->getTable();
 
             $columns = [
                 DB::raw('DATE(r.created_at) as day'),
                 DB::raw('COALESCE(SUM(r.amount), 0) as refunded'),
+                DB::raw('COALESCE(SUM(CASE WHEN i.status IN ('.$excluded.') THEN 0 ELSE r.amount END), 0) as deductible'),
             ];
 
             if ($detailed) {
