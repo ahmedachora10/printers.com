@@ -20,6 +20,7 @@ class LoyaltyConfigFactory extends Factory
             'earning_rate' => 1,
             'redemption_rate' => 100,
             'min_redemption_points' => 500,
+            'expiry_months' => null,
             'bronze_threshold' => 500,
             'silver_threshold' => 2000,
             'gold_threshold' => 5000,

@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Actions\Customer\CreateCustomerAction;
 use App\Actions\Customer\DeleteCustomerAction;
 use App\Actions\Customer\MergeCustomersAction;
+use App\Actions\Customer\OverrideCustomerTierAction;
 use App\Actions\Customer\SearchPosCustomersAction;
 use App\Actions\Customer\UpdateCustomerAction;
 use App\Exports\CustomersExport;
 use App\Http\Requests\Customer\MergeCustomersRequest;
+use App\Http\Requests\Customer\OverrideCustomerTierRequest;
 use App\Http\Requests\Customer\StoreCustomerRequest;
 use App\Http\Requests\Customer\UpdateCustomerRequest;
 use App\Http\Resources\Branch\BranchResource;
@@ -143,6 +145,7 @@ class CustomerController extends Controller
             'loyaltyHistory' => $this->loadLoyaltyHistory($customer),
             'invoiceHistory' => $this->loadInvoiceHistory($customer),
             'customers' => CustomerResource::collection($customers),
+            'canOverrideTier' => Gate::allows('overrideTier', $customer),
         ]);
     }
 
@@ -224,6 +227,23 @@ class CustomerController extends Controller
         $action->handle($customer, ['is_active' => ! $customer->is_active]);
 
         return back(fallback: route('customers.index'))->with('success', 'تم تحديث حالة العميل بنجاح');
+    }
+
+    /**
+     * تعديل مستوى الولاء يدوياً — ومعه تصحيحٌ اختياري للإنفاق التراكمي، وإلا
+     * أعاد أوّلُ اكتسابٍ ترقيةَ العميل إلى مستواه السابق.
+     */
+    public function overrideTier(
+        OverrideCustomerTierRequest $request,
+        Customer $customer,
+        OverrideCustomerTierAction $action,
+    ): RedirectResponse {
+        Gate::authorize('overrideTier', $customer);
+
+        $action->handle($customer, $request->validated(), $request->user());
+
+        return back(fallback: route('customers.show', $customer))
+            ->with('success', 'تم تحديث مستوى الولاء بنجاح');
     }
 
     /**

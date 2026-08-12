@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\Concerns\HasInvoicePayments;
 use App\Models\Concerns\HasReceiptMedia;
+use App\Models\Concerns\HasVatBreakdown;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -17,7 +18,7 @@ use Spatie\MediaLibrary\InteractsWithMedia;
 
 class ProductInvoice extends Model implements HasMedia
 {
-    use HasInvoicePayments, HasReceiptMedia, InteractsWithMedia, LogsActivity, SoftDeletes;
+    use HasInvoicePayments, HasReceiptMedia, HasVatBreakdown, InteractsWithMedia, LogsActivity, SoftDeletes;
 
     protected $fillable = [
         'invoice_number',

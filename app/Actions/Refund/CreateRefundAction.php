@@ -2,6 +2,7 @@
 
 namespace App\Actions\Refund;
 
+use App\Actions\Loyalty\ReverseLoyaltyForRefundAction;
 use App\Actions\StockMovement\RecordStockMovementAction;
 use App\Enums\CommissionSourceTypeEnum;
 use App\Enums\InvoiceStatusEnum;
@@ -21,12 +22,16 @@ use Illuminate\Validation\ValidationException;
  * applied atomically:
  *  - product refunds may return stock to inventory (return_in movements);
  *  - service refunds reverse the employee's *unpaid* commission proportionally
- *    by inserting negative offsetting rows in the immutable commission ledger.
+ *    by inserting negative offsetting rows in the immutable commission ledger;
+ *  - both types unwind the invoice's loyalty effect by the same refunded
+ *    fraction (earned points clawed back, redeemed points returned, cumulative
+ *    spend rolled back).
  */
 class CreateRefundAction
 {
     public function __construct(
         private readonly RecordStockMovementAction $recordStockMovement,
+        private readonly ReverseLoyaltyForRefundAction $reverseLoyalty,
     ) {}
 
     /**
@@ -105,6 +110,10 @@ class CreateRefundAction
             if ($type === InvoiceTypeEnum::SERVICE) {
                 $this->reverseCommission($invoice, $amount, $invoiceTotal);
             }
+
+            // النقاط والإنفاق التراكمي يُفكّان بعد كتابة صفّ المرتجع، لأن الحساب
+            // يقوم على مجموع ما استُرجع على الفاتورة شاملاً هذه الدفعة.
+            $this->reverseLoyalty->handle($invoice, $amount);
 
             return $refund;
         });

@@ -93,6 +93,21 @@ class CustomerPolicy
             && $customer->agent_id === null;
     }
 
+    /**
+     * تعديل مستوى الولاء يدوياً. المحرّك يرقّي ولا ينزّل أبداً، فالتنزيل — وتصحيح
+     * إنفاقٍ تراكميٍّ خاطئ معه — لا يكون إلا من هنا. ولأنه يمسّ مالاً يستحقه
+     * العميل (خصم المستوى)، فهو لمدير الفرع فما فوق لا للموظف.
+     */
+    public function overrideTier(User $user, Customer $customer): bool
+    {
+        if ($user->roleName->isSuperAdmin()) {
+            return true;
+        }
+
+        return $user->branchId === $customer->branch_id
+            && $user->roleName->isBranchAdmin();
+    }
+
     public function delete(User $user, Customer $customer): bool
     {
         if ($user->roleName->isSuperAdmin()) {

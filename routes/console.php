@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\ExpireLoyaltyPointsCommand;
 use App\Console\Commands\NotifyUpcomingDeliveriesCommand;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -12,4 +13,10 @@ Artisan::command('inspire', function () {
 // تذكير الموظفين بمواعيد التسليم المستحقة غداً — صباح كل يوم قبل بدء العمل.
 Schedule::command(NotifyUpcomingDeliveriesCommand::class)
     ->dailyAt('08:00')
+    ->withoutOverlapping();
+
+// تصفير نقاط الولاء الخاملة — بعد إغلاق الفروع، فلا يُصفَّر رصيدٌ بين يدي كاشير
+// يوشك أن يستبدله. لا يمسّ إلا الفروع التي حدّدت مدة انتهاء صلاحية.
+Schedule::command(ExpireLoyaltyPointsCommand::class)
+    ->dailyAt('02:00')
     ->withoutOverlapping();

@@ -30,9 +30,9 @@ class EarnLoyaltyPointsAction
             return null;
         }
 
-        // B2B sales (agent-linked customer or an agent override on the invoice)
-        // are settled via rebate/discount, never loyalty points.
-        if ($invoice->agent_id !== null) {
+        // B2B sales (agent-linked customer or an agent on the invoice) are
+        // settled via rebate/discount, never loyalty points.
+        if ($this->hasAgent($invoice)) {
             return null;
         }
 
@@ -56,14 +56,19 @@ class EarnLoyaltyPointsAction
                 return null;
             }
 
-            $earned = (int) floor((float) $invoice->total_amount * (float) $config->earning_rate);
+            // النقاط والإنفاق التراكمي يقومان على قيمة الفاتورة صافيةً من ضريبة
+            // القيمة المضافة: العميل لا يكسب على ضريبةٍ تذهب إلى الدولة، وهي
+            // القاعدة نفسها التي تحكم كل نسبة عمولة في النظام.
+            $base = $invoice->netAmount();
+
+            $earned = (int) floor($base * (float) $config->earning_rate);
 
             if ($earned <= 0) {
                 return null;
             }
 
             $newBalance = $customer->points_balance + $earned;
-            $newSpend = (float) $customer->cumulative_spend + (float) $invoice->total_amount;
+            $newSpend = (float) $customer->cumulative_spend + $base;
             $tier = $this->resolveTier($customer->tier, $newSpend, $config);
 
             $customer->update([
@@ -81,6 +86,21 @@ class EarnLoyaltyPointsAction
                 'balance_after' => $newBalance,
             ]);
         });
+    }
+
+    /**
+     * Is this invoice a B2B (agent) sale? The two invoice types carry their
+     * agents differently: a service invoice may have several, held on the
+     * service_invoice_agent pivot (the scalar agent_id was dropped from
+     * service_invoices), while a product invoice keeps a single agent_id
+     * column. Reading agent_id off a service invoice silently yields null, so
+     * the type must be branched on explicitly.
+     */
+    private function hasAgent(ProductInvoice|ServiceInvoice $invoice): bool
+    {
+        return $invoice instanceof ServiceInvoice
+            ? $invoice->agents()->exists()
+            : $invoice->agent_id !== null;
     }
 
     /**

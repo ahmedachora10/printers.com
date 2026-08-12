@@ -114,6 +114,7 @@ export default function AppSettingsIndex({
         earning_rate: loyaltyConfig?.earningRate?.toString() ?? '1',
         redemption_rate: loyaltyConfig?.redemptionRate?.toString() ?? '100',
         min_redemption_points: loyaltyConfig?.minRedemptionPoints?.toString() ?? '500',
+        expiry_months: loyaltyConfig?.expiryMonths?.toString() ?? '',
         bronze_threshold: loyaltyConfig?.bronzeThreshold?.toString() ?? '500',
         silver_threshold: loyaltyConfig?.silverThreshold?.toString() ?? '2000',
         gold_threshold: loyaltyConfig?.goldThreshold?.toString() ?? '5000',
@@ -406,6 +407,22 @@ export default function AppSettingsIndex({
                                                 onChange={(e) => loyaltyForm.setData('min_redemption_points', e.target.value)}
                                             />
                                             <InputError message={loyaltyForm.errors.min_redemption_points} />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="expiry-months">انتهاء صلاحية النقاط (أشهر)</Label>
+                                            <Input
+                                                id="expiry-months"
+                                                type="number"
+                                                min="1"
+                                                max="120"
+                                                placeholder="بلا انتهاء"
+                                                value={loyaltyForm.data.expiry_months}
+                                                onChange={(e) => loyaltyForm.setData('expiry_months', e.target.value)}
+                                            />
+                                            <p className="text-xs text-muted-foreground">
+                                                يُصفَّر رصيد العميل إذا مضت هذه المدة بلا أي شراء. اتركه فارغاً فلا تنتهي النقاط.
+                                            </p>
+                                            <InputError message={loyaltyForm.errors.expiry_months} />
                                         </div>
                                     </div>
 

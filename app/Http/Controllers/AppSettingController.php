@@ -67,6 +67,7 @@ class AppSettingController extends Controller
                 'earningRate' => (float) $loyaltyConfig->earning_rate,
                 'redemptionRate' => (float) $loyaltyConfig->redemption_rate,
                 'minRedemptionPoints' => (int) $loyaltyConfig->min_redemption_points,
+                'expiryMonths' => $loyaltyConfig->expiry_months,
                 'bronzeThreshold' => (float) $loyaltyConfig->bronze_threshold,
                 'silverThreshold' => (float) $loyaltyConfig->silver_threshold,
                 'goldThreshold' => (float) $loyaltyConfig->gold_threshold,
