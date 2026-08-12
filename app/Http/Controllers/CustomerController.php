@@ -9,6 +9,7 @@ use App\Actions\Customer\OverrideCustomerTierAction;
 use App\Actions\Customer\SearchPosCustomersAction;
 use App\Actions\Customer\UpdateCustomerAction;
 use App\Exports\CustomersExport;
+use App\Http\Controllers\Concerns\BuildsPagedProps;
 use App\Http\Requests\Customer\MergeCustomersRequest;
 use App\Http\Requests\Customer\OverrideCustomerTierRequest;
 use App\Http\Requests\Customer\StoreCustomerRequest;
@@ -34,6 +35,19 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CustomerController extends Controller
 {
+    use BuildsPagedProps;
+
+    private const HISTORY_PER_PAGE = 10;
+
+    /**
+     * ذاكرةُ وجودِ الجداول لهذا الطلب. الفحص يضرب sqlite_master (أو
+     * information_schema) في كل نداء، وصفحةُ العميل الواحدة تسأل عن جدولَي
+     * الفواتير مرتين — مرةً للملخّص المالي ومرةً للسجلّ — فيُحفظ الجواب.
+     *
+     * @var array<string, bool>
+     */
+    private array $tableExists = [];
+
     public function index(Request $request): Response
     {
         Gate::authorize('viewAny', Customer::class);
@@ -56,7 +70,7 @@ class CustomerController extends Controller
             ->when($request->filled('agent_id'), fn ($q) => $q->where('agent_id', (int) $request->input('agent_id')))
             ->when($request->boolean('has_outstanding'), fn ($q) => $q->whereExists(function ($sub) {
                 foreach (['service_invoices', 'product_invoices'] as $table) {
-                    if (Schema::hasTable($table)) {
+                    if ($this->hasTable($table)) {
                         $sub->selectRaw('1')->from($table)
                             ->whereColumn("{$table}.customer_id", 'customers.id')
                             ->where("{$table}.status", 'due')
@@ -126,7 +140,7 @@ class CustomerController extends Controller
         return back(fallback: route('customers.index'))->with('success', 'تم إنشاء العميل بنجاح');
     }
 
-    public function show(Customer $customer): Response
+    public function show(Request $request, Customer $customer): Response
     {
         Gate::authorize('view', $customer);
 
@@ -142,8 +156,8 @@ class CustomerController extends Controller
         return Inertia::render('customers/show', [
             'customer' => new CustomerResource($customer),
             'financialSummary' => $this->computeFinancialSummary($customer),
-            'loyaltyHistory' => $this->loadLoyaltyHistory($customer),
-            'invoiceHistory' => $this->loadInvoiceHistory($customer),
+            'loyaltyHistory' => $this->loadLoyaltyHistory($request, $customer),
+            'invoiceHistory' => $this->loadInvoiceHistory($request, $customer),
             'customers' => CustomerResource::collection($customers),
             'canOverrideTier' => Gate::allows('overrideTier', $customer),
         ]);
@@ -259,7 +273,7 @@ class CustomerController extends Controller
         $stats = [];
 
         foreach (['service_invoices', 'product_invoices'] as $table) {
-            if (! Schema::hasTable($table)) {
+            if (! $this->hasTable($table)) {
                 continue;
             }
 
@@ -299,7 +313,7 @@ class CustomerController extends Controller
         $totals = ['count' => 0, 'total' => 0.0, 'paid' => 0.0, 'due' => 0.0];
 
         foreach (['service_invoices', 'product_invoices'] as $table) {
-            if (! Schema::hasTable($table)) {
+            if (! $this->hasTable($table)) {
                 continue;
             }
 
@@ -335,46 +349,74 @@ class CustomerController extends Controller
     }
 
     /** @return array<int, stdClass> */
-    private function loadLoyaltyHistory(Customer $customer): array
+    private function loadLoyaltyHistory(Request $request, Customer $customer): array
     {
-        if (! Schema::hasTable('loyalty_transactions')) {
-            return [];
+        if (! $this->hasTable('loyalty_transactions')) {
+            return ['data' => [], 'meta' => $this->pageMeta(1, 1, 0, self::HISTORY_PER_PAGE)];
         }
 
-        return DB::table('loyalty_transactions')
+        $paginator = DB::table('loyalty_transactions')
             ->where('customer_id', $customer->id)
             ->orderByDesc('created_at')
-            ->limit(50)
-            ->get(['id', 'type', 'points', 'balance_after', 'notes', 'created_at'])
-            ->toArray();
+            ->select(['id', 'type', 'points', 'balance_after', 'notes', 'created_at'])
+            ->paginate(self::HISTORY_PER_PAGE, pageName: 'loyaltyPage')
+            ->withQueryString();
+
+        return $this->pagedProp($paginator);
     }
 
-    /** @return array<int, array<string, mixed>> */
-    private function loadInvoiceHistory(Customer $customer): array
+    /**
+     * سجلّ فواتير العميل من الجدولين معاً.
+     *
+     * الدمج يجري في قاعدة البيانات لا في PHP: قراءةُ مئةٍ من كل جدول ثم فرزُها
+     * وقصُّها في الذاكرة كانت تُخفي ما وراء ذلك ولا سبيل إلى بلوغه. كل فرعٍ من
+     * الاتحاد يختار الأعمدة نفسها وبالترتيب نفسه — ومنها ثابتُ النوع — فينتظم
+     * الفرز والترقيم على المجموع.
+     *
+     * @return array{data: list<mixed>, meta: array<string, int>}
+     */
+    private function loadInvoiceHistory(Request $request, Customer $customer): array
     {
-        $invoices = [];
+        $columns = 'id, invoice_number, total_amount, status, created_at';
 
-        foreach (['service_invoices', 'product_invoices'] as $table) {
-            if (! Schema::hasTable($table)) {
+        $subQueries = [];
+
+        foreach (['service_invoices' => 'service', 'product_invoices' => 'product'] as $table => $type) {
+            if (! $this->hasTable($table)) {
                 continue;
             }
 
-            $type = $table === 'service_invoices' ? 'service' : 'product';
-            $rows = DB::table($table)
+            // ثابتُ النوع يُكتب حرفياً لا بارتباط، فترتيب الارتباطات في الاتحاد
+            // لا يختلط — والقيمة من ثوابت الكود لا من المستخدم.
+            $subQueries[] = DB::table($table)
                 ->where('customer_id', $customer->id)
                 ->whereNull('deleted_at')
-                ->orderByDesc('created_at')
-                ->limit(100)
-                ->get(['id', 'invoice_number', 'total_amount', 'status', 'created_at'])
-                ->map(fn ($r) => array_merge((array) $r, ['type' => $type]))
-                ->toArray();
-
-            $invoices = array_merge($invoices, $rows);
+                ->selectRaw($columns.", '{$type}' as type");
         }
 
-        usort($invoices, fn ($a, $b) => strcmp($b['created_at'], $a['created_at']));
+        if ($subQueries === []) {
+            return ['data' => [], 'meta' => $this->pageMeta(1, 1, 0, self::HISTORY_PER_PAGE)];
+        }
 
-        return array_slice($invoices, 0, 100);
+        $union = array_shift($subQueries);
+
+        foreach ($subQueries as $sub) {
+            $union->unionAll($sub);
+        }
+
+        $paginator = DB::query()
+            ->fromSub($union, 'invoices')
+            ->orderByDesc('created_at')
+            ->paginate(self::HISTORY_PER_PAGE, pageName: 'invoicePage')
+            ->withQueryString();
+
+        return $this->pagedProp($paginator);
+    }
+
+    /** فحصُ وجود جدول مرةً واحدة لكل طلب. */
+    private function hasTable(string $table): bool
+    {
+        return $this->tableExists[$table] ??= Schema::hasTable($table);
     }
 
     /** @return array<int, array<string, mixed>> */
@@ -393,7 +435,7 @@ class CustomerController extends Controller
         $oldestDue = [];
 
         foreach (['service_invoices', 'product_invoices'] as $table) {
-            if (! Schema::hasTable($table)) {
+            if (! $this->hasTable($table)) {
                 continue;
             }
 

@@ -59,3 +59,17 @@ export interface Agent {
     id: number;
     name: string;
 }   
+
+/** ترويسة الترقيم التي تُصاحب كل جدول مرقَّم قادم من BuildsPagedProps. */
+export interface PageMeta {
+    current_page: number;
+    last_page: number;
+    total: number;
+    per_page: number;
+}
+
+/** جدولٌ مرقَّم: صفوف الصفحة الحالية وترويستها. */
+export interface Paginated<T> {
+    data: T[];
+    meta: PageMeta;
+}
