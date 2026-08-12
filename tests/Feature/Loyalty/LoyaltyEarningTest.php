@@ -146,6 +146,37 @@ describe('Loyalty earning', function () {
         expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze);
     });
 
+    // المستوى يُشتقّ من الإنفاق التراكمي عند كل اكتساب، فتنزيلٌ يدويٌّ يترك
+    // الإنفاق فوق العتبة يُنقض عند أول فاتورة — ولهذا يقبل التنزيلُ تصحيحاً
+    // للإنفاق معه.
+    it('re-promotes after a manual downgrade that left the spend untouched', function () {
+        LoyaltyConfig::factory()->create([
+            'branch_id' => $this->branch->id,
+            'earning_rate' => 1,
+            'bronze_threshold' => 26,
+            'silver_threshold' => 2000,
+        ]);
+        $customer = makeIndividual(['tier' => CustomerTierEnum::None, 'cumulative_spend' => 2000]);
+
+        post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
+
+        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Silver);
+    });
+
+    it('keeps a manual downgrade that corrected the spend as well', function () {
+        LoyaltyConfig::factory()->create([
+            'branch_id' => $this->branch->id,
+            'earning_rate' => 1,
+            'bronze_threshold' => 500,
+            'silver_threshold' => 2000,
+        ]);
+        $customer = makeIndividual(['tier' => CustomerTierEnum::None, 'cumulative_spend' => 0]);
+
+        post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
+
+        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::None);
+    });
+
     it('never downgrades an existing tier', function () {
         LoyaltyConfig::factory()->create([
             'branch_id' => $this->branch->id,

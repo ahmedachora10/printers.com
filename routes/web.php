@@ -223,6 +223,9 @@ Route::middleware(['auth'])->group(function () {
             ->name('customers.merge');
         Route::patch('customers/{customer}/toggle-status', [CustomerController::class, 'toggleStatus'])
             ->name('customers.toggle-status');
+        // التنزيل اليدوي لمستوى الولاء: المحرّك يرقّي ولا ينزّل، فهذا منفذه الوحيد.
+        Route::patch('customers/{customer}/tier', [CustomerController::class, 'overrideTier'])
+            ->name('customers.override-tier');
 
         // CRM & customer analytics (M23): unified activity timeline + purchase
         // analytics; visible to whoever can view the customer profile.

@@ -10,6 +10,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
@@ -19,6 +20,7 @@ import { type BreadcrumbItem } from '@/types';
 import {
     type Customer,
     type CustomerFinancialSummary,
+    type CustomerTier,
     type InvoiceHistoryItem,
     type LoyaltyTransaction,
 } from '@/types/customer';
@@ -30,8 +32,10 @@ import {
     CreditCard,
     MessageCircle,
     Phone,
+    Pencil,
     Star,
     TrendingUp,
+    TriangleAlert,
     User,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -42,6 +46,15 @@ const TIER_COLORS: Record<string, string> = {
     silver: 'border-slate-200 bg-slate-100 text-slate-700',
     gold: 'border-yellow-200 bg-yellow-50 text-yellow-700',
 };
+
+const TIER_OPTIONS: { value: CustomerTier; label: string }[] = [
+    { value: 'none', label: 'بدون' },
+    { value: 'bronze', label: 'برونزي' },
+    { value: 'silver', label: 'فضي' },
+    { value: 'gold', label: 'ذهبي' },
+];
+
+const TIER_RANK: Record<string, number> = { none: 0, bronze: 1, silver: 2, gold: 3 };
 
 const STATUS_COLORS: Record<string, string> = {
     paid: 'border-green-200 bg-green-50 text-green-700',
@@ -65,6 +78,7 @@ interface Props {
     loyaltyHistory: LoyaltyTransaction[];
     invoiceHistory: InvoiceHistoryItem[];
     customers: Customer[];
+    canOverrideTier: boolean;
 }
 
 const invoiceHistoryColumns: ColumnDef<InvoiceHistoryItem>[] = [
@@ -104,6 +118,7 @@ export default function CustomerShow({
     loyaltyHistory,
     invoiceHistory,
     customers,
+    canOverrideTier,
 }: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'العملاء', href: customersRoute.index().url },
@@ -119,6 +134,32 @@ export default function CustomerShow({
             onSuccess: () => setMergeOpen(false),
         });
     }
+
+    const [tierOpen, setTierOpen] = useState(false);
+    const tierForm = useForm({
+        tier: customer.tier.value,
+        cumulative_spend: '' as string,
+        reason: '',
+    });
+
+    function resetTierForm() {
+        tierForm.reset();
+        tierForm.setData('tier', customer.tier.value);
+    }
+
+    function handleTierOverride(e: React.FormEvent) {
+        e.preventDefault();
+        tierForm.patch(customersRoute.overrideTier(customer.id).url, {
+            preserveScroll: true,
+            onSuccess: () => setTierOpen(false),
+        });
+    }
+
+    // المحرّك يشتقّ المستوى من الإنفاق التراكمي عند كل فاتورة مسدَّدة، فتنزيلٌ
+    // يترك الإنفاق فوق عتبة المستوى الجديد يُنقض عند أول اكتساب. نحذّر منه هنا،
+    // ونتيح تصحيح الإنفاق في النموذج نفسه.
+    const isDowngrade =
+        TIER_RANK[tierForm.data.tier] < TIER_RANK[customer.tier.value];
 
     const creditUsedPct =
         financialSummary.creditLimit && financialSummary.creditLimit > 0
@@ -340,6 +381,21 @@ export default function CustomerShow({
                                         <span className="text-sm font-medium">{customer.agent.name}</span>
                                     </div>
                                 )}
+
+                                {canOverrideTier && (
+                                    <div className="border-t pt-3">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="w-full"
+                                            onClick={() => setTierOpen(true)}
+                                        >
+                                            <Pencil className="size-4" />
+                                            تعديل المستوى يدوياً
+                                        </Button>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
 
@@ -387,6 +443,114 @@ export default function CustomerShow({
                     </div>
                 </div>
             </div>
+
+            {/* Manual tier override — the engine only ever promotes */}
+            <Dialog
+                open={tierOpen}
+                onOpenChange={(open) => {
+                    setTierOpen(open);
+                    if (!open) resetTierForm();
+                }}
+            >
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>تعديل مستوى الولاء</DialogTitle>
+                        <DialogDescription>
+                            يرقّي النظام المستوى تلقائياً من الإنفاق التراكمي ولا ينزّله أبداً،
+                            فالتنزيل وتصحيح المستوى الخاطئ يتمّان من هنا. يُحفظ السبب في سجلّ العميل.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form onSubmit={handleTierOverride} className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="tier">المستوى</Label>
+                            <Select
+                                value={tierForm.data.tier}
+                                onValueChange={(value) => tierForm.setData('tier', value as CustomerTier)}
+                            >
+                                <SelectTrigger id="tier">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {TIER_OPTIONS.map((option) => (
+                                        <SelectItem key={option.value} value={option.value}>
+                                            {option.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {tierForm.errors.tier && (
+                                <p className="text-sm text-destructive">{tierForm.errors.tier}</p>
+                            )}
+                        </div>
+
+                        {isDowngrade && (
+                            <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+                                <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+                                <span>
+                                    الإنفاق التراكمي الحالي{' '}
+                                    <span dir="ltr" className="font-medium">
+                                        {formatCurrency(Number(customer.cumulativeSpend))}
+                                    </span>{' '}
+                                    هو ما يُشتقّ منه المستوى عند كل فاتورة مسدَّدة. صحّحه أدناه وإلا
+                                    عاد العميل إلى مستواه السابق عند أول عملية شراء.
+                                </span>
+                            </div>
+                        )}
+
+                        <div className="space-y-2">
+                            <Label htmlFor="cumulative_spend">
+                                الإنفاق التراكمي <span className="text-muted-foreground">(اختياري)</span>
+                            </Label>
+                            <Input
+                                id="cumulative_spend"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                dir="ltr"
+                                placeholder={String(customer.cumulativeSpend)}
+                                value={tierForm.data.cumulative_spend}
+                                onChange={(e) => tierForm.setData('cumulative_spend', e.target.value)}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                اتركه فارغاً ليبقى كما هو.
+                            </p>
+                            {tierForm.errors.cumulative_spend && (
+                                <p className="text-sm text-destructive">{tierForm.errors.cumulative_spend}</p>
+                            )}
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="reason">السبب</Label>
+                            <Input
+                                id="reason"
+                                value={tierForm.data.reason}
+                                onChange={(e) => tierForm.setData('reason', e.target.value)}
+                                placeholder="مثال: تصحيح مستوى نتج عن فواتير مرتجعة"
+                            />
+                            {tierForm.errors.reason && (
+                                <p className="text-sm text-destructive">{tierForm.errors.reason}</p>
+                            )}
+                        </div>
+
+                        <DialogFooter>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                    setTierOpen(false);
+                                    resetTierForm();
+                                }}
+                            >
+                                إلغاء
+                            </Button>
+                            <Button type="submit" disabled={tierForm.processing || !tierForm.data.reason}>
+                                حفظ
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
 
             {/* Merge Dialog */}
             <Dialog open={mergeOpen} onOpenChange={(open) => { setMergeOpen(open); mergeForm.reset(); }}>
