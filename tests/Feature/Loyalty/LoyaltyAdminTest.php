@@ -73,6 +73,27 @@ describe('Loyalty config (app-settings)', function () {
         expect((bool) LoyaltyConfig::where('branch_id', $this->branch->id)->first()->is_active)->toBeFalse();
     });
 
+    it('stores an expiry window', function () {
+        put(route('app-settings.update-loyalty'), loyaltyConfigPayload(['expiry_months' => 18]))
+            ->assertRedirect();
+
+        expect(LoyaltyConfig::where('branch_id', $this->branch->id)->first()->expiry_months)->toBe(18);
+    });
+
+    // الحقل يصل نصاً فارغاً من النموذج، ومعناه «بلا انتهاء صلاحية» لا صفراً.
+    it('reads a blank expiry window as no expiry at all', function () {
+        put(route('app-settings.update-loyalty'), loyaltyConfigPayload(['expiry_months' => 18]));
+        put(route('app-settings.update-loyalty'), loyaltyConfigPayload(['expiry_months' => '']))
+            ->assertRedirect();
+
+        expect(LoyaltyConfig::where('branch_id', $this->branch->id)->first()->expiry_months)->toBeNull();
+    });
+
+    it('rejects an expiry window below a month', function () {
+        put(route('app-settings.update-loyalty'), loyaltyConfigPayload(['expiry_months' => 0]))
+            ->assertSessionHasErrors('expiry_months');
+    });
+
     it('rejects a zero redemption rate', function () {
         put(route('app-settings.update-loyalty'), loyaltyConfigPayload(['redemption_rate' => 0]))
             ->assertSessionHasErrors('redemption_rate');

@@ -19,6 +19,8 @@ export interface AppSettingsLoyaltyData {
     earningRate: number;
     redemptionRate: number;
     minRedemptionPoints: number;
+    /** null = النقاط لا تنتهي صلاحيتها */
+    expiryMonths: number | null;
     bronzeThreshold: number;
     silverThreshold: number;
     goldThreshold: number;
