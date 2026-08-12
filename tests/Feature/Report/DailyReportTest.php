@@ -5,6 +5,7 @@ use App\Enums\StockMovementTypeEnum;
 use App\Models\Branch;
 use App\Models\CommissionLedger;
 use App\Models\Expense;
+use App\Models\InvoicePayment;
 use App\Models\ProductInvoice;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
@@ -16,7 +17,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
-/** Create a (by default DUE) product invoice; supports a created_at override. */
+/**
+ * Create a product invoice — APPROVED (paid) today by default, since only
+ * approved invoices reach the report. `created_at` may still be overridden to
+ * prove the report ignores it; pass `status => 'due'` for an unapproved one.
+ */
 function dailyProductInvoice(Branch $branch, User $user, array $overrides = []): ProductInvoice
 {
     $createdAt = $overrides['created_at'] ?? null;
@@ -30,7 +35,8 @@ function dailyProductInvoice(Branch $branch, User $user, array $overrides = []):
         'vat_pct' => 15,
         'vat_amount' => 15,
         'total_amount' => 115,
-        'status' => 'due',
+        'status' => 'paid',
+        'paid_at' => now(),
     ], $overrides));
 
     if ($createdAt) {
@@ -40,7 +46,7 @@ function dailyProductInvoice(Branch $branch, User $user, array $overrides = []):
     return $invoice;
 }
 
-/** Create a (by default DUE) service invoice; supports a created_at override. */
+/** Create a service invoice — APPROVED (paid) today by default; see the product helper. */
 function dailyServiceInvoice(Branch $branch, User $user, array $overrides = []): ServiceInvoice
 {
     $createdAt = $overrides['created_at'] ?? null;
@@ -55,7 +61,8 @@ function dailyServiceInvoice(Branch $branch, User $user, array $overrides = []):
         'vat_amount' => 30,
         'total_amount' => 230,
         'employee_commission' => 20,
-        'status' => 'due',
+        'status' => 'paid',
+        'paid_at' => now(),
     ], $overrides));
 
     if ($createdAt) {
@@ -63,6 +70,19 @@ function dailyServiceInvoice(Branch $branch, User $user, array $overrides = []):
     }
 
     return $invoice;
+}
+
+/** Record an instalment against an invoice, dated $paidAt. */
+function dailyPayment(Branch $branch, User $user, $invoice, float $amount, $paidAt): void
+{
+    InvoicePayment::create([
+        'invoice_id' => $invoice->id,
+        'invoice_type' => $invoice::class,
+        'branch_id' => $branch->id,
+        'amount' => $amount,
+        'paid_at' => $paidAt,
+        'recorded_by' => $user->id,
+    ]);
 }
 
 function ledgerRow(Branch $branch, User $user, array $overrides = []): CommissionLedger
@@ -259,18 +279,101 @@ describe('Daily Report', function () {
             ->assertInertia(fn ($page) => $page->where('totals.commission', 0));
     });
 
-    it('counts due invoices but excludes cancelled ones', function () {
-        dailyProductInvoice($this->branch, $this->branchAdmin, ['status' => 'due', 'subtotal' => 100]);
+    // ── لا مبيعات قبل اعتماد المحاسب ───────────────────────────────
+
+    it('counts only approved invoices, excluding due and cancelled ones', function () {
+        // الآجلة أنشأها الموظف ولم يعتمدها أحد بعد، والملغاة لم تصر بيعاً قط.
+        dailyProductInvoice($this->branch, $this->branchAdmin, ['status' => 'due', 'paid_at' => null, 'subtotal' => 100]);
         dailyProductInvoice($this->branch, $this->branchAdmin, [
-            'status' => 'paid', 'paid_at' => now(), 'subtotal' => 50, 'vat_amount' => 7.5, 'total_amount' => 57.5,
+            'status' => 'cancelled', 'paid_at' => null, 'subtotal' => 900, 'vat_amount' => 135, 'total_amount' => 1035,
         ]);
         dailyProductInvoice($this->branch, $this->branchAdmin, [
-            'status' => 'cancelled', 'subtotal' => 900, 'vat_amount' => 135, 'total_amount' => 1035,
+            'subtotal' => 50, 'vat_amount' => 7.5, 'total_amount' => 57.5,
         ]);
 
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
-            ->assertInertia(fn ($page) => $page->where('totals.products', 150));
+            ->assertInertia(fn ($page) => $page->where('totals.products', 50)->where('totals.vat', 7.5));
+    });
+
+    it('keeps an employee\'s due invoice out of the report until it is approved', function () {
+        $employee = User::factory()->create(['branch_id' => $this->branch->id]);
+        $employee->addRole(Roles::EMPLOYEE->value);
+
+        $invoice = dailyServiceInvoice($this->branch, $employee, ['status' => 'due', 'paid_at' => null]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page->where('totals.services', 0)->where('totals.vat', 0));
+
+        // يعتمدها المحاسب الآن، فتدخل التقرير.
+        $invoice->update(['status' => 'paid', 'paid_at' => now()]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page->where('totals.services', 200)->where('totals.vat', 30));
+    });
+
+    it('books an invoice on its approval day, not on the day the employee created it', function () {
+        // أُنشئت قبل يومين واعتُمدت اليوم: تقرير يوم الإنشاء يبقى صفراً فلا يتغيّر
+        // تقرير يومٍ مضى بعد طباعته.
+        dailyProductInvoice($this->branch, $this->branchAdmin, [
+            'created_at' => now()->subDays(2),
+            'paid_at' => now(),
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily', [
+                'from' => now()->subDays(2)->toDateString(),
+                'to' => now()->toDateString(),
+            ]))
+            ->assertInertia(fn ($page) => $page
+                ->where('rows.0.date', now()->subDays(2)->toDateString())
+                ->where('rows.0.products', 0)
+                ->where('rows.2.date', now()->toDateString())
+                ->where('rows.2.products', 100));
+    });
+
+    it('counts a partially paid invoice in full on the day of its first instalment', function () {
+        // العربون اعتمادٌ بذاته: تدخل الفاتورة بكامل قيمتها في «الإجمالي»
+        // بينما «المحصَّل» لا يحمل إلا ما قُبض فعلاً.
+        $invoice = dailyProductInvoice($this->branch, $this->branchAdmin, [
+            'status' => 'partially_paid',
+            'paid_at' => null,
+            'created_at' => now()->subDay(),
+        ]);
+        dailyPayment($this->branch, $this->accountant, $invoice, 40, now());
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.products', 100)
+                ->where('totals.vat', 15)
+                ->where('totals.collected', 40));
+    });
+
+    it('keeps an instalment invoice on its deposit day after the final payment settles it', function () {
+        // paid_at يصير لحظة آخر دفعة، فلولا اعتماد **أول** دفعة لقفز الصف إلى يوم آخر.
+        $invoice = dailyProductInvoice($this->branch, $this->branchAdmin, [
+            'paid_at' => now(),
+            'created_at' => now()->subDays(3),
+        ]);
+        dailyPayment($this->branch, $this->accountant, $invoice, 40, now()->subDays(2));
+        dailyPayment($this->branch, $this->accountant, $invoice, 75, now());
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily', [
+                'from' => now()->subDays(2)->toDateString(),
+                'to' => now()->toDateString(),
+            ]))
+            ->assertInertia(fn ($page) => $page
+                // يوم العربون يحمل كامل قيمة الفاتورة…
+                ->where('rows.0.date', now()->subDays(2)->toDateString())
+                ->where('rows.0.products', 100)
+                ->where('rows.0.collected', 40)
+                // …ويوم السداد الأخير يحمل تحصيله وحده.
+                ->where('rows.2.products', 0)
+                ->where('rows.2.collected', 75));
     });
 
     it('reports realized commission from the ledger', function () {
@@ -445,9 +548,9 @@ describe('Daily Report', function () {
 
     // ── FILTERS ────────────────────────────────────────────────────
 
-    it('filters by created_at date range', function () {
-        dailyProductInvoice($this->branch, $this->branchAdmin, ['created_at' => now()->subMonths(3), 'subtotal' => 300]);
-        dailyProductInvoice($this->branch, $this->branchAdmin, ['created_at' => now()->subDay(), 'subtotal' => 100]);
+    it('filters by the approval date range', function () {
+        dailyProductInvoice($this->branch, $this->branchAdmin, ['paid_at' => now()->subMonths(3), 'subtotal' => 300]);
+        dailyProductInvoice($this->branch, $this->branchAdmin, ['paid_at' => now()->subDay(), 'subtotal' => 100]);
 
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily', [
@@ -460,7 +563,7 @@ describe('Daily Report', function () {
     // ── TODAY DEFAULT & ZERO-FILLED DAYS ───────────────────────────
 
     it('defaults to today only when no date filter is given', function () {
-        dailyProductInvoice($this->branch, $this->branchAdmin, ['created_at' => now()->subDay(), 'subtotal' => 500]);
+        dailyProductInvoice($this->branch, $this->branchAdmin, ['paid_at' => now()->subDay(), 'subtotal' => 500]);
         dailyProductInvoice($this->branch, $this->branchAdmin, ['subtotal' => 100]);
 
         $this->actingAs($this->superAdmin)
@@ -482,7 +585,7 @@ describe('Daily Report', function () {
     });
 
     it('keeps a zero row for every quiet day inside a filtered range', function () {
-        dailyProductInvoice($this->branch, $this->branchAdmin, ['created_at' => now()->subDays(2), 'subtotal' => 100]);
+        dailyProductInvoice($this->branch, $this->branchAdmin, ['paid_at' => now()->subDays(2), 'subtotal' => 100]);
 
         // 3-day window: only the oldest day sold anything, the other two are quiet.
         $this->actingAs($this->superAdmin)

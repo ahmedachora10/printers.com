@@ -27,8 +27,14 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * service sales (net of discounts, before VAT), realized employee commission,
  * purchases (expenses + received stock), VAT, and the net remaining amount.
  *
- * Sales count ALL non-cancelled invoices dated by created_at (not only paid),
- * commission comes from the realized commission_ledger dated by earned_at, and
+ * المبيعات لا تُحتسب إلا بعد اعتماد المحاسب: تدخل التقرير الفواتير المعتمَدة
+ * وحدها (مدفوعة أو مدفوعة جزئياً)، مؤرَّخةً **بيوم اعتمادها** لا بيوم إنشائها.
+ * الفاتورة التي يحرّرها الموظف تبقى خارج التقرير حتى يعتمدها المحاسب، ثم تظهر في
+ * يوم الاعتماد — فلا يتغيّر تقرير يومٍ مضى بعد طباعته. ويوم الاعتماد هو يوم أول
+ * دفعة إن وُجدت دفعات (فالعربون اعتمادٌ بذاته، والفاتورة تدخل بكامل قيمتها لا
+ * بقيمة عربونها)، وإلا فهو paid_at.
+ *
+ * Commission comes from the realized commission_ledger dated by earned_at, and
  * purchases combine expenses and purchase-order receipts. When at least one
  * employee is selected the purchases/remaining columns are hidden, since those
  * are a branch-level figure not attributable to individual salespeople.
@@ -36,8 +42,9 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * Beside those accrual figures sits «المحصَّل»: the money that actually came in
  * that day, read from invoice_payments (عربون + دفعات لاحقة) and dated by each
  * payment. It is deliberately not the same number as «الإجمالي» — a day may
- * raise invoices it has not collected, and collect on invoices raised earlier.
- * An invoice settled outright at the till carries no payment rows, so its whole
+ * approve an invoice on its عربون alone while «الإجمالي» takes its whole value,
+ * and may collect later instalments of invoices approved on earlier days. An
+ * invoice settled outright at the till carries no payment rows, so its whole
  * total is counted on its paid_at day.
  *
  * Several employees may be selected at once. With two or more the report turns
@@ -157,8 +164,8 @@ class DailyReportController extends Controller
             }
         }
 
-        foreach (['product_invoices' => 'products', 'service_invoices' => 'services'] as $table => $key) {
-            foreach ($this->invoiceDaily($table, $scope, $employeeIds, $detailed) as $row) {
+        foreach ([ProductInvoice::class => 'products', ServiceInvoice::class => 'services'] as $model => $key) {
+            foreach ($this->invoiceDaily($model, $scope, $employeeIds, $detailed) as $row) {
                 $day = (string) $row->day;
                 $employeeId = $detailed ? (int) $row->user_id : 0;
                 $ensure($day, $employeeId);
@@ -261,25 +268,39 @@ class DailyReportController extends Controller
     }
 
     /**
-     * Net sales (subtotal − discounts, before VAT) and VAT for one invoice
-     * table, grouped by created_at day (and by employee in detailed mode).
-     * Cancelled and soft-deleted invoices are excluded; DB::table() bypasses the
-     * SoftDeletes scope so deleted_at is filtered explicitly.
+     * Net sales (before VAT) and VAT for one invoice table, grouped by the day
+     * the accountant approved the invoice (and by employee in detailed mode).
+     * Only approved invoices are counted; soft-deleted rows are filtered
+     * explicitly because DB::table() bypasses the SoftDeletes scope.
      *
+     * @param  class-string<ProductInvoice|ServiceInvoice>  $model
      * @param  array<string, mixed>  $scope
      * @param  array<int, int>  $employeeIds
      * @return Collection<int, \stdClass>
      */
-    private function invoiceDaily(string $table, array $scope, array $employeeIds, bool $detailed): Collection
+    private function invoiceDaily(string $model, array $scope, array $employeeIds, bool $detailed): Collection
     {
+        $table = (new $model)->getTable();
+
+        // يوم الاعتماد = يوم أول دفعة قُبضت على الفاتورة، وإلا paid_at للفاتورة
+        // التي اعتمدها المحاسب دفعةً واحدة بلا صفوف دفعات. اختيار **أول** دفعة لا
+        // آخرها هو ما يثبّت الصف: فاتورة العربون تُقيَّد يوم عربونها ولا تقفز إلى
+        // يوم آخر حين يكتمل سدادها فيتغيّر paid_at.
+        $approvedAt = 'COALESCE(fp.first_paid_at, '.$table.'.paid_at)';
+
+        $firstPayment = DB::table('invoice_payments')
+            ->where('invoice_type', $model)
+            ->groupBy('invoice_id')
+            ->select('invoice_id', DB::raw('MIN(paid_at) as first_paid_at'));
+
         // صافي المبيعات قبل الضريبة = الإجمالي − الضريبة. تُشتقّ من العمودين
         // المخزّنين لا من (subtotal − الخصومات): الأخيرة تساوي الإجمالي شامل
         // الضريبة منذ أن صارت أسعار نقطة البيع شاملة لها، فكانت ستُدخل الضريبة
         // في «الصافي». الصيغة الحالية صحيحة للفواتير القديمة والجديدة معاً.
         $columns = [
-            DB::raw('DATE('.$table.'.created_at) as day'),
-            DB::raw('COALESCE(SUM(total_amount - vat_amount), 0) as net'),
-            DB::raw('COALESCE(SUM(vat_amount), 0) as vat'),
+            DB::raw('DATE('.$approvedAt.') as day'),
+            DB::raw('COALESCE(SUM('.$table.'.total_amount - '.$table.'.vat_amount), 0) as net'),
+            DB::raw('COALESCE(SUM('.$table.'.vat_amount), 0) as vat'),
         ];
 
         if ($detailed) {
@@ -287,13 +308,18 @@ class DailyReportController extends Controller
         }
 
         return DB::table($table)
-            ->whereNotIn($table.'.status', InvoiceStatusEnum::excludedFromRevenue())
+            ->leftJoinSub($firstPayment, 'fp', 'fp.invoice_id', '=', $table.'.id')
+            // الآجلة لم يعتمدها المحاسب بعد، والملغاة والمرتجعة خارج المبيعات أصلاً.
+            ->whereIn($table.'.status', InvoiceStatusEnum::approved())
             ->whereNull($table.'.deleted_at')
+            // حارس ضد صفٍّ معتمَد بلا تاريخ اعتماد إطلاقاً (بيانات قديمة): DATE(NULL)
+            // كان سيفتح يوماً فارغاً في التقرير.
+            ->whereRaw($approvedAt.' is not null')
             ->when($scope['branchId'], fn ($q) => $q->where($table.'.branch_id', $scope['branchId']))
             ->when($employeeIds !== [], fn ($q) => $q->whereIn($table.'.user_id', $employeeIds))
-            ->when($scope['from'], fn ($q) => $q->where($table.'.created_at', '>=', $scope['from']))
-            ->when($scope['to'], fn ($q) => $q->where($table.'.created_at', '<=', $scope['to']))
-            ->groupBy(DB::raw('DATE('.$table.'.created_at)'))
+            ->when($scope['from'], fn ($q) => $q->whereRaw($approvedAt.' >= ?', [$scope['from']]))
+            ->when($scope['to'], fn ($q) => $q->whereRaw($approvedAt.' <= ?', [$scope['to']]))
+            ->groupBy(DB::raw('DATE('.$approvedAt.')'))
             ->when($detailed, fn ($q) => $q->groupBy($table.'.user_id'))
             ->get($columns);
     }
