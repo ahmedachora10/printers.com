@@ -22,7 +22,8 @@ uses(RefreshDatabase::class);
 /**
  * Drives loyalty earning through the real product POS endpoint so the wiring
  * inside CreateProductInvoiceAction is exercised end-to-end. Default payload:
- * 3 × 10 = 30 subtotal, +15% VAT = 34.50 total.
+ * 3 × 10 = 30 إجمالاً شاملاً الضريبة، وصافيه من الضريبة 30 ÷ 1.15 = 26.09 —
+ * وهو أساس النقاط والإنفاق التراكمي.
  */
 function loyaltyPayload(array $overrides = []): array
 {
@@ -75,15 +76,15 @@ describe('Loyalty earning', function () {
         ]);
     });
 
-    it('credits FLOOR(total × earning_rate) points to an individual on a paid invoice', function () {
+    it('credits FLOOR(net × earning_rate) points to an individual on a paid invoice', function () {
         LoyaltyConfig::factory()->create(['branch_id' => $this->branch->id, 'earning_rate' => 0.5]);
         $customer = makeIndividual();
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        // الإجمالي شامل الضريبة = 30؛ 30 × 0.5 = 15 → FLOOR = 15
-        expect($customer->refresh()->points_balance)->toBe(15)
-            ->and((float) $customer->cumulative_spend)->toBe(30.00);
+        // الصافي من الضريبة = 26.09؛ 26.09 × 0.5 = 13.045 → FLOOR = 13
+        expect($customer->refresh()->points_balance)->toBe(13)
+            ->and((float) $customer->cumulative_spend)->toBe(26.09);
 
         $invoice = ProductInvoice::firstOrFail();
         $this->assertDatabaseHas('loyalty_transactions', [
@@ -91,9 +92,27 @@ describe('Loyalty earning', function () {
             'invoice_id' => $invoice->id,
             'invoice_type' => ProductInvoice::class,
             'type' => 'earn',
-            'points' => 15,
-            'balance_after' => 15,
+            'points' => 13,
+            'balance_after' => 13,
         ]);
+    });
+
+    it('excludes VAT from the points base', function () {
+        LoyaltyConfig::factory()->create(['branch_id' => $this->branch->id, 'earning_rate' => 1]);
+        $customer = makeIndividual();
+
+        // 10 × 11.50 = 115 شاملة الضريبة، وصافيها 100 بالتمام
+        post(route('pos.product.store'), loyaltyPayload([
+            'customer_id' => $customer->id,
+            'lines' => [['product_id' => $this->product->id, 'qty' => 10, 'unit_price' => 11.5, 'discount_pct' => 0]],
+        ]));
+
+        $invoice = ProductInvoice::firstOrFail();
+
+        expect((float) $invoice->total_amount)->toBe(115.00)
+            ->and((float) $invoice->vat_amount)->toBe(15.00)
+            ->and($customer->refresh()->points_balance)->toBe(100)
+            ->and((float) $customer->cumulative_spend)->toBe(100.00);
     });
 
     it('accumulates points and balance_after across invoices', function () {
@@ -102,12 +121,12 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        // 100 + FLOOR(30.00) = 130
-        expect($customer->refresh()->points_balance)->toBe(130);
+        // 100 + FLOOR(26.09) = 126
+        expect($customer->refresh()->points_balance)->toBe(126);
         $this->assertDatabaseHas('loyalty_transactions', [
             'customer_id' => $customer->id,
-            'points' => 30,
-            'balance_after' => 130,
+            'points' => 26,
+            'balance_after' => 126,
         ]);
     });
 
@@ -115,7 +134,7 @@ describe('Loyalty earning', function () {
         LoyaltyConfig::factory()->create([
             'branch_id' => $this->branch->id,
             'earning_rate' => 1,
-            'bronze_threshold' => 30,
+            'bronze_threshold' => 26,
             'silver_threshold' => 2000,
             'gold_threshold' => 5000,
         ]);
@@ -123,7 +142,7 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        // cumulative 34.50 ≥ bronze_threshold 30 → bronze
+        // cumulative 26.09 ≥ bronze_threshold 26 → bronze
         expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze);
     });
 

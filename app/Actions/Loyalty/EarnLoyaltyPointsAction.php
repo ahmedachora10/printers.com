@@ -56,14 +56,19 @@ class EarnLoyaltyPointsAction
                 return null;
             }
 
-            $earned = (int) floor((float) $invoice->total_amount * (float) $config->earning_rate);
+            // النقاط والإنفاق التراكمي يقومان على قيمة الفاتورة صافيةً من ضريبة
+            // القيمة المضافة: العميل لا يكسب على ضريبةٍ تذهب إلى الدولة، وهي
+            // القاعدة نفسها التي تحكم كل نسبة عمولة في النظام.
+            $base = $invoice->netAmount();
+
+            $earned = (int) floor($base * (float) $config->earning_rate);
 
             if ($earned <= 0) {
                 return null;
             }
 
             $newBalance = $customer->points_balance + $earned;
-            $newSpend = (float) $customer->cumulative_spend + (float) $invoice->total_amount;
+            $newSpend = (float) $customer->cumulative_spend + $base;
             $tier = $this->resolveTier($customer->tier, $newSpend, $config);
 
             $customer->update([

@@ -57,8 +57,12 @@ class ReverseLoyaltyForRefundAction
         $toRestore = max(0, (int) floor($redeemed * $fraction) - $alreadyRestored);
 
         // الإنفاق التراكمي لا يُرفع إلا في الكتلة نفسها التي تكتب صفّ الاكتساب،
-        // فوجود اكتسابٍ على الفاتورة هو بعينه شرطُ صحّة الخصم منه.
-        $spendRollback = $earned > 0 ? $refundAmount : 0.0;
+        // فوجود اكتسابٍ على الفاتورة هو بعينه شرطُ صحّة الخصم منه. وما أُضيف
+        // صافياً من الضريبة يُخصم صافياً منها: المبلغ المسترجَع إجماليٌّ فيُقتطع
+        // منه ما يقابل الضريبة بنسبة الصافي إلى الإجمالي.
+        $spendRollback = $earned > 0
+            ? round($refundAmount * ($invoice->netAmount() / $invoiceTotal), 2)
+            : 0.0;
 
         if ($toClaw === 0 && $toRestore === 0 && $spendRollback <= 0) {
             return;
