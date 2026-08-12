@@ -9,6 +9,7 @@ use App\Models\LoyaltyTransaction;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 use function Pest\Laravel\actingAs;
 use function Pest\Laravel\get;
@@ -143,7 +144,7 @@ describe('Loyalty overview', function () {
                 ->component('loyalty/index')
                 ->where('outstandingPoints', 120)
                 ->has('tierDistribution', 4)
-                ->has('transactions', 1));
+                ->has('transactions.data', 1));
     });
 
     it('forbids an employee from viewing the overview', function () {
@@ -163,7 +164,7 @@ describe('Loyalty overview', function () {
                 ->where('isSuperAdmin', false)
                 ->where('config.earningRate', 2)
                 ->has('branches', 0)
-                ->has('branchConfigs', 0));
+                ->has('branchConfigs.data', 0));
     });
 });
 
@@ -199,7 +200,7 @@ describe('Loyalty overview for the super admin', function () {
                 ->where('customerCount', 2)
                 // لا إعدادات واحدة تُعرض على مستوى الشبكة
                 ->where('config', null)
-                ->has('branchConfigs', 2)
+                ->has('branchConfigs.data', 2)
                 ->has('branches', 2));
     });
 
@@ -207,7 +208,7 @@ describe('Loyalty overview for the super admin', function () {
         get(route('loyalty.index'))
             ->assertOk()
             ->assertInertia(function ($page) {
-                $rows = collect($page->toArray()['props']['branchConfigs'])->keyBy('branchName');
+                $rows = collect($page->toArray()['props']['branchConfigs']['data'])->keyBy('branchName');
 
                 expect($rows['الفرع الأول']['active'])->toBeTrue()
                     ->and($rows['الفرع الأول']['expiryMonths'])->toBe(12)
@@ -227,7 +228,7 @@ describe('Loyalty overview for the super admin', function () {
                 ->where('config.earningRate', 3)
                 ->where('filters.branch', (string) $this->second->id)
                 // الجدول المقارن يسقط حين يُختار فرع بعينه
-                ->has('branchConfigs', 0));
+                ->has('branchConfigs.data', 0));
     });
 
     it('scopes the transaction log to the picked branch', function () {
@@ -244,10 +245,10 @@ describe('Loyalty overview for the super admin', function () {
         }
 
         get(route('loyalty.index'))
-            ->assertInertia(fn ($page) => $page->has('transactions', 2));
+            ->assertInertia(fn ($page) => $page->has('transactions.data', 2));
 
         get(route('loyalty.index', ['branch' => $this->first->id]))
-            ->assertInertia(fn ($page) => $page->has('transactions', 1));
+            ->assertInertia(fn ($page) => $page->has('transactions.data', 1));
     });
 
     it('falls back to defaults for a branch with no config row yet', function () {
@@ -256,7 +257,7 @@ describe('Loyalty overview for the super admin', function () {
         get(route('loyalty.index'))
             ->assertOk()
             ->assertInertia(function ($page) {
-                $row = collect($page->toArray()['props']['branchConfigs'])
+                $row = collect($page->toArray()['props']['branchConfigs']['data'])
                     ->firstWhere('branchName', 'فرع بلا إعدادات');
 
                 // لا أصفار مضلّلة: تُعرض القيم الافتراضية التي سيعمل بها الفرع
@@ -264,5 +265,107 @@ describe('Loyalty overview for the super admin', function () {
                     ->and($row['earningRate'])->toEqual(1)
                     ->and($row['redemptionRate'])->toEqual(100);
             });
+    });
+
+    it('counts active branches across the network, not just the visible page', function () {
+        // 12 فرعاً إضافياً فيتجاوز الجدولُ صفحته الأولى (10 لكل صفحة)
+        Branch::factory()->count(12)->create();
+
+        get(route('loyalty.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('branchConfigs.data', 10)
+                ->where('branchConfigs.meta.total', 14)
+                ->where('branchConfigs.meta.last_page', 2)
+                // 14 فرعاً، أُوقف برنامج الولاء في واحد منها صراحةً
+                ->where('branchSummary.total', 14)
+                ->where('branchSummary.active', 13));
+    });
+
+    it('pages the branch table on its own key', function () {
+        Branch::factory()->count(12)->create();
+
+        get(route('loyalty.index', ['branchPage' => 2]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('branchConfigs.data', 4)
+                ->where('branchConfigs.meta.current_page', 2));
+    });
+
+    it('clamps a branch page beyond the last one', function () {
+        get(route('loyalty.index', ['branchPage' => 99]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('branchConfigs.meta.current_page', 1));
+    });
+
+    it('reads the branch list once per request', function () {
+        Branch::factory()->count(12)->create();
+
+        $branchQueries = 0;
+        DB::listen(function ($query) use (&$branchQueries) {
+            if (str_contains($query->sql, 'from "branches"')) {
+                $branchQueries++;
+            }
+        });
+
+        get(route('loyalty.index'))->assertOk();
+
+        // القائمة تخدم صندوق الاختيار وجدول المقارنة معاً من قراءة واحدة.
+        expect($branchQueries)->toBe(1);
+    });
+});
+
+describe('Loyalty transaction log paging', function () {
+    beforeEach(function () {
+        $this->withoutVite();
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $this->admin = User::factory()->create();
+        $this->admin->addRole(Roles::BRANCH_ADMIN->value);
+        $this->branch = Branch::factory()->create(['owner_id' => $this->admin->id]);
+        $this->admin->update(['branch_id' => $this->branch->id]);
+        actingAs($this->admin);
+
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'points_balance' => 0]);
+
+        LoyaltyTransaction::factory()->count(18)->create([
+            'customer_id' => $customer->id,
+            'type' => LoyaltyTransactionTypeEnum::Earn,
+            'points' => 1,
+            'balance_after' => 1,
+        ]);
+    });
+
+    it('serves the first page with its meta', function () {
+        get(route('loyalty.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('transactions.data', 15)
+                ->where('transactions.meta.current_page', 1)
+                ->where('transactions.meta.last_page', 2)
+                ->where('transactions.meta.total', 18)
+                ->where('transactions.meta.per_page', 15));
+    });
+
+    it('serves the remainder on the second page', function () {
+        get(route('loyalty.index', ['page' => 2]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('transactions.data', 3)
+                ->where('transactions.meta.current_page', 2));
+    });
+
+    // الفلتر يُحمل مع رقم الصفحة، فلا يسقط الفرع عند التنقّل بين الصفحات.
+    it('keeps the branch filter alongside the page number', function () {
+        $superAdmin = User::factory()->create();
+        $superAdmin->addRole(Roles::SUPER_ADMIN->value);
+        actingAs($superAdmin);
+
+        get(route('loyalty.index', ['branch' => $this->branch->id, 'page' => 2]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.branch', (string) $this->branch->id)
+                ->where('transactions.meta.current_page', 2)
+                ->has('transactions.data', 3));
     });
 });

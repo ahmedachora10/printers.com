@@ -1,4 +1,4 @@
-import { DataTable, type ColumnDef } from '@/components/data-table';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -44,14 +44,28 @@ interface BranchConfigRow extends LoyaltyConfigSummary {
     outstandingPoints: number;
 }
 
+interface PageMeta {
+    current_page: number;
+    last_page: number;
+    total: number;
+    per_page: number;
+}
+
+interface Paginated<T> {
+    data: T[];
+    meta: PageMeta | null;
+}
+
 interface Props {
     /** null حين ينظر السوبر أدمن إلى الشبكة كلها — لا إعدادات واحدة عندها */
     config: LoyaltyConfigSummary | null;
     outstandingPoints: number;
     customerCount: number;
     tierDistribution: TierRow[];
-    transactions: LoyaltyTxRow[];
-    branchConfigs: BranchConfigRow[];
+    transactions: Paginated<LoyaltyTxRow>;
+    branchConfigs: Paginated<BranchConfigRow>;
+    /** إجماليات الشبكة لبطاقة الحالة — مستقلة عن صفحة الجدول المعروضة */
+    branchSummary: { total: number; active: number } | null;
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
     filters: { branch: string | null };
@@ -131,16 +145,37 @@ export default function LoyaltyIndex({
     tierDistribution,
     transactions,
     branchConfigs,
+    branchSummary,
     branches,
     isSuperAdmin,
     filters,
 }: Props) {
+    // تبديل الفرع يبدأ من الصفحة الأولى في الجدولين — رقمُ صفحةٍ من فرعٍ آخر
+    // لا معنى له هنا.
     function selectBranch(value: string) {
         router.get(
             loyaltyRoute.index().url,
             value === ALL_BRANCHES ? {} : { branch: value },
             { preserveState: true, preserveScroll: true, replace: true },
         );
+    }
+
+    // كل جدول يحمل اسم صفحته الخاص، والمعاملات تُبنى كاملةً في كل تنقّل: فلتر
+    // الفرع وصفحة الجدول الآخر يبقيان كما هما بدل أن يسقطا من الرابط.
+    function goToPage(key: 'page' | 'branchPage', page: number) {
+        const params: Record<string, string> = {};
+
+        if (filters.branch) params.branch = filters.branch;
+        if (transactions.meta) params.page = String(transactions.meta.current_page);
+        if (branchConfigs.meta) params.branchPage = String(branchConfigs.meta.current_page);
+
+        params[key] = String(page);
+
+        router.get(loyaltyRoute.index().url, params, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
+        });
     }
 
     return (
@@ -181,7 +216,7 @@ export default function LoyaltyIndex({
                                 </Badge>
                             ) : (
                                 <p className="text-muted-foreground text-sm">
-                                    {branchConfigs.filter((b) => b.active).length} من {branchConfigs.length} فروع
+                                    {branchSummary?.active ?? 0} من {branchSummary?.total ?? 0} فروع
                                 </p>
                             )}
                         </CardContent>
@@ -255,7 +290,7 @@ export default function LoyaltyIndex({
                 </Card>
 
                 {/* إعدادات الفروع — للسوبر أدمن حين ينظر إلى الشبكة كلها */}
-                {branchConfigs.length > 0 && (
+                {branchConfigs.meta && (
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base">إعدادات الولاء حسب الفرع</CardTitle>
@@ -264,10 +299,19 @@ export default function LoyaltyIndex({
                             <DataTable
                                 className="rounded-none bg-transparent shadow-none"
                                 columns={branchConfigColumns}
-                                data={branchConfigs}
+                                data={branchConfigs.data}
                                 keyExtractor={(row) => row.branchId}
                                 emptyState={<span className="text-muted-foreground text-sm">لا توجد فروع نشطة</span>}
                             />
+                            {branchConfigs.meta.total > 0 && (
+                                <TablePagination
+                                    currentPage={branchConfigs.meta.current_page}
+                                    totalPages={branchConfigs.meta.last_page}
+                                    totalItems={branchConfigs.meta.total}
+                                    pageSize={branchConfigs.meta.per_page}
+                                    onPageChange={(page) => goToPage('branchPage', page)}
+                                />
+                            )}
                         </CardContent>
                     </Card>
                 )}
@@ -281,10 +325,19 @@ export default function LoyaltyIndex({
                         <DataTable
                             className="rounded-none bg-transparent shadow-none"
                             columns={transactionColumns}
-                            data={transactions}
+                            data={transactions.data}
                             keyExtractor={(tx) => tx.id}
                             emptyState={<span className="text-muted-foreground text-sm">لا توجد حركات بعد</span>}
                         />
+                        {transactions.meta && transactions.meta.total > 0 && (
+                            <TablePagination
+                                currentPage={transactions.meta.current_page}
+                                totalPages={transactions.meta.last_page}
+                                totalItems={transactions.meta.total}
+                                pageSize={transactions.meta.per_page}
+                                onPageChange={(page) => goToPage('page', page)}
+                            />
+                        )}
                     </CardContent>
                 </Card>
             </div>
