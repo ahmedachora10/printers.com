@@ -30,9 +30,9 @@ class EarnLoyaltyPointsAction
             return null;
         }
 
-        // B2B sales (agent-linked customer or an agent override on the invoice)
-        // are settled via rebate/discount, never loyalty points.
-        if ($invoice->agent_id !== null) {
+        // B2B sales (agent-linked customer or an agent on the invoice) are
+        // settled via rebate/discount, never loyalty points.
+        if ($this->hasAgent($invoice)) {
             return null;
         }
 
@@ -81,6 +81,21 @@ class EarnLoyaltyPointsAction
                 'balance_after' => $newBalance,
             ]);
         });
+    }
+
+    /**
+     * Is this invoice a B2B (agent) sale? The two invoice types carry their
+     * agents differently: a service invoice may have several, held on the
+     * service_invoice_agent pivot (the scalar agent_id was dropped from
+     * service_invoices), while a product invoice keeps a single agent_id
+     * column. Reading agent_id off a service invoice silently yields null, so
+     * the type must be branched on explicitly.
+     */
+    private function hasAgent(ProductInvoice|ServiceInvoice $invoice): bool
+    {
+        return $invoice instanceof ServiceInvoice
+            ? $invoice->agents()->exists()
+            : $invoice->agent_id !== null;
     }
 
     /**
