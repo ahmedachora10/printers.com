@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\CustomerTierEnum;
+use App\Http\Controllers\Concerns\BuildsPagedProps;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
@@ -16,6 +17,8 @@ use Inertia\Response;
 
 class LoyaltyController extends Controller
 {
+    use BuildsPagedProps;
+
     private const TRANSACTIONS_PER_PAGE = 15;
 
     private const BRANCHES_PER_PAGE = 10;
@@ -113,20 +116,16 @@ class LoyaltyController extends Controller
             ->paginate(self::TRANSACTIONS_PER_PAGE)
             ->withQueryString();
 
-        return [
-            'data' => collect($paginator->items())
-                ->map(fn (LoyaltyTransaction $tx) => [
-                    'id' => $tx->id,
-                    'customerName' => $tx->customer?->full_name,
-                    'customerPhone' => $tx->customer?->phone,
-                    'type' => $tx->type->value,
-                    'typeLabel' => $tx->type->label(),
-                    'points' => $tx->points,
-                    'balanceAfter' => $tx->balance_after,
-                    'createdAt' => $tx->created_at->format('Y-m-d H:i'),
-                ])->all(),
-            'meta' => $this->meta($paginator->currentPage(), $paginator->lastPage(), $paginator->total(), $paginator->perPage()),
-        ];
+        return $this->pagedProp($paginator, fn (LoyaltyTransaction $tx) => [
+            'id' => $tx->id,
+            'customerName' => $tx->customer?->full_name,
+            'customerPhone' => $tx->customer?->phone,
+            'type' => $tx->type->value,
+            'typeLabel' => $tx->type->label(),
+            'points' => $tx->points,
+            'balanceAfter' => $tx->balance_after,
+            'createdAt' => $tx->created_at->format('Y-m-d H:i'),
+        ]);
     }
 
     /**
@@ -175,7 +174,7 @@ class LoyaltyController extends Controller
                     'outstandingPoints' => (int) ($points[$branch->id] ?? 0),
                 ];
             })->all(),
-            'meta' => $this->meta($page, $lastPage, $total, self::BRANCHES_PER_PAGE),
+            'meta' => $this->pageMeta($page, $lastPage, $total, self::BRANCHES_PER_PAGE),
         ];
     }
 
@@ -193,16 +192,5 @@ class LoyaltyController extends Controller
             ->count();
 
         return max(0, $branches->count() - $disabled);
-    }
-
-    /** @return array<string, int> */
-    private function meta(int $currentPage, int $lastPage, int $total, int $perPage): array
-    {
-        return [
-            'current_page' => $currentPage,
-            'last_page' => $lastPage,
-            'total' => $total,
-            'per_page' => $perPage,
-        ];
     }
 }
