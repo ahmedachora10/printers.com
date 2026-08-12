@@ -244,9 +244,9 @@ describe('Service invoice edit/return', function () {
         $invoice = makeOwnedDueInvoice(); // total 30.00 شامل الضريبة
         $invoice->update(['customer_id' => $customer->id]);
 
-        // Approve → earns floor(30 * 1) = 30 points, spend +30.00.
+        // Approve → النقاط على الصافي من الضريبة: floor(30 ÷ 1.15) = 26.
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
-        expect($customer->refresh()->points_balance)->toBe(30);
+        expect($customer->refresh()->points_balance)->toBe(26);
 
         $this->actingAs($this->employee)->post(route('pos.service.return', $invoice))
             ->assertRedirect(route('invoices.index'));
@@ -258,7 +258,7 @@ describe('Service invoice edit/return', function () {
             ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(0.00)
             ->and(LoyaltyTransaction::where('customer_id', $customer->id)
                 ->where('type', LoyaltyTransactionTypeEnum::ManualAdjust)
-                ->where('points', -30)
+                ->where('points', -26)
                 ->exists())->toBeTrue();
     });
 

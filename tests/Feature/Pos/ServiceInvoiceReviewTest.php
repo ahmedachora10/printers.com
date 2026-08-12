@@ -117,8 +117,8 @@ describe('Service invoice review', function () {
 
         $this->patch(route('invoices.service.pay', $invoice));
 
-        // floor(115 * 1) = 115 points earned on payment.
-        expect($customer->refresh()->points_balance)->toBe(115)
+        // النقاط على الصافي من الضريبة: floor(115 ÷ 1.15) = 100.
+        expect($customer->refresh()->points_balance)->toBe(100)
             ->and(LoyaltyTransaction::where('type', LoyaltyTransactionTypeEnum::Earn)->count())->toBe(1);
     });
 

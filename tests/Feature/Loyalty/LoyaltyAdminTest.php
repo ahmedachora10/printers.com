@@ -153,4 +153,116 @@ describe('Loyalty overview', function () {
 
         get(route('loyalty.index'))->assertForbidden();
     });
+
+    it('serves the branch admin their own config', function () {
+        LoyaltyConfig::factory()->create(['branch_id' => $this->branch->id, 'earning_rate' => 2]);
+
+        get(route('loyalty.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('isSuperAdmin', false)
+                ->where('config.earningRate', 2)
+                ->has('branches', 0)
+                ->has('branchConfigs', 0));
+    });
+});
+
+/**
+ * الإعدادات لكل فرع، فلا بطاقة معدّلٍ واحدة تصلح للشبكة: السوبر أدمن يرى
+ * المجاميع وجدول مقارنة، ويختار فرعاً فيرى شاشته كاملة.
+ */
+describe('Loyalty overview for the super admin', function () {
+    beforeEach(function () {
+        $this->withoutVite();
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $this->superAdmin = User::factory()->create();
+        $this->superAdmin->addRole(Roles::SUPER_ADMIN->value);
+        actingAs($this->superAdmin);
+
+        $this->first = Branch::factory()->create(['name' => 'الفرع الأول']);
+        $this->second = Branch::factory()->create(['name' => 'الفرع الثاني']);
+
+        LoyaltyConfig::factory()->create(['branch_id' => $this->first->id, 'earning_rate' => 1, 'expiry_months' => 12]);
+        LoyaltyConfig::factory()->inactive()->create(['branch_id' => $this->second->id, 'earning_rate' => 3]);
+
+        Customer::factory()->create(['branch_id' => $this->first->id, 'points_balance' => 100]);
+        Customer::factory()->create(['branch_id' => $this->second->id, 'points_balance' => 250]);
+    });
+
+    it('aggregates every branch when none is picked', function () {
+        get(route('loyalty.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('isSuperAdmin', true)
+                ->where('outstandingPoints', 350)
+                ->where('customerCount', 2)
+                // لا إعدادات واحدة تُعرض على مستوى الشبكة
+                ->where('config', null)
+                ->has('branchConfigs', 2)
+                ->has('branches', 2));
+    });
+
+    it('describes each branch in the comparison table', function () {
+        get(route('loyalty.index'))
+            ->assertOk()
+            ->assertInertia(function ($page) {
+                $rows = collect($page->toArray()['props']['branchConfigs'])->keyBy('branchName');
+
+                expect($rows['الفرع الأول']['active'])->toBeTrue()
+                    ->and($rows['الفرع الأول']['expiryMonths'])->toBe(12)
+                    ->and($rows['الفرع الأول']['outstandingPoints'])->toBe(100)
+                    ->and($rows['الفرع الثاني']['active'])->toBeFalse()
+                    ->and($rows['الفرع الثاني']['earningRate'])->toEqual(3)
+                    ->and($rows['الفرع الثاني']['expiryMonths'])->toBeNull();
+            });
+    });
+
+    it('narrows to a single branch and shows its config', function () {
+        get(route('loyalty.index', ['branch' => $this->second->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('outstandingPoints', 250)
+                ->where('config.active', false)
+                ->where('config.earningRate', 3)
+                ->where('filters.branch', (string) $this->second->id)
+                // الجدول المقارن يسقط حين يُختار فرع بعينه
+                ->has('branchConfigs', 0));
+    });
+
+    it('scopes the transaction log to the picked branch', function () {
+        $mine = Customer::factory()->create(['branch_id' => $this->first->id, 'points_balance' => 10]);
+        $theirs = Customer::factory()->create(['branch_id' => $this->second->id, 'points_balance' => 10]);
+
+        foreach ([$mine, $theirs] as $customer) {
+            LoyaltyTransaction::factory()->create([
+                'customer_id' => $customer->id,
+                'type' => LoyaltyTransactionTypeEnum::Earn,
+                'points' => 10,
+                'balance_after' => 10,
+            ]);
+        }
+
+        get(route('loyalty.index'))
+            ->assertInertia(fn ($page) => $page->has('transactions', 2));
+
+        get(route('loyalty.index', ['branch' => $this->first->id]))
+            ->assertInertia(fn ($page) => $page->has('transactions', 1));
+    });
+
+    it('falls back to defaults for a branch with no config row yet', function () {
+        $fresh = Branch::factory()->create(['name' => 'فرع بلا إعدادات']);
+
+        get(route('loyalty.index'))
+            ->assertOk()
+            ->assertInertia(function ($page) {
+                $row = collect($page->toArray()['props']['branchConfigs'])
+                    ->firstWhere('branchName', 'فرع بلا إعدادات');
+
+                // لا أصفار مضلّلة: تُعرض القيم الافتراضية التي سيعمل بها الفرع
+                expect($row['active'])->toBeTrue()
+                    ->and($row['earningRate'])->toEqual(1)
+                    ->and($row['redemptionRate'])->toEqual(100);
+            });
+    });
 });
