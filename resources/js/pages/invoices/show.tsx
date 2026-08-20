@@ -214,8 +214,16 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                     </div>
                     {/* Full-width pairs on a phone; a single inline row once there is room. */}
                     <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+                        {/* تاسك 59: لا اعتماد بلا طريقة دفع. الخادم يرفضه أيضاً،
+                            فالتعطيل هنا توضيحٌ لا حارس — والطريقة تُحدَّد من طابور
+                            عروض الأسعار. */}
                         {invoice.canApprovePayment && (
-                            <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setApproveOpen(true)}>
+                            <Button
+                                className="bg-emerald-600 text-white hover:bg-emerald-700"
+                                disabled={!invoice.paymentMethod}
+                                title={invoice.paymentMethod ? 'اعتماد الفاتورة' : 'حدّد طريقة الدفع قبل اعتماد الفاتورة'}
+                                onClick={() => setApproveOpen(true)}
+                            >
                                 <CheckCircle2 className="size-4" /> اعتماد الفاتورة
                             </Button>
                         )}

@@ -296,4 +296,117 @@ describe('Agent Payments', function () {
 
         expect(AgentPayment::count())->toBe(0);
     });
+
+    // ── تاسك 57: مدى تاريخي وفرز لسجل الدفعات ──────────────────────
+
+    it('keeps a payment outside the applied range out of the list and the totals', function () {
+        AgentPayment::factory()->create([
+            'agent_id' => $this->agent->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id,
+            'total_rebate' => 100, 'paid_at' => now()->subMonths(2),
+        ]);
+        AgentPayment::factory()->create([
+            'agent_id' => $this->agent->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id,
+            'total_rebate' => 40, 'paid_at' => now(),
+        ]);
+
+        $this->get(route('agent-payments.index', [
+            'from' => now()->subDays(3)->toDateString(),
+            'to' => now()->toDateString(),
+        ]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('payments.data', 1)
+                ->where('paymentTotals.paymentsCount', 1)
+                ->where('paymentTotals.paidTotal', 40));
+    });
+
+    it('counts a payment made today when the range ends today', function () {
+        // المدى يشمل اليوم كاملاً: بلا endOfDay كانت دفعة الظهيرة تسقط لأن
+        // «إلى = اليوم» تُقرأ منتصفَ ليله.
+        AgentPayment::factory()->create([
+            'agent_id' => $this->agent->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id,
+            'total_rebate' => 40, 'paid_at' => now()->setTime(13, 30),
+        ]);
+
+        $this->get(route('agent-payments.index', ['from' => today()->toDateString(), 'to' => today()->toDateString()]))
+            ->assertInertia(fn ($page) => $page->has('payments.data', 1)->where('paymentTotals.paidTotal', 40));
+    });
+
+    it('leaves the outstanding balance untouched whatever the range is', function () {
+        // «العمولات المستحقة» رصيد قائم لا حركة فترة — مدى بعيد لا يُصفّره.
+        rebateInvoice($this->branch->id, $this->agent->id, 25);
+
+        $this->get(route('agent-payments.index', [
+            'from' => now()->subYears(2)->toDateString(),
+            'to' => now()->subYears(2)->addDay()->toDateString(),
+        ]))
+            ->assertInertia(fn ($page) => $page
+                ->has('payments.data', 0)
+                ->where('agents.0.outstandingRebate', 25)
+                ->where('agents.0.outstandingInvoices', 1));
+    });
+
+    it('searches the payment log by agent name', function () {
+        $other = Agent::factory()->create(['branch_id' => $this->branch->id, 'name' => 'مؤسسة الريان']);
+
+        AgentPayment::factory()->create([
+            'agent_id' => $this->agent->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id, 'paid_at' => now(),
+        ]);
+        AgentPayment::factory()->create([
+            'agent_id' => $other->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id, 'paid_at' => now(),
+        ]);
+
+        $this->get(route('agent-payments.index', ['search' => 'الريان']))
+            ->assertInertia(fn ($page) => $page
+                ->has('payments.data', 1)
+                ->where('payments.data.0.agentName', 'مؤسسة الريان')
+                ->where('paymentTotals.paymentsCount', 1));
+    });
+
+    it('sorts the payment log by total rebate on request', function () {
+        AgentPayment::factory()->create([
+            'agent_id' => $this->agent->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id,
+            'total_rebate' => 10, 'paid_at' => now()->subDay(),
+        ]);
+        AgentPayment::factory()->create([
+            'agent_id' => $this->agent->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id,
+            'total_rebate' => 900, 'paid_at' => now(),
+        ]);
+
+        $this->get(route('agent-payments.index', ['sort' => 'total_rebate', 'dir' => 'asc']))
+            ->assertInertia(fn ($page) => $page
+                ->where('payments.data.0.totalRebate', 10)
+                ->where('payments.data.1.totalRebate', 900)
+                ->where('filters.sort', 'total_rebate')
+                ->where('filters.dir', 'asc'));
+    });
+
+    it('defaults to the newest payment first', function () {
+        AgentPayment::factory()->create([
+            'agent_id' => $this->agent->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id,
+            'total_rebate' => 10, 'paid_at' => now()->subWeek(),
+        ]);
+        AgentPayment::factory()->create([
+            'agent_id' => $this->agent->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id,
+            'total_rebate' => 900, 'paid_at' => now(),
+        ]);
+
+        $this->get(route('agent-payments.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('payments.data.0.totalRebate', 900)
+                ->where('filters.sort', 'paid_at')
+                ->where('filters.dir', 'desc'));
+    });
+
+    it('rejects an unknown sort column', function () {
+        $this->get(route('agent-payments.index', ['sort' => 'total_rebate; drop table users']))
+            ->assertSessionHasErrors('sort');
+    });
+
+    it('rejects a range that ends before it starts', function () {
+        $this->get(route('agent-payments.index', [
+            'from' => now()->toDateString(),
+            'to' => now()->subWeek()->toDateString(),
+        ]))->assertSessionHasErrors('to');
+    });
 });

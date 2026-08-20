@@ -82,7 +82,10 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
             });
         }
 
+        // ترتيب أعمدة العميل (تاسك 58): المنتجات، الخدمات، الإجمالي، المحصَّل،
+        // المرتجعات، المشتريات، عمولة الموظفين، الضريبة، المبلغ المتبقي.
         cols.push(
+            // «المنتجات/الخدمات/الإجمالي» شاملة الضريبة منذ التاسك 58.
             { key: 'products', header: 'المنتجات', cell: (row) => formatCurrency(row.products) },
             { key: 'services', header: 'الخدمات', cell: (row) => formatCurrency(row.services) },
             { key: 'total', header: 'الإجمالي', className: 'font-semibold text-green-600', cell: (row) => formatCurrency(row.total) },
@@ -90,15 +93,21 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
             { key: 'collected', header: 'المحصَّل', className: 'font-medium text-sky-600', cell: (row) => formatCurrency(row.collected) },
             // المرتجعات مطروحة أصلاً من المحصَّل — تُعرض ليُرى سببُ نقصه.
             { key: 'refunds', header: 'المرتجعات', className: 'text-rose-600', cell: (row) => formatCurrency(row.refunds) },
-            { key: 'commission', header: 'عمولة الموظفين', className: 'text-amber-600', cell: (row) => formatCurrency(row.commission) },
         );
 
         if (showPurchases) {
             cols.push({ key: 'purchases', header: 'المشتريات', className: 'text-rose-600', cell: (row) => formatCurrency(row.purchases) });
-            cols.push({ key: 'remaining', header: 'المبلغ المتبقي', className: 'font-medium', cell: (row) => formatCurrency(row.remaining) });
         }
 
-        cols.push({ key: 'vat', header: 'الضريبة', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.vat) });
+        cols.push(
+            // عمود عرض فقط — لم يعد يُطرح من «المبلغ المتبقي» (تاسك 58).
+            { key: 'commission', header: 'عمولة الموظفين', className: 'text-amber-600', cell: (row) => formatCurrency(row.commission) },
+            { key: 'vat', header: 'الضريبة', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.vat) },
+        );
+
+        if (showPurchases) {
+            cols.push({ key: 'remaining', header: 'المبلغ المتبقي', className: 'font-medium', cell: (row) => formatCurrency(row.remaining) });
+        }
 
         return cols;
     }, [showPurchases, detailed]);
@@ -146,9 +155,10 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
 
                 {/* Summary tiles */}
                 <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                    {/* ترتيب البطاقات يتبع ترتيب الأعمدة (تاسك 58). */}
                     <SummaryCard
                         icon={<TrendingUp className="size-4" />}
-                        label="إجمالي المبيعات"
+                        label="إجمالي المبيعات (شامل الضريبة)"
                         value={formatCurrency(totals.total)}
                         valueClass="text-green-600"
                     />
@@ -158,12 +168,6 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
                         value={formatCurrency(totals.collected)}
                         valueClass="text-sky-600"
                     />
-                    <SummaryCard
-                        icon={<Wallet className="size-4" />}
-                        label="عمولة الموظفين"
-                        value={formatCurrency(totals.commission)}
-                        valueClass="text-amber-600"
-                    />
                     {showPurchases && (
                         <SummaryCard
                             icon={<ShoppingCart className="size-4" />}
@@ -172,15 +176,26 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
                             valueClass="text-rose-600"
                         />
                     )}
-                    {showPurchases && (
-                        <SummaryCard icon={<CalendarDays className="size-4" />} label="المبلغ المتبقي" value={formatCurrency(totals.remaining)} />
-                    )}
+                    <SummaryCard
+                        icon={<Wallet className="size-4" />}
+                        label="عمولة الموظفين"
+                        value={formatCurrency(totals.commission)}
+                        valueClass="text-amber-600"
+                    />
                     <SummaryCard
                         icon={<CreditCard className="size-4" />}
                         label="الضريبة"
                         value={formatCurrency(totals.vat)}
                         valueClass="text-muted-foreground"
                     />
+                    {showPurchases && (
+                        <SummaryCard
+                            icon={<CalendarDays className="size-4" />}
+                            label="المبلغ المتبقي"
+                            value={formatCurrency(totals.remaining)}
+                            hint="المبيعات − المرتجعات − المشتريات"
+                        />
+                    )}
                 </div>
 
                 {/* Daily table */}
@@ -205,10 +220,10 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
                                     <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
                                     <TableCell className="font-bold text-sky-600">{formatCurrency(totals.collected)}</TableCell>
                                     <TableCell className="font-bold text-rose-600">{formatCurrency(totals.refunds)}</TableCell>
-                                    <TableCell className="font-bold text-amber-600">{formatCurrency(totals.commission)}</TableCell>
                                     {showPurchases && <TableCell className="font-bold text-rose-600">{formatCurrency(totals.purchases)}</TableCell>}
-                                    {showPurchases && <TableCell className="font-bold">{formatCurrency(totals.remaining)}</TableCell>}
+                                    <TableCell className="font-bold text-amber-600">{formatCurrency(totals.commission)}</TableCell>
                                     <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.vat)}</TableCell>
+                                    {showPurchases && <TableCell className="font-bold">{formatCurrency(totals.remaining)}</TableCell>}
                                 </TableRow>
                             }
                         />
@@ -219,7 +234,20 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
     );
 }
 
-function SummaryCard({ icon, label, value, valueClass }: { icon: React.ReactNode; label: string; value: string; valueClass?: string }) {
+function SummaryCard({
+    icon,
+    label,
+    value,
+    valueClass,
+    hint,
+}: {
+    icon: React.ReactNode;
+    label: string;
+    value: string;
+    valueClass?: string;
+    /** سطر صغير تحت الرقم — لمعادلةٍ لا تُقرأ من العنوان وحده. */
+    hint?: string;
+}) {
     return (
         <Card>
             <CardHeader className="pb-2">
@@ -229,6 +257,7 @@ function SummaryCard({ icon, label, value, valueClass }: { icon: React.ReactNode
             </CardHeader>
             <CardContent>
                 <p className={`text-2xl font-bold ${valueClass ?? ''}`}>{value}</p>
+                {hint && <p className="text-muted-foreground mt-1 text-xs">{hint}</p>}
             </CardContent>
         </Card>
     );

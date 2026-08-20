@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\PaymentMethod;
+use App\Models\ServiceInvoice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -71,4 +73,32 @@ function setAgentBranchTerms(User $agent, int $branchId, array $terms): void
     ]);
 
     $agent->unsetRelation('agentBranches');
+}
+
+/**
+ * Give a service invoice a usable payment method, then return it.
+ *
+ * تاسك 59: لم يعد يُعتمد اعتماد فاتورة بلا طريقة دفع. الاختبارات التي تعنيها
+ * العمولة أو النقاط أو المرتجع لا تعنيها طريقة الدفع، فتلفّ الفاتورة بهذه
+ * الدالة قبل مسار الاعتماد بدل تكرار إنشاء الطريقة في كل ملف:
+ *
+ *     ->patch(route('invoices.service.pay', payable($invoice)))
+ *
+ * تُختار أول طريقة يراها فرع الفاتورة (عامة أو خاصة به)، وتُنشأ طريقة عامة إن
+ * لم توجد أي طريقة بعد.
+ */
+function payable(ServiceInvoice $invoice): ServiceInvoice
+{
+    if ($invoice->payment_method_id !== null) {
+        return $invoice;
+    }
+
+    $method = PaymentMethod::query()
+        ->where('is_active', true)
+        ->visibleToBranch($invoice->branch_id)
+        ->first() ?? PaymentMethod::factory()->create(['name' => 'نقد اختبارات', 'branch_id' => null]);
+
+    $invoice->forceFill(['payment_method_id' => $method->id])->save();
+
+    return $invoice->refresh();
 }

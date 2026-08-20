@@ -81,7 +81,7 @@ function paidServiceInvoiceFor(array $site, Agent $agent): ServiceInvoice
 
     // Only an approved invoice is payable, so approve it as the branch's admin.
     test()->actingAs(branchAdminOf($site['branch']))
-        ->patch(route('invoices.service.pay', $invoice))
+        ->patch(route('invoices.service.pay', payable($invoice)))
         ->assertRedirect();
 
     return $invoice->refresh();

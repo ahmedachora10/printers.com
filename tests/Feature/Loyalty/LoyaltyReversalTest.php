@@ -81,7 +81,7 @@ function serviceInvoiceFor(?int $customerId, array $overrides = []): ServiceInvo
 function approveServiceInvoice(ServiceInvoice $invoice): void
 {
     test()->actingAs(test()->branchAdmin)
-        ->patch(route('invoices.service.pay', $invoice))
+        ->patch(route('invoices.service.pay', payable($invoice)))
         ->assertRedirect();
 }
 

@@ -3,6 +3,11 @@ export interface PaymentMethod {
     name: string;
     isActive: boolean;
     requiresAttachment: boolean;
+    /** null = طريقة عامة يرثها كل فرع؛ وإلا فهي ملك فرعها (تاسك 59). */
+    branchId: number | null;
+    branchName: string | null;
+    /** هل يملك المستخدم الحالي تحريرها — يقرّره الخادم لا الدور في الواجهة. */
+    canEdit: boolean;
 }
 
 export interface AppSettingsGeneralData {

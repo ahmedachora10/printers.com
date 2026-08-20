@@ -74,7 +74,8 @@ describe('Riyadh business day', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('defaultDate', '2026-08-10')
                 ->where('rows.0.date', '2026-08-10')
-                ->where('totals.services', fn ($v) => round((float) $v, 2) === 86.96));
+                // شاملة الضريبة منذ التاسك 58 — 100 لا 86.96.
+                ->where('totals.services', fn ($v) => round((float) $v, 2) === 100.0));
 
         // ولا أثر لها في تقرير الأمس.
         $this->actingAs($this->admin)

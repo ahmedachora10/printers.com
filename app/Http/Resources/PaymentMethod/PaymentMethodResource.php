@@ -19,6 +19,11 @@ class PaymentMethodResource extends JsonResource
             'name' => $this->name,
             'isActive' => $this->is_active,
             'requiresAttachment' => $this->requires_attachment,
+            // النطاق: null = طريقة عامة يرثها كل فرع، وإلا فهي ملك فرعها (تاسك 59).
+            'branchId' => $this->branch_id,
+            'branchName' => $this->branch?->name,
+            // هل يملك المستخدم الحالي تحريرها؟ الواجهة تُخفي أزرار ما لا يملكه.
+            'canEdit' => $request->user()?->can('update', $this->resource) ?? false,
         ];
     }
 }

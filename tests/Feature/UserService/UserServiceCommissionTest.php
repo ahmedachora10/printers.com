@@ -75,7 +75,7 @@ describe('per-employee commission at invoice time', function () {
 
         // The ledger is written only on approval; the line already carries the
         // computed commission from invoice time.
-        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
 
         // The rate is 12% of the value net of VAT: 100 / 1.15 = 86.96 → 10.44.
         expect((float) $line->commission_pct)->toBe(12.00)
@@ -92,7 +92,7 @@ describe('per-employee commission at invoice time', function () {
         $invoice = ServiceInvoice::firstOrFail();
 
         // A zero-rate line still records a ledger row (amount 0) once approved.
-        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
 
         expect((float) $invoice->employee_commission)->toBe(0.00)
             ->and((float) $invoice->lines->first()->commission_amount)->toBe(0.00)

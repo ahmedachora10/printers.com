@@ -73,7 +73,8 @@ class Branch extends Model implements HasMedia
     {
         $ids = json_decode(Setting::get('enabled_payment_methods', $this->id, '[]'), true) ?? [];
 
-        $query = PaymentMethod::where('is_active', true);
+        // تاسك 59: الفرع لا يرى إلا الطرق العامة وما أضافه هو — لا طرق فرع آخر.
+        $query = PaymentMethod::where('is_active', true)->visibleToBranch($this->id);
 
         if (! empty($ids)) {
             $query->whereIn('id', $ids);

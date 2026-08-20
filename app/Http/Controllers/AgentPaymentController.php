@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Agent\GenerateAgentPaymentAction;
 use App\Enums\InvoiceStatusEnum;
+use App\Http\Requests\Agent\AgentPaymentFilterRequest;
 use App\Http\Requests\Agent\StoreAgentPaymentRequest;
 use App\Http\Resources\Agent\AgentPaymentResource;
 use App\Models\Agent;
@@ -13,7 +14,6 @@ use App\Models\ProductInvoice;
 use App\Models\ServiceInvoiceAgent;
 use App\Notifications\AgentCommissionPaidNotification;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -21,12 +21,14 @@ use Inertia\Response;
 
 class AgentPaymentController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(AgentPaymentFilterRequest $request): Response
     {
         Gate::authorize('viewAny', AgentPayment::class);
 
         $branchId = auth()->user()->branchId ?? null;
 
+        // **بلا مدى تاريخي عمداً**: «العمولات المستحقة» رصيد قائم لا حركة فترة —
+        // حصرُه بمدى يعرض مبلغاً لا يساوي ما سيُدفع فعلاً عند الضغط على «دفع».
         $outstanding = $this->outstandingByAgentBranch($branchId);
 
         // One settlement row per (agent × branch): an agent may work with several
@@ -50,10 +52,27 @@ class AgentPaymentController extends Controller
                 ]))
             ->values();
 
-        $payments = AgentPayment::query()
-            ->with(['agent:id,name', 'branch:id,name', 'paidBy:id,name'])
+        // تاسك 57: المدى والبحث والفرز تخصّ **سجل الدفعات** وحده. الاستعلام
+        // نفسه يغذّي الإجماليات أدناه فلا يفترقان.
+        $paymentsQuery = AgentPayment::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->orderByDesc('paid_at')
+            ->when($request->date('from'), fn ($q, $from) => $q->where('paid_at', '>=', $from->startOfDay()))
+            ->when($request->date('to'), fn ($q, $to) => $q->where('paid_at', '<=', $to->endOfDay()))
+            ->when($request->string('search')->trim()->value(), fn ($q, $search) => $q
+                ->whereHas('agent', fn ($a) => $a->where('name', 'like', '%'.$search.'%')));
+
+        // الإجماليات تُقرأ من نسخة من الاستعلام قبل التصفّح، فتصف **المدى كله**
+        // لا الصفحة المعروضة.
+        $totals = (clone $paymentsQuery)
+            ->selectRaw('COUNT(*) as payments_count, COALESCE(SUM(total_rebate), 0) as paid_total')
+            ->first();
+
+        $payments = $paymentsQuery
+            ->with(['agent:id,name', 'branch:id,name', 'paidBy:id,name'])
+            ->orderBy($request->sortColumn(), $request->sortDirection())
+            // فارز ثانوي ثابت: صفّان بنفس تاريخ الصرف كانا يتبادلان الترتيب بين
+            // صفحة وأخرى فيتكرّر أحدهما ويسقط الآخر.
+            ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
 
@@ -61,6 +80,17 @@ class AgentPaymentController extends Controller
             'agents' => $agents,
             // Resource collection => { data, links, meta } shape the page expects.
             'payments' => AgentPaymentResource::collection($payments),
+            'paymentTotals' => [
+                'paymentsCount' => (int) ($totals->payments_count ?? 0),
+                'paidTotal' => round((float) ($totals->paid_total ?? 0), 2),
+            ],
+            'filters' => [
+                'from' => $request->input('from'),
+                'to' => $request->input('to'),
+                'search' => $request->input('search'),
+                'sort' => $request->sortColumn(),
+                'dir' => $request->sortDirection(),
+            ],
             'branches' => Auth::user()->roleName?->isSuperAdmin()
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,

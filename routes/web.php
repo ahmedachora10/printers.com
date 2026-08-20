@@ -86,12 +86,6 @@ Route::middleware(['auth'])->group(function () {
         // `store` تعيش في مجموعة مدير الفرع أدناه: الإنشاء متاح للاثنين (تاسك 45).
         Route::resource('service-templates', ServiceTemplateController::class)
             ->except(['create', 'edit', 'store']);
-
-        Route::resource('payment-methods', PaymentMethodController::class)
-            ->parameters(['payment-methods' => 'paymentMethod'])
-            ->only(['store', 'update', 'destroy']);
-        Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
-            ->name('payment-methods.toggle-status');
     });
 
     // M20 + تاسك 47 — every branch builds its own catalogue. The whole module
@@ -101,6 +95,15 @@ Route::middleware(['auth'])->group(function () {
     // hand-rolled request cannot reach into the shared catalogue or another
     // branch.
     Route::middleware('role:branch-admin|super-admin')->group(function () {
+        // تاسك 59 — مدير الفرع يضيف ويحذف طرق دفع **فرعه**؛ الملكية (لا المسار)
+        // هي ما يحصره: PaymentMethodPolicy تمنعه من الصفّ العام ومن صفّ فرع آخر،
+        // والـForm Request يثبّت branch_id من المستخدم لا من الطلب.
+        Route::resource('payment-methods', PaymentMethodController::class)
+            ->parameters(['payment-methods' => 'paymentMethod'])
+            ->only(['store', 'update', 'destroy']);
+        Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
+            ->name('payment-methods.toggle-status');
+
         Route::prefix('admin/catalogue')->name('admin.catalogue.')->group(function () {
             // Full-catalogue Excel export / import (categories + subcategories + prices)
             Route::get('export', [CatalogCategoryController::class, 'export'])->name('export');

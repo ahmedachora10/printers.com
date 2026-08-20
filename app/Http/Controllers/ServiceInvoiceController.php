@@ -16,6 +16,7 @@ use App\Enums\InvoiceTypeEnum;
 use App\Enums\Roles;
 use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\ReturnServiceInvoiceRequest;
+use App\Http\Requests\ServiceInvoice\ReviewQueueFilterRequest;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoicePaymentMethodRequest;
@@ -189,7 +190,7 @@ class ServiceInvoiceController extends Controller
      * Review queue of due service invoices awaiting an accountant/branch-admin
      * decision (settle or cancel). Super admins see every branch.
      */
-    public function review(): Response
+    public function review(ReviewQueueFilterRequest $request): Response
     {
         Gate::authorize('review', ServiceInvoice::class);
 
@@ -198,16 +199,39 @@ class ServiceInvoiceController extends Controller
 
         // عروض الأسعار وحدها: الفاتورة التي قُبض عليها عربون لم تعد عرض سعر، فتغادر
         // الطابور فور أول دفعة ويُستكمل سدادها من صفحتها.
-        $dueInvoices = ServiceInvoice::query()
+        $query = ServiceInvoice::query()
             ->where('status', InvoiceStatusEnum::DUE)
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $user->branchId))
+            // تاسك 60: مدى تاريخي على يوم التحرير + بحث + فرز + تصفّح. القائمة
+            // كانت تُجلب كاملةً بـget() فتكبر بلا حدّ مع الوقت.
+            ->when($request->date('from'), fn ($q, $from) => $q->where('service_invoices.created_at', '>=', $from->startOfDay()))
+            ->when($request->date('to'), fn ($q, $to) => $q->where('service_invoices.created_at', '<=', $to->endOfDay()))
+            ->when($request->string('search')->trim()->value(), fn ($q, $search) => $q->where(fn ($w) => $w
+                ->where('invoice_number', 'like', '%'.$search.'%')
+                ->orWhereHas('customer', fn ($c) => $c->where('full_name', 'like', '%'.$search.'%'))
+                ->orWhereHas('user', fn ($u) => $u->where('name', 'like', '%'.$search.'%'))));
+
+        // ملخّص **المدى كله** لا الصفحة المعروضة، من نسخة سابقة للتصفّح.
+        $summary = (clone $query)
+            ->selectRaw('COUNT(*) as quotes_count, COALESCE(SUM(total_amount), 0) as quotes_total')
+            ->first();
+
+        $paginator = $query
             ->with(['lines', 'customer:id,full_name,phone,tax_number', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media'])
-            ->latest()
-            ->get();
+            ->orderBy($request->sortColumn(), $request->sortDirection())
+            // فارز ثانوي ثابت: صفّان بنفس اللحظة كانا يتبادلان الترتيب بين صفحة
+            // وأخرى فيتكرّر أحدهما ويسقط الآخر.
+            ->orderByDesc('id')
+            ->paginate(12)
+            ->withQueryString();
+
+        $dueInvoices = $paginator->getCollection();
 
         // The payment-method options a reviewer may switch to depend on the
         // invoice's branch (super admins see several). Resolve each branch's
-        // enabled methods once, then reuse per invoice.
+        // enabled methods once, then reuse per invoice. Built from the **current
+        // page** only — that is all the page renders, and a super admin paging
+        // into another branch simply resolves that branch on the next request.
         $methodsByBranch = $dueInvoices->pluck('branch_id')->unique()->mapWithKeys(function ($branchId) {
             $branch = Branch::find($branchId);
 
@@ -266,7 +290,27 @@ class ServiceInvoiceController extends Controller
             });
 
         return Inertia::render('invoices/review', [
-            'invoices' => $invoices,
+            // تبقى مصفوفةً مسطّحة (صفحة واحدة) وبيانات التصفّح بجانبها، فلا تتغيّر
+            // قراءة الصفحة لكل عرض.
+            'invoices' => $invoices->values(),
+            'meta' => [
+                'currentPage' => $paginator->currentPage(),
+                'lastPage' => $paginator->lastPage(),
+                'perPage' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
+            // شارة العدد تتبع المدى المطبَّق لا كل الطابور.
+            'summary' => [
+                'quotesCount' => (int) ($summary->quotes_count ?? 0),
+                'quotesTotal' => round((float) ($summary->quotes_total ?? 0), 2),
+            ],
+            'filters' => [
+                'from' => $request->input('from'),
+                'to' => $request->input('to'),
+                'search' => $request->input('search'),
+                'sort' => $request->sortColumn(),
+                'dir' => $request->sortDirection(),
+            ],
             'isSuperAdmin' => $isSuperAdmin,
         ]);
     }
@@ -283,6 +327,8 @@ class ServiceInvoiceController extends Controller
             ]);
         }
 
+        $this->assertPaymentMethodChosen($invoice);
+
         $action->handle($invoice);
 
         Notification::send(
@@ -293,6 +339,31 @@ class ServiceInvoiceController extends Controller
         // Redirect back so approving from the invoice viewer returns to the
         // (now paid) invoice; from the review queue it falls back there too.
         return back()->with('success', "تم اعتماد دفع الفاتورة {$invoice->invoice_number}");
+    }
+
+    /**
+     * تاسك 59 — لا تُعتمد فاتورة بلا طريقة دفع.
+     *
+     * كانت تُعتمد وطريقة دفعها «—»، فيخرج تقرير المبيعات بمبلغ لا ينسبه إلى نقد
+     * ولا شبكة ولا تحويل. الفحص على **الخادم** لأن تعطيل الزرّ وحده يُلتفّ عليه
+     * بطلب مباشر. ويُشترط أن تكون الطريقة ضمن طرق الفرع المفعّلة، وإلا اعتُمدت
+     * فاتورة بطريقة عطّلها الفرع أو تخصّ فرعاً آخر.
+     */
+    private function assertPaymentMethodChosen(ServiceInvoice $invoice): void
+    {
+        if ($invoice->payment_method_id === null) {
+            throw ValidationException::withMessages([
+                'payment_method_id' => 'حدّد طريقة الدفع قبل اعتماد الفاتورة.',
+            ]);
+        }
+
+        $allowed = $invoice->branch?->enabledPaymentMethods() ?? collect();
+
+        if (! $allowed->contains('id', $invoice->payment_method_id)) {
+            throw ValidationException::withMessages([
+                'payment_method_id' => 'طريقة الدفع المحددة غير متاحة لهذا الفرع — اختر طريقة أخرى قبل الاعتماد.',
+            ]);
+        }
     }
 
     /**

@@ -4,13 +4,15 @@ use App\Models\Branch;
 use App\Models\PaymentMethod;
 use App\Models\Setting;
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
 
 describe('PaymentMethod Management', function () {
     beforeEach(function () {
         $this->withoutVite();
-        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $this->seed(RolesAndPermissionsSeeder::class);
 
         $this->superAdmin = User::factory()->create(['branch_id' => null]);
         $this->superAdmin->addRole('super-admin');
@@ -27,7 +29,7 @@ describe('PaymentMethod Management', function () {
         $this->actingAs($this->superAdmin);
 
         $this->post(route('payment-methods.store'), [
-            'name'      => 'نقد',
+            'name' => 'نقد',
             'is_active' => true,
         ])->assertRedirect();
 
@@ -86,26 +88,108 @@ describe('PaymentMethod Management', function () {
 
     // ── AUTHORIZATION ──────────────────────────────────────────────
 
-    it('prevents branch-admin from creating payment methods', function () {
+    // ── تاسك 59: مدير الفرع يملك طرق فرعه وحدها ────────────────────
+
+    it('lets a branch-admin add a payment method pinned to their own branch', function () {
+        $this->actingAs($this->branchAdmin);
+
+        $this->post(route('payment-methods.store'), ['name' => 'شبكة مدى'])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('payment_methods', ['name' => 'شبكة مدى', 'branch_id' => $this->branch->id]);
+    });
+
+    it('ignores a branch_id sent by a branch-admin and pins their own', function () {
+        // القيد على الخادم: لا يُلتفّ عليه بطلب مباشر يحمل فرعاً آخر.
+        $otherBranch = Branch::factory()->create();
+        $this->actingAs($this->branchAdmin);
+
+        $this->post(route('payment-methods.store'), ['name' => 'شبكة مدى', 'branch_id' => $otherBranch->id])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('payment_methods', ['name' => 'شبكة مدى', 'branch_id' => $this->branch->id]);
+        $this->assertDatabaseMissing('payment_methods', ['branch_id' => $otherBranch->id]);
+    });
+
+    it('lets a branch-admin edit and delete a method their branch owns', function () {
+        $pm = PaymentMethod::factory()->create(['name' => 'شبكة', 'branch_id' => $this->branch->id]);
+        $this->actingAs($this->branchAdmin);
+
+        $this->put(route('payment-methods.update', $pm), ['name' => 'شبكة مدى'])->assertRedirect();
+        $this->assertDatabaseHas('payment_methods', ['id' => $pm->id, 'name' => 'شبكة مدى']);
+
+        $this->delete(route('payment-methods.destroy', $pm))->assertRedirect();
+        $this->assertSoftDeleted('payment_methods', ['id' => $pm->id]);
+    });
+
+    it('prevents a branch-admin from touching a global payment method', function () {
+        // الصفّ العام يظهر في كل الفروع، فتعديله يغيّر منتقي الدفع عندها جميعاً.
+        $pm = PaymentMethod::factory()->create(['branch_id' => null]);
+        $this->actingAs($this->branchAdmin);
+
+        $this->put(route('payment-methods.update', $pm), ['name' => 'تحديث'])->assertForbidden();
+        $this->delete(route('payment-methods.destroy', $pm))->assertForbidden();
+    });
+
+    it('prevents a branch-admin from touching another branch method', function () {
+        $otherBranch = Branch::factory()->create();
+        $pm = PaymentMethod::factory()->create(['name' => 'شبكة الغير', 'branch_id' => $otherBranch->id]);
+        $this->actingAs($this->branchAdmin);
+
+        $this->put(route('payment-methods.update', $pm), ['name' => 'تحديث'])->assertForbidden();
+        $this->delete(route('payment-methods.destroy', $pm))->assertForbidden();
+    });
+
+    it('rejects a branch method whose name duplicates one the branch already sees', function () {
+        PaymentMethod::factory()->create(['name' => 'نقد', 'branch_id' => null]);
         $this->actingAs($this->branchAdmin);
 
         $this->post(route('payment-methods.store'), ['name' => 'نقد'])
-            ->assertForbidden();
+            ->assertSessionHasErrors(['name']);
     });
 
-    it('prevents branch-admin from updating payment methods', function () {
-        $pm = PaymentMethod::factory()->create();
+    it('lets two branches use the same method name independently', function () {
+        $otherBranch = Branch::factory()->create();
+        PaymentMethod::factory()->create(['name' => 'شبكة الفرع', 'branch_id' => $otherBranch->id]);
         $this->actingAs($this->branchAdmin);
 
-        $this->put(route('payment-methods.update', $pm), ['name' => 'تحديث'])
-            ->assertForbidden();
+        $this->post(route('payment-methods.store'), ['name' => 'شبكة الفرع'])->assertSessionHasNoErrors()->assertRedirect();
+
+        expect(PaymentMethod::where('name', 'شبكة الفرع')->count())->toBe(2);
     });
 
-    it('prevents branch-admin from deleting payment methods', function () {
-        $pm = PaymentMethod::factory()->create();
-        $this->actingAs($this->branchAdmin);
+    it('hides another branch method from the branch payment options', function () {
+        $otherBranch = Branch::factory()->create();
+        $mine = PaymentMethod::factory()->create(['name' => 'شبكة فرعي', 'branch_id' => $this->branch->id]);
+        $global = PaymentMethod::factory()->create(['name' => 'نقد', 'branch_id' => null]);
+        PaymentMethod::factory()->create(['name' => 'شبكة الغير', 'branch_id' => $otherBranch->id]);
 
-        $this->delete(route('payment-methods.destroy', $pm))->assertForbidden();
+        $enabled = $this->branch->enabledPaymentMethods();
+
+        expect($enabled->pluck('id')->all())->toEqualCanonicalizing([$mine->id, $global->id]);
+    });
+
+    it('shows a branch-admin the global methods plus their own only', function () {
+        $otherBranch = Branch::factory()->create();
+        PaymentMethod::factory()->create(['name' => 'نقد', 'branch_id' => null]);
+        PaymentMethod::factory()->create(['name' => 'شبكة فرعي', 'branch_id' => $this->branch->id]);
+        PaymentMethod::factory()->create(['name' => 'شبكة الغير', 'branch_id' => $otherBranch->id]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('app-settings.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('paymentMethods', 2)
+                ->where('canManagePaymentMethods', true));
+    });
+
+    it('prevents an accountant from creating payment methods', function () {
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole('accountant');
+        $this->actingAs($accountant);
+
+        $this->post(route('payment-methods.store'), ['name' => 'نقد'])
+            ->assertForbidden();
     });
 
     it('prevents employee from creating payment methods', function () {
@@ -129,9 +213,9 @@ describe('PaymentMethod Management', function () {
         ])->assertRedirect();
 
         $this->assertDatabaseHas('settings', [
-            'key'       => 'enabled_payment_methods',
+            'key' => 'enabled_payment_methods',
             'branch_id' => $this->branch->id,
-            'value'     => json_encode([$pm1->id, $pm2->id]),
+            'value' => json_encode([$pm1->id, $pm2->id]),
         ]);
     });
 

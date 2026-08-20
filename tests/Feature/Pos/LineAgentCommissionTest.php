@@ -274,7 +274,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         $invoice = ServiceInvoice::firstOrFail();
 
         $this->actingAs($this->branchAdmin)
-            ->patch(route('invoices.service.pay', $invoice))
+            ->patch(route('invoices.service.pay', payable($invoice)))
             ->assertRedirect();
 
         // The employee still earns their own 10% of the net-of-VAT value (2.61)

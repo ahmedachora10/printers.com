@@ -35,7 +35,12 @@ class AppSettingController extends Controller
         $branchId = $user->branchId;
         $branch = $branchId ? Branch::find($branchId) : null;
 
-        $paymentMethods = PaymentMethod::orderBy('name')->get();
+        // تاسك 59: الفرع يرى الطرق العامة + ما أضافه هو؛ والسوبر أدمن يرى الكل.
+        $paymentMethods = PaymentMethod::query()
+            ->with('branch:id,name')
+            ->visibleToBranch($user->roleName->isSuperAdmin() ? null : $branchId)
+            ->orderBy('name')
+            ->get();
 
         $enabledPaymentMethodIds = $branchId
             ? json_decode(Setting::get('enabled_payment_methods', $branchId, '[]'), true) ?? []
@@ -61,6 +66,7 @@ class AppSettingController extends Controller
             ],
             'paymentMethods' => PaymentMethodResource::collection($paymentMethods),
             'enabledPaymentMethodIds' => $enabledPaymentMethodIds,
+            'canManagePaymentMethods' => Gate::allows('create', PaymentMethod::class),
             'isSuperAdmin' => $user->roleName->isSuperAdmin(),
             'loyaltyConfig' => $loyaltyConfig ? [
                 'isActive' => (bool) $loyaltyConfig->is_active,

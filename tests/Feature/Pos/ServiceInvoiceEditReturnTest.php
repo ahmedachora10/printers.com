@@ -119,14 +119,14 @@ describe('Service invoice edit/return', function () {
         // commission (4.35, not the original 2.61) to the immutable ledger.
         expect(CommissionLedger::count())->toBe(0);
 
-        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
 
         expect((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(4.35);
     });
 
     it('forbids editing a paid invoice', function () {
         $invoice = makeOwnedDueInvoice();
-        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
         $this->actingAs($this->employee);
 
         $this->get(route('pos.service.edit', $invoice))->assertForbidden();
@@ -174,7 +174,7 @@ describe('Service invoice edit/return', function () {
 
     it('books a refund for the full total and reverses commission when returning a paid invoice', function () {
         $invoice = makeOwnedDueInvoice(); // total 30.00 شامل الضريبة، commission 2.61
-        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
 
         expect((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(2.61);
 
@@ -197,7 +197,7 @@ describe('Service invoice edit/return', function () {
 
     it('refunds only the remainder when the invoice was already partially refunded', function () {
         $invoice = makeOwnedDueInvoice(); // total 30.00 شامل الضريبة، commission 2.61
-        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
 
         $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
             'source_type' => 'service',
@@ -245,7 +245,7 @@ describe('Service invoice edit/return', function () {
         $invoice->update(['customer_id' => $customer->id]);
 
         // Approve → النقاط على الصافي من الضريبة: floor(30 ÷ 1.15) = 26.
-        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
         expect($customer->refresh()->points_balance)->toBe(26);
 
         $this->actingAs($this->employee)->post(route('pos.service.return', $invoice))
@@ -264,7 +264,7 @@ describe('Service invoice edit/return', function () {
 
     it('blocks returning an invoice already rolled into an agent payment', function () {
         $invoice = makeOwnedDueInvoice();
-        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', $invoice));
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
 
         $agent = User::factory()->create(['branch_id' => $this->branch->id]);
         $agent->addRole(Roles::AGENT->value);

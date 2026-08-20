@@ -1,21 +1,24 @@
-import { DataTable, type ColumnDef } from '@/components/data-table';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
 import RecordPaymentModal from '@/components/invoices/record-payment-modal';
+import DateRangeBar from '@/components/reports/date-range-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
+import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { CheckCircle2, ChevronDown, ClipboardList, Paperclip, Pencil, User, UserPlus, Wallet, XCircle } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckCircle2, ChevronDown, ClipboardList, Paperclip, Pencil, Search, User, UserPlus, Wallet, X, XCircle } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
 interface ReviewLine {
@@ -52,9 +55,27 @@ interface ReviewInvoice {
 }
 
 interface Props {
+    /** الصفحة الحالية من الطابور فقط — عددها الكلّي في `meta.total`. */
     invoices: ReviewInvoice[];
+    meta: { currentPage: number; lastPage: number; perPage: number; total: number };
+    /** إجماليات **المدى المطبَّق** لا الصفحة المعروضة. */
+    summary: { quotesCount: number; quotesTotal: number };
+    filters: {
+        from?: string | null;
+        to?: string | null;
+        search?: string | null;
+        sort: string;
+        dir: 'asc' | 'desc';
+    };
     isSuperAdmin: boolean;
 }
+
+const REVIEW_URL = '/invoices/service/review';
+
+const SORT_OPTIONS = [
+    { value: 'created_at', label: 'تاريخ التحرير' },
+    { value: 'total_amount', label: 'قيمة العرض' },
+];
 
 const reviewLineColumns: ColumnDef<ReviewLine>[] = [
     {
@@ -81,8 +102,34 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'عروض الاسعار', href:
 
 const formatDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('en-GB') : '—');
 
-export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
+export default function InvoiceReview({ invoices, meta, summary, filters, isSuperAdmin }: Props) {
     const { props } = usePage<SharedData>();
+
+    const applied: FilterValues = {
+        from: filters.from ?? '',
+        to: filters.to ?? '',
+        search: filters.search ?? '',
+        sort: filters.sort,
+        dir: filters.dir,
+    };
+
+    // الفرز الافتراضي (created_at تنازلياً) لا يُكتب في الرابط — وإلا حمل كل
+    // تنقّل معاملين لا يغيّران شيئاً.
+    const f = useReportFilters(REVIEW_URL, applied, { from: '', to: '', search: '', sort: 'created_at', dir: 'desc' });
+
+    const [search, setSearch] = useState(applied.search);
+    const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // زرّ الرجوع يعيد الرابط بلا بحث، فيجب أن يتبعه الحقل.
+    useEffect(() => setSearch(filters.search ?? ''), [filters.search]);
+
+    const handleSearchChange = (value: string) => {
+        setSearch(value);
+        if (searchTimeout.current) clearTimeout(searchTimeout.current);
+        searchTimeout.current = setTimeout(() => f.replace('search', value), 400);
+    };
+
+    const hasFilters = !!applied.from || !!applied.to || !!applied.search;
     const [paying, setPaying] = useState<ReviewInvoice | null>(null);
     const [payingPartial, setPayingPartial] = useState<ReviewInvoice | null>(null);
     const [cancelling, setCancelling] = useState<ReviewInvoice | null>(null);
@@ -213,21 +260,72 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
             <Toaster position="top-center" richColors />
 
             <div className="space-y-4 p-4">
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     <ClipboardList className="size-5" />
                     <h1 className="text-lg font-semibold">عروض الاسعار بانتظار الاعتماد</h1>
-                    <Badge variant="secondary">{invoices.length}</Badge>
+                    {/* الشارة تتبع المدى المطبَّق لا كل الطابور. */}
+                    <Badge variant="secondary">{summary.quotesCount}</Badge>
+                    <span className="text-muted-foreground text-sm">بإجمالي {formatCurrency(summary.quotesTotal)}</span>
                 </div>
+
+                <Card className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-md px-4 py-3.5 sm:px-5">
+                    <DateRangeBar filters={f} from={applied.from} to={applied.to} extended />
+                    <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+                        <div className="relative min-w-0 flex-1 sm:max-w-64">
+                            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 start-2.5 size-4 -translate-y-1/2" />
+                            <Input
+                                value={search}
+                                onChange={(e) => handleSearchChange(e.target.value)}
+                                placeholder="بحث برقم الفاتورة أو العميل أو الموظف..."
+                                className="h-9 ps-8 sm:h-8"
+                            />
+                        </div>
+                        <Select value={applied.sort} onValueChange={(v) => f.replace('sort', v)}>
+                            <SelectTrigger className="h-9 w-40 sm:h-8">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {SORT_OPTIONS.map((o) => (
+                                    <SelectItem key={o.value} value={o.value}>
+                                        {o.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 sm:h-8"
+                            onClick={() => f.replace('dir', applied.dir === 'desc' ? 'asc' : 'desc')}
+                            title={applied.dir === 'desc' ? 'تنازلي' : 'تصاعدي'}
+                        >
+                            {applied.dir === 'desc' ? <ArrowDownWideNarrow className="size-4" /> : <ArrowUpNarrowWide className="size-4" />}
+                        </Button>
+                        {/* حقل type="date" لا يُفرَّغ بالكتابة، فالمسح يحتاج زرّاً. */}
+                        {hasFilters && (
+                            <Button type="button" variant="ghost" size="sm" onClick={f.reset}>
+                                <X className="size-3" /> كل الفترات
+                            </Button>
+                        )}
+                    </div>
+                </Card>
 
                 {invoices.length === 0 ? (
                     <Card>
-                        <CardContent className="text-muted-foreground py-12 text-center text-sm">لا توجد فواتير آجلة بحاجة للمراجعة.</CardContent>
+                        <CardContent className="text-muted-foreground py-12 text-center text-sm">
+                            {hasFilters ? 'لا توجد عروض أسعار مطابقة للتصفية.' : 'لا توجد فواتير آجلة بحاجة للمراجعة.'}
+                        </CardContent>
                     </Card>
                 ) : (
                     <div className="grid gap-4 lg:grid-cols-2">
                         {invoices.map((invoice) => {
                             const isOpen = !!expanded[invoice.id];
                             const isEditing = editingId === invoice.id;
+                            // تاسك 59: لا اعتماد بلا طريقة دفع — والخادم يرفضه
+                            // أيضاً، فالتعطيل هنا توضيحٌ لا حارس.
+                            const canApprove = invoice.paymentMethodId !== null;
+                            const approveHint = canApprove ? 'اعتماد الدفع' : 'حدّد طريقة الدفع أولاً';
 
                             return (
                                 <Card key={invoice.id}>
@@ -263,8 +361,9 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                                     variant="ghost"
                                                     size="icon"
                                                     className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-                                                    aria-label="اعتماد الدفع"
-                                                    title="اعتماد الدفع"
+                                                    aria-label={approveHint}
+                                                    title={approveHint}
+                                                    disabled={!canApprove}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         setPaying(invoice);
@@ -441,8 +540,14 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                                                 />
                                             </div>
 
+                                            {!canApprove && (
+                                                <p className="text-amber-600 text-xs dark:text-amber-400">
+                                                    حدّد طريقة الدفع أعلاه قبل اعتماد الفاتورة — التقرير لا ينسب مبلغاً بلا طريقة.
+                                                </p>
+                                            )}
+
                                             <div className="grid grid-cols-2 gap-2 pt-1">
-                                                <Button type="button" onClick={() => setPaying(invoice)}>
+                                                <Button type="button" disabled={!canApprove} title={approveHint} onClick={() => setPaying(invoice)}>
                                                     <CheckCircle2 className="size-4" /> اعتماد الدفع
                                                 </Button>
                                                 {/* أول دفعة تُخرج الفاتورة من طابور عروض الأسعار —
@@ -470,6 +575,16 @@ export default function InvoiceReview({ invoices, isSuperAdmin }: Props) {
                         })}
                     </div>
                 )}
+
+                <TablePagination
+                    currentPage={meta.currentPage}
+                    totalPages={meta.lastPage}
+                    totalItems={meta.total}
+                    pageSize={meta.perPage}
+                    // router.reload يحتفظ بمعاملات الرابط الحالية، فالمدى والفرز
+                    // والبحث لا تضيع عند تغيير الصفحة.
+                    onPageChange={(page) => router.reload({ data: { page } })}
+                />
             </div>
 
             {/* تسجيل دفعة (عربون أو دفعة لاحقة) */}

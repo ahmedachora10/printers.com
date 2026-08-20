@@ -54,7 +54,7 @@ function materialsPayload(array $lineAttrs = [], array $overrides = []): array
 function approveMaterialsInvoice(ServiceInvoice $invoice): void
 {
     test()->actingAs(test()->branchAdmin)
-        ->patch(route('invoices.service.pay', $invoice))
+        ->patch(route('invoices.service.pay', payable($invoice)))
         ->assertRedirect();
 
     test()->actingAs(test()->employee);

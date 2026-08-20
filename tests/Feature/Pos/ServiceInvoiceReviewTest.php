@@ -22,6 +22,9 @@ uses(RefreshDatabase::class);
  * Build a due service invoice with one line, mirroring what the employee POS
  * produces. A due invoice carries no commission ledger row — commission is
  * written only when an accountant approves (pays) the invoice.
+ *
+ * تحمل طريقة دفع افتراضياً لأن الاعتماد صار يشترطها (تاسك 59)؛ مرّر
+ * `payment_method_id => null` لاختبار الرفض.
  */
 function makeDueInvoice(array $overrides = [], ?int $commission = 10): ServiceInvoice
 {
@@ -29,6 +32,7 @@ function makeDueInvoice(array $overrides = [], ?int $commission = 10): ServiceIn
         'invoice_number' => 'SINV-TEST-'.fake()->unique()->numerify('#####'),
         'branch_id' => test()->branch->id,
         'user_id' => test()->employee->id,
+        'payment_method_id' => test()->paymentMethod->id,
         'subtotal' => 100,
         'vat_pct' => 15,
         'vat_amount' => 15,
@@ -63,6 +67,9 @@ describe('Service invoice review', function () {
 
         $this->accountant = User::factory()->create(['branch_id' => $this->branch->id]);
         $this->accountant->addRole(Roles::ACCOUNTANT->value);
+
+        // طريقة دفع عامة مفعّلة — الاعتماد يشترط واحدة (تاسك 59).
+        $this->paymentMethod = PaymentMethod::factory()->create(['name' => 'نقد']);
 
         $this->actingAs($this->accountant);
     });
@@ -464,5 +471,116 @@ describe('Service invoice review', function () {
         ])->assertForbidden();
 
         expect($customer->refresh()->full_name)->toBe('عميل آخر');
+    });
+
+    // ── تاسك 59: طريقة الدفع إلزامية قبل الاعتماد ──────────────────
+
+    it('refuses to approve an invoice with no payment method', function () {
+        $invoice = makeDueInvoice(['payment_method_id' => null]);
+
+        $this->from(route('invoices.service.review'))
+            ->patch(route('invoices.service.pay', $invoice))
+            ->assertSessionHasErrors('payment_method_id');
+
+        expect($invoice->refresh()->status->value)->toBe('due')
+            ->and($invoice->paid_at)->toBeNull()
+            // ولا عمولة تُكتب لفاتورة لم تُعتمد.
+            ->and(CommissionLedger::count())->toBe(0);
+    });
+
+    it('refuses to approve with a payment method the branch cannot use', function () {
+        // طريقة تخصّ فرعاً آخر: لا يجوز أن تُعتمد بها فاتورة هذا الفرع.
+        $otherBranch = Branch::factory()->create();
+        $foreign = PaymentMethod::factory()->create(['name' => 'شبكة فرع آخر', 'branch_id' => $otherBranch->id]);
+
+        $invoice = makeDueInvoice(['payment_method_id' => $foreign->id]);
+
+        $this->from(route('invoices.service.review'))
+            ->patch(route('invoices.service.pay', $invoice))
+            ->assertSessionHasErrors('payment_method_id');
+
+        expect($invoice->refresh()->status->value)->toBe('due');
+    });
+
+    it('approves once a payment method is set', function () {
+        $invoice = makeDueInvoice(['payment_method_id' => null]);
+
+        $this->patch(route('invoices.service.update-payment-method', $invoice), [
+            'payment_method_id' => $this->paymentMethod->id,
+        ])->assertSessionHasNoErrors();
+
+        $this->from(route('invoices.service.review'))
+            ->patch(route('invoices.service.pay', $invoice))
+            ->assertRedirect(route('invoices.service.review'))
+            ->assertSessionHas('success');
+
+        expect($invoice->refresh()->status->value)->toBe('paid');
+    });
+
+    // ── تاسك 60: مدى تاريخي وفرز وتصفّح لطابور عروض الأسعار ────────
+
+    it('keeps a quote outside the applied range out of the queue and the summary', function () {
+        $old = makeDueInvoice();
+        ServiceInvoice::query()->whereKey($old->id)->update(['created_at' => now()->subMonths(2)]);
+        makeDueInvoice(['subtotal' => 200, 'vat_amount' => 30, 'total_amount' => 230]);
+
+        $this->get(route('invoices.service.review', [
+            'from' => now()->subDays(3)->toDateString(),
+            'to' => now()->toDateString(),
+        ]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('invoices', 1)
+                ->where('summary.quotesCount', 1)
+                ->where('summary.quotesTotal', 230)
+                ->where('meta.total', 1));
+    });
+
+    it('paginates the queue and carries the rest onto the second page', function () {
+        // 13 عرضاً وحجم الصفحة 12 — الثالث عشر على الصفحة الثانية.
+        foreach (range(1, 13) as $i) {
+            makeDueInvoice();
+        }
+
+        $this->get(route('invoices.service.review'))
+            ->assertInertia(fn ($page) => $page
+                ->has('invoices', 12)
+                ->where('meta.total', 13)
+                ->where('meta.lastPage', 2));
+
+        $this->get(route('invoices.service.review', ['page' => 2]))
+            ->assertInertia(fn ($page) => $page->has('invoices', 1)->where('meta.currentPage', 2));
+    });
+
+    it('searches the queue by invoice number, customer and employee name', function () {
+        $target = makeDueInvoice(['invoice_number' => 'SINV-FIND-ME']);
+        makeDueInvoice(['invoice_number' => 'SINV-OTHER-1']);
+
+        $this->get(route('invoices.service.review', ['search' => 'FIND-ME']))
+            ->assertInertia(fn ($page) => $page
+                ->has('invoices', 1)
+                ->where('invoices.0.id', $target->id)
+                ->where('summary.quotesCount', 1));
+
+        // اسم الموظف يجد كل ما حرّره — كلا العرضين من نفس الموظف.
+        $this->get(route('invoices.service.review', ['search' => $this->employee->name]))
+            ->assertInertia(fn ($page) => $page->has('invoices', 2));
+    });
+
+    it('sorts the queue by total amount on request', function () {
+        makeDueInvoice(['subtotal' => 100, 'vat_amount' => 15, 'total_amount' => 115]);
+        makeDueInvoice(['subtotal' => 800, 'vat_amount' => 120, 'total_amount' => 920]);
+
+        $this->get(route('invoices.service.review', ['sort' => 'total_amount', 'dir' => 'asc']))
+            ->assertInertia(fn ($page) => $page
+                ->where('invoices.0.totalAmount', 115)
+                ->where('invoices.1.totalAmount', 920)
+                ->where('filters.sort', 'total_amount')
+                ->where('filters.dir', 'asc'));
+    });
+
+    it('rejects an unknown sort column on the queue', function () {
+        $this->get(route('invoices.service.review', ['sort' => 'total_amount; drop table users']))
+            ->assertSessionHasErrors('sort');
     });
 });

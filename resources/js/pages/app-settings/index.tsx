@@ -73,6 +73,8 @@ interface Props {
     inventoryAlerts: AppSettingsInventoryData;
     paymentMethods: PaymentMethod[];
     enabledPaymentMethodIds: number[];
+    /** تاسك 59: مدير الفرع يضيف ويحذف طرق فرعه، لا الطرق العامة. */
+    canManagePaymentMethods: boolean;
     isSuperAdmin: boolean;
     loyaltyConfig: AppSettingsLoyaltyData | null;
     canConfigureLoyalty: boolean;
@@ -85,6 +87,7 @@ export default function AppSettingsIndex({
     inventoryAlerts,
     paymentMethods,
     enabledPaymentMethodIds,
+    canManagePaymentMethods,
     isSuperAdmin,
     loyaltyConfig,
     canConfigureLoyalty,
@@ -241,105 +244,95 @@ export default function AppSettingsIndex({
 
                     {/* ── Payment Methods ──────────────────────────────── */}
                     <TabsContent value="payment-methods">
-                        {isSuperAdmin ? (
-                            /* Super-admin: full CRUD list */
-                            <div className="rounded-lg border">
-                                <div className="flex items-center justify-between border-b p-4">
-                                    <div>
-                                        <h2 className="text-lg font-semibold">طرق الدفع</h2>
-                                        <p className="text-muted-foreground text-sm">إدارة القائمة العامة لطرق الدفع المتاحة لجميع الفروع.</p>
-                                    </div>
+                        {/* تاسك 59: قائمة واحدة للدورين. الصفّ العام يملكه السوبر
+                            أدمن، وصفّ الفرع يملكه مديره — و`canEdit` من الخادم هو
+                            ما يقرّر ظهور أزرار التحرير، لا الدور في الواجهة. */}
+                        <div className="rounded-lg border">
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
+                                <div>
+                                    <h2 className="text-lg font-semibold">طرق الدفع</h2>
+                                    <p className="text-muted-foreground text-sm">
+                                        {isSuperAdmin
+                                            ? 'إدارة القائمة العامة لطرق الدفع المتاحة لجميع الفروع.'
+                                            : 'الطرق العامة متاحة لكل الفروع، وما تضيفه هنا يخصّ فرعك وحده. المفتاح يتحكم بظهورها عند إنشاء الفواتير.'}
+                                    </p>
+                                </div>
+                                {canManagePaymentMethods && (
                                     <Button size="sm" onClick={openCreate}>
                                         <Plus className="size-4" /> إضافة طريقة دفع
                                     </Button>
-                                </div>
+                                )}
+                            </div>
 
-                                {paymentMethods.length === 0 ? (
-                                    <p className="text-muted-foreground p-6 text-center text-sm">
-                                        لا توجد طرق دفع مضافة بعد.
-                                    </p>
-                                ) : (
-                                    <ul className="divide-y">
-                                        {paymentMethods.map((pm) => (
-                                            <li key={pm.id} className="flex items-center justify-between px-4 py-3">
-                                                <div className="flex items-center gap-3">
-                                                    <CreditCard className="text-muted-foreground size-4" />
-                                                    <span className="font-medium">{pm.name}</span>
-                                                    <button
-                                                        onClick={() => handleAdminToggle(pm)}
-                                                        className="cursor-pointer"
-                                                    >
+                            {paymentMethods.length === 0 ? (
+                                <p className="text-muted-foreground p-6 text-center text-sm">لا توجد طرق دفع متاحة.</p>
+                            ) : (
+                                <ul className="divide-y">
+                                    {paymentMethods.map((pm) => (
+                                        <li key={pm.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                                            <div className="flex min-w-0 flex-wrap items-center gap-2">
+                                                <CreditCard className="text-muted-foreground size-4 shrink-0" />
+                                                <span className="font-medium">{pm.name}</span>
+                                                {/* النطاق: طريقة عامة يرثها كل فرع، أو طريقة فرع بعينه. */}
+                                                <Badge variant="outline" className="text-muted-foreground">
+                                                    {pm.branchId === null ? 'عامة' : (pm.branchName ?? 'فرعي')}
+                                                </Badge>
+                                                {isSuperAdmin && (
+                                                    <button onClick={() => handleAdminToggle(pm)} className="cursor-pointer">
                                                         {pm.isActive ? (
                                                             <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
                                                                 <span className="inline-block size-1.5 rounded-full bg-green-500" />
                                                                 نشطة
                                                             </Badge>
                                                         ) : (
-                                                            <Badge variant="outline" className="gap-1.5 border-border bg-muted/60 text-muted-foreground">
-                                                                <span className="inline-block size-1.5 rounded-full bg-muted-foreground/50" />
+                                                            <Badge
+                                                                variant="outline"
+                                                                className="border-border bg-muted/60 text-muted-foreground gap-1.5"
+                                                            >
+                                                                <span className="bg-muted-foreground/50 inline-block size-1.5 rounded-full" />
                                                                 غير نشطة
                                                             </Badge>
                                                         )}
                                                     </button>
-                                                    {pm.requiresAttachment && (
-                                                        <Badge variant="outline" className="gap-1.5 border-amber-200 bg-amber-50 text-amber-700">
-                                                            <Paperclip className="size-3" />
-                                                            تتطلب إيصال
-                                                        </Badge>
-                                                    )}
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() => openEdit(pm)}
-                                                    >
-                                                        <Pencil className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="outline"
-                                                        size="sm"
-                                                        className="text-destructive hover:text-destructive"
-                                                        onClick={() => setDeleting(pm)}
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </div>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </div>
-                        ) : (
-                            /* Branch-admin: toggle switches to enable/disable global methods */
-                            <div className="rounded-lg border">
-                                <div className="border-b p-4">
-                                    <h2 className="text-lg font-semibold">طرق الدفع</h2>
-                                    <p className="text-muted-foreground text-sm">تفعيل أو تعطيل طرق الدفع المتاحة عند إنشاء الفواتير.</p>
-                                </div>
+                                                )}
+                                                {pm.requiresAttachment && (
+                                                    <Badge variant="outline" className="gap-1.5 border-amber-200 bg-amber-50 text-amber-700">
+                                                        <Paperclip className="size-3" />
+                                                        تتطلب إيصال
+                                                    </Badge>
+                                                )}
+                                            </div>
 
-                                {paymentMethods.length === 0 ? (
-                                    <p className="text-muted-foreground p-6 text-center text-sm">
-                                        لا توجد طرق دفع متاحة.
-                                    </p>
-                                ) : (
-                                    <ul className="divide-y">
-                                        {paymentMethods.map((pm) => (
-                                            <li key={pm.id} className="flex items-center justify-between px-4 py-4">
-                                                <div className="flex items-center gap-3">
-                                                    <CreditCard className="text-muted-foreground size-4" />
-                                                    <span className="font-medium">{pm.name}</span>
-                                                </div>
-                                                <Switch
-                                                    checked={branchEnabledIds.includes(pm.id)}
-                                                    onCheckedChange={(checked) => handleBranchToggle(pm.id, checked)}
-                                                />
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
-                            </div>
-                        )}
+                                            <div className="flex items-center gap-2">
+                                                {/* مفتاح الفرع يقرّر ظهور الطريقة في نقطة البيع؛ السوبر
+                                                    أدمن بلا فرع فيتحكم بالحالة العامة بدلاً منه. */}
+                                                {!isSuperAdmin && (
+                                                    <Switch
+                                                        checked={branchEnabledIds.includes(pm.id)}
+                                                        onCheckedChange={(checked) => handleBranchToggle(pm.id, checked)}
+                                                    />
+                                                )}
+                                                {pm.canEdit && (
+                                                    <>
+                                                        <Button variant="outline" size="sm" onClick={() => openEdit(pm)}>
+                                                            <Pencil className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="text-destructive hover:text-destructive"
+                                                            onClick={() => setDeleting(pm)}
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </div>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
                     </TabsContent>
 
                     {/* ── Loyalty Program ──────────────────────────────── */}

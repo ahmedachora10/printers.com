@@ -344,8 +344,9 @@ describe('Invoice payments', function () {
             ->assertInertia(fn ($page) => $page
                 ->component('reports/daily/index')
                 ->where('totals.collected', money(40))
-                // الإجمالي يبقى على الاستحقاق: صافي الفاتورة قبل الضريبة.
-                ->where('totals.total', money(100)));
+                // الإجمالي يبقى على الاستحقاق: كامل الفاتورة شاملةً الضريبة
+                // (تاسك 58)، لا حصّة الدفعة المقبوضة.
+                ->where('totals.total', money(115)));
     });
 
     // ── ورقة الطباعة ──────────────────────────────────────────────

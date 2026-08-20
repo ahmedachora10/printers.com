@@ -30,14 +30,19 @@ class DailyReportExport implements FromCollection, ShouldAutoSize, WithHeadings,
             $headings[] = 'الموظف';
         }
 
-        array_push($headings, 'المنتجات', 'الخدمات', 'الإجمالي', 'المحصَّل', 'المرتجعات', 'عمولة الموظفين');
+        // ترتيب أعمدة العميل (تاسك 58): … المرتجعات، المشتريات، عمولة الموظفين،
+        // الضريبة، المبلغ المتبقي — والمتبقي آخر عمود لأنه حصيلة ما قبله.
+        array_push($headings, 'المنتجات', 'الخدمات', 'الإجمالي', 'المحصَّل', 'المرتجعات');
 
         if ($this->showPurchases) {
             $headings[] = 'المشتريات';
-            $headings[] = 'المبلغ المتبقي';
         }
 
-        $headings[] = 'الضريبة';
+        array_push($headings, 'عمولة الموظفين', 'الضريبة');
+
+        if ($this->showPurchases) {
+            $headings[] = 'المبلغ المتبقي';
+        }
 
         return $headings;
     }
@@ -59,15 +64,21 @@ class DailyReportExport implements FromCollection, ShouldAutoSize, WithHeadings,
                 number_format((float) $row['total'], 2),
                 number_format((float) $row['collected'], 2),
                 number_format((float) $row['refunds'], 2),
-                number_format((float) $row['commission'], 2),
             );
 
             if ($this->showPurchases) {
                 $cells[] = number_format((float) $row['purchases'], 2);
-                $cells[] = number_format((float) $row['remaining'], 2);
             }
 
-            $cells[] = number_format((float) $row['vat'], 2);
+            array_push(
+                $cells,
+                number_format((float) $row['commission'], 2),
+                number_format((float) $row['vat'], 2),
+            );
+
+            if ($this->showPurchases) {
+                $cells[] = number_format((float) $row['remaining'], 2);
+            }
 
             return $cells;
         });

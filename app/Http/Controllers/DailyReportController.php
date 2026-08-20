@@ -24,8 +24,12 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * Daily employee/branch report: one row per calendar day with product and
- * service sales (net of discounts, before VAT), realized employee commission,
- * purchases (expenses + received stock), VAT, and the net remaining amount.
+ * service sales **including VAT** (تاسك 58), realized employee commission,
+ * purchases (expenses + received stock), VAT, and the remaining cash amount.
+ *
+ * «المبلغ المتبقي» = المبيعات الشاملة − المرتجعات القابلة للخصم − المشتريات.
+ * لا تُطرح العمولة ولا الضريبة — رقمٌ نقدي إجمالي بطلب العميل، بينما تقرير
+ * المبيعات ولوحة التحكم يبقيان على الصافي قبل الضريبة (تاسك 37).
  *
  * المبيعات لا تُحتسب إلا بعد اعتماد المحاسب: تدخل التقرير الفواتير المعتمَدة
  * وحدها (مدفوعة أو مدفوعة جزئياً)، مؤرَّخةً **بيوم اعتمادها** لا بيوم إنشائها.
@@ -169,8 +173,8 @@ class DailyReportController extends Controller
                 $day = (string) $row->day;
                 $employeeId = $detailed ? (int) $row->user_id : 0;
                 $ensure($day, $employeeId);
-                $buckets[$day][$employeeId][$key] += (float) $row->net;
-                $buckets[$day][$employeeId]['total'] += (float) $row->net;
+                $buckets[$day][$employeeId][$key] += (float) $row->gross;
+                $buckets[$day][$employeeId]['total'] += (float) $row->gross;
                 $buckets[$day][$employeeId]['vat'] += (float) $row->vat;
             }
         }
@@ -220,8 +224,13 @@ class DailyReportController extends Controller
                 // لكن الجزء القابل للخصم فقط، وإلا خرجت الفاتورة المرتجعة كلياً
                 // مرتين فصار المحصَّل بالسالب.
                 $row['collected'] -= $row['refundsDeductible'];
+                // المتبقي = المبيعات (شاملة الضريبة) − المرتجعات − المشتريات.
+                // العمولة والضريبة عمودا عرض لا تُطرحان (تاسك 58): نصّ العميل
+                // يقول «+ عمولة الموظفين + الضريبة» ومثاله الرقمي في الجدول نفسه
+                // ‏115 − 10 − 10 = 95 لا يجمعهما ولا يطرحهما — أي أن المقصود
+                // «لا تُخصما كما كنتم تفعلون». فالرقم نقدي إجمالي لا صافٍ محاسبي.
                 $row['remaining'] = $showPurchases
-                    ? $row['total'] - $row['refundsDeductible'] - $row['commission'] - $row['purchases']
+                    ? $row['total'] - $row['refundsDeductible'] - $row['purchases']
                     : 0.0;
 
                 $rows[] = $row;
@@ -293,13 +302,14 @@ class DailyReportController extends Controller
             ->groupBy('invoice_id')
             ->select('invoice_id', DB::raw('MIN(paid_at) as first_paid_at'));
 
-        // صافي المبيعات قبل الضريبة = الإجمالي − الضريبة. تُشتقّ من العمودين
-        // المخزّنين لا من (subtotal − الخصومات): الأخيرة تساوي الإجمالي شامل
-        // الضريبة منذ أن صارت أسعار نقطة البيع شاملة لها، فكانت ستُدخل الضريبة
-        // في «الصافي». الصيغة الحالية صحيحة للفواتير القديمة والجديدة معاً.
+        // **شامل الضريبة** (تاسك 58، ملاحظات 02/03/1448): العميل يقرأ «إجمالي
+        // المبيعات» على أنه ما على الفاتورة لا صافيها، فكان الرقم يظهر 100 بينما
+        // «المحصَّل» 115 لنفس اليوم. الاسم `gross` صريح حتى لا يُقرأ صافياً.
+        // الضريبة تبقى في عمودها للعرض، ولم يتغيّر تقرير المبيعات ولا لوحة
+        // التحكم — هما صافيان بقرار التاسك 37، وخلط الاثنين يعطي رقمين باسم واحد.
         $columns = [
             DB::raw('DATE('.$approvedAt.') as day'),
-            DB::raw('COALESCE(SUM('.$table.'.total_amount - '.$table.'.vat_amount), 0) as net'),
+            DB::raw('COALESCE(SUM('.$table.'.total_amount), 0) as gross'),
             DB::raw('COALESCE(SUM('.$table.'.vat_amount), 0) as vat'),
         ];
 

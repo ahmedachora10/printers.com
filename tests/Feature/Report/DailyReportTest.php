@@ -157,22 +157,24 @@ describe('Daily Report', function () {
 
     // ── AGGREGATION ────────────────────────────────────────────────
 
-    it('splits net sales into products and services and totals them', function () {
+    it('splits sales into products and services and totals them including VAT', function () {
+        // تاسك 58: الأرقام شاملة الضريبة — 115 و230 لا 100 و200، والضريبة تبقى
+        // في عمودها للعرض.
         dailyProductInvoice($this->branch, $this->branchAdmin);
         dailyServiceInvoice($this->branch, $this->branchAdmin);
 
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
             ->assertInertia(fn ($page) => $page
-                ->where('totals.products', 100)
-                ->where('totals.services', 200)
-                ->where('totals.total', 300)
+                ->where('totals.products', 115)
+                ->where('totals.services', 230)
+                ->where('totals.total', 345)
                 ->where('totals.vat', 45));
     });
 
-    it('subtracts discounts from the net sales figure', function () {
-        // مجموع فرعي 100 وخصومات 11 → إجمالي 89 شامل الضريبة، ضريبته 11.61،
-        // فالصافي قبل الضريبة 77.39. الصافي مشتقّ من (الإجمالي − الضريبة).
+    it('reports the discounted total, not the pre-discount subtotal', function () {
+        // مجموع فرعي 100 وخصومات 11 → إجمالي 89 شامل الضريبة. الرقم المعروض هو
+        // الإجمالي المخزَّن، فالخصومات مطروحة منه أصلاً (تاسك 58).
         dailyProductInvoice($this->branch, $this->branchAdmin, [
             'tier_discount_amount' => 5,
             'coupon_discount' => 3,
@@ -184,7 +186,7 @@ describe('Daily Report', function () {
 
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
-            ->assertInertia(fn ($page) => $page->where('totals.products', 77.39));
+            ->assertInertia(fn ($page) => $page->where('totals.products', 89));
     });
 
     // ── المرتجع والإلغاء في التقرير اليومي (تاسك 43) ───────────────
@@ -252,7 +254,7 @@ describe('Daily Report', function () {
                 ->where('totals.collected', 75)
                 ->where('totals.refunds', 40)
                 // المبيعات المستحقة لا تتأثر: الفاتورة قائمة ولم تُرتجع كلها.
-                ->where('totals.products', 100));
+                ->where('totals.products', 115));
     });
 
     it('agrees with the commission report on the same day', function () {
@@ -293,7 +295,7 @@ describe('Daily Report', function () {
 
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
-            ->assertInertia(fn ($page) => $page->where('totals.products', 50)->where('totals.vat', 7.5));
+            ->assertInertia(fn ($page) => $page->where('totals.products', 57.5)->where('totals.vat', 7.5));
     });
 
     it('keeps an employee\'s due invoice out of the report until it is approved', function () {
@@ -311,7 +313,7 @@ describe('Daily Report', function () {
 
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
-            ->assertInertia(fn ($page) => $page->where('totals.services', 200)->where('totals.vat', 30));
+            ->assertInertia(fn ($page) => $page->where('totals.services', 230)->where('totals.vat', 30));
     });
 
     it('books an invoice on its approval day, not on the day the employee created it', function () {
@@ -331,7 +333,7 @@ describe('Daily Report', function () {
                 ->where('rows.0.date', now()->subDays(2)->toDateString())
                 ->where('rows.0.products', 0)
                 ->where('rows.2.date', now()->toDateString())
-                ->where('rows.2.products', 100));
+                ->where('rows.2.products', 115));
     });
 
     it('counts a partially paid invoice in full on the day of its first instalment', function () {
@@ -347,7 +349,7 @@ describe('Daily Report', function () {
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
             ->assertInertia(fn ($page) => $page
-                ->where('totals.products', 100)
+                ->where('totals.products', 115)
                 ->where('totals.vat', 15)
                 ->where('totals.collected', 40));
     });
@@ -369,7 +371,7 @@ describe('Daily Report', function () {
             ->assertInertia(fn ($page) => $page
                 // يوم العربون يحمل كامل قيمة الفاتورة…
                 ->where('rows.0.date', now()->subDays(2)->toDateString())
-                ->where('rows.0.products', 100)
+                ->where('rows.0.products', 115)
                 ->where('rows.0.collected', 40)
                 // …ويوم السداد الأخير يحمل تحصيله وحده.
                 ->where('rows.2.products', 0)
@@ -400,15 +402,51 @@ describe('Daily Report', function () {
             ->assertInertia(fn ($page) => $page->where('totals.purchases', 100));
     });
 
-    it('computes remaining as total minus commission minus purchases', function () {
-        dailyProductInvoice($this->branch, $this->branchAdmin); // net 100
-        dailyServiceInvoice($this->branch, $this->branchAdmin); // net 200
+    it('computes remaining as gross sales minus refunds minus purchases', function () {
+        // تاسك 58: العمولة لم تعد تُطرح. 115 + 230 − 80 مشتريات = 265.
+        dailyProductInvoice($this->branch, $this->branchAdmin); // 115 شاملة الضريبة
+        dailyServiceInvoice($this->branch, $this->branchAdmin); // 230 شاملة الضريبة
         ledgerRow($this->branch, $this->branchAdmin, ['amount' => 20]);
         Expense::factory()->create(['branch_id' => $this->branch->id, 'user_id' => $this->branchAdmin->id, 'total' => 80, 'date' => today()]);
 
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
-            ->assertInertia(fn ($page) => $page->where('totals.remaining', 200));
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.remaining', 265)
+                // العمولة عمود عرض لا يدخل المعادلة.
+                ->where('totals.commission', 20));
+    });
+
+    it('matches the client worked example: 115 - 10 - 10 = 95', function () {
+        // مثال ملاحظات 02/03/1448 صفحة 7: خدمات 115 (100 + 15 ضريبة)،
+        // مرتجعات 10، مشتريات 10، عمولة 45 → الإجمالي 115 والمتبقي 95.
+        $invoice = dailyServiceInvoice($this->branch, $this->branchAdmin, [
+            'subtotal' => 100, 'vat_amount' => 15, 'total_amount' => 115,
+        ]);
+
+        Refund::create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'invoice_type' => ServiceInvoice::class,
+            'amount' => 10,
+            'reason' => 'مرتجع جزئي',
+        ]);
+
+        ledgerRow($this->branch, $this->branchAdmin, ['amount' => 45]);
+        Expense::factory()->create(['branch_id' => $this->branch->id, 'user_id' => $this->branchAdmin->id, 'total' => 10, 'date' => today()]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.services', 115)
+                ->where('totals.total', 115)
+                ->where('totals.refunds', 10)
+                ->where('totals.purchases', 10)
+                ->where('totals.commission', 45)
+                ->where('totals.vat', 15)
+                ->where('totals.remaining', 95));
     });
 
     // ── EMPLOYEE FILTER ────────────────────────────────────────────
@@ -425,7 +463,7 @@ describe('Daily Report', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('showPurchases', false)
                 ->where('detailed', false)
-                ->where('totals.services', 200)
+                ->where('totals.services', 230)
                 ->where('totals.commission', 20)
                 ->where('totals.purchases', 0));
     });
@@ -460,7 +498,7 @@ describe('Daily Report', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('detailed', true)
                 ->where('showPurchases', false)
-                ->where('totals.services', 500)
+                ->where('totals.services', 575)
                 ->where('totals.commission', 50));
     });
 
@@ -476,12 +514,12 @@ describe('Daily Report', function () {
             ->assertInertia(fn ($page) => $page
                 ->has('rows', 3)
                 ->where('rows.0.employeeId', $this->branchAdmin->id)
-                ->where('rows.0.services', 200)
+                ->where('rows.0.services', 230)
                 ->where('rows.1.employeeId', $this->accountant->id)
-                ->where('rows.1.services', 300)
+                ->where('rows.1.services', 345)
                 ->where('rows.2.isTotal', true)
                 ->where('rows.2.employeeId', null)
-                ->where('rows.2.services', 500));
+                ->where('rows.2.services', 575));
     });
 
     it('does not double-count the day total rows in the grand totals', function () {
@@ -491,7 +529,7 @@ describe('Daily Report', function () {
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily', ['employee' => $this->branchAdmin->id.','.$this->accountant->id]))
             ->assertInertia(fn ($page) => $page
-                ->where('totals.products', 150)
+                ->where('totals.products', 172.5)
                 ->where('totals.dayCount', 1));
     });
 
@@ -510,7 +548,7 @@ describe('Daily Report', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('showPurchases', true)
                 ->where('filters.employee', null)
-                ->where('totals.products', 100));
+                ->where('totals.products', 115));
     });
 
     it('exports the detailed multi-employee report', function () {
@@ -533,7 +571,7 @@ describe('Daily Report', function () {
         $this->actingAs($this->branchAdmin)
             ->get(route('reports.daily'))
             ->assertInertia(fn ($page) => $page
-                ->where('totals.products', 100)
+                ->where('totals.products', 115)
                 ->where('branches', []));
     });
 
@@ -543,7 +581,7 @@ describe('Daily Report', function () {
 
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily', ['branch' => $this->otherBranch->id]))
-            ->assertInertia(fn ($page) => $page->where('totals.products', 900));
+            ->assertInertia(fn ($page) => $page->where('totals.products', 1035));
     });
 
     // ── FILTERS ────────────────────────────────────────────────────
@@ -557,7 +595,7 @@ describe('Daily Report', function () {
                 'from' => now()->subWeek()->toDateString(),
                 'to' => now()->toDateString(),
             ]))
-            ->assertInertia(fn ($page) => $page->where('totals.products', 100));
+            ->assertInertia(fn ($page) => $page->where('totals.products', 115));
     });
 
     // ── TODAY DEFAULT & ZERO-FILLED DAYS ───────────────────────────
@@ -568,7 +606,7 @@ describe('Daily Report', function () {
 
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
-            ->assertInertia(fn ($page) => $page->where('totals.products', 100)
+            ->assertInertia(fn ($page) => $page->where('totals.products', 115)
                 ->has('rows', 1)
                 ->where('rows.0.date', now()->toDateString())
                 ->where('defaultDate', now()->toDateString()));
@@ -595,7 +633,7 @@ describe('Daily Report', function () {
             ]))
             ->assertInertia(fn ($page) => $page->has('rows', 3)
                 ->where('rows.0.date', now()->subDays(2)->toDateString())
-                ->where('rows.0.products', 100)
+                ->where('rows.0.products', 115)
                 ->where('rows.1.total', 0)
                 ->where('rows.2.total', 0)
                 ->where('rows.2.date', now()->toDateString()));
