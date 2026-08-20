@@ -95,9 +95,7 @@ Route::middleware(['auth'])->group(function () {
     // hand-rolled request cannot reach into the shared catalogue or another
     // branch.
     Route::middleware('role:branch-admin|super-admin')->group(function () {
-        // تاسك 59 — مدير الفرع يضيف ويحذف طرق دفع **فرعه**؛ الملكية (لا المسار)
-        // هي ما يحصره: PaymentMethodPolicy تمنعه من الصفّ العام ومن صفّ فرع آخر،
-        // والـForm Request يثبّت branch_id من المستخدم لا من الطلب.
+
         Route::resource('payment-methods', PaymentMethodController::class)
             ->parameters(['payment-methods' => 'paymentMethod'])
             ->only(['store', 'update', 'destroy']);
@@ -106,15 +104,20 @@ Route::middleware(['auth'])->group(function () {
 
         Route::prefix('admin/catalogue')->name('admin.catalogue.')->group(function () {
             // Full-catalogue Excel export / import (categories + subcategories + prices)
-            Route::get('export', [CatalogCategoryController::class, 'export'])->name('export');
-            Route::post('import', [CatalogCategoryController::class, 'import'])->name('import');
 
-            // Categories
-            Route::get('/', [CatalogCategoryController::class, 'index'])->name('categories.index');
-            Route::post('categories', [CatalogCategoryController::class, 'store'])->name('categories.store');
-            Route::post('categories/{category}', [CatalogCategoryController::class, 'update'])->name('categories.update');
-            Route::delete('categories/{category}', [CatalogCategoryController::class, 'destroy'])->name('categories.destroy');
-            Route::patch('categories/{category}/toggle-status', [CatalogCategoryController::class, 'toggleStatus'])->name('categories.toggle-status');
+            Route::controller(CatalogCategoryController::class)
+                ->group(function () {
+                    Route::get('export', 'export')->name('export');
+                    Route::post('import', 'import')->name('import');
+
+                    // Categories
+                    Route::get('/', 'index')->name('categories.index');
+                    Route::post('categories', 'store')->name('categories.store');
+                    Route::post('categories/{category}', 'update')->name('categories.update');
+                    Route::delete('categories/{category}', 'destroy')->name('categories.destroy');
+                    Route::patch('categories/{category}/toggle-status', 'toggleStatus')->name('categories.toggle-status');
+                });
+
 
             // Subcategories (listed per category)
             Route::get('categories/{category}/subcategories', [CatalogSubcategoryController::class, 'index'])->name('subcategories.index');

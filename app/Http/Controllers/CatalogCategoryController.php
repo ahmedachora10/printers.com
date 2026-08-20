@@ -14,6 +14,7 @@ use App\Imports\CatalogueImport;
 use App\Models\CatalogCategory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -30,9 +31,6 @@ class CatalogCategoryController extends Controller
 
         $categories = CatalogCategory::query()
             ->with('branch:id,name')
-            // Counted through the very same scope as the list, or the number on
-            // a row would promise rows the user will not find when they drill
-            // in (تاسك 47).
             ->withCount(['subcategories' => fn ($q) => $this->scopeCatalogueQuery($q, $request)])
             ->tap(fn ($q) => $this->scopeCatalogueQuery($q, $request))
             ->when($request->input('search'), fn ($q) => $q->where('name_ar', 'like', '%'.$request->input('search').'%'))

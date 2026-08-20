@@ -5,13 +5,6 @@ namespace App\Console\Commands;
 use App\Actions\Loyalty\ExpireLoyaltyPointsAction;
 use Illuminate\Console\Command;
 
-/**
- * يُصفّر أرصدة النقاط الخاملة — يُشغَّل يومياً.
- *
- * لا يعمل إلا على الفروع التي حدّدت مدة انتهاء صلاحية في إعدادات الولاء؛ وما
- * سواها لا تنتهي نقاطه. إعادة التشغيل في اليوم نفسه غير ضارّة: من صُفِّر رصيدُه
- * لم يعد رصيده موجباً فيسقط من الاستعلام.
- */
 class ExpireLoyaltyPointsCommand extends Command
 {
     protected $signature = 'loyalty:expire-points {--branch= : قصر التنفيذ على فرع بعينه}';
