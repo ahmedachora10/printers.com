@@ -22,9 +22,9 @@ class StockReconciliationLine extends Model
     ];
 
     protected $casts = [
-        'system_qty' => 'integer',
-        'physical_qty' => 'integer',
-        'variance' => 'integer',
+        'system_qty' => 'float',
+        'physical_qty' => 'float',
+        'variance' => 'float',
     ];
 
     /** @return BelongsTo<StockReconciliation, $this> */

@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
  */
 class UpdateStockReconciliationCountsAction
 {
-    /** @param array<int, array{line_id: int, physical_qty: int}> $counts */
+    /** @param array<int, array{line_id: int, physical_qty: float}> $counts */
     public function handle(StockReconciliation $reconciliation, array $counts): StockReconciliation
     {
         if ($reconciliation->isCompleted()) {
@@ -34,11 +34,11 @@ class UpdateStockReconciliationCountsAction
                     ]);
                 }
 
-                $physicalQty = (int) $count['physical_qty'];
+                $physicalQty = round((float) $count['physical_qty'], 2);
 
                 $line->update([
                     'physical_qty' => $physicalQty,
-                    'variance' => $physicalQty - $line->system_qty,
+                    'variance' => round($physicalQty - (float) $line->system_qty, 2),
                 ]);
             }
 

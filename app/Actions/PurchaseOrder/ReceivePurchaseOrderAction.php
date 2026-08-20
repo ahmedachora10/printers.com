@@ -19,7 +19,7 @@ class ReceivePurchaseOrderAction
 {
     public function __construct(private RecordStockMovementAction $recordStockMovement) {}
 
-    /** @param array<int, array{line_id: int, qty: int}> $receipts */
+    /** @param array<int, array{line_id: int, qty: float}> $receipts */
     public function handle(PurchaseOrder $po, array $receipts): PurchaseOrder
     {
         if (! $po->status->canReceive()) {
@@ -32,7 +32,7 @@ class ReceivePurchaseOrderAction
             $lines = $po->lines()->with('product')->get()->keyBy('id');
 
             foreach ($receipts as $receipt) {
-                $qty = (int) $receipt['qty'];
+                $qty = round((float) $receipt['qty'], 2);
 
                 if ($qty <= 0) {
                     continue;

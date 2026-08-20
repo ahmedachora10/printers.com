@@ -31,14 +31,14 @@ class CompleteStockReconciliationAction
         return DB::transaction(function () use ($reconciliation) {
             $lines = $reconciliation->lines()->with('product')->get();
 
-            $lines->filter(fn (StockReconciliationLine $line) => $line->variance !== 0)
+            $lines->filter(fn (StockReconciliationLine $line) => round((float) $line->variance, 2) !== 0.0)
                 ->each(function (StockReconciliationLine $line) use ($reconciliation) {
                     $movement = $this->recordStockMovement->handle(
                         $line->product,
                         $line->variance > 0
                             ? StockMovementTypeEnum::ADJUSTMENT_IN
                             : StockMovementTypeEnum::ADJUSTMENT_OUT,
-                        abs($line->variance),
+                        abs((float) $line->variance),
                         [
                             'unit_cost' => $line->product->cost_price,
                             'reference_id' => $reconciliation->id,

@@ -2,9 +2,12 @@ export interface PosProduct {
     id: number;
     name: string;
     sku: string;
+    /** سعر القطعة، أو سعر المتر المربع للمنتج المسعّر بالمساحة */
     sellingPrice: number;
     currentStock: number;
     unitName: string | null;
+    /** منتج يُباع ويُخصم من المخزون بالمتر المربع (تاسك 51) */
+    isSqm: boolean;
 }
 
 export type ServicePricingType = 'unit' | 'sqm';
@@ -141,13 +144,21 @@ export interface CartLine {
     productId: number | null;
     name: string;
     sku: string;
+    /** سعر الوحدة — سعر المتر المربع لسطر المنتج المسعّر بالمساحة */
     unitPrice: number;
+    /** الكمية المحاسَب عليها: عدد القطع، أو المساحة بالمتر المربع لسطر بالمتر */
     qty: number;
     discountPct: number;
     /** null for manual lines (no stock cap) */
     maxStock: number | null;
     unitName: string | null;
     isManual: boolean;
+    /** سطر منتج مسعّر بالمتر المربع — كميته مشتقّة من المقاس × عدد القطع */
+    isSqm: boolean;
+    widthCm: number | null;
+    heightCm: number | null;
+    /** عدد القطع بهذا المقاس — لسطر المتر المربع وحده */
+    pieces: number;
 }
 
 export interface PosInvoiceLine {
@@ -158,6 +169,8 @@ export interface PosInvoiceLine {
     unitPrice: number;
     widthCm?: number | null;
     heightCm?: number | null;
+    /** عدد القطع لسطر المنتج المسعّر بالمتر — الكمية أعلاه مساحتها الإجمالية */
+    pieces?: number | null;
     discountPct: number;
     subtotal: number;
 }

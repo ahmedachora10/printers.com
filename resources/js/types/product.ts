@@ -6,6 +6,8 @@ export interface Product {
     categoryName: string;
     unitId: number;
     unitName: string;
+    /** منتج يُباع ويُخصم من المخزون بالمتر المربع — سعره سعرُ المتر (تاسك 51) */
+    isSqm: boolean;
     costPrice: number;
     sellingPrice: number;
     minStockLevel: number;

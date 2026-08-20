@@ -18,6 +18,14 @@ export const formatCurrency = (amount: number, currency = 'SAR'): string => {
     }).format(amount);
 };
 
+/**
+ * كمية مخزون: عشرية منذ تاسك 51 لكن أكثرها أعداد صحيحة. تُكتب كما تُقرأ — «3»
+ * و«0.5» و«12.25» لا «3.00». مطابقة لـ App\Support\Quantity على الخادم.
+ */
+export const formatQty = (qty: number): string => {
+    return String(Math.round((qty + Number.EPSILON) * 100) / 100);
+};
+
 /** Customer-facing money: `1,234.50 ر.س` (the catalogue / price-list style). */
 export const formatSar = (amount: number): string => {
     return `${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;

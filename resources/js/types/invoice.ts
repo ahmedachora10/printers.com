@@ -8,10 +8,13 @@ export interface InvoiceLine {
     /** Free-text detail typed at the POS; service lines only. */
     notes: string | null;
     sku: string | null;
+    /** الكمية المحاسَب عليها — مساحة بالمتر المربع لسطرٍ مسعّر بالمساحة */
     qty: number;
     unitPrice: number;
     widthCm: number | null;
     heightCm: number | null;
+    /** عدد القطع لسطر المنتج المسعّر بالمتر — الكمية أعلاه مساحتها الإجمالية */
+    pieces: number | null;
     discountPct: number;
     subtotal: number;
     commissionAmount: number | null;

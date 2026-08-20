@@ -4,6 +4,7 @@ import BranchServiceEmployeesModal, {
     type EmployeeCommission,
 } from '@/components/branch-services/branch-service-employees-modal';
 import BranchServiceFormModal from '@/components/branch-services/branch-service-form-modal';
+import BranchServiceMaterialsModal from '@/components/branch-services/branch-service-materials-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
@@ -12,9 +13,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import AppLayout from '@/layouts/app-layout';
 import branchServicesRoute from '@/routes/branch-services';
 import { type BreadcrumbItem } from '@/types';
-import { type BranchService } from '@/types/branch-service';
+import { type BranchProductOption, type BranchService } from '@/types/branch-service';
 import { router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { Package, Pencil, Plus, Trash2, Users } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'خدمات الفرع', href: '/branch-services' }];
@@ -40,19 +41,32 @@ interface PaginatedBranchService {
 interface Props {
     branchServices: PaginatedBranchService;
     serviceTemplates: ServiceTemplateOption[];
+    /** منتجات الفرع المتاحة لربطها كخامة مخزون بخدمة (تاسك 50) */
+    products: BranchProductOption[];
     userBranch: BranchOption | null;
     employees: BranchEmployee[];
     employeeCommissions: Record<number, EmployeeCommission[]>;
     filters: { search?: string; status?: string };
 }
 
-export default function BranchServicesIndex({ branchServices, serviceTemplates, userBranch, employees, employeeCommissions, filters }: Props) {
+export default function BranchServicesIndex({
+    branchServices,
+    serviceTemplates,
+    products,
+    userBranch,
+    employees,
+    employeeCommissions,
+    filters,
+}: Props) {
     const [formOpen, setFormOpen] = useState(false);
     const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
     const editingService = editingServiceId ? (branchServices.data.find((s) => s.id === editingServiceId) ?? null) : null;
 
     const [employeesServiceId, setEmployeesServiceId] = useState<number | null>(null);
     const employeesService = employeesServiceId ? (branchServices.data.find((s) => s.id === employeesServiceId) ?? null) : null;
+
+    const [materialsServiceId, setMaterialsServiceId] = useState<number | null>(null);
+    const materialsService = materialsServiceId ? (branchServices.data.find((s) => s.id === materialsServiceId) ?? null) : null;
 
     const [deletingServiceId, setDeletingServiceId] = useState<number | null>(null);
     const deletingService = deletingServiceId ? (branchServices.data.find((s) => s.id === deletingServiceId) ?? null) : null;
@@ -131,9 +145,18 @@ export default function BranchServicesIndex({ branchServices, serviceTemplates, 
             {
                 key: 'actions',
                 header: '',
-                headerClassName: 'w-24',
+                headerClassName: 'w-36',
                 cell: (s) => (
                     <div className="flex items-center gap-1.5">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            title={s.materials.length > 0 ? `خامات المخزون (${s.materials.length})` : 'خامات المخزون'}
+                            onClick={() => setMaterialsServiceId(s.id)}
+                        >
+                            <Package className="h-3.5 w-3.5" />
+                            {s.materials.length > 0 && <span className="text-[11px] tabular-nums">{s.materials.length}</span>}
+                        </Button>
                         <Button variant="outline" size="sm" title="عمولات الموظفين" onClick={() => setEmployeesServiceId(s.id)}>
                             <Users className="h-3.5 w-3.5" />
                         </Button>
@@ -267,6 +290,18 @@ export default function BranchServicesIndex({ branchServices, serviceTemplates, 
                 serviceName={employeesService?.serviceTemplateName ?? ''}
                 employees={employees}
                 current={employeesServiceId ? (employeeCommissions[employeesServiceId] ?? []) : []}
+            />
+
+            {/* خامات المخزون التي تستهلكها الخدمة (تاسك 50) */}
+            <BranchServiceMaterialsModal
+                key={materialsServiceId ?? 'materials'}
+                open={!!materialsServiceId}
+                onOpenChange={(open) => !open && setMaterialsServiceId(null)}
+                branchServiceId={materialsServiceId}
+                serviceName={materialsService?.serviceTemplateName ?? ''}
+                isSqmService={materialsService?.pricingType === 'sqm'}
+                products={products}
+                current={materialsService?.materials ?? []}
             />
 
             {/* Create / Edit modal */}

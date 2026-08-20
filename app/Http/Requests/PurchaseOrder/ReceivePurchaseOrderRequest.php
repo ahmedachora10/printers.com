@@ -19,7 +19,7 @@ class ReceivePurchaseOrderRequest extends FormRequest
         return [
             'receipts' => ['required', 'array', 'min:1'],
             'receipts.*.line_id' => ['required', 'integer', 'exists:purchase_order_lines,id'],
-            'receipts.*.qty' => ['required', 'integer', 'min:0'],
+            'receipts.*.qty' => ['required', 'numeric', 'min:0'],
         ];
     }
 
@@ -33,7 +33,7 @@ class ReceivePurchaseOrderRequest extends FormRequest
             $hasReceipt = false;
 
             foreach ((array) $this->input('receipts', []) as $index => $receipt) {
-                $qty = (int) ($receipt['qty'] ?? 0);
+                $qty = round((float) ($receipt['qty'] ?? 0), 2);
 
                 if ($qty > 0) {
                     $hasReceipt = true;

@@ -19,6 +19,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\Product;
 use App\Models\ProductInvoice;
+use App\Support\Quantity;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -64,19 +65,24 @@ class CreateProductInvoiceAction
             $subtotal = 0.0;
 
             foreach ($data['lines'] as $line) {
-                $qty = (int) $line['qty'];
                 $unitPrice = (float) $line['unit_price'];
                 $discountPct = (float) ($line['discount_pct'] ?? 0);
-                $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
-                $subtotal += $lineSubtotal;
 
-                // Manual line — no linked product, no stock movement.
+                // Manual line — no linked product, no stock movement, and no
+                // dimensions: its quantity is whatever the cashier typed.
                 if (empty($line['product_id'])) {
+                    $qty = round((float) $line['qty'], 2);
+                    $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
+                    $subtotal += $lineSubtotal;
+
                     $lines[] = [
                         'product' => null,
                         'product_name' => $line['name'],
                         'sku' => null,
                         'qty' => $qty,
+                        'width_cm' => null,
+                        'height_cm' => null,
+                        'pieces' => null,
                         'unit_price' => $unitPrice,
                         'discount_pct' => $discountPct,
                         'subtotal' => $lineSubtotal,
@@ -93,9 +99,19 @@ class CreateProductInvoiceAction
                     ]);
                 }
 
-                if ($qty > $product->current_stock) {
+                // تاسك 51: كمية المنتج المسعّر بالمتر المربع تُشتقّ هنا من المقاس
+                // وعدد القطع — لا تُؤخذ مما أرسلته الواجهة، فالسعر والمخزون معاً
+                // يقومان عليها. أما منتج القطعة فكميته هي المُرسَلة كما كانت.
+                [$qty, $widthCm, $heightCm, $pieces] = $this->resolveLineQuantity($line, $product);
+
+                $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
+                $subtotal += $lineSubtotal;
+
+                if ($qty > (float) $product->current_stock) {
+                    $available = Quantity::format($product->current_stock);
+
                     throw ValidationException::withMessages([
-                        'lines' => "الكمية المطلوبة من \"{$product->name}\" تتجاوز المخزون المتاح ({$product->current_stock}).",
+                        'lines' => "الكمية المطلوبة من \"{$product->name}\" تتجاوز المخزون المتاح ({$available}).",
                     ]);
                 }
 
@@ -104,6 +120,9 @@ class CreateProductInvoiceAction
                     'product_name' => $product->name,
                     'sku' => $product->sku,
                     'qty' => $qty,
+                    'width_cm' => $widthCm,
+                    'height_cm' => $heightCm,
+                    'pieces' => $pieces,
                     'unit_price' => $unitPrice,
                     'discount_pct' => $discountPct,
                     'subtotal' => $lineSubtotal,
@@ -194,6 +213,9 @@ class CreateProductInvoiceAction
                     'product_name' => $line['product_name'],
                     'sku' => $line['sku'],
                     'qty' => $line['qty'],
+                    'width_cm' => $line['width_cm'],
+                    'height_cm' => $line['height_cm'],
+                    'pieces' => $line['pieces'],
                     'unit_price' => $line['unit_price'],
                     'discount_pct' => $line['discount_pct'],
                     'subtotal' => $line['subtotal'],
@@ -233,6 +255,41 @@ class CreateProductInvoiceAction
 
             return $invoice;
         });
+    }
+
+    /**
+     * A product line's billable quantity, plus the sqm snapshot that explains it.
+     *
+     * منتج بالمتر المربع: المقاس وعدد القطع مطلوبان، والكمية = (العرض/100) ×
+     * (الطول/100) × عدد القطع بالمتر المربع، و`selling_price` سعرُ المتر لا
+     * سعرُ القطعة. ومنتج القطعة يبقى كما كان: الكمية هي المُرسَلة، ولا مقاس له.
+     *
+     * @param  array<string, mixed>  $line
+     * @return array{0: float, 1: ?float, 2: ?float, 3: ?int}
+     */
+    private function resolveLineQuantity(array $line, Product $product): array
+    {
+        if (! $product->is_sqm) {
+            return [round((float) $line['qty'], 2), null, null, null];
+        }
+
+        $widthCm = isset($line['width_cm']) && $line['width_cm'] !== '' ? (float) $line['width_cm'] : null;
+        $heightCm = isset($line['height_cm']) && $line['height_cm'] !== '' ? (float) $line['height_cm'] : null;
+
+        if ($widthCm === null || $widthCm <= 0 || $heightCm === null || $heightCm <= 0) {
+            throw ValidationException::withMessages([
+                'lines' => "أدخل العرض والطول للمنتج \"{$product->name}\" المسعّر بالمتر المربع.",
+            ]);
+        }
+
+        $pieces = max(1, (int) ($line['pieces'] ?? 1));
+
+        return [
+            round(($widthCm / 100) * ($heightCm / 100) * $pieces, 2),
+            $widthCm,
+            $heightCm,
+            $pieces,
+        ];
     }
 
     /**

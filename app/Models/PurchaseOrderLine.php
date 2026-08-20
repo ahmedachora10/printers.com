@@ -22,16 +22,16 @@ class PurchaseOrderLine extends Model
     ];
 
     protected $casts = [
-        'ordered_qty' => 'integer',
-        'received_qty' => 'integer',
+        'ordered_qty' => 'float',
+        'received_qty' => 'float',
         'unit_cost' => 'decimal:2',
         'subtotal' => 'decimal:2',
     ];
 
     /** Quantity still awaiting delivery. */
-    public function remainingQty(): int
+    public function remainingQty(): float
     {
-        return max(0, $this->ordered_qty - $this->received_qty);
+        return round(max(0, $this->ordered_qty - $this->received_qty), 2);
     }
 
     /** @return BelongsTo<PurchaseOrder, $this> */

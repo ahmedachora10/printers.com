@@ -40,13 +40,13 @@ describe('Stock Movements', function () {
         $action = app(RecordStockMovementAction::class);
 
         $action->handle($this->product, StockMovementTypeEnum::OPENING_STOCK, 100);
-        expect($this->product->refresh()->current_stock)->toBe(100);
+        expect($this->product->refresh()->current_stock)->toEqual(100);
 
         $action->handle($this->product, StockMovementTypeEnum::SALE_OUT, 30);
-        expect($this->product->refresh()->current_stock)->toBe(70);
+        expect($this->product->refresh()->current_stock)->toEqual(70);
 
         $action->handle($this->product, StockMovementTypeEnum::RETURN_IN, 5);
-        expect($this->product->refresh()->current_stock)->toBe(75);
+        expect($this->product->refresh()->current_stock)->toEqual(75);
     });
 
     it('stores outbound quantities as negative and inbound as positive', function () {
@@ -55,8 +55,8 @@ describe('Stock Movements', function () {
         $in = $action->handle($this->product, StockMovementTypeEnum::PURCHASE_IN, 40);
         $out = $action->handle($this->product, StockMovementTypeEnum::ADJUSTMENT_OUT, 10);
 
-        expect($in->qty)->toBe(40)
-            ->and($out->qty)->toBe(-10);
+        expect($in->qty)->toEqual(40)
+            ->and($out->qty)->toEqual(-10);
     });
 
     it('defaults created_by to the authenticated user', function () {
@@ -137,7 +137,7 @@ describe('Stock Movement Controller', function () {
             'qty' => 50,
         ]);
 
-        expect($this->product->fresh()->current_stock)->toBe(50);
+        expect($this->product->fresh()->current_stock)->toEqual(50);
     });
 
     it('increases stock with adjustment_in', function () {
@@ -154,7 +154,7 @@ describe('Stock Movement Controller', function () {
             'qty' => 5,
         ])->assertRedirect();
 
-        expect($this->product->fresh()->current_stock)->toBe(15);
+        expect($this->product->fresh()->current_stock)->toEqual(15);
     });
 
     it('decreases stock with adjustment_out', function () {
@@ -171,7 +171,7 @@ describe('Stock Movement Controller', function () {
             'qty' => 8,
         ])->assertRedirect();
 
-        expect($this->product->fresh()->current_stock)->toBe(12);
+        expect($this->product->fresh()->current_stock)->toEqual(12);
     });
 
     // ── VALIDATION ─────────────────────────────────────────────────

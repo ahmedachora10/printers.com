@@ -27,7 +27,8 @@ class StoreStockMovementRequest extends FormRequest
                 StockMovementTypeEnum::ADJUSTMENT_IN,
                 StockMovementTypeEnum::ADJUSTMENT_OUT,
             ])],
-            'qty' => ['required', 'integer', 'min:1'],
+            // عشرية منذ تاسك 51: رصيدٌ افتتاحي أو تسوية بالمتر المربع.
+            'qty' => ['required', 'numeric', 'min:0.01'],
             'unit_cost' => ['nullable', 'numeric', 'min:0'],
             'notes' => ['nullable', 'string', 'max:500'],
         ];
@@ -45,7 +46,7 @@ class StoreStockMovementRequest extends FormRequest
 
             $product = Product::find($this->input('product_id'));
 
-            if ($product && (int) $this->input('qty') > $product->current_stock) {
+            if ($product && (float) $this->input('qty') > (float) $product->current_stock) {
                 $validator->errors()->add(
                     'qty',
                     "الكمية المطلوب خصمها ({$this->input('qty')}) تتجاوز المخزون الحالي ({$product->current_stock}).",

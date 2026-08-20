@@ -9,7 +9,8 @@ class ProductUnitSeeder extends Seeder
 {
     public function run(): void
     {
-        $units = ['قطعة', 'علبة', 'كرتون', 'رزمة', 'لتر', 'كيلوغرام', 'غرام', 'متر'];
+        // «متر مربع» للمنتجات المسعّرة بالمساحة (تاسك 51) — وهي التي تحمل is_sqm.
+        $units = ['قطعة', 'علبة', 'كرتون', 'رزمة', 'لتر', 'كيلوغرام', 'غرام', 'متر', 'متر مربع'];
 
         foreach ($units as $unit) {
             ProductUnit::firstOrCreate(['name' => $unit]);

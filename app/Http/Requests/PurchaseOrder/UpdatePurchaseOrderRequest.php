@@ -21,7 +21,7 @@ class UpdatePurchaseOrderRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:2000'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['required', 'integer', 'exists:products,id'],
-            'lines.*.ordered_qty' => ['required', 'integer', 'min:1'],
+            'lines.*.ordered_qty' => ['required', 'numeric', 'min:0.01'],
             'lines.*.unit_cost' => ['required', 'numeric', 'min:0'],
         ];
     }

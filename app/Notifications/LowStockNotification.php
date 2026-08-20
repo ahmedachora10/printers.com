@@ -3,13 +3,14 @@
 namespace App\Notifications;
 
 use App\Models\Product;
+use App\Support\Quantity;
 use Illuminate\Notifications\Notification;
 
 class LowStockNotification extends Notification
 {
     public function __construct(
         private readonly Product $product,
-        private readonly int $currentStock,
+        private readonly float $currentStock,
     ) {}
 
     /** @return array<int, string> */
@@ -24,7 +25,12 @@ class LowStockNotification extends Notification
         return [
             'type' => 'low_stock',
             'title' => 'تنبيه: مخزون منخفض',
-            'body' => "وصل مخزون \"{$this->product->name}\" إلى {$this->currentStock} (الحد الأدنى {$this->product->min_stock_level}).",
+            'body' => sprintf(
+                'وصل مخزون "%s" إلى %s (الحد الأدنى %s).',
+                $this->product->name,
+                Quantity::format($this->currentStock),
+                Quantity::format($this->product->min_stock_level),
+            ),
             'url' => route('inventory.products.index'),
             'icon' => 'Package',
         ];

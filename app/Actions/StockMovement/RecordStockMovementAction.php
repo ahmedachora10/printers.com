@@ -16,6 +16,10 @@ use Illuminate\Support\Facades\Notification;
  * POS, refunds, purchase-order receiving and reconciliation flows. Callers pass
  * a positive quantity; the action signs it according to the movement direction
  * so that products.current_stock = SUM(stock_movements.qty).
+ *
+ * Quantities are decimal since تاسك 51: a product priced per square metre moves
+ * in fractions of a metre, so the ledger stores DECIMAL(12,2) and every quantity
+ * is rounded to two places here — never left as a raw float.
  */
 class RecordStockMovementAction
 {
@@ -23,10 +27,10 @@ class RecordStockMovementAction
     public function handle(
         Product $product,
         StockMovementTypeEnum $type,
-        int $qty,
+        float $qty,
         array $attributes = [],
     ): StockMovement {
-        $signedQty = $type->isInbound() ? abs($qty) : -abs($qty);
+        $signedQty = round($type->isInbound() ? abs($qty) : -abs($qty), 2);
 
         return DB::transaction(function () use ($product, $type, $signedQty, $attributes) {
             $movement = StockMovement::create([
@@ -55,14 +59,14 @@ class RecordStockMovementAction
      * roll back alongside a failed sale, so no orphan alerts are emitted. The
      * model's `created` hook has already refreshed `current_stock`.
      */
-    private function maybeNotifyLowStock(Product $product, int $signedQty): void
+    private function maybeNotifyLowStock(Product $product, float $signedQty): void
     {
         if ($signedQty >= 0 || $product->min_stock_level <= 0) {
             return;
         }
 
-        $newStock = (int) $product->stockMovements()->sum('qty');
-        $prevStock = $newStock - $signedQty;
+        $newStock = round((float) $product->stockMovements()->sum('qty'), 2);
+        $prevStock = round($newStock - $signedQty, 2);
 
         if ($prevStock <= $product->min_stock_level || $newStock > $product->min_stock_level) {
             return;

@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
 import { INVOICE_STATUS_COLORS, invoiceDocumentTitle, invoiceTotals } from '@/lib/invoice';
-import { formatCurrency, formatDateTime } from '@/lib/utils';
+import { formatCurrency, formatDateTime, formatQty } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
@@ -46,6 +46,7 @@ const lineColumns: ColumnDef<InvoiceLine>[] = [
                     <span className="text-muted-foreground block text-xs">
                         الأبعاد: {line.widthCm}×{line.heightCm} سم (
                         {Math.round(((line.widthCm / 100) * (line.heightCm / 100) + Number.EPSILON) * 100) / 100} م²)
+                        {line.pieces != null && line.pieces > 1 && ` × ${line.pieces} قطعة`}
                     </span>
                 )}
                 {line.lineAgentName && (
@@ -59,7 +60,13 @@ const lineColumns: ColumnDef<InvoiceLine>[] = [
             </>
         ),
     },
-    { key: 'qty', header: 'الكمية', headerClassName: 'text-center', className: 'text-center tabular-nums', cell: (line) => line.qty },
+    {
+        key: 'qty',
+        header: 'الكمية',
+        headerClassName: 'text-center',
+        className: 'text-center tabular-nums',
+        cell: (line) => formatQty(line.qty),
+    },
     {
         key: 'unitPrice',
         header: 'السعر',

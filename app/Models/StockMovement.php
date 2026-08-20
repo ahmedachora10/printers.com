@@ -35,7 +35,7 @@ class StockMovement extends Model
 
     protected $casts = [
         'type' => StockMovementTypeEnum::class,
-        'qty' => 'integer',
+        'qty' => 'float',
         'unit_cost' => 'decimal:2',
         'created_at' => 'datetime',
     ];

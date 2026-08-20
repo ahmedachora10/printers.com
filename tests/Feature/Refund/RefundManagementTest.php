@@ -207,7 +207,7 @@ describe('Refunds', function () {
     it('records a product refund and returns stock when requested', function () {
         [$invoice, $product] = refundableProductInvoice($this->branch, $this->admin, qty: 5, openingStock: 10);
 
-        expect($product->current_stock)->toBe(10);
+        expect($product->current_stock)->toEqual(10);
 
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
@@ -230,7 +230,7 @@ describe('Refunds', function () {
             'reference_type' => Refund::class,
         ]);
 
-        expect($product->fresh()->current_stock)->toBe(15);
+        expect($product->fresh()->current_stock)->toEqual(15);
     });
 
     it('does not move stock when reverse_stock is not requested', function () {
@@ -244,7 +244,7 @@ describe('Refunds', function () {
         ])->assertRedirect();
 
         expect(StockMovement::where('type', 'return_in')->count())->toBe(0);
-        expect($product->fresh()->current_stock)->toBe(10);
+        expect($product->fresh()->current_stock)->toEqual(10);
     });
 
     // ── SERVICE REFUND + COMMISSION ────────────────────────────────

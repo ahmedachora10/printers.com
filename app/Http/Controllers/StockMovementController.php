@@ -67,7 +67,8 @@ class StockMovementController extends Controller
         $action->handle(
             $product,
             StockMovementTypeEnum::from($request->input('type')),
-            $request->integer('qty'),
+            // كمية عشرية منذ تاسك 51 — integer() كان يبتلع كسر المتر المربع.
+            $request->float('qty'),
             [
                 'unit_cost' => $request->input('unit_cost'),
                 'notes' => $request->input('notes'),

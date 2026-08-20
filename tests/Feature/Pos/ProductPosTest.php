@@ -92,7 +92,7 @@ describe('Product POS', function () {
             ->and($invoice->invoice_number)->toBe(sprintf('INV-%03d-%05d', $this->branch->id, 1))
             ->and($invoice->lines)->toHaveCount(1);
 
-        expect($this->product->refresh()->current_stock)->toBe(97);
+        expect($this->product->refresh()->current_stock)->toEqual(97);
 
         $this->assertDatabaseHas('stock_movements', [
             'product_id' => $this->product->id,
@@ -133,7 +133,7 @@ describe('Product POS', function () {
         ]))->assertSessionHasErrors('lines');
 
         expect(ProductInvoice::count())->toBe(0);
-        expect($this->product->refresh()->current_stock)->toBe(100);
+        expect($this->product->refresh()->current_stock)->toEqual(100);
     });
 
     it('computes VAT from the branch override rate', function () {

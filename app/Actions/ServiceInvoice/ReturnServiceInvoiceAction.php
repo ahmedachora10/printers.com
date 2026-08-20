@@ -21,7 +21,9 @@ use Illuminate\Validation\ValidationException;
  *  - a due invoice books no refund — no money was ever collected — so its unpaid
  *    commission is reversed directly;
  *  - points the customer redeemed on it are restored, points it earned are
- *    clawed back, and the coupon capacity it consumed is released.
+ *    clawed back, and the coupon capacity it consumed is released;
+ *  - the materials it drew out of stock go back in as return_in movements — the
+ *    consumed rows are never deleted, the ledger is insert-only (تاسك 50).
  *
  * An invoice already rolled into an agent payment is refused: that record is
  * immutable and would be left dangling.
@@ -32,6 +34,7 @@ class ReturnServiceInvoiceAction
 
     public function __construct(
         private readonly CreateRefundAction $createRefund,
+        private readonly ConsumeServiceMaterialsAction $consumeMaterials,
     ) {}
 
     public function handle(ServiceInvoice $invoice, User $actor, ?string $reason = null): ServiceInvoice
@@ -79,6 +82,10 @@ class ReturnServiceInvoiceAction
             $this->restoreRedeemedPoints($invoice);
             $this->clawBackEarnedPoints($invoice);
             $this->releaseCoupon($invoice);
+
+            // خامات فاتورة لم تُعتمد لم تُخصم أصلاً، والدالة تكتشف ذلك بنفسها من
+            // حركات الفاتورة فلا تحتاج إلى فحص الحالة هنا.
+            $this->consumeMaterials->restore($invoice, (int) $actor->id);
 
             $invoice->update(['status' => InvoiceStatusEnum::RETURNED]);
 

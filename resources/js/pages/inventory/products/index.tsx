@@ -20,7 +20,7 @@ import { Link, router } from '@inertiajs/react';
 import { AlertTriangle, ArrowLeftRight, History, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import inventory from '@/routes/inventory';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatQty } from '@/lib/utils';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'المستودع', href: inventory.products.index().url },
@@ -88,7 +88,17 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                 key: 'name',
                 header: 'اسم المنتج',
                 sortable: true,
-                cell: (item) => <span className="font-medium">{item.name}</span>,
+                cell: (item) => (
+                    <span className="flex items-center gap-1.5">
+                        <span className="font-medium">{item.name}</span>
+                        {/* منتج بالمتر المربع (تاسك 51) — كمياته وسعره بالمساحة */}
+                        {item.isSqm && (
+                            <span className="rounded-full border px-1.5 py-0.5 text-[10px] leading-4 font-medium text-sky-700 dark:text-sky-400">
+                                م²
+                            </span>
+                        )}
+                    </span>
+                ),
             },
             {
                 key: 'categoryName',
@@ -106,14 +116,15 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                                 : 'text-foreground'
                         }
                     >
-                        {item.currentStock}
+                        {formatQty(item.currentStock)}
+                        {item.isSqm && <span className="text-muted-foreground text-xs"> م²</span>}
                     </span>
                 ),
             },
             {
                 key: 'minStockLevel',
                 header: 'الحد الأدنى',
-                cell: (item) => item.minStockLevel,
+                cell: (item) => formatQty(item.minStockLevel),
             },
             {
                 key: 'costPrice',

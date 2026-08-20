@@ -18,6 +18,7 @@ class Product extends Model
         'branch_id',
         'category_id',
         'unit_id',
+        'is_sqm',
         'sku',
         'name',
         'cost_price',
@@ -28,10 +29,13 @@ class Product extends Model
     ];
 
     protected $casts = [
+        'is_sqm' => 'boolean',
         'cost_price' => 'decimal:2',
         'selling_price' => 'decimal:2',
-        'min_stock_level' => 'integer',
-        'current_stock' => 'integer',
+        // كميات المخزون عشرية منذ تاسك 51 — المنتج المسعّر بالمتر المربع يُخصم
+        // بكسور المتر. تُقرأ float لا decimal:2 لأنها أرقام حساب لا مبالغ تُعرض.
+        'min_stock_level' => 'float',
+        'current_stock' => 'float',
         'is_active' => 'boolean',
     ];
 
@@ -66,7 +70,7 @@ class Product extends Model
     public function recalculateStock(): void
     {
         $this->forceFill([
-            'current_stock' => (int) $this->stockMovements()->sum('qty'),
+            'current_stock' => round((float) $this->stockMovements()->sum('qty'), 2),
         ])->save();
     }
 }
