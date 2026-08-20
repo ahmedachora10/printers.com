@@ -65,6 +65,11 @@ class CalculateServiceInvoiceAction
 
         $lineAgents = $this->resolveLineAgents($data, $branchId);
 
+        // تاسك 54: تكلفة الخامات تُخصم من أساس عمولة الموظف (تاسك 7)، فلا يكتبها
+        // الموظف على نفسه. القرار يُتّخذ مرة واحدة هنا من المستخدم الفاعل — لا من
+        // صاحب الفاتورة، فمسار التعديل يمرّر موظف الفاتورة لا من يعدّلها.
+        $mayEditMaterials = $this->actorMayEditMaterials();
+
         $lines = [];
         $subtotal = 0.0;
 
@@ -125,7 +130,7 @@ class CalculateServiceInvoiceAction
             // تعريف الخدمة افتراضياً وتبقى قابلة للتعديل في نقطة البيع، وقد تُفعَّل
             // لخدمة بلا خامات معرّفة (خامات استثنائية) أو تُطفأ لخدمة تحملها.
             // المبلغ للوحدة الواحدة فيُضرب في الكمية.
-            [$materialsCost, $materialsTotal] = $this->lineMaterials($line, $branchService, $qty);
+            [$materialsCost, $materialsTotal] = $this->lineMaterials($line, $branchService, $qty, $mayEditMaterials);
 
             [$lineAgentId, $agentCommissionType, $agentCommissionValue, $agentCommissionAmount] =
                 $this->lineAgentCommission($line, $branchService, $lineAgents, $lineSubtotal, $qty, $widthCm, $heightCm, $vatPct);
@@ -350,6 +355,22 @@ class CalculateServiceInvoiceAction
     }
 
     /**
+     * Whether the acting user may price a line's materials. Employees may not
+     * (تاسك 54): the amount comes off their own commission base, so letting them
+     * type it would let them pay themselves more. Everyone else who reaches the
+     * service POS — branch admin, super admin — writes it freely, and the
+     * accountant sets the default on the service itself.
+     *
+     * The check reads the *actor*, deliberately not the User the calculator was
+     * handed: the edit path passes the invoice's owning employee. With no
+     * authenticated actor (console, seeders) the payload is trusted as before.
+     */
+    private function actorMayEditMaterials(): bool
+    {
+        return ! (auth()->user()?->roleName?->isEmployee() ?? false);
+    }
+
+    /**
      * Resolve a line's materials cost. The POS toggle decides whether the line
      * carries materials at all and is independent of the service definition: it
      * is merely prefilled from it, so a service with no materials can still be
@@ -357,11 +378,25 @@ class CalculateServiceInvoiceAction
      * cleared. The submitted amount wins whenever the toggle is on; the service
      * default only fills in when the POS sent nothing.
      *
+     * For an employee ($mayEdit false) both halves are read off the service
+     * definition instead — the toggle too, since switching materials off raises
+     * the commission just as surely as zeroing the amount.
+     *
      * @param  array<string, mixed>  $line
      * @return array{0: float, 1: float} per-unit cost, line total
      */
-    private function lineMaterials(array $line, BranchService $branchService, int $qty): array
+    private function lineMaterials(array $line, BranchService $branchService, int $qty, bool $mayEdit): array
     {
+        if (! $mayEdit) {
+            if (! $branchService->has_materials) {
+                return [0.0, 0.0];
+            }
+
+            $cost = round(max(0.0, (float) $branchService->materials_cost), 2);
+
+            return [$cost, round($cost * $qty, 2)];
+        }
+
         $hasMaterials = array_key_exists('has_materials', $line)
             ? (bool) $line['has_materials']
             : (bool) $branchService->has_materials;

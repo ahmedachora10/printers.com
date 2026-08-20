@@ -87,6 +87,16 @@ const lineAreaSqm = (line: ServiceCartLine) => ((line.widthCm ?? 0) / 100) * ((l
 const sqmUnitPrice = (line: ServiceCartLine) => round2(lineAreaSqm(line) * line.pricePerSqm);
 
 /**
+ * سعر المتر الفعلي لهذا السطر = سعر القطعة ÷ مساحتها (تاسك 55). السعر المكتوب هو
+ * الأصل وسعر المتر يتبعه — لا العكس. صفر قبل إدخال الأبعاد فلا تُقسم على صفر.
+ */
+const lineEffectivePricePerSqm = (line: ServiceCartLine) => {
+    const area = lineAreaSqm(line);
+
+    return area > 0 ? round2(line.unitPrice / area) : 0;
+};
+
+/**
  * تكلفة خامات السطر كاملة — المبلغ للوحدة مضروباً في الكمية، كما يفعل الخادم.
  * صفر حين يكون المفتاح مُطفأً حتى لو حملت الخدمة قيمة افتراضية.
  */
@@ -114,6 +124,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // Employees may only raise DUE (معلق) invoices for an accountant to review;
     // the paid/due toggle is hidden for them and the status is locked to 'due'.
     const isEmployee = props.auth.role === 'employee';
+    // تاسك 54: تكلفة الخامات تُخصم من عمولة الموظف، فيقرأها ولا يكتبها. القيمة
+    // تأتي من تعريف الخدمة، والقيد الحقيقي على الخادم (CalculateServiceInvoiceAction).
+    const canEditMaterials = !isEmployee;
     const isEditing = !!invoice;
     const lineSeq = useRef(0);
     const [search, setSearch] = useState('');
@@ -1152,30 +1165,6 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 onDiscountChange={setDiscount}
                                 onRemove={removeLine}
                                 onAddManual={addManualLine}
-                                lineAgentLabel="صاحب العمولة"
-                                renderLineAgent={
-                                    agents.length > 0
-                                        ? (line) =>
-                                              line.branchServiceId ? (
-                                                  <Select
-                                                      value={line.agentId ? String(line.agentId) : 'none'}
-                                                      onValueChange={(v) => setLineAgent(line, v === 'none' ? null : Number(v))}
-                                                  >
-                                                      <SelectTrigger className="h-11 w-full md:h-8">
-                                                          <SelectValue placeholder="— بدون —" />
-                                                      </SelectTrigger>
-                                                      <SelectContent>
-                                                          <SelectItem value="none">— بدون —</SelectItem>
-                                                          {agents.map((a) => (
-                                                              <SelectItem key={a.id} value={String(a.id)}>
-                                                                  {a.name}
-                                                              </SelectItem>
-                                                          ))}
-                                                      </SelectContent>
-                                                  </Select>
-                                              ) : null
-                                        : undefined
-                                }
                                 // A sqm line has no price until its dimensions are entered — open it
                                 // on arrival so the cashier is not left hunting for the fields.
                                 isLineDetailsInitiallyOpen={(line) => line.pricingType === 'sqm' && (!line.widthCm || !line.heightCm)}
@@ -1231,7 +1220,15 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                     return (
                                         <>
                                             {isSqm && (
-                                                <LineSection title="مقاس القطعة" aside={`سعر المتر: ${formatCurrency(line.pricePerSqm)}`}>
+                                                <LineSection
+                                                    title="مقاس القطعة"
+                                                    // سعر المتر يتبع القيم المُدخلة (تاسك 55)؛ سعر الخدمة بجانبه للمقارنة.
+                                                    aside={
+                                                        lineAreaSqm(line) > 0
+                                                            ? `سعر المتر لهذا السطر: ${formatCurrency(lineEffectivePricePerSqm(line))} (سعر الخدمة: ${formatCurrency(line.pricePerSqm)})`
+                                                            : `سعر المتر: ${formatCurrency(line.pricePerSqm)}`
+                                                    }
+                                                >
                                                     <div className="grid gap-3 sm:grid-cols-3">
                                                         <LineField label="العرض (سم)" htmlFor={`width-${line.key}`}>
                                                             <Input
@@ -1284,12 +1281,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                     </div>
                                                     {line.widthCm && line.heightCm ? (
                                                         <p className="text-muted-foreground text-[11px]">
-                                                            المساحة {round2(lineAreaSqm(line))} م² × {formatCurrency(line.pricePerSqm)} للمتر ={' '}
-                                                            {formatCurrency(sqmUnitPrice(line))}.
+                                                            المساحة {round2(lineAreaSqm(line))} م² — سعر المتر لهذا السطر{' '}
+                                                            {formatCurrency(lineEffectivePricePerSqm(line))} = {formatCurrency(round2(line.unitPrice))}.
                                                             {round2(line.unitPrice) !== sqmUnitPrice(line) && (
                                                                 <>
                                                                     {' '}
-                                                                    السعر مُعدَّل يدوياً —{' '}
+                                                                    سعر الخدمة {formatCurrency(line.pricePerSqm)} للمتر —{' '}
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => updateLine(line.key, { unitPrice: sqmUnitPrice(line) })}
@@ -1308,94 +1305,138 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                 </LineSection>
                                             )}
 
-                                            {hasAgent && (
-                                                <LineSection title="عمولة صاحب العمولة" aside="تُدفع للمندوب لاحقاً — لا تُخصم من العميل">
-                                                    <div className="grid gap-3 sm:grid-cols-3">
-                                                        <LineField label="نوع العمولة">
-                                                            <Select
-                                                                value={line.agentCommissionType ?? 'percentage'}
-                                                                onValueChange={(v) =>
-                                                                    updateLine(line.key, { agentCommissionType: v as LineAgentCommissionType })
-                                                                }
-                                                            >
-                                                                <SelectTrigger className="h-9 w-full">
-                                                                    <SelectValue />
-                                                                </SelectTrigger>
-                                                                <SelectContent>
-                                                                    <SelectItem value="percentage">نسبة %</SelectItem>
-                                                                    <SelectItem value="fixed">مبلغ ثابت</SelectItem>
-                                                                    {isSqm && <SelectItem value="per_sqm">لكل م²</SelectItem>}
-                                                                </SelectContent>
-                                                            </Select>
-                                                        </LineField>
-                                                        <LineField
-                                                            label={
-                                                                line.agentCommissionType === 'percentage'
-                                                                    ? 'النسبة (%)'
-                                                                    : line.agentCommissionType === 'per_sqm'
-                                                                      ? 'ر.س / م²'
-                                                                      : 'المبلغ (ر.س)'
-                                                            }
-                                                            htmlFor={`agent-value-${line.key}`}
+                                            {/* تاسك 56: «صاحب العمولة» نزل من عمود في الجدول إلى هنا —
+                                                المنتقي أولاً، وشروط العمولة تظهر بعده متى اختير مندوب. */}
+                                            {agents.length > 0 && (
+                                                <LineSection
+                                                    title="صاحب العمولة"
+                                                    aside={hasAgent ? 'تُدفع للمندوب لاحقاً — لا تُخصم من العميل' : 'اختياري'}
+                                                >
+                                                    <LineField label="المندوب" htmlFor={`line-agent-${line.key}`}>
+                                                        <Select
+                                                            value={line.agentId ? String(line.agentId) : 'none'}
+                                                            onValueChange={(v) => setLineAgent(line, v === 'none' ? null : Number(v))}
                                                         >
-                                                            <Input
-                                                                id={`agent-value-${line.key}`}
-                                                                type="number"
-                                                                min={0}
-                                                                step="0.01"
-                                                                max={line.agentCommissionType === 'percentage' ? 100 : undefined}
-                                                                value={line.agentCommissionValue}
-                                                                onChange={(e) =>
-                                                                    updateLine(line.key, {
-                                                                        agentCommissionValue: Math.max(0, Number(e.target.value) || 0),
-                                                                    })
+                                                            <SelectTrigger id={`line-agent-${line.key}`} className="h-9 w-full sm:w-64">
+                                                                <SelectValue placeholder="— بدون —" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="none">— بدون —</SelectItem>
+                                                                {agents.map((a) => (
+                                                                    <SelectItem key={a.id} value={String(a.id)}>
+                                                                        {a.name}
+                                                                    </SelectItem>
+                                                                ))}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </LineField>
+
+                                                    {hasAgent && (
+                                                        <div className="grid gap-3 sm:grid-cols-3">
+                                                            <LineField label="نوع العمولة">
+                                                                <Select
+                                                                    value={line.agentCommissionType ?? 'percentage'}
+                                                                    onValueChange={(v) =>
+                                                                        updateLine(line.key, { agentCommissionType: v as LineAgentCommissionType })
+                                                                    }
+                                                                >
+                                                                    <SelectTrigger className="h-9 w-full">
+                                                                        <SelectValue />
+                                                                    </SelectTrigger>
+                                                                    <SelectContent>
+                                                                        <SelectItem value="percentage">نسبة %</SelectItem>
+                                                                        <SelectItem value="fixed">مبلغ ثابت</SelectItem>
+                                                                        {isSqm && <SelectItem value="per_sqm">لكل م²</SelectItem>}
+                                                                    </SelectContent>
+                                                                </Select>
+                                                            </LineField>
+                                                            <LineField
+                                                                label={
+                                                                    line.agentCommissionType === 'percentage'
+                                                                        ? 'النسبة (%)'
+                                                                        : line.agentCommissionType === 'per_sqm'
+                                                                          ? 'ر.س / م²'
+                                                                          : 'المبلغ (ر.س)'
                                                                 }
-                                                                className="h-9 text-center"
-                                                            />
-                                                        </LineField>
-                                                        <LineField label="العمولة المحتسبة">
-                                                            <LineReadout tone="info">{formatCurrency(lineAgentCommission(line, vatPct))}</LineReadout>
-                                                        </LineField>
-                                                    </div>
+                                                                htmlFor={`agent-value-${line.key}`}
+                                                            >
+                                                                <Input
+                                                                    id={`agent-value-${line.key}`}
+                                                                    type="number"
+                                                                    min={0}
+                                                                    step="0.01"
+                                                                    max={line.agentCommissionType === 'percentage' ? 100 : undefined}
+                                                                    value={line.agentCommissionValue}
+                                                                    onChange={(e) =>
+                                                                        updateLine(line.key, {
+                                                                            agentCommissionValue: Math.max(0, Number(e.target.value) || 0),
+                                                                        })
+                                                                    }
+                                                                    className="h-9 text-center"
+                                                                />
+                                                            </LineField>
+                                                            <LineField label="العمولة المحتسبة">
+                                                                <LineReadout tone="info">{formatCurrency(lineAgentCommission(line, vatPct))}</LineReadout>
+                                                            </LineField>
+                                                        </div>
+                                                    )}
                                                 </LineSection>
                                             )}
 
                                             {/* تكلفة الخامات — داخلية بالكامل: لا تظهر للعميل ولا تغيّر
-                                                الإجمالي، وإنما تُخصم من أساس عمولة الموظف وحده. */}
+                                                الإجمالي، وإنما تُخصم من أساس عمولة الموظف وحده.
+                                                ولذلك لا يكتبها الموظف على نفسه (تاسك 54): تصله من
+                                                تعريف الخدمة للقراءة، والخادم يتجاهل ما يرسله. */}
                                             <LineSection
                                                 title={
-                                                    <label className="flex cursor-pointer items-center gap-2" htmlFor={`materials-${line.key}`}>
-                                                        <Checkbox
-                                                            id={`materials-${line.key}`}
-                                                            checked={line.hasMaterials}
-                                                            onCheckedChange={(checked) => updateLine(line.key, { hasMaterials: checked === true })}
-                                                        />
+                                                    canEditMaterials ? (
+                                                        <label className="flex cursor-pointer items-center gap-2" htmlFor={`materials-${line.key}`}>
+                                                            <Checkbox
+                                                                id={`materials-${line.key}`}
+                                                                checked={line.hasMaterials}
+                                                                onCheckedChange={(checked) => updateLine(line.key, { hasMaterials: checked === true })}
+                                                            />
+                                                            <span>تكلفة الخامات</span>
+                                                        </label>
+                                                    ) : (
                                                         <span>تكلفة الخامات</span>
-                                                    </label>
+                                                    )
                                                 }
-                                                aside="داخلية — تُخصم من عمولة الموظف ولا تظهر للعميل"
+                                                aside={
+                                                    canEditMaterials
+                                                        ? 'داخلية — تُخصم من عمولة الموظف ولا تظهر للعميل'
+                                                        : 'تُحدَّد من إدارة الخدمة — للاطّلاع فقط'
+                                                }
                                             >
-                                                {line.hasMaterials && (
+                                                {line.hasMaterials ? (
                                                     <div className="grid gap-3 sm:grid-cols-3">
                                                         <LineField label="التكلفة للوحدة (ر.س)" htmlFor={`materials-cost-${line.key}`}>
-                                                            <Input
-                                                                id={`materials-cost-${line.key}`}
-                                                                type="number"
-                                                                min={0}
-                                                                step="0.01"
-                                                                value={line.materialsCost}
-                                                                onChange={(e) =>
-                                                                    updateLine(line.key, {
-                                                                        materialsCost: Math.max(0, Number(e.target.value) || 0),
-                                                                    })
-                                                                }
-                                                                className="h-9 text-center"
-                                                            />
+                                                            {canEditMaterials ? (
+                                                                <Input
+                                                                    id={`materials-cost-${line.key}`}
+                                                                    type="number"
+                                                                    min={0}
+                                                                    step="0.01"
+                                                                    value={line.materialsCost}
+                                                                    onChange={(e) =>
+                                                                        updateLine(line.key, {
+                                                                            materialsCost: Math.max(0, Number(e.target.value) || 0),
+                                                                        })
+                                                                    }
+                                                                    className="h-9 text-center"
+                                                                />
+                                                            ) : (
+                                                                <LineReadout>{formatCurrency(line.materialsCost)}</LineReadout>
+                                                            )}
                                                         </LineField>
                                                         <LineField label={`الإجمالي (× ${line.qty})`}>
                                                             <LineReadout>{formatCurrency(lineMaterialsTotal(line))}</LineReadout>
                                                         </LineField>
                                                     </div>
+                                                ) : (
+                                                    !canEditMaterials && (
+                                                        <p className="text-muted-foreground text-[11px]">لا خامات معرَّفة على هذه الخدمة.</p>
+                                                    )
                                                 )}
                                             </LineSection>
 

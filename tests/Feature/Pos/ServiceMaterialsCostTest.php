@@ -77,20 +77,24 @@ describe('Materials cost (الخامات) before commission', function () {
         $this->branch->update(['owner_id' => $this->branchAdmin->id]);
 
         $this->service = materialsService();
-        UserService::create([
-            'user_id' => $this->employee->id,
-            'branch_service_id' => $this->service->id,
-            'commission_override_pct' => 50,
-        ]);
+
+        // Both raisers earn the same rate, so a manager-raised invoice can be
+        // compared against an employee-raised one figure for figure.
+        foreach ([$this->employee, $this->branchAdmin] as $raiser) {
+            UserService::create([
+                'user_id' => $raiser->id,
+                'branch_service_id' => $this->service->id,
+                'commission_override_pct' => 50,
+            ]);
+        }
     });
 
     // ---- The client's worked example --------------------------------------
 
     it("matches the client's example: 100 with 20 materials earns 33.48 at 50%", function () {
-        $this->post(route('pos.service.store'), materialsPayload([
-            'has_materials' => true,
-            'materials_cost' => 20,
-        ]))->assertRedirect();
+        $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
+
+        $this->post(route('pos.service.store'), materialsPayload())->assertRedirect();
 
         $invoice = ServiceInvoice::firstOrFail();
         $line = $invoice->lines()->firstOrFail();
@@ -104,10 +108,9 @@ describe('Materials cost (الخامات) before commission', function () {
     });
 
     it('leaves the customer total untouched — materials are internal only', function () {
-        $this->post(route('pos.service.store'), materialsPayload([
-            'has_materials' => true,
-            'materials_cost' => 20,
-        ]))->assertRedirect();
+        $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
+
+        $this->post(route('pos.service.store'), materialsPayload())->assertRedirect();
 
         $invoice = ServiceInvoice::firstOrFail();
 
@@ -129,12 +132,10 @@ describe('Materials cost (الخامات) before commission', function () {
 
     // ---- Quantity ---------------------------------------------------------
 
-    it('multiplies the entered cost by the quantity', function () {
-        $this->post(route('pos.service.store'), materialsPayload([
-            'qty' => 3,
-            'has_materials' => true,
-            'materials_cost' => 20,
-        ]))->assertRedirect();
+    it('multiplies the cost by the quantity', function () {
+        $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
+
+        $this->post(route('pos.service.store'), materialsPayload(['qty' => 3]))->assertRedirect();
 
         $line = ServiceInvoice::firstOrFail()->lines()->firstOrFail();
 
@@ -147,10 +148,9 @@ describe('Materials cost (الخامات) before commission', function () {
     // ---- Clamping ---------------------------------------------------------
 
     it('clamps at zero rather than paying a negative commission', function () {
-        $this->post(route('pos.service.store'), materialsPayload([
-            'has_materials' => true,
-            'materials_cost' => 500,
-        ]))->assertRedirect();
+        $this->service->update(['has_materials' => true, 'materials_cost' => 500]);
+
+        $this->post(route('pos.service.store'), materialsPayload())->assertRedirect();
 
         $invoice = ServiceInvoice::firstOrFail();
         $line = $invoice->lines()->firstOrFail();
@@ -161,7 +161,7 @@ describe('Materials cost (الخامات) before commission', function () {
             ->and((float) $invoice->employee_commission)->toEqual(0.00);
     });
 
-    // ---- The service default ----------------------------------------------
+    // ---- تاسك 54: the employee reads the cost, never writes it -------------
 
     it('falls back to the service default when the POS sends no amount', function () {
         $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
@@ -174,7 +174,7 @@ describe('Materials cost (الخامات) before commission', function () {
             ->and((float) $line->commission_amount)->toEqual(33.48);
     });
 
-    it('lets the POS override the service default', function () {
+    it("ignores an employee's override and keeps the service default", function () {
         $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
 
         $this->post(route('pos.service.store'), materialsPayload([
@@ -184,12 +184,12 @@ describe('Materials cost (الخامات) before commission', function () {
 
         $line = ServiceInvoice::firstOrFail()->lines()->firstOrFail();
 
-        // 86.96 − 40 = 46.96 → × 50% = 23.48
-        expect((float) $line->materials_total)->toEqual(40.00)
-            ->and((float) $line->commission_amount)->toEqual(23.48);
+        // 40 would have left them 23.48; the service's 20 leaves 33.48.
+        expect((float) $line->materials_cost)->toEqual(20.00)
+            ->and((float) $line->commission_amount)->toEqual(33.48);
     });
 
-    it('charges nothing when the toggle is off, even on a service that has a default', function () {
+    it('keeps the service materials even when the employee switches the toggle off', function () {
         $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
 
         $this->post(route('pos.service.store'), materialsPayload([
@@ -198,11 +198,13 @@ describe('Materials cost (الخامات) before commission', function () {
 
         $line = ServiceInvoice::firstOrFail()->lines()->firstOrFail();
 
-        expect((float) $line->materials_total)->toEqual(0.00)
-            ->and((float) $line->commission_amount)->toEqual(43.48);
+        // Clearing the toggle raises the commission just as zeroing the amount
+        // would, so it is ignored too.
+        expect((float) $line->materials_total)->toEqual(20.00)
+            ->and((float) $line->commission_amount)->toEqual(33.48);
     });
 
-    it('accepts an exceptional cost on a service with no materials configured', function () {
+    it('charges an employee nothing on a service with no materials configured', function () {
         expect($this->service->has_materials)->toBeFalse();
 
         $this->post(route('pos.service.store'), materialsPayload([
@@ -210,18 +212,63 @@ describe('Materials cost (الخامات) before commission', function () {
             'materials_cost' => 20,
         ]))->assertRedirect();
 
+        $line = ServiceInvoice::firstOrFail()->lines()->firstOrFail();
+
+        expect((float) $line->materials_total)->toEqual(0.00)
+            ->and((float) $line->commission_amount)->toEqual(43.48);
+    });
+
+    // ---- تاسك 54: the branch admin still prices freely ---------------------
+
+    it('lets a branch admin override the service default from the POS', function () {
+        $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('pos.service.store'), materialsPayload([
+                'has_materials' => true,
+                'materials_cost' => 40,
+            ]))->assertRedirect();
+
+        $line = ServiceInvoice::firstOrFail()->lines()->firstOrFail();
+
+        // 86.96 − 40 = 46.96 → × 50% = 23.48
+        expect((float) $line->materials_cost)->toEqual(40.00)
+            ->and((float) $line->commission_amount)->toEqual(23.48);
+    });
+
+    it('lets a branch admin clear the materials with the toggle', function () {
+        $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('pos.service.store'), materialsPayload([
+                'has_materials' => false,
+            ]))->assertRedirect();
+
+        $line = ServiceInvoice::firstOrFail()->lines()->firstOrFail();
+
+        expect((float) $line->materials_total)->toEqual(0.00)
+            ->and((float) $line->commission_amount)->toEqual(43.48);
+    });
+
+    it('lets a branch admin charge exceptional materials on a service with none', function () {
+        $this->actingAs($this->branchAdmin)
+            ->post(route('pos.service.store'), materialsPayload([
+                'has_materials' => true,
+                'materials_cost' => 20,
+            ]))->assertRedirect();
+
         expect((float) ServiceInvoice::firstOrFail()->lines()->firstOrFail()->materials_total)->toEqual(20.00);
     });
 
     // ---- Isolation from the other commissions ------------------------------
 
     it('leaves the line commission owner and the agent rebate untouched', function () {
+        $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
+
         $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
         setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'rebate', 'rate' => 10]);
 
         $this->post(route('pos.service.store'), materialsPayload([
-            'has_materials' => true,
-            'materials_cost' => 20,
             'agent_id' => $agent->id,
             'agent_commission_type' => 'percentage',
             'agent_commission_value' => 10,
@@ -241,10 +288,9 @@ describe('Materials cost (الخامات) before commission', function () {
     // ---- The ledger --------------------------------------------------------
 
     it('writes the reduced amount to the immutable commission ledger on approval', function () {
-        $this->post(route('pos.service.store'), materialsPayload([
-            'has_materials' => true,
-            'materials_cost' => 20,
-        ]))->assertRedirect();
+        $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
+
+        $this->post(route('pos.service.store'), materialsPayload())->assertRedirect();
 
         $invoice = ServiceInvoice::firstOrFail();
         expect(CommissionLedger::count())->toBe(0);
@@ -256,31 +302,36 @@ describe('Materials cost (الخامات) before commission', function () {
 
     // ---- Editing -----------------------------------------------------------
 
-    it('recalculates when the materials cost is edited on a due invoice', function () {
-        $this->post(route('pos.service.store'), materialsPayload([
-            'has_materials' => true,
-            'materials_cost' => 20,
-        ]))->assertRedirect();
+    it('re-reads the service definition when a due invoice is re-edited', function () {
+        $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
+
+        $this->post(route('pos.service.store'), materialsPayload())->assertRedirect();
 
         $invoice = ServiceInvoice::firstOrFail();
+
+        // Only the accountant's screen can move this number; the employee's edit
+        // simply picks up whatever it now says.
+        $this->service->update(['materials_cost' => 40]);
 
         $this->put(route('pos.service.update', $invoice), materialsPayload([
             'has_materials' => true,
-            'materials_cost' => 40,
+            'materials_cost' => 5,
         ]))->assertRedirect();
 
-        expect((float) $invoice->fresh()->lines()->firstOrFail()->commission_amount)->toEqual(23.48);
+        $line = $invoice->fresh()->lines()->firstOrFail();
+
+        expect((float) $line->materials_cost)->toEqual(40.00)
+            ->and((float) $line->commission_amount)->toEqual(23.48);
     });
 
     it('seeds the edit screen from the saved line, not the service default', function () {
-        $this->service->update(['has_materials' => true, 'materials_cost' => 99]);
+        $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
 
-        $this->post(route('pos.service.store'), materialsPayload([
-            'has_materials' => true,
-            'materials_cost' => 20,
-        ]))->assertRedirect();
+        $this->post(route('pos.service.store'), materialsPayload())->assertRedirect();
 
         $invoice = ServiceInvoice::firstOrFail();
+
+        $this->service->update(['materials_cost' => 99]);
 
         $this->get(route('pos.service.edit', $invoice))
             ->assertOk()
@@ -302,11 +353,9 @@ describe('Materials cost (الخامات) before commission', function () {
     // ---- The commission report ---------------------------------------------
 
     it('totals the materials cost in the commission report', function () {
-        $this->post(route('pos.service.store'), materialsPayload([
-            'qty' => 3,
-            'has_materials' => true,
-            'materials_cost' => 20,
-        ]))->assertRedirect();
+        $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
+
+        $this->post(route('pos.service.store'), materialsPayload(['qty' => 3]))->assertRedirect();
 
         approveMaterialsInvoice(ServiceInvoice::firstOrFail());
 
@@ -334,10 +383,9 @@ describe('Materials cost (الخامات) before commission', function () {
     // ---- Guard on the immutable ledger row -----------------------------------
 
     it('keeps the materials snapshot on the line after approval', function () {
-        $this->post(route('pos.service.store'), materialsPayload([
-            'has_materials' => true,
-            'materials_cost' => 20,
-        ]))->assertRedirect();
+        $this->service->update(['has_materials' => true, 'materials_cost' => 20]);
+
+        $this->post(route('pos.service.store'), materialsPayload())->assertRedirect();
 
         approveMaterialsInvoice(ServiceInvoice::firstOrFail());
 

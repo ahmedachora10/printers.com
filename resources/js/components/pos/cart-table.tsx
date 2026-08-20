@@ -38,10 +38,6 @@ interface PosCartTableProps<T extends PosCartLineBase> {
     onDiscountChange: (line: T, value: number) => void;
     onRemove: (key: string) => void;
     onAddManual: () => void;
-    /** header label for the optional agent column (enables the column when set together with renderLineAgent) */
-    lineAgentLabel?: string;
-    /** the per-line agent (commission owner) picker, rendered in its own column beside price */
-    renderLineAgent?: (line: T) => ReactNode;
     /** optional collapsible detail panel rendered under a line (dimensions, commission owner …) */
     renderLineDetails?: (line: T) => ReactNode;
     /** compact chips describing the collapsed panel — shown on the toggle bar */
@@ -153,15 +149,12 @@ export function PosCartTable<T extends PosCartLineBase>({
     onDiscountChange,
     onRemove,
     onAddManual,
-    lineAgentLabel,
-    renderLineAgent,
     renderLineDetails,
     renderLineSummary,
     isLineDetailsInitiallyOpen,
 }: PosCartTableProps<T>) {
-    // The agent column is opt-in; other POS screens (e.g. products) omit it.
-    const hasAgentColumn = !!renderLineAgent;
-    const detailsColSpan = hasAgentColumn ? 7 : 6;
+    // الجدول ستة أعمدة ثابتة — «صاحب العمولة» انتقل إلى القائمة السفلية (تاسك 56).
+    const detailsColSpan = 6;
 
     // Panels stay closed so the cart reads as one list; the caller may ask for a
     // line to open on arrival (a sqm line still missing its dimensions), which is
@@ -288,7 +281,6 @@ export function PosCartTable<T extends PosCartLineBase>({
                                         السعر
                                         <span className="text-muted-foreground block text-[10px] font-normal">شامل الضريبة</span>
                                     </TableHead>
-                                    {hasAgentColumn && <TableHead className="h-9 w-[9rem] text-center">{lineAgentLabel}</TableHead>}
                                     <TableHead className="h-9 w-[6rem] text-center">خصم %</TableHead>
                                     <TableHead className="h-9 w-[7rem] text-center">الإجمالي</TableHead>
                                     <TableHead className="h-9 w-[3rem]" />
@@ -308,8 +300,6 @@ export function PosCartTable<T extends PosCartLineBase>({
                                                 </TableCell>
 
                                                 <TableCell className="p-2 text-center">{priceControl(line)}</TableCell>
-
-                                                {hasAgentColumn && <TableCell className="p-2 text-center">{renderLineAgent!(line)}</TableCell>}
 
                                                 <TableCell className="p-2 text-center">{discountControl(line)}</TableCell>
 
@@ -351,11 +341,6 @@ export function PosCartTable<T extends PosCartLineBase>({
                                             <QuantityStepper qty={line.qty} onChange={(delta) => onQtyChange(line, delta)} />
                                         </LineField>
                                         <LineField label="السعر (شامل الضريبة)">{priceControl(line)}</LineField>
-                                        {hasAgentColumn && (
-                                            <div className="col-span-2">
-                                                <LineField label={lineAgentLabel}>{renderLineAgent!(line)}</LineField>
-                                            </div>
-                                        )}
                                         <LineField label="خصم %">{discountControl(line)}</LineField>
                                         <LineField label="الإجمالي">
                                             <span className="flex h-8 items-center text-sm font-semibold tabular-nums">

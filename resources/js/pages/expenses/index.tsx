@@ -1,26 +1,20 @@
 import { destroy, index } from '@/actions/App/Http/Controllers/ExpenseController';
-import ExpenseFormModal from '@/components/expenses/expense-form-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
+import ExpenseFormModal from '@/components/expenses/expense-form-modal';
 import { FilterBar } from '@/components/filter-bar';
+import DateRangeBar from '@/components/reports/date-range-bar';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Card } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type Expense, type PaginatedExpense } from '@/types/expense';
 import { router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'المصروفات', href: '/expenses' },
-];
+const breadcrumbs: BreadcrumbItem[] = [{ title: 'المصروفات', href: '/expenses' }];
 
 interface Category {
     id: number;
@@ -42,6 +36,24 @@ interface Props {
 
 function formatSar(value: number): string {
     return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' ر.س';
+}
+
+/** «15/08» من YYYY-MM-DD — يوم/شهر يكفيان في شريط الفلاتر. */
+function shortDate(iso: string): string {
+    const [, month, day] = iso.split('-');
+
+    return `${day}/${month}`;
+}
+
+/**
+ * وصف المدى المطبَّق على «إجمالي الفترة». بلا مدى يقرأ المستخدم الرقم على أنه
+ * مصروف اليوم، فيُقال له صراحةً إنه كل الفترات.
+ */
+function rangeLabel(from: string, to: string): string {
+    if (!from && !to) return 'كل الفترات';
+    if (from && to) return `${shortDate(from)} — ${shortDate(to)}`;
+
+    return from ? `من ${shortDate(from)}` : `حتى ${shortDate(to)}`;
 }
 
 export default function ExpensesIndex({ items, periodTotal, categories, branches, filters }: Props) {
@@ -113,12 +125,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                         <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
                             <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setDeleting(item)}
-                        >
+                        <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleting(item)}>
                             <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                     </div>
@@ -127,6 +134,19 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
         ],
         [],
     );
+
+    // المدى التاريخي يمرّ عبر useReportFilters (كبقية الشاشات) بينما يبقى البحث
+    // والفئة على آليّة FilterBar المؤجَّلة. المفتاحان from/to يدعمهما الخادم أصلاً،
+    // وbuildQuery أدناه يحملهما مع كل تنقّل فلا يضيع المدى عند البحث.
+    const dateDefaults = useMemo<FilterValues>(() => ({ search: '', expense_category_id: '', from: '', to: '' }), []);
+    const applied: FilterValues = {
+        search: filters.search ?? '',
+        expense_category_id: filters.expense_category_id ?? '',
+        from: filters.from ?? '',
+        to: filters.to ?? '',
+    };
+    const dateFilters = useReportFilters(index.url(), applied, dateDefaults);
+    const hasRange = dateFilters.isActive('from') || dateFilters.isActive('to');
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
@@ -175,11 +195,23 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
             <div className="p-6">
                 <div className="mb-6 flex items-center justify-between">
                     <h1 className="text-2xl font-bold">المصروفات</h1>
-                    <div className="rounded-lg border bg-muted/40 px-4 py-2 text-sm">
-                        <span className="text-muted-foreground">إجمالي الفترة: </span>
-                        <span className="font-bold tabular-nums">{formatSar(periodTotal)}</span>
+                    <div className="bg-muted/40 rounded-lg border px-4 py-2 text-sm">
+                        <div className="flex items-baseline gap-2">
+                            <span className="text-muted-foreground">إجمالي الفترة: </span>
+                            <span className="font-bold tabular-nums">{formatSar(periodTotal)}</span>
+                        </div>
+                        <p className="text-muted-foreground text-xs">{rangeLabel(applied.from, applied.to)}</p>
                     </div>
                 </div>
+
+                <Card className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-md px-4 py-3.5 sm:px-5">
+                    <DateRangeBar filters={dateFilters} from={applied.from} to={applied.to} extended />
+                    {hasRange && (
+                        <Button type="button" variant="ghost" size="sm" onClick={() => dateFilters.replaceMany({ from: '', to: '' })}>
+                            <X className="size-3" /> كل الفترات
+                        </Button>
+                    )}
+                </Card>
 
                 <div className="mb-6">
                     <FilterBar
@@ -205,11 +237,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                     />
                 </div>
 
-                <DataTable
-                    columns={columns}
-                    data={items.data}
-                    keyExtractor={(item) => item.id}
-                />
+                <DataTable columns={columns} data={items.data} keyExtractor={(item) => item.id} />
 
                 <TablePagination
                     currentPage={items.meta.current_page as number}
@@ -225,9 +253,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle>تأكيد الحذف</DialogTitle>
-                        <DialogDescription>
-                            هل أنت متأكد من حذف هذا المصروف؟ لا يمكن التراجع عن هذا الإجراء.
-                        </DialogDescription>
+                        <DialogDescription>هل أنت متأكد من حذف هذا المصروف؟ لا يمكن التراجع عن هذا الإجراء.</DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDeleting(null)}>
