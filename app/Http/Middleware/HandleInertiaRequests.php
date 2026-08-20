@@ -397,11 +397,13 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
+                // تاسك 47: مدير الفرع يدخل الدليل ليسعّر فرعه — الشجرة عنده
+                // للقراءة والأسعار وحدها قابلة للتحرير.
                 'title' => 'دليل الخدمات',
                 'url' => route('admin.catalogue.categories.index'),
                 'icon' => 'BookOpen',
                 'group' => 'admin',
-                'role' => [Roles::SUPER_ADMIN],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
                 'title' => 'الإشعارات',

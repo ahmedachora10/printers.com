@@ -17,6 +17,9 @@ class CatalogPriceResource extends JsonResource
         return [
             'id' => $this->id,
             'subcategoryId' => $this->subcategory_id,
+            'branchId' => $this->branch_id,
+            // Null branch = general price shown to every branch (تاسك 47).
+            'branchName' => $this->whenLoaded('branch', fn () => $this->branch?->name),
             'name' => $this->name,
             'minPrice' => (float) $this->min_price,
             'maxPrice' => (float) $this->max_price,

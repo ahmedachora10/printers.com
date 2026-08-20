@@ -2,11 +2,13 @@
 
 namespace App\Http\Requests\CatalogPrice;
 
+use App\Http\Requests\Concerns\PinsCatalogueBranch;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateCatalogPriceRequest extends FormRequest
 {
+    use PinsCatalogueBranch;
+
     public function authorize(): bool
     {
         return true;
@@ -15,6 +17,8 @@ class UpdateCatalogPriceRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        // A row never changes owner: uniqueness stays inside the branch (or
+        // inside the general rows) the price already belongs to.
         $price = $this->route('price');
 
         return [
@@ -22,9 +26,8 @@ class UpdateCatalogPriceRequest extends FormRequest
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('catalog_prices', 'name')
-                    ->where(fn ($q) => $q->where('subcategory_id', $price->subcategory_id))
-                    ->ignore($price->id),
+                $this->uniqueInBranchScope('catalog_prices', 'name', $price->branch_id, $price->id)
+                    ->where('subcategory_id', $price->subcategory_id),
             ],
             'min_price' => ['required', 'numeric', 'min:0'],
             'max_price' => ['required', 'numeric', 'min:0', 'gte:min_price'],

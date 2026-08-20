@@ -12,7 +12,15 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 class CatalogPricesExport implements FromCollection, ShouldAutoSize, WithHeadings, WithStyles
 {
-    public function __construct(private readonly int $subcategoryId) {}
+    /**
+     * One branch's price sheet, or the general list when $branchId is null
+     * (تاسك 47) — the sheet round-trips through CatalogPricesImport into the
+     * very same scope it was exported from.
+     */
+    public function __construct(
+        private readonly int $subcategoryId,
+        private readonly ?int $branchId = null,
+    ) {}
 
     /** @return array<int, string> */
     public function headings(): array
@@ -25,6 +33,9 @@ class CatalogPricesExport implements FromCollection, ShouldAutoSize, WithHeading
     {
         return CatalogPrice::query()
             ->where('subcategory_id', $this->subcategoryId)
+            ->when($this->branchId === null,
+                fn ($q) => $q->whereNull('branch_id'),
+                fn ($q) => $q->where('branch_id', $this->branchId))
             ->ordered()
             ->get()
             ->map(fn (CatalogPrice $price) => [

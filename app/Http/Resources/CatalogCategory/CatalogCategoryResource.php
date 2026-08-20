@@ -17,6 +17,9 @@ class CatalogCategoryResource extends JsonResource
         return [
             'id' => $this->id,
             'nameAr' => $this->name_ar,
+            'branchId' => $this->branch_id,
+            // Null branch = general row every branch inherits (تاسك 47).
+            'branchName' => $this->whenLoaded('branch', fn () => $this->branch?->name),
             'sortOrder' => $this->sort_order,
             'isActive' => $this->is_active,
             'imageUrl' => $this->getFirstMediaUrl('image') ?: null,

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\CatalogSubcategory\CreateCatalogSubcategoryAction;
 use App\Actions\CatalogSubcategory\DeleteCatalogSubcategoryAction;
 use App\Actions\CatalogSubcategory\UpdateCatalogSubcategoryAction;
+use App\Http\Controllers\Concerns\ResolvesCatalogueScope;
 use App\Http\Requests\CatalogSubcategory\StoreCatalogSubcategoryRequest;
 use App\Http\Requests\CatalogSubcategory\UpdateCatalogSubcategoryRequest;
 use App\Http\Resources\CatalogCategory\CatalogCategoryResource;
@@ -19,12 +20,18 @@ use Inertia\Response;
 
 class CatalogSubcategoryController extends Controller
 {
+    use ResolvesCatalogueScope;
+
     public function index(Request $request, CatalogCategory $category): Response
     {
         Gate::authorize('viewAny', CatalogSubcategory::class);
 
         $subcategories = $category->subcategories()
-            ->withCount('prices')
+            ->with('branch:id,name')
+            // Counted through the very same scope as the list — see
+            // CatalogCategoryController::index (تاسك 47).
+            ->withCount(['prices' => fn ($q) => $this->scopeCatalogueQuery($q, $request)])
+            ->tap(fn ($q) => $this->scopeCatalogueQuery($q, $request))
             ->when($request->input('search'), fn ($q) => $q->where('name_ar', 'like', '%'.$request->input('search').'%'))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', $request->input('status')))
             ->ordered()
@@ -37,7 +44,10 @@ class CatalogSubcategoryController extends Controller
             'filters' => [
                 'search' => $request->input('search'),
                 'status' => $request->input('status'),
+                'branch' => $request->input('branch'),
             ],
+            'branches' => $this->cataloguePickerBranches($request),
+            'ownBranchId' => $this->isCatalogueSuperAdmin($request) ? null : $this->catalogueWriteScope($request),
         ]);
     }
 

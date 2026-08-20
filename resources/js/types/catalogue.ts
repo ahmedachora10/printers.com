@@ -2,6 +2,9 @@
 export interface CatalogCategory {
     id: number;
     nameAr: string;
+    /** null = general row every branch inherits (تاسك 47). */
+    branchId: number | null;
+    branchName?: string | null;
     sortOrder: number;
     isActive: boolean;
     imageUrl: string | null;
@@ -14,6 +17,9 @@ export interface CatalogSubcategory {
     id: number;
     nameAr: string;
     categoryId: number;
+    /** null = general row every branch inherits (تاسك 47). */
+    branchId: number | null;
+    branchName?: string | null;
     sortOrder: number;
     isActive: boolean;
     imageUrl: string | null;
@@ -25,6 +31,9 @@ export interface CatalogSubcategory {
 export interface CatalogPrice {
     id: number;
     subcategoryId: number;
+    /** null = general price shared by every branch (تاسك 47). */
+    branchId: number | null;
+    branchName?: string | null;
     name: string;
     minPrice: number;
     maxPrice: number;
@@ -48,6 +57,14 @@ export interface PublicPrice {
     minPrice: number;
     maxPrice: number;
     basePrice: number;
+    /** true when this branch overrides the general price (تاسك 47). */
+    isBranchPrice: boolean;
+}
+
+/** Branch picker option on the catalogue and price-list screens. */
+export interface CatalogueBranchOption {
+    id: number;
+    name: string;
 }
 
 export interface PublicSubcategory {

@@ -1,16 +1,22 @@
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn, formatSar } from '@/lib/utils';
-import { type PublicCategory } from '@/types/catalogue';
-import { Head } from '@inertiajs/react';
+import { type CatalogueBranchOption, type PublicCategory } from '@/types/catalogue';
+import { Head, router } from '@inertiajs/react';
 import { ImageIcon, MessageCircle, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 interface Props {
     categories: PublicCategory[];
     whatsappNumber: string | null;
+    branches: CatalogueBranchOption[];
+    selectedBranchId: number | null;
 }
 
-export default function PublicCatalogue({ categories, whatsappNumber }: Props) {
+/** Sentinel for "general prices" — a Select cannot carry a null value. */
+const GENERAL = 'general';
+
+export default function PublicCatalogue({ categories, whatsappNumber, branches, selectedBranchId }: Props) {
     const [activeCategoryId, setActiveCategoryId] = useState<number | null>(categories[0]?.id ?? null);
     const [activeSubId, setActiveSubId] = useState<number | null>(categories[0]?.subcategories[0]?.id ?? null);
     const [search, setSearch] = useState('');
@@ -69,14 +75,42 @@ export default function PublicCatalogue({ categories, whatsappNumber }: Props) {
                         <h1 className="text-xl font-bold sm:text-2xl">مركز الناسخ للطباعة</h1>
                         <p className="text-sm text-muted-foreground">دليل الخدمات والأسعار</p>
                     </div>
-                    <div className="relative w-full sm:w-72">
-                        <Search className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            placeholder="ابحث عن خدمة..."
-                            className="pe-9"
-                        />
+                    <div className="flex w-full items-center gap-2 sm:w-auto">
+                        {/* تاسك 47: each branch prices its own list, so the visitor
+                            says which one they are asking about. Until they do,
+                            the general price list is what is shown. */}
+                        {branches.length > 1 && (
+                            <Select
+                                value={selectedBranchId === null ? GENERAL : String(selectedBranchId)}
+                                onValueChange={(value) =>
+                                    router.get('/catalogue', value === GENERAL ? {} : { branch: value }, {
+                                        preserveState: false,
+                                        replace: true,
+                                    })
+                                }
+                            >
+                                <SelectTrigger className="w-40 shrink-0">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={GENERAL}>كل الفروع</SelectItem>
+                                    {branches.map((branch) => (
+                                        <SelectItem key={branch.id} value={String(branch.id)}>
+                                            {branch.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                        <div className="relative w-full sm:w-72">
+                            <Search className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                            <Input
+                                value={search}
+                                onChange={(e) => setSearch(e.target.value)}
+                                placeholder="ابحث عن خدمة..."
+                                className="pe-9"
+                            />
+                        </div>
                     </div>
                 </div>
             </header>

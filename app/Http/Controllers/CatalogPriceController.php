@@ -6,6 +6,7 @@ use App\Actions\CatalogPrice\CreateCatalogPriceAction;
 use App\Actions\CatalogPrice\DeleteCatalogPriceAction;
 use App\Actions\CatalogPrice\UpdateCatalogPriceAction;
 use App\Exports\CatalogPricesExport;
+use App\Http\Controllers\Concerns\ResolvesCatalogueScope;
 use App\Http\Requests\CatalogPrice\StoreCatalogPriceRequest;
 use App\Http\Requests\CatalogPrice\UpdateCatalogPriceRequest;
 use App\Http\Resources\CatalogPrice\CatalogPriceResource;
@@ -23,6 +24,8 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CatalogPriceController extends Controller
 {
+    use ResolvesCatalogueScope;
+
     public function index(Request $request, CatalogSubcategory $subcategory): Response
     {
         Gate::authorize('viewAny', CatalogPrice::class);
@@ -30,6 +33,8 @@ class CatalogPriceController extends Controller
         $subcategory->load('category');
 
         $prices = $subcategory->prices()
+            ->with('branch:id,name')
+            ->tap(fn ($q) => $this->scopeCatalogueQuery($q, $request))
             ->when($request->input('search'), fn ($q) => $q->where('name', 'like', '%'.$request->input('search').'%'))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', $request->input('status')))
             ->ordered()
@@ -42,7 +47,10 @@ class CatalogPriceController extends Controller
             'filters' => [
                 'search' => $request->input('search'),
                 'status' => $request->input('status'),
+                'branch' => $request->input('branch'),
             ],
+            'branches' => $this->cataloguePickerBranches($request),
+            'ownBranchId' => $this->isCatalogueSuperAdmin($request) ? null : $this->catalogueWriteScope($request),
         ]);
     }
 
@@ -82,13 +90,15 @@ class CatalogPriceController extends Controller
         return back();
     }
 
-    public function export(CatalogSubcategory $subcategory): BinaryFileResponse
+    public function export(Request $request, CatalogSubcategory $subcategory): BinaryFileResponse
     {
         Gate::authorize('viewAny', CatalogPrice::class);
 
-        $filename = 'catalog-prices-'.$subcategory->id.'.xlsx';
+        $branchId = $this->catalogueWriteScope($request);
 
-        return Excel::download(new CatalogPricesExport($subcategory->id), $filename);
+        $filename = 'catalog-prices-'.$subcategory->id.($branchId ? '-branch-'.$branchId : '').'.xlsx';
+
+        return Excel::download(new CatalogPricesExport($subcategory->id, $branchId), $filename);
     }
 
     public function import(Request $request, CatalogSubcategory $subcategory): RedirectResponse
@@ -99,7 +109,7 @@ class CatalogPriceController extends Controller
             'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
         ]);
 
-        Excel::import(new CatalogPricesImport($subcategory->id), $request->file('file'));
+        Excel::import(new CatalogPricesImport($subcategory->id, $this->catalogueWriteScope($request)), $request->file('file'));
 
         return back();
     }

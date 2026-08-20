@@ -6,6 +6,7 @@ use App\Actions\CatalogCategory\CreateCatalogCategoryAction;
 use App\Actions\CatalogCategory\DeleteCatalogCategoryAction;
 use App\Actions\CatalogCategory\UpdateCatalogCategoryAction;
 use App\Exports\CatalogueExport;
+use App\Http\Controllers\Concerns\ResolvesCatalogueScope;
 use App\Http\Requests\CatalogCategory\StoreCatalogCategoryRequest;
 use App\Http\Requests\CatalogCategory\UpdateCatalogCategoryRequest;
 use App\Http\Resources\CatalogCategory\CatalogCategoryResource;
@@ -21,12 +22,19 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CatalogCategoryController extends Controller
 {
+    use ResolvesCatalogueScope;
+
     public function index(Request $request): Response
     {
         Gate::authorize('viewAny', CatalogCategory::class);
 
         $categories = CatalogCategory::query()
-            ->withCount('subcategories')
+            ->with('branch:id,name')
+            // Counted through the very same scope as the list, or the number on
+            // a row would promise rows the user will not find when they drill
+            // in (تاسك 47).
+            ->withCount(['subcategories' => fn ($q) => $this->scopeCatalogueQuery($q, $request)])
+            ->tap(fn ($q) => $this->scopeCatalogueQuery($q, $request))
             ->when($request->input('search'), fn ($q) => $q->where('name_ar', 'like', '%'.$request->input('search').'%'))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', $request->input('status')))
             ->ordered()
@@ -38,7 +46,10 @@ class CatalogCategoryController extends Controller
             'filters' => [
                 'search' => $request->input('search'),
                 'status' => $request->input('status'),
+                'branch' => $request->input('branch'),
             ],
+            'branches' => $this->cataloguePickerBranches($request),
+            'ownBranchId' => $this->isCatalogueSuperAdmin($request) ? null : $this->catalogueWriteScope($request),
         ]);
     }
 
@@ -79,19 +90,29 @@ class CatalogCategoryController extends Controller
     }
 
     /**
-     * Export the whole catalogue (categories → subcategories → prices) as a
-     * single flat Excel sheet.
+     * Export the catalogue (categories → subcategories → prices) as a single
+     * flat Excel sheet, holding **the rows the user owns** — a branch admin
+     * gets their branch's, the super admin the general ones or a branch's,
+     * following the filter on screen (تاسك 47). Exporting what you own rather
+     * than what you see is what lets the sheet be re-imported unchanged: an
+     * effective view would copy inherited rows into branch-owned duplicates
+     * and silently cut the branch off from later general edits.
      */
-    public function export(): BinaryFileResponse
+    public function export(Request $request): BinaryFileResponse
     {
         Gate::authorize('viewAny', CatalogCategory::class);
 
-        return Excel::download(new CatalogueExport, 'catalogue-'.now()->format('Y-m-d').'.xlsx');
+        $branchId = $this->catalogueWriteScope($request);
+
+        return Excel::download(
+            new CatalogueExport($branchId),
+            'catalogue-'.($branchId ? 'branch-'.$branchId.'-' : '').now()->format('Y-m-d').'.xlsx',
+        );
     }
 
     /**
-     * Import a full-catalogue sheet. Upsert-only: creates or updates
-     * categories, subcategories and prices; never deletes.
+     * Import a full-catalogue sheet into the scope the user owns. Upsert-only:
+     * creates or updates categories, subcategories and prices; never deletes.
      */
     public function import(Request $request): RedirectResponse
     {
@@ -101,7 +122,7 @@ class CatalogCategoryController extends Controller
             'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
         ]);
 
-        Excel::import(new CatalogueImport, $request->file('file'));
+        Excel::import(new CatalogueImport($this->catalogueWriteScope($request)), $request->file('file'));
 
         return back(fallback: route('admin.catalogue.categories.index'));
     }

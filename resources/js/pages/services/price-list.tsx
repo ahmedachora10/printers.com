@@ -1,12 +1,18 @@
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
 import { cn, formatSar } from '@/lib/utils';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { type PublicCategory, type PublicPrice, type PublicSubcategory } from '@/types/catalogue';
-import { Head, usePage } from '@inertiajs/react';
+import {
+    type CatalogueBranchOption,
+    type PublicCategory,
+    type PublicPrice,
+    type PublicSubcategory,
+} from '@/types/catalogue';
+import { Head, router, usePage } from '@inertiajs/react';
 import { ChevronDown, Printer, Search, Tags } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -34,9 +40,15 @@ const PRINT_CSS = `
 
 interface Props {
     categories: PublicCategory[];
+    /** Super admin only — everyone else reads their own branch's prices (تاسك 47). */
+    branches: CatalogueBranchOption[] | null;
+    selectedBranchId: number | null;
 }
 
-export default function ServicePriceList({ categories }: Props) {
+/** Sentinel for "general prices" — a Select cannot carry a null value. */
+const GENERAL = 'general';
+
+export default function ServicePriceList({ categories, branches, selectedBranchId }: Props) {
     const { auth } = usePage<SharedData>().props;
     const [search, setSearch] = useState('');
     const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
@@ -74,6 +86,12 @@ export default function ServicePriceList({ categories }: Props) {
         [filtered],
     );
 
+    // The sheet must name the list it prints: staff print their own branch,
+    // the super admin prints whichever one they picked.
+    const listOwner = branches
+        ? (branches.find((b) => b.id === selectedBranchId)?.name ?? 'الأسعار العامة')
+        : (auth.branch?.name ?? 'مركز الناسخ للطباعة');
+
     function toggleCategory(id: number) {
         setCollapsed((prev) => {
             const next = new Set(prev);
@@ -102,6 +120,32 @@ export default function ServicePriceList({ categories }: Props) {
                     </div>
 
                     <div className="flex items-center gap-2">
+                        {/* The super admin belongs to no branch, so they pick the
+                            list they want to read; staff never see this. */}
+                        {branches && (
+                            <Select
+                                value={selectedBranchId === null ? GENERAL : String(selectedBranchId)}
+                                onValueChange={(value) =>
+                                    router.get(
+                                        '/services/price-list',
+                                        value === GENERAL ? {} : { branch: value },
+                                        { preserveState: false, replace: true },
+                                    )
+                                }
+                            >
+                                <SelectTrigger className="w-44">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={GENERAL}>الأسعار العامة</SelectItem>
+                                    {branches.map((branch) => (
+                                        <SelectItem key={branch.id} value={String(branch.id)}>
+                                            {branch.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
                         <div className="relative w-full sm:w-64">
                             <Search className="pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
@@ -122,7 +166,7 @@ export default function ServicePriceList({ categories }: Props) {
                 <div id="price-list-print" className="space-y-4">
                     {/* Paper header — only ever rendered on the printed sheet. */}
                     <div className="hidden print:mb-4 print:block print:text-center">
-                        <h2 className="text-lg font-bold">{auth.branch?.name ?? 'مركز الناسخ للطباعة'}</h2>
+                        <h2 className="text-lg font-bold">{listOwner}</h2>
                         <p className="text-sm">قائمة أسعار الخدمات</p>
                     </div>
 
@@ -205,7 +249,14 @@ function SubcategoryBlock({ subcategory }: { subcategory: PublicSubcategory }) {
                     <TableBody>
                         {subcategory.prices.map((price) => (
                             <TableRow key={price.id} className="hover:bg-muted/30">
-                                <TableCell className="py-2.5 text-sm font-medium">{price.name}</TableCell>
+                                <TableCell className="py-2.5 text-sm font-medium">
+                                    {price.name}
+                                    {price.isBranchPrice && (
+                                        <span className="ms-2 rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-normal text-primary print:hidden">
+                                            سعر الفرع
+                                        </span>
+                                    )}
+                                </TableCell>
                                 <TableCell className="py-2.5 text-sm font-semibold">{formatSar(price.basePrice)}</TableCell>
                                 <TableCell className="py-2.5 text-sm text-muted-foreground">
                                     <PriceRange price={price} />

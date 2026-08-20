@@ -1,6 +1,14 @@
 import priceRoutes from '@/actions/App/Http/Controllers/CatalogPriceController';
 import subcategoryRoutes from '@/actions/App/Http/Controllers/CatalogSubcategoryController';
 import PriceFormModal from '@/components/catalogue/price-form-modal';
+import {
+    branchFilterOptions,
+    canEditRow,
+    defaultBranchFor,
+    scopeHint,
+    ScopeBadge,
+    type CatalogueScope,
+} from '@/components/catalogue/scope';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
@@ -20,17 +28,19 @@ import { Link, router } from '@inertiajs/react';
 import { Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
-interface Props {
+interface Props extends CatalogueScope {
     subcategory: CatalogSubcategory & { categoryId: number };
     prices: Paginated<CatalogPrice>;
-    filters: { search?: string; status?: string };
+    filters: { search?: string; status?: string; branch?: string };
 }
 
 function formatSar(value: number): string {
     return `${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
 }
 
-export default function CatalogPricesIndex({ subcategory, prices, filters }: Props) {
+export default function CatalogPricesIndex({ subcategory, prices, filters, branches, ownBranchId }: Props) {
+    const scope: CatalogueScope = { branches, ownBranchId };
+
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'دليل الخدمات', href: '/admin/catalogue' },
         { title: subcategory.nameAr, href: priceRoutes.index.url(subcategory.id) },
@@ -66,9 +76,11 @@ export default function CatalogPricesIndex({ subcategory, prices, filters }: Pro
     function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
         if (!file) return;
+        // The branch filter travels with the file: it is what decides whether
+        // the sheet lands on the general prices or on one branch's (تاسك 47).
         router.post(
             priceRoutes.import.url(subcategory.id),
-            { file },
+            { file, branch: filterValues.branch },
             { forceFormData: true, preserveScroll: true, onFinish: () => { if (importInputRef.current) importInputRef.current.value = ''; } },
         );
     }
@@ -76,6 +88,11 @@ export default function CatalogPricesIndex({ subcategory, prices, filters }: Pro
     const columns = useMemo<ColumnDef<CatalogPrice>[]>(
         () => [
             { key: 'name', header: 'الاسم', cell: (p) => <span className="font-medium">{p.name}</span> },
+            {
+                key: 'owner',
+                header: 'النطاق',
+                cell: (p) => <ScopeBadge branchId={p.branchId} branchName={p.branchName} />,
+            },
             {
                 key: 'range',
                 header: 'نطاق السعر',
@@ -91,7 +108,7 @@ export default function CatalogPricesIndex({ subcategory, prices, filters }: Pro
                 key: 'isActive',
                 header: 'الحالة',
                 cell: (p) => (
-                    <button onClick={() => handleToggle(p)} className="cursor-pointer">
+                    <button onClick={() => canEditRow(scope, p.branchId) && handleToggle(p)} disabled={!canEditRow(scope, p.branchId)} className="cursor-pointer disabled:cursor-default">
                         {p.isActive ? (
                             <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
                                 <span className="inline-block size-1.5 rounded-full bg-green-500" />
@@ -110,57 +127,67 @@ export default function CatalogPricesIndex({ subcategory, prices, filters }: Pro
                 key: 'actions',
                 header: '',
                 headerClassName: 'w-24',
-                cell: (p) => (
-                    <div className="flex items-center justify-end gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(p)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setDeleting(p)}
-                        >
-                            <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                    </div>
-                ),
+                cell: (p) =>
+                    canEditRow(scope, p.branchId) ? (
+                        <div className="flex items-center justify-end gap-2">
+                            <Button variant="outline" size="sm" onClick={() => openEdit(p)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setDeleting(p)}
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    ) : (
+                        <span className="block text-end text-xs text-muted-foreground">للقراءة فقط</span>
+                    ),
             },
         ],
-        [],
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [branches, ownBranchId],
     );
 
     const [search, setSearch] = useState(filters.search ?? '');
-    const [filterValues, setFilterValues] = useState<Record<string, string>>({ status: filters.status ?? '' });
+    const [filterValues, setFilterValues] = useState<Record<string, string>>({
+        status: filters.status ?? '',
+        branch: filters.branch ?? '',
+    });
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
     const listUrl = priceRoutes.index.url(subcategory.id);
+
+    // Export exactly the scope on screen, so the sheet round-trips back into it.
+    const exportUrl = filterValues.branch
+        ? `${priceRoutes.export.url(subcategory.id)}?branch=${filterValues.branch}`
+        : priceRoutes.export.url(subcategory.id);
+
+    const buildQuery = (values: Record<string, string>, term: string) => ({
+        ...(term && { search: term }),
+        ...(values.status && { status: values.status }),
+        ...(values.branch && { branch: values.branch }),
+    });
 
     const handleSearchChange = (value: string) => {
         setSearch(value);
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         searchTimeout.current = setTimeout(() => {
-            router.get(
-                listUrl,
-                { ...(value && { search: value }), ...(filterValues.status && { status: filterValues.status }) },
-                { preserveState: true, replace: true },
-            );
+            router.get(listUrl, buildQuery(filterValues, value), { preserveState: true, replace: true });
         }, 400);
     };
 
     const handleFilterChange = (key: string, val: string) => {
         const next = { ...filterValues, [key]: val };
         setFilterValues(next);
-        router.get(
-            listUrl,
-            { ...(search && { search }), ...(next.status && { status: next.status }) },
-            { preserveState: true, replace: true },
-        );
+        router.get(listUrl, buildQuery(next, search), { preserveState: true, replace: true });
     };
 
     const handleClearAll = () => {
         setSearch('');
-        setFilterValues({ status: '' });
+        setFilterValues({ status: '', branch: '' });
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         router.get(listUrl, {}, { preserveState: true, replace: true });
     };
@@ -171,7 +198,15 @@ export default function CatalogPricesIndex({ subcategory, prices, filters }: Pro
                 <div className="mb-6 flex items-center justify-between">
                     <div>
                         <h1 className="text-2xl font-bold">بنود الأسعار</h1>
-                        <p className="text-sm text-muted-foreground">الخدمة: {subcategory.nameAr}</p>
+                        <p className="text-sm text-muted-foreground">
+                            الخدمة: {subcategory.nameAr}
+                            {' — '}
+                            {scopeHint(
+                                scope,
+                                'الأسعار العامة تسري على كل الفروع، وسعر الفرع يعلو عليها.',
+                                'ما تضيفه هنا سعر فرعك وحده، والأسعار العامة للقراءة فقط.',
+                            )}
+                        </p>
                     </div>
                     <Button variant="outline" size="sm" asChild>
                         <Link href={subcategoryRoutes.index.url(subcategory.categoryId)}>العودة للخدمات</Link>
@@ -193,6 +228,7 @@ export default function CatalogPricesIndex({ subcategory, prices, filters }: Pro
                                     { value: '0', label: 'غير نشط' },
                                 ],
                             },
+                            ...branchFilterOptions(scope),
                         ]}
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
@@ -210,7 +246,7 @@ export default function CatalogPricesIndex({ subcategory, prices, filters }: Pro
                                     <Upload className="size-4" /> استيراد
                                 </Button>
                                 <Button variant="outline" size="sm" asChild>
-                                    <a href={priceRoutes.export.url(subcategory.id)}>
+                                    <a href={exportUrl}>
                                         <Download className="size-4" /> تصدير
                                     </a>
                                 </Button>
@@ -255,6 +291,8 @@ export default function CatalogPricesIndex({ subcategory, prices, filters }: Pro
                 onOpenChange={setFormOpen}
                 subcategoryId={subcategory.id}
                 price={editing ?? undefined}
+                branches={branches}
+                defaultBranchId={defaultBranchFor(scope, filterValues.branch)}
             />
         </AppLayout>
     );

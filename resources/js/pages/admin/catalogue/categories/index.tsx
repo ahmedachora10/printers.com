@@ -1,6 +1,14 @@
 import categoryRoutes from '@/actions/App/Http/Controllers/CatalogCategoryController';
 import subcategoryRoutes from '@/actions/App/Http/Controllers/CatalogSubcategoryController';
 import CategoryFormModal from '@/components/catalogue/category-form-modal';
+import {
+    branchFilterOptions,
+    canEditRow,
+    defaultBranchFor,
+    scopeHint,
+    ScopeBadge,
+    type CatalogueScope,
+} from '@/components/catalogue/scope';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
@@ -22,23 +30,34 @@ import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'دليل الخدمات', href: '/admin/catalogue' }];
 
-interface Props {
+interface Props extends CatalogueScope {
     categories: Paginated<CatalogCategory>;
-    filters: { search?: string; status?: string };
+    filters: { search?: string; status?: string; branch?: string };
 }
 
-export default function CatalogCategoriesIndex({ categories, filters }: Props) {
+export default function CatalogCategoriesIndex({ categories, filters, branches, ownBranchId }: Props) {
+    const scope: CatalogueScope = { branches, ownBranchId };
+
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<CatalogCategory | null>(null);
     const [deleting, setDeleting] = useState<CatalogCategory | null>(null);
     const importInputRef = useRef<HTMLInputElement>(null);
 
+    const [search, setSearch] = useState(filters.search ?? '');
+    const [filterValues, setFilterValues] = useState<Record<string, string>>({
+        status: filters.status ?? '',
+        branch: filters.branch ?? '',
+    });
+    const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+
     function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
         if (!file) return;
+        // The branch filter rides along with the file: it is what decides
+        // whether the sheet lands on the shared catalogue or on one branch.
         router.post(
             categoryRoutes.import.url(),
-            { file },
+            { file, branch: filterValues.branch },
             {
                 forceFormData: true,
                 preserveScroll: true,
@@ -92,6 +111,11 @@ export default function CatalogCategoriesIndex({ categories, filters }: Props) {
                 cell: (c) => <span className="font-medium">{c.nameAr}</span>,
             },
             {
+                key: 'owner',
+                header: 'النطاق',
+                cell: (c) => <ScopeBadge branchId={c.branchId} branchName={c.branchName} />,
+            },
+            {
                 key: 'subcategoriesCount',
                 header: 'الخدمات الفرعية',
                 cell: (c) => <span className="text-muted-foreground">{c.subcategoriesCount ?? 0}</span>,
@@ -105,7 +129,11 @@ export default function CatalogCategoriesIndex({ categories, filters }: Props) {
                 key: 'isActive',
                 header: 'الحالة',
                 cell: (c) => (
-                    <button onClick={() => handleToggle(c)} className="cursor-pointer">
+                    <button
+                        onClick={() => canEditRow(scope, c.branchId) && handleToggle(c)}
+                        disabled={!canEditRow(scope, c.branchId)}
+                        className="cursor-pointer disabled:cursor-default"
+                    >
                         {c.isActive ? (
                             <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
                                 <span className="inline-block size-1.5 rounded-full bg-green-500" />
@@ -131,62 +159,77 @@ export default function CatalogCategoriesIndex({ categories, filters }: Props) {
                                 <Layers className="h-3.5 w-3.5" /> الخدمات
                             </Link>
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => openEdit(c)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setDeleting(c)}
-                        >
-                            <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {canEditRow(scope, c.branchId) ? (
+                            <>
+                                <Button variant="outline" size="sm" onClick={() => openEdit(c)}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-destructive hover:text-destructive"
+                                    onClick={() => setDeleting(c)}
+                                >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                            </>
+                        ) : (
+                            <span className="text-xs text-muted-foreground">عامة</span>
+                        )}
                     </div>
                 ),
             },
         ],
-        [],
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+        [branches, ownBranchId],
     );
 
-    const [search, setSearch] = useState(filters.search ?? '');
-    const [filterValues, setFilterValues] = useState<Record<string, string>>({ status: filters.status ?? '' });
-    const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+    const buildQuery = (values: Record<string, string>, term: string) => ({
+        ...(term && { search: term }),
+        ...(values.status && { status: values.status }),
+        ...(values.branch && { branch: values.branch }),
+    });
 
     const handleSearchChange = (value: string) => {
         setSearch(value);
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         searchTimeout.current = setTimeout(() => {
-            router.get(
-                categoryRoutes.index.url(),
-                { ...(value && { search: value }), ...(filterValues.status && { status: filterValues.status }) },
-                { preserveState: true, replace: true },
-            );
+            router.get(categoryRoutes.index.url(), buildQuery(filterValues, value), { preserveState: true, replace: true });
         }, 400);
     };
 
     const handleFilterChange = (key: string, val: string) => {
         const next = { ...filterValues, [key]: val };
         setFilterValues(next);
-        router.get(
-            categoryRoutes.index.url(),
-            { ...(search && { search }), ...(next.status && { status: next.status }) },
-            { preserveState: true, replace: true },
-        );
+        router.get(categoryRoutes.index.url(), buildQuery(next, search), { preserveState: true, replace: true });
     };
 
     const handleClearAll = () => {
         setSearch('');
-        setFilterValues({ status: '' });
+        setFilterValues({ status: '', branch: '' });
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         router.get(categoryRoutes.index.url(), {}, { preserveState: true, replace: true });
     };
+
+    // Export exactly the scope on screen, so the sheet round-trips back into it.
+    const exportUrl = filterValues.branch
+        ? `${categoryRoutes.export.url()}?branch=${filterValues.branch}`
+        : categoryRoutes.export.url();
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
                 <div className="mb-6 flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">دليل الخدمات — الفئات</h1>
+                    <div>
+                        <h1 className="text-2xl font-bold">دليل الخدمات — الفئات</h1>
+                        <p className="text-sm text-muted-foreground">
+                            {scopeHint(
+                                scope,
+                                'الفئات العامة يراها كل فرع، وما تضيفه لفرع بعينه لا يظهر إلا فيه.',
+                                'تضيف فئات فرعك وتحرّرها، والفئات العامة تراها ولا تعدّلها.',
+                            )}
+                        </p>
+                    </div>
                 </div>
 
                 <div className="mb-6">
@@ -204,6 +247,7 @@ export default function CatalogCategoriesIndex({ categories, filters }: Props) {
                                     { value: '0', label: 'غير نشط' },
                                 ],
                             },
+                            ...branchFilterOptions(scope),
                         ]}
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
@@ -221,7 +265,7 @@ export default function CatalogCategoriesIndex({ categories, filters }: Props) {
                                     <Upload className="size-4" /> استيراد الكل
                                 </Button>
                                 <Button variant="outline" size="sm" asChild>
-                                    <a href={categoryRoutes.export.url()}>
+                                    <a href={exportUrl}>
                                         <Download className="size-4" /> تصدير الكل
                                     </a>
                                 </Button>
@@ -267,6 +311,8 @@ export default function CatalogCategoriesIndex({ categories, filters }: Props) {
                 open={formOpen}
                 onOpenChange={setFormOpen}
                 category={editing ?? undefined}
+                branches={branches}
+                defaultBranchId={defaultBranchFor(scope, filterValues.branch)}
             />
         </AppLayout>
     );

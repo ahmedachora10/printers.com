@@ -9,12 +9,17 @@ use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
 class CatalogPricesImport implements ToCollection, WithHeadingRow
 {
-    public function __construct(private readonly int $subcategoryId) {}
+    public function __construct(
+        private readonly int $subcategoryId,
+        private readonly ?int $branchId = null,
+    ) {}
 
     /**
-     * Upsert rows on (subcategory_id, name). Expected headings (Arabic or
-     * English): الاسم/name, أقل_سعر/min_price, أعلى_سعر/max_price,
-     * السعر_الأساسي/base_price.
+     * Upsert rows on (subcategory_id, branch_id, name) — a null branch writes
+     * the general prices, a branch id writes that branch's own list (تاسك 47).
+     *
+     * Expected headings (Arabic or English): الاسم/name, أقل_سعر/min_price,
+     * أعلى_سعر/max_price, السعر_الأساسي/base_price.
      *
      * @param  Collection<int, Collection<string, mixed>>  $rows
      */
@@ -32,7 +37,7 @@ class CatalogPricesImport implements ToCollection, WithHeadingRow
             $base = (float) ($row['base_price'] ?? $row['السعر_الاساسي'] ?? $row['السعر_الأساسي'] ?? 0);
 
             CatalogPrice::updateOrCreate(
-                ['subcategory_id' => $this->subcategoryId, 'name' => $name],
+                ['subcategory_id' => $this->subcategoryId, 'branch_id' => $this->branchId, 'name' => $name],
                 [
                     'min_price' => $min,
                     'max_price' => max($max, $min),

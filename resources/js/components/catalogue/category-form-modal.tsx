@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { ImageUpload } from '@/components/ui/image-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { type CatalogCategory } from '@/types/catalogue';
+import { BranchScopeField } from '@/components/catalogue/scope';
+import { type CatalogCategory, type CatalogueBranchOption } from '@/types/catalogue';
 import { router, useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
 
@@ -14,34 +15,42 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     category?: CatalogCategory;
+    /** Super admin only: pick the owning branch, or null for a general category (تاسك 47). */
+    branches?: CatalogueBranchOption[] | null;
+    defaultBranchId?: number | null;
 }
 
-export default function CategoryFormModal({ open, onOpenChange, category }: Props) {
+export default function CategoryFormModal({
+    open,
+    onOpenChange,
+    category,
+    branches = null,
+    defaultBranchId = null,
+}: Props) {
     const isEdit = !!category;
 
     const { data, setData, post, processing, errors, reset, setError, clearErrors } = useForm<{
         name_ar: string;
+        branch_id: number | null;
         sort_order: number;
         is_active: boolean;
         image: File | null;
     }>({
         name_ar: category?.nameAr ?? '',
+        branch_id: category?.branchId ?? defaultBranchId,
         sort_order: category?.sortOrder ?? 0,
         is_active: category?.isActive ?? true,
         image: null,
     });
 
     useEffect(() => {
-        if (category) {
-            setData({
-                name_ar: category.nameAr ?? '',
-                sort_order: category.sortOrder ?? 0,
-                is_active: category.isActive ?? true,
-                image: null,
-            });
-        } else {
-            reset();
-        }
+        setData({
+            name_ar: category?.nameAr ?? '',
+            branch_id: category?.branchId ?? defaultBranchId,
+            sort_order: category?.sortOrder ?? 0,
+            is_active: category?.isActive ?? true,
+            image: null,
+        });
         clearErrors();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [category, open]);
@@ -76,6 +85,18 @@ export default function CategoryFormModal({ open, onOpenChange, category }: Prop
                 </DialogHeader>
 
                 <form id="category-form" onSubmit={handleSubmit} className="space-y-4 py-2">
+                    {/* A row never changes owner, so the picker only shows while creating. */}
+                    {!isEdit && (
+                        <BranchScopeField
+                            id="cat-branch"
+                            branches={branches}
+                            value={data.branch_id}
+                            onChange={(branchId) => setData('branch_id', branchId)}
+                            error={errors.branch_id}
+                            hint="الفئة العامة يراها كل الفروع؛ وفئة الفرع لا تظهر إلا فيه."
+                        />
+                    )}
+
                     <div className="space-y-1">
                         <Label>الصورة</Label>
                         <ImageUpload

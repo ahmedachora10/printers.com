@@ -92,8 +92,15 @@ Route::middleware(['auth'])->group(function () {
             ->only(['store', 'update', 'destroy']);
         Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
             ->name('payment-methods.toggle-status');
+    });
 
-        // M20 — Catalogue CRUD (admin).
+    // M20 + تاسك 47 — every branch builds its own catalogue. The whole module
+    // is open to the branch admin, and ownership (not the route) is what
+    // confines them: the policies let them touch only the rows their branch
+    // wrote, and the Form Requests pin `branch_id` to their branch so a
+    // hand-rolled request cannot reach into the shared catalogue or another
+    // branch.
+    Route::middleware('role:branch-admin|super-admin')->group(function () {
         Route::prefix('admin/catalogue')->name('admin.catalogue.')->group(function () {
             // Full-catalogue Excel export / import (categories + subcategories + prices)
             Route::get('export', [CatalogCategoryController::class, 'export'])->name('export');

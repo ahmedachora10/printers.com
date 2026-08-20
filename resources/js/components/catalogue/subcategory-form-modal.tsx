@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { ImageUpload } from '@/components/ui/image-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { type CatalogSubcategory } from '@/types/catalogue';
+import { BranchScopeField } from '@/components/catalogue/scope';
+import { type CatalogSubcategory, type CatalogueBranchOption } from '@/types/catalogue';
 import { router, useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
 
@@ -15,19 +16,31 @@ interface Props {
     onOpenChange: (open: boolean) => void;
     categoryId: number;
     subcategory?: CatalogSubcategory;
+    /** Super admin only: pick the owning branch, or null for a general row (تاسك 47). */
+    branches?: CatalogueBranchOption[] | null;
+    defaultBranchId?: number | null;
 }
 
-export default function SubcategoryFormModal({ open, onOpenChange, categoryId, subcategory }: Props) {
+export default function SubcategoryFormModal({
+    open,
+    onOpenChange,
+    categoryId,
+    subcategory,
+    branches = null,
+    defaultBranchId = null,
+}: Props) {
     const isEdit = !!subcategory;
 
     const { data, setData, post, processing, errors, reset, setError, clearErrors } = useForm<{
         category_id: number;
+        branch_id: number | null;
         name_ar: string;
         sort_order: number;
         is_active: boolean;
         image: File | null;
     }>({
         category_id: categoryId,
+        branch_id: subcategory?.branchId ?? defaultBranchId,
         name_ar: subcategory?.nameAr ?? '',
         sort_order: subcategory?.sortOrder ?? 0,
         is_active: subcategory?.isActive ?? true,
@@ -37,6 +50,7 @@ export default function SubcategoryFormModal({ open, onOpenChange, categoryId, s
     useEffect(() => {
         setData({
             category_id: categoryId,
+            branch_id: subcategory?.branchId ?? defaultBranchId,
             name_ar: subcategory?.nameAr ?? '',
             sort_order: subcategory?.sortOrder ?? 0,
             is_active: subcategory?.isActive ?? true,
@@ -76,6 +90,18 @@ export default function SubcategoryFormModal({ open, onOpenChange, categoryId, s
                 </DialogHeader>
 
                 <form id="subcategory-form" onSubmit={handleSubmit} className="space-y-4 py-2">
+                    {/* A row never changes owner, so the picker only shows while creating. */}
+                    {!isEdit && (
+                        <BranchScopeField
+                            id="sub-branch"
+                            branches={branches}
+                            value={data.branch_id}
+                            onChange={(branchId) => setData('branch_id', branchId)}
+                            error={errors.branch_id}
+                            hint="الخدمة العامة يراها كل الفروع؛ وخدمة الفرع لا تظهر إلا فيه."
+                        />
+                    )}
+
                     <div className="space-y-1">
                         <Label>الصورة</Label>
                         <ImageUpload
