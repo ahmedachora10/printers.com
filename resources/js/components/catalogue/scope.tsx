@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type CatalogueBranchOption } from '@/types/catalogue';
+import { type ImportScope } from '@/types/import';
 
 /**
  * تاسك 47: every catalogue row — category, subcategory, price — belongs either
@@ -14,6 +15,8 @@ export interface CatalogueScope {
     branches: CatalogueBranchOption[] | null;
     /** Branch admin only: the branch whose rows they own. */
     ownBranchId: number | null;
+    /** Branch admin only: that branch's name, so the import dialog can name the destination. */
+    ownBranchName?: string | null;
 }
 
 /** Sentinel for the shared catalogue — a Select cannot carry a null value. */
@@ -123,4 +126,28 @@ export function BranchScopeField({
 /** The one-line explanation of what the user is allowed to write on this screen. */
 export function scopeHint(scope: CatalogueScope, general: string, own: string): string {
     return scope.branches ? general : own;
+}
+
+/**
+ * The import dialog's destination field, in catalogue terms: the super admin
+ * picks, everyone else is told. Same rule as BranchScopeField — a picker for a
+ * user whose branch the server pins would be a lie.
+ */
+export function catalogueImportScope(
+    scope: CatalogueScope,
+    value: string,
+    onChange: (value: string) => void,
+): ImportScope {
+    return {
+        options: scope.branches
+            ? [
+                  { value: GENERAL, label: 'عام — كل الفروع' },
+                  ...scope.branches.map((branch) => ({ value: String(branch.id), label: branch.name })),
+              ]
+            : null,
+        value: value || GENERAL,
+        onChange,
+        pinnedLabel: scope.ownBranchName ?? 'فرعك',
+        hint: 'كل صفوف الملف ستُنسب إلى هذه الجهة — الفئات والخدمات والأسعار الجديدة.',
+    };
 }

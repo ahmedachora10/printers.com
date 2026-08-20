@@ -108,6 +108,8 @@ Route::middleware(['auth'])->group(function () {
             Route::controller(CatalogCategoryController::class)
                 ->group(function () {
                     Route::get('export', 'export')->name('export');
+                    Route::get('import/template', 'importTemplate')->name('import.template');
+                    Route::post('import/preview', 'importPreview')->name('import.preview');
                     Route::post('import', 'import')->name('import');
 
                     // Categories
@@ -117,7 +119,6 @@ Route::middleware(['auth'])->group(function () {
                     Route::delete('categories/{category}', 'destroy')->name('categories.destroy');
                     Route::patch('categories/{category}/toggle-status', 'toggleStatus')->name('categories.toggle-status');
                 });
-
 
             // Subcategories (listed per category)
             Route::get('categories/{category}/subcategories', [CatalogSubcategoryController::class, 'index'])->name('subcategories.index');
@@ -129,6 +130,8 @@ Route::middleware(['auth'])->group(function () {
             // Prices (listed per subcategory)
             Route::get('subcategories/{subcategory}/prices', [CatalogPriceController::class, 'index'])->name('prices.index');
             Route::get('subcategories/{subcategory}/prices/export', [CatalogPriceController::class, 'export'])->name('prices.export');
+            Route::get('subcategories/{subcategory}/prices/import/template', [CatalogPriceController::class, 'importTemplate'])->name('prices.import.template');
+            Route::post('subcategories/{subcategory}/prices/import/preview', [CatalogPriceController::class, 'importPreview'])->name('prices.import.preview');
             Route::post('subcategories/{subcategory}/prices/import', [CatalogPriceController::class, 'import'])->name('prices.import');
             Route::post('prices', [CatalogPriceController::class, 'store'])->name('prices.store');
             Route::put('prices/{price}', [CatalogPriceController::class, 'update'])->name('prices.update');

@@ -183,7 +183,7 @@ describe('Full catalogue export/import (M20)', function () {
             ."تصوير,,,,,,\n";
 
         $this->post(route('admin.catalogue.import'), ['file' => makeCatalogueCsv($csv)])
-            ->assertRedirect();
+            ->assertOk();
 
         $this->assertDatabaseHas('catalog_categories', ['name_ar' => 'طباعة']);
         $this->assertDatabaseHas('catalog_categories', ['name_ar' => 'تصوير']);
@@ -197,7 +197,7 @@ describe('Full catalogue export/import (M20)', function () {
         $csvV1 = "category,subcategory,price_name,min,max,base,active\n"
             ."طباعة,كروت,كرت شخصي,10,25,15,1\n"
             ."طباعة,كروت,كرت فاخر,30,60,45,1\n";
-        $this->post(route('admin.catalogue.import'), ['file' => makeCatalogueCsv($csvV1)])->assertRedirect();
+        $this->post(route('admin.catalogue.import'), ['file' => makeCatalogueCsv($csvV1)])->assertOk();
 
         expect(CatalogCategory::where('name_ar', 'طباعة')->count())->toBe(1)
             ->and(CatalogPrice::where('name', 'كرت شخصي')->value('base_price'))->toEqual('15.00');
@@ -206,7 +206,7 @@ describe('Full catalogue export/import (M20)', function () {
         $csvV2 = "category,subcategory,price_name,min,max,base,active\n"
             ."طباعة,كروت,كرت شخصي,12,30,20,1\n"
             ."طباعة,كروت,كرت فاخر,30,60,45,1\n";
-        $this->post(route('admin.catalogue.import'), ['file' => makeCatalogueCsv($csvV2)])->assertRedirect();
+        $this->post(route('admin.catalogue.import'), ['file' => makeCatalogueCsv($csvV2)])->assertOk();
 
         // Upsert, not insert: counts stay the same, the price is updated.
         expect(CatalogCategory::where('name_ar', 'طباعة')->count())->toBe(1);

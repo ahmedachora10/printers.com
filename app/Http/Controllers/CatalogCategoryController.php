@@ -6,15 +6,17 @@ use App\Actions\CatalogCategory\CreateCatalogCategoryAction;
 use App\Actions\CatalogCategory\DeleteCatalogCategoryAction;
 use App\Actions\CatalogCategory\UpdateCatalogCategoryAction;
 use App\Exports\CatalogueExport;
+use App\Exports\ImportTemplateExport;
 use App\Http\Controllers\Concerns\ResolvesCatalogueScope;
+use App\Http\Controllers\Concerns\RunsExcelImports;
 use App\Http\Requests\CatalogCategory\StoreCatalogCategoryRequest;
 use App\Http\Requests\CatalogCategory\UpdateCatalogCategoryRequest;
 use App\Http\Resources\CatalogCategory\CatalogCategoryResource;
 use App\Imports\CatalogueImport;
 use App\Models\CatalogCategory;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -23,7 +25,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CatalogCategoryController extends Controller
 {
-    use ResolvesCatalogueScope;
+    use ResolvesCatalogueScope, RunsExcelImports;
 
     public function index(Request $request): Response
     {
@@ -48,6 +50,7 @@ class CatalogCategoryController extends Controller
             ],
             'branches' => $this->cataloguePickerBranches($request),
             'ownBranchId' => $this->isCatalogueSuperAdmin($request) ? null : $this->catalogueWriteScope($request),
+            'ownBranchName' => $this->catalogueOwnBranchName($request),
         ]);
     }
 
@@ -109,19 +112,37 @@ class CatalogCategoryController extends Controller
     }
 
     /**
-     * Import a full-catalogue sheet into the scope the user owns. Upsert-only:
-     * creates or updates categories, subcategories and prices; never deletes.
+     * What importing this sheet would do — read, reported, and rolled back.
+     * The user confirms from that report; nothing is written here.
      */
-    public function import(Request $request): RedirectResponse
+    public function importPreview(Request $request): JsonResponse
     {
         Gate::authorize('create', CatalogCategory::class);
 
-        $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
-        ]);
+        return $this->previewImport($request, fn (bool $dryRun) => new CatalogueImport($this->catalogueWriteScope($request), $dryRun));
+    }
 
-        Excel::import(new CatalogueImport($this->catalogueWriteScope($request)), $request->file('file'));
+    /**
+     * Import a full-catalogue sheet into the scope the user owns. Upsert-only:
+     * creates or updates categories, subcategories and prices; never deletes.
+     */
+    public function import(Request $request): JsonResponse
+    {
+        Gate::authorize('create', CatalogCategory::class);
 
-        return back(fallback: route('admin.catalogue.categories.index'));
+        return $this->commitImport($request, fn (bool $dryRun) => new CatalogueImport($this->catalogueWriteScope($request), $dryRun));
+    }
+
+    /** An empty sheet with the headings this import expects, and one example row. */
+    public function importTemplate(): BinaryFileResponse
+    {
+        Gate::authorize('create', CatalogCategory::class);
+
+        return Excel::download(
+            new ImportTemplateExport((new CatalogueExport)->headings(), [
+                ['طباعة رقمية', 'طباعة A4', 'ورق عادي — وجه واحد', '0.50', '1.00', '0.75', 1],
+            ]),
+            'catalogue-template.xlsx',
+        );
     }
 }

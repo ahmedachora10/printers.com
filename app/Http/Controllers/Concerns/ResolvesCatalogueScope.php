@@ -75,6 +75,21 @@ trait ResolvesCatalogueScope
     }
 
     /**
+     * The name of the branch a pinned user writes into — the import dialog
+     * tells them where the sheet will land instead of making them guess.
+     */
+    protected function catalogueOwnBranchName(Request $request): ?string
+    {
+        if ($this->isCatalogueSuperAdmin($request)) {
+            return null;
+        }
+
+        $branchId = $this->catalogueWriteScope($request);
+
+        return $branchId === null ? null : Branch::query()->whereKey($branchId)->value('name');
+    }
+
+    /**
      * Options for the super admin's branch picker, or null for everyone else —
      * a picker would be a lie for a user whose branch is pinned server-side.
      *

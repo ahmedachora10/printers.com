@@ -393,7 +393,7 @@ describe('branch-scoped full catalogue sheet', function () {
 
         $this->actingAs($this->branchAdmin)
             ->post(route('admin.catalogue.import'), ['file' => branchCatalogueCsv($csv)])
-            ->assertRedirect();
+            ->assertOk();
 
         // The shared category and subcategory were reused as they stand.
         expect(CatalogCategory::where('name_ar', 'طباعة')->count())->toBe(1)
@@ -416,7 +416,7 @@ describe('branch-scoped full catalogue sheet', function () {
 
         $this->actingAs($this->superAdmin)
             ->post(route('admin.catalogue.import'), ['file' => branchCatalogueCsv($csv)])
-            ->assertRedirect();
+            ->assertOk();
 
         expect(CatalogCategory::firstWhere('name_ar', 'دعاية')->branch_id)->toBeNull()
             ->and(CatalogPrice::firstWhere('name', 'بنر متر')->branch_id)->toBeNull();
@@ -433,7 +433,7 @@ describe('branch-scoped full catalogue sheet', function () {
             ->post(route('admin.catalogue.import'), [
                 'file' => branchCatalogueCsv($csv),
                 'branch' => (string) $this->otherBranch->id,
-            ])->assertRedirect();
+            ])->assertOk();
 
         expect(CatalogCategory::firstWhere('name_ar', 'دعاية')->branch_id)->toBe($this->otherBranch->id);
     });

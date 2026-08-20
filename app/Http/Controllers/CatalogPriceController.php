@@ -6,7 +6,9 @@ use App\Actions\CatalogPrice\CreateCatalogPriceAction;
 use App\Actions\CatalogPrice\DeleteCatalogPriceAction;
 use App\Actions\CatalogPrice\UpdateCatalogPriceAction;
 use App\Exports\CatalogPricesExport;
+use App\Exports\ImportTemplateExport;
 use App\Http\Controllers\Concerns\ResolvesCatalogueScope;
+use App\Http\Controllers\Concerns\RunsExcelImports;
 use App\Http\Requests\CatalogPrice\StoreCatalogPriceRequest;
 use App\Http\Requests\CatalogPrice\UpdateCatalogPriceRequest;
 use App\Http\Resources\CatalogPrice\CatalogPriceResource;
@@ -14,6 +16,7 @@ use App\Http\Resources\CatalogSubcategory\CatalogSubcategoryResource;
 use App\Imports\CatalogPricesImport;
 use App\Models\CatalogPrice;
 use App\Models\CatalogSubcategory;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -24,7 +27,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class CatalogPriceController extends Controller
 {
-    use ResolvesCatalogueScope;
+    use ResolvesCatalogueScope, RunsExcelImports;
 
     public function index(Request $request, CatalogSubcategory $subcategory): Response
     {
@@ -51,6 +54,7 @@ class CatalogPriceController extends Controller
             ],
             'branches' => $this->cataloguePickerBranches($request),
             'ownBranchId' => $this->isCatalogueSuperAdmin($request) ? null : $this->catalogueWriteScope($request),
+            'ownBranchName' => $this->catalogueOwnBranchName($request),
         ]);
     }
 
@@ -101,16 +105,40 @@ class CatalogPriceController extends Controller
         return Excel::download(new CatalogPricesExport($subcategory->id, $branchId), $filename);
     }
 
-    public function import(Request $request, CatalogSubcategory $subcategory): RedirectResponse
+    public function importPreview(Request $request, CatalogSubcategory $subcategory): JsonResponse
     {
         Gate::authorize('create', CatalogPrice::class);
 
-        $request->validate([
-            'file' => ['required', 'file', 'mimes:xlsx,xls,csv'],
-        ]);
+        return $this->previewImport($request, $this->priceImportFactory($request, $subcategory));
+    }
 
-        Excel::import(new CatalogPricesImport($subcategory->id, $this->catalogueWriteScope($request)), $request->file('file'));
+    public function import(Request $request, CatalogSubcategory $subcategory): JsonResponse
+    {
+        Gate::authorize('create', CatalogPrice::class);
 
-        return back();
+        return $this->commitImport($request, $this->priceImportFactory($request, $subcategory));
+    }
+
+    /** An empty sheet with the headings this import expects, and one example row. */
+    public function importTemplate(CatalogSubcategory $subcategory): BinaryFileResponse
+    {
+        Gate::authorize('create', CatalogPrice::class);
+
+        return Excel::download(
+            new ImportTemplateExport((new CatalogPricesExport($subcategory->id))->headings(), [
+                ['ورق عادي — وجه واحد', '0.50', '1.00', '0.75'],
+            ]),
+            'catalog-prices-template.xlsx',
+        );
+    }
+
+    /** @return callable(bool): CatalogPricesImport */
+    private function priceImportFactory(Request $request, CatalogSubcategory $subcategory): callable
+    {
+        return fn (bool $dryRun) => new CatalogPricesImport(
+            $subcategory->id,
+            $this->catalogueWriteScope($request),
+            $dryRun,
+        );
     }
 }

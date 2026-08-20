@@ -1,10 +1,13 @@
 import categoryRoutes from '@/actions/App/Http/Controllers/CatalogCategoryController';
 import subcategoryRoutes from '@/actions/App/Http/Controllers/CatalogSubcategoryController';
 import CategoryFormModal from '@/components/catalogue/category-form-modal';
+import ImportDialog from '@/components/import/import-dialog';
 import {
     branchFilterOptions,
     canEditRow,
+    catalogueImportScope,
     defaultBranchFor,
+    GENERAL,
     scopeHint,
     ScopeBadge,
     type CatalogueScope,
@@ -35,13 +38,13 @@ interface Props extends CatalogueScope {
     filters: { search?: string; status?: string; branch?: string };
 }
 
-export default function CatalogCategoriesIndex({ categories, filters, branches, ownBranchId }: Props) {
-    const scope: CatalogueScope = { branches, ownBranchId };
+export default function CatalogCategoriesIndex({ categories, filters, branches, ownBranchId, ownBranchName }: Props) {
+    const scope: CatalogueScope = { branches, ownBranchId, ownBranchName };
 
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<CatalogCategory | null>(null);
     const [deleting, setDeleting] = useState<CatalogCategory | null>(null);
-    const importInputRef = useRef<HTMLInputElement>(null);
+    const [importOpen, setImportOpen] = useState(false);
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
@@ -50,23 +53,10 @@ export default function CatalogCategoriesIndex({ categories, filters, branches, 
     });
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
-    function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        // The branch filter rides along with the file: it is what decides
-        // whether the sheet lands on the shared catalogue or on one branch.
-        router.post(
-            categoryRoutes.import.url(),
-            { file, branch: filterValues.branch },
-            {
-                forceFormData: true,
-                preserveScroll: true,
-                onFinish: () => {
-                    if (importInputRef.current) importInputRef.current.value = '';
-                },
-            },
-        );
-    }
+    // The destination the sheet lands on: the branch filter on screen is only
+    // the opening suggestion — the dialog asks, so an import can never land
+    // somewhere the user did not read out loud.
+    const [importBranch, setImportBranch] = useState(filters.branch ?? GENERAL);
 
     function openCreate() {
         setEditing(null);
@@ -254,14 +244,7 @@ export default function CatalogCategoriesIndex({ categories, filters, branches, 
                         onClearAll={handleClearAll}
                         actions={
                             <>
-                                <input
-                                    ref={importInputRef}
-                                    type="file"
-                                    accept=".xlsx,.xls,.csv"
-                                    className="sr-only"
-                                    onChange={handleImport}
-                                />
-                                <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()}>
+                                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                                     <Upload className="size-4" /> استيراد الكل
                                 </Button>
                                 <Button variant="outline" size="sm" asChild>
@@ -305,6 +288,19 @@ export default function CatalogCategoriesIndex({ categories, filters, branches, 
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ImportDialog
+                open={importOpen}
+                onOpenChange={setImportOpen}
+                title="استيراد دليل الخدمات"
+                description="ملف Excel واحد يحمل الفئات وخدماتها الفرعية وبنود أسعارها. الاستيراد يضيف ويحدّث فقط — لا يحذف أي بند قائم."
+                previewUrl={categoryRoutes.importPreview.url()}
+                commitUrl={categoryRoutes.import.url()}
+                templateUrl={categoryRoutes.importTemplate.url()}
+                payload={{ branch: importBranch }}
+                scope={catalogueImportScope(scope, importBranch, setImportBranch)}
+                onImported={() => router.reload()}
+            />
 
             <CategoryFormModal
                 key={editing?.id ?? 'create'}

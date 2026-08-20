@@ -4,11 +4,14 @@ import PriceFormModal from '@/components/catalogue/price-form-modal';
 import {
     branchFilterOptions,
     canEditRow,
+    catalogueImportScope,
     defaultBranchFor,
+    GENERAL,
     scopeHint,
     ScopeBadge,
     type CatalogueScope,
 } from '@/components/catalogue/scope';
+import ImportDialog from '@/components/import/import-dialog';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
@@ -38,8 +41,8 @@ function formatSar(value: number): string {
     return `${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
 }
 
-export default function CatalogPricesIndex({ subcategory, prices, filters, branches, ownBranchId }: Props) {
-    const scope: CatalogueScope = { branches, ownBranchId };
+export default function CatalogPricesIndex({ subcategory, prices, filters, branches, ownBranchId, ownBranchName }: Props) {
+    const scope: CatalogueScope = { branches, ownBranchId, ownBranchName };
 
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'دليل الخدمات', href: '/admin/catalogue' },
@@ -49,7 +52,9 @@ export default function CatalogPricesIndex({ subcategory, prices, filters, branc
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<CatalogPrice | null>(null);
     const [deleting, setDeleting] = useState<CatalogPrice | null>(null);
-    const importInputRef = useRef<HTMLInputElement>(null);
+    const [importOpen, setImportOpen] = useState(false);
+    // Opening suggestion only: the dialog asks where the sheet lands (تاسك 47).
+    const [importBranch, setImportBranch] = useState(filters.branch ?? GENERAL);
 
     function openCreate() {
         setEditing(null);
@@ -71,18 +76,6 @@ export default function CatalogPricesIndex({ subcategory, prices, filters, branc
             preserveScroll: true,
             onFinish: () => setDeleting(null),
         });
-    }
-
-    function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        // The branch filter travels with the file: it is what decides whether
-        // the sheet lands on the general prices or on one branch's (تاسك 47).
-        router.post(
-            priceRoutes.import.url(subcategory.id),
-            { file, branch: filterValues.branch },
-            { forceFormData: true, preserveScroll: true, onFinish: () => { if (importInputRef.current) importInputRef.current.value = ''; } },
-        );
     }
 
     const columns = useMemo<ColumnDef<CatalogPrice>[]>(
@@ -235,14 +228,7 @@ export default function CatalogPricesIndex({ subcategory, prices, filters, branc
                         onClearAll={handleClearAll}
                         actions={
                             <>
-                                <input
-                                    ref={importInputRef}
-                                    type="file"
-                                    accept=".xlsx,.xls,.csv"
-                                    className="sr-only"
-                                    onChange={handleImport}
-                                />
-                                <Button variant="outline" size="sm" onClick={() => importInputRef.current?.click()}>
+                                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                                     <Upload className="size-4" /> استيراد
                                 </Button>
                                 <Button variant="outline" size="sm" asChild>
@@ -284,6 +270,19 @@ export default function CatalogPricesIndex({ subcategory, prices, filters, branc
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ImportDialog
+                open={importOpen}
+                onOpenChange={setImportOpen}
+                title={`استيراد أسعار: ${subcategory.nameAr}`}
+                description="ملف Excel ببنود هذه الخدمة الفرعية وأسعارها. الاستيراد يضيف ويحدّث فقط — لا يحذف أي بند قائم."
+                previewUrl={priceRoutes.importPreview.url(subcategory.id)}
+                commitUrl={priceRoutes.import.url(subcategory.id)}
+                templateUrl={priceRoutes.importTemplate.url(subcategory.id)}
+                payload={{ branch: importBranch }}
+                scope={catalogueImportScope(scope, importBranch, setImportBranch)}
+                onImported={() => router.reload()}
+            />
 
             <PriceFormModal
                 key={editing?.id ?? 'create'}
