@@ -26,6 +26,8 @@ export interface BranchService {
     serviceTemplateName: string | null;
     baseCommissionPct: number;
     maxDiscountPct: number;
+    /** أعلى سعر بيع مسموح للموظف — null = مفتوح. لخدمة م² هو سقف سعر المتر. */
+    maxSellingPrice: number | null;
     pricingType: ServicePricingType;
     pricePerSqm: number;
     agentCommissionPerSqm: number;
@@ -47,6 +49,7 @@ export interface BranchServiceFormData {
     branch_id: number;
     base_commission_pct: number;
     max_discount_pct: number;
+    max_selling_price: number | null;
     pricing_type: ServicePricingType;
     price_per_sqm: number;
     agent_commission_per_sqm: number;
@@ -55,12 +58,13 @@ export interface BranchServiceFormData {
     has_materials: boolean;
     materials_cost: number;
     is_active: boolean;
-    [key: string]: number | boolean | ServicePricingType | string[];
+    [key: string]: number | boolean | ServicePricingType | string[] | null;
 }
 
 export interface BranchServiceUpdateData {
     base_commission_pct: number;
     max_discount_pct: number;
+    max_selling_price: number | null;
     pricing_type: ServicePricingType;
     price_per_sqm: number;
     agent_commission_per_sqm: number;
@@ -69,5 +73,5 @@ export interface BranchServiceUpdateData {
     has_materials: boolean;
     materials_cost: number;
     is_active: boolean;
-    [key: string]: number | boolean | ServicePricingType | string[];
+    [key: string]: number | boolean | ServicePricingType | string[] | null;
 }

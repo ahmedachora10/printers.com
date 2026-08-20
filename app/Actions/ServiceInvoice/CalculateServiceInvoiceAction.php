@@ -70,6 +70,11 @@ class CalculateServiceInvoiceAction
         // صاحب الفاتورة، فمسار التعديل يمرّر موظف الفاتورة لا من يعدّلها.
         $mayEditMaterials = $this->actorMayEditMaterials();
 
+        // سقف سعر البيع يلزم الموظف وحده؛ المحاسب ومدير الفرع يبيعان بما يريان.
+        // القرار — كقرار الخامات — يُقرأ من المستخدم الفاعل لا من صاحب الفاتورة،
+        // فتعديل المحاسب لفاتورة موظف لا يرثُ قيد الموظف.
+        $priceCapApplies = $this->actorBoundByPriceCap();
+
         $lines = [];
         $subtotal = 0.0;
 
@@ -120,6 +125,10 @@ class CalculateServiceInvoiceAction
                 $widthCm = null;
                 $heightCm = null;
                 $unitPrice = (float) $line['unit_price'];
+            }
+
+            if ($priceCapApplies) {
+                $this->assertPriceWithinCap($branchService, $unitPrice, $widthCm, $heightCm);
             }
 
             $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
@@ -368,6 +377,57 @@ class CalculateServiceInvoiceAction
     private function actorMayEditMaterials(): bool
     {
         return ! (auth()->user()?->roleName?->isEmployee() ?? false);
+    }
+
+    /**
+     * هل يخضع المستخدم الفاعل لسقف سعر البيع؟ الموظف وحده يخضع له — وهو نفسه
+     * المستخدم الذي يُمنع من تحرير الخامات.
+     */
+    private function actorBoundByPriceCap(): bool
+    {
+        return auth()->user()?->roleName?->isEmployee() ?? false;
+    }
+
+    /**
+     * يمنع البيع بأعلى من سقف الخدمة. السقف اختياري: خدمة بلا سقف (null) سعرها
+     * مفتوح كما كان دائماً، وكذلك سقف صفر أو أقل — لا يُقرأ «صفر» أمراً بالمجانية.
+     *
+     * ما يُقارَن بالسقف يتبع نوع التسعير: سعر الوحدة لخدمة بالوحدة، وسعر المتر
+     * الفعلي (السعر ÷ المساحة) لخدمة بالمتر المربع، إذ إن سعر القطعة هناك يكبر
+     * بكِبَر المقاس فلا يصلح لسقفٍ ثابت. المقارنة على منزلتين — نفس دقّة العمود
+     * المخزَّن — كي لا يُرفض سعرٌ يطابق السقف لفارقٍ في الفاصلة العائمة.
+     */
+    private function assertPriceWithinCap(BranchService $branchService, float $unitPrice, ?float $widthCm, ?float $heightCm): void
+    {
+        $cap = $branchService->max_selling_price !== null ? (float) $branchService->max_selling_price : null;
+
+        if ($cap === null || $cap <= 0) {
+            return;
+        }
+
+        $name = $branchService->serviceTemplate?->name;
+
+        if ($branchService->pricing_type === ServicePricingTypeEnum::Sqm) {
+            $area = (($widthCm ?? 0) / 100) * (($heightCm ?? 0) / 100);
+
+            if ($area <= 0) {
+                return;
+            }
+
+            if (round($unitPrice / $area, 2) > round($cap, 2)) {
+                throw ValidationException::withMessages([
+                    'lines' => "سعر المتر على \"{$name}\" يتجاوز الحد الأعلى المسموح (".number_format($cap, 2).' ر.س للمتر).',
+                ]);
+            }
+
+            return;
+        }
+
+        if (round($unitPrice, 2) > round($cap, 2)) {
+            throw ValidationException::withMessages([
+                'lines' => "سعر \"{$name}\" يتجاوز الحد الأعلى المسموح (".number_format($cap, 2).' ر.س).',
+            ]);
+        }
     }
 
     /**

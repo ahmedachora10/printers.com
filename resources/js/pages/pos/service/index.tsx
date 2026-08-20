@@ -97,6 +97,27 @@ const lineEffectivePricePerSqm = (line: ServiceCartLine) => {
 };
 
 /**
+ * سعر السطر مقيساً بسقف الخدمة: سعر الوحدة لخدمة بالوحدة، وسعر المتر الفعلي
+ * لخدمة بالمتر المربع — إذ إن سعر القطعة هناك يتبع المقاس. تُعاد null حين لا
+ * سقف للخدمة، أو لم تُدخَل الأبعاد بعد فلا شيء يُقاس.
+ */
+const linePriceAgainstCap = (line: ServiceCartLine): number | null => {
+    if (line.maxSellingPrice === null || line.maxSellingPrice <= 0) return null;
+    if (line.pricingType !== 'sqm') return round2(line.unitPrice);
+
+    const area = lineAreaSqm(line);
+
+    return area > 0 ? round2(line.unitPrice / area) : null;
+};
+
+/** هل تجاوز السطر سقف سعر الخدمة؟ يُقرَّب كما يقرّب الخادم — منزلتان. */
+const isLineOverPriceCap = (line: ServiceCartLine): boolean => {
+    const measured = linePriceAgainstCap(line);
+
+    return measured !== null && line.maxSellingPrice !== null && measured > round2(line.maxSellingPrice);
+};
+
+/**
  * تكلفة خامات السطر كاملة — المبلغ للوحدة مضروباً في الكمية، كما يفعل الخادم.
  * صفر حين يكون المفتاح مُطفأً حتى لو حملت الخدمة قيمة افتراضية.
  */
@@ -127,6 +148,17 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // تاسك 54: تكلفة الخامات تُخصم من عمولة الموظف، فيقرأها ولا يكتبها. القيمة
     // تأتي من تعريف الخدمة، والقيد الحقيقي على الخادم (CalculateServiceInvoiceAction).
     const canEditMaterials = !isEmployee;
+    /**
+     * سقف سعر البيع يلزم الموظف وحده — المحاسب ومدير الفرع يبيعان بما يريان،
+     * تماماً كما يقرّر الخادم. الرسالة تظهر تحت حقل السعر ويمنع الحفظ معها.
+     */
+    const priceCapError = (line: ServiceCartLine): string | null => {
+        if (!isEmployee || !isLineOverPriceCap(line)) return null;
+
+        const cap = formatCurrency(line.maxSellingPrice ?? 0);
+
+        return line.pricingType === 'sqm' ? `الحد الأعلى ${cap} للمتر` : `الحد الأعلى ${cap}`;
+    };
     const isEditing = !!invoice;
     const lineSeq = useRef(0);
     const [search, setSearch] = useState('');
@@ -145,6 +177,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 qty: l.qty,
                 discountPct: l.discountPct,
                 maxDiscountPct: l.maxDiscountPct,
+                maxSellingPrice: l.maxSellingPrice ?? null,
                 baseCommissionPct: l.baseCommissionPct,
                 isTahazir: l.isTahazir,
                 hasMaterials: l.hasMaterials ?? false,
@@ -345,6 +378,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     qty: 1,
                     discountPct: 0,
                     maxDiscountPct: s.maxDiscountPct,
+                    maxSellingPrice: s.maxSellingPrice ?? null,
                     baseCommissionPct: s.baseCommissionPct,
                     isTahazir: s.isTahazir,
                     hasMaterials: s.hasMaterials,
@@ -419,6 +453,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 qty: 1,
                 discountPct: 0,
                 maxDiscountPct: 0,
+                maxSellingPrice: null,
                 baseCommissionPct: 0,
                 isTahazir: false,
                 hasMaterials: false,
@@ -449,6 +484,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             name: s.name,
             noteExamples: s.noteExamples ?? [],
             maxDiscountPct: s.maxDiscountPct,
+            maxSellingPrice: s.maxSellingPrice ?? null,
             baseCommissionPct: s.baseCommissionPct,
             isTahazir: s.isTahazir,
             // الخامات تُعاد تعبئتها من الخدمة الجديدة — الخدمة تغيّرت فتغيّرت موادها.
@@ -581,6 +617,15 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             toast.error('أدخل العرض والطول لخدمات المتر المربع');
             return;
         }
+        const overCap = isEmployee ? cart.find(isLineOverPriceCap) : undefined;
+        if (overCap) {
+            toast.error(
+                `سعر "${overCap.name}" يتجاوز الحد الأعلى المسموح (${formatCurrency(overCap.maxSellingPrice ?? 0)}${
+                    overCap.pricingType === 'sqm' ? ' للمتر' : ''
+                })`,
+            );
+            return;
+        }
         // A bank-transfer method needs a receipt — unless editing an invoice that
         // already carries one and keeps the same method.
         if (requiresReceipt && !receipt && !(isEditing && invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
@@ -633,6 +678,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             router.post(service.store().url, { ...payload, status, print }, { ...options, onSuccess: () => resetForm() });
         }
     }
+
+    // سطر واحد فوق السقف يكفي لتعطيل الحفظ — لا تُرسَل فاتورة يرفضها الخادم.
+    const hasPriceCapViolation = isEmployee && cart.some(isLineOverPriceCap);
 
     const showResults = searchFocused && search.trim() !== '';
 
@@ -1027,7 +1075,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     <div className="space-y-2">
                         {isEditing ? (
                             <>
-                                <Button type="button" className="w-full" disabled={submitting || cart.length === 0} onClick={() => submit(false)}>
+                                <Button type="button" className="w-full" disabled={submitting || cart.length === 0 || hasPriceCapViolation} onClick={() => submit(false)}>
                                     <Save className="size-4" /> تحديث الفاتورة
                                 </Button>
                                 <Button
@@ -1042,14 +1090,14 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                             </>
                         ) : (
                             <>
-                                <Button type="button" className="w-full" disabled={submitting || cart.length === 0} onClick={() => submit(false)}>
+                                <Button type="button" className="w-full" disabled={submitting || cart.length === 0 || hasPriceCapViolation} onClick={() => submit(false)}>
                                     <Save className="size-4" /> حفظ الفاتورة
                                 </Button>
                                 <Button
                                     type="button"
                                     variant="outline"
                                     className="w-full"
-                                    disabled={submitting || cart.length === 0}
+                                    disabled={submitting || cart.length === 0 || hasPriceCapViolation}
                                     onClick={() => submit(true)}
                                 >
                                     <Printer className="size-4" /> طباعة وحفظ
@@ -1150,14 +1198,24 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                         </SelectContent>
                                     </Select>
                                 )}
-                                renderLineMeta={(line) =>
-                                    line.pricingType === 'sqm'
-                                        ? `عمولة ${line.baseCommissionPct}% • بالمتر المربع`
-                                        : `عمولة ${line.baseCommissionPct}%`
-                                }
+                                renderLineMeta={(line) => {
+                                    const parts = [`عمولة ${line.baseCommissionPct}%`];
+
+                                    if (line.pricingType === 'sqm') parts.push('بالمتر المربع');
+
+                                    // الموظف وحده مقيَّد بالسقف، فلا يُعرض على غيره حدٌّ لا يلزمه.
+                                    if (isEmployee && line.maxSellingPrice !== null && line.maxSellingPrice > 0) {
+                                        parts.push(
+                                            `الحد الأعلى ${formatCurrency(line.maxSellingPrice)}${line.pricingType === 'sqm' ? ' للمتر' : ''}`,
+                                        );
+                                    }
+
+                                    return parts.join(' • ');
+                                }}
                                 // حتى سطر المتر المربع قابل لتحرير سعره: المقاس يملأ
                                 // الحقل والكاشير يكتب فوقه عند الاتفاق على سعر آخر.
                                 isPriceEditable={() => true}
+                                getPriceError={priceCapError}
                                 getMaxDiscount={(line) => (line.maxDiscountPct > 0 ? line.maxDiscountPct : 100)}
                                 getLineTotal={lineTotal}
                                 onQtyChange={changeQty}
@@ -1279,6 +1337,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                             />
                                                         </LineField>
                                                     </div>
+                                                    {priceCapError(line) && (
+                                                        <p className="text-destructive text-[11px]">
+                                                            سعر المتر لهذا السطر {formatCurrency(lineEffectivePricePerSqm(line))} — والحد الأعلى
+                                                            المسموح {formatCurrency(line.maxSellingPrice ?? 0)} للمتر.
+                                                        </p>
+                                                    )}
                                                     {line.widthCm && line.heightCm ? (
                                                         <p className="text-muted-foreground text-[11px]">
                                                             المساحة {round2(lineAreaSqm(line))} م² — سعر المتر لهذا السطر{' '}
@@ -1470,7 +1534,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 total={total}
                 lineCount={cart.length}
                 saveLabel={isEditing ? 'تحديث الفاتورة' : 'حفظ الفاتورة'}
-                disabled={submitting || cart.length === 0}
+                disabled={submitting || cart.length === 0 || hasPriceCapViolation}
                 onSave={() => submit(false)}
             />
         </AppLayout>

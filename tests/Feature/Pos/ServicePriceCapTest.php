@@ -1,0 +1,202 @@
+<?php
+
+use App\Enums\Roles;
+use App\Models\Branch;
+use App\Models\BranchService;
+use App\Models\ServiceInvoice;
+use App\Models\ServiceTemplate;
+use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+
+uses(RefreshDatabase::class);
+
+/**
+ * سقف سعر البيع (أعلى سعر للبيع): خانة اختيارية على خدمة الفرع تمنع الموظف من
+ * البيع بأعلى منها، وتترك السعر مفتوحاً حين تُترك فارغة.
+ */
+function cappedService(array $attrs = []): BranchService
+{
+    $template = ServiceTemplate::factory()->create();
+
+    BranchService::create(array_merge([
+        'branch_id' => test()->branch->id,
+        'service_template_id' => $template->id,
+        'base_commission_pct' => 10,
+        'max_discount_pct' => 20,
+        'max_selling_price' => 150,
+        'is_tahazir' => false,
+        'is_active' => true,
+    ], $attrs));
+
+    // BranchService is a Pivot (non-incrementing) — re-fetch for the id.
+    return BranchService::where('branch_id', test()->branch->id)
+        ->where('service_template_id', $template->id)
+        ->firstOrFail();
+}
+
+/** A single-line DUE payload over the given service. */
+function capPayload(BranchService $service, array $lineAttrs = []): array
+{
+    return [
+        'status' => 'due',
+        'lines' => [array_merge([
+            'branch_service_id' => $service->id,
+            'qty' => 1,
+            'unit_price' => 100,
+            'discount_pct' => 0,
+        ], $lineAttrs)],
+    ];
+}
+
+describe('Max selling price cap', function () {
+    beforeEach(function () {
+        $this->withoutVite();
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $this->branch = Branch::factory()->create(['vat_rate_override' => 15.00]);
+
+        $this->employee = User::factory()->create(['branch_id' => $this->branch->id]);
+        $this->employee->addRole(Roles::EMPLOYEE->value);
+
+        // Branch admins are linked through branches.owner_id, not users.branch_id.
+        $this->branchAdmin = User::factory()->create();
+        $this->branchAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        $this->branch->update(['owner_id' => $this->branchAdmin->id]);
+
+        $this->actingAs($this->employee);
+    });
+
+    // ── الخدمات المسعّرة بالوحدة ────────────────────────────────────
+
+    it('blocks an employee selling above the cap', function () {
+        $service = cappedService();
+
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 151]))
+            ->assertSessionHasErrors('lines');
+
+        expect(ServiceInvoice::count())->toBe(0);
+    });
+
+    it('allows an employee selling exactly at the cap', function () {
+        $service = cappedService();
+
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 150]))
+            ->assertSessionHasNoErrors();
+
+        expect((float) ServiceInvoice::firstOrFail()->lines->firstOrFail()->unit_price)->toBe(150.00);
+    });
+
+    it('leaves the price open when no cap is set', function () {
+        $service = cappedService(['max_selling_price' => null]);
+
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 9999]))
+            ->assertSessionHasNoErrors();
+
+        expect((float) ServiceInvoice::firstOrFail()->lines->firstOrFail()->unit_price)->toBe(9999.00);
+    });
+
+    it('reads a zero cap as open, not as a demand for free work', function () {
+        $service = cappedService(['max_selling_price' => 0]);
+
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 500]))
+            ->assertSessionHasNoErrors();
+
+        expect(ServiceInvoice::count())->toBe(1);
+    });
+
+    it('does not bind a branch admin', function () {
+        $service = cappedService();
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('pos.service.store'), capPayload($service, ['unit_price' => 400]))
+            ->assertSessionHasNoErrors();
+
+        expect((float) ServiceInvoice::firstOrFail()->lines->firstOrFail()->unit_price)->toBe(400.00);
+    });
+
+    it('caps the line before any discount, so a discount cannot buy headroom', function () {
+        $service = cappedService();
+
+        // 200 مخصومةً 20% تنزل إلى 160، لكن السعر المكتوب هو ما يُقاس بالسقف.
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 200, 'discount_pct' => 20]))
+            ->assertSessionHasErrors('lines');
+    });
+
+    // ── الخدمات المسعّرة بالمتر المربع ──────────────────────────────
+
+    it('caps the price per square meter, not the price of the piece', function () {
+        $service = cappedService([
+            'pricing_type' => 'sqm',
+            'price_per_sqm' => 100,
+            'max_selling_price' => 150,
+        ]);
+
+        // 2م × 1م = 2 م². سعر قطعة 300 = 150 للمتر — عند السقف تماماً فيمرّ،
+        // مع أن رقم القطعة نفسه ضعف السقف.
+        $this->post(route('pos.service.store'), capPayload($service, [
+            'unit_price' => 300,
+            'width_cm' => 200,
+            'height_cm' => 100,
+        ]))->assertSessionHasNoErrors();
+
+        expect((float) ServiceInvoice::firstOrFail()->lines->firstOrFail()->unit_price)->toBe(300.00);
+    });
+
+    it('blocks a sqm line whose per-meter price exceeds the cap', function () {
+        $service = cappedService([
+            'pricing_type' => 'sqm',
+            'price_per_sqm' => 100,
+            'max_selling_price' => 150,
+        ]);
+
+        // 2 م² بسعر قطعة 320 = 160 للمتر > 150.
+        $this->post(route('pos.service.store'), capPayload($service, [
+            'unit_price' => 320,
+            'width_cm' => 200,
+            'height_cm' => 100,
+        ]))->assertSessionHasErrors('lines');
+
+        expect(ServiceInvoice::count())->toBe(0);
+    });
+
+    // ── تعريف الخدمة ────────────────────────────────────────────────
+
+    it('persists the cap from the branch service form and clears it when emptied', function () {
+        $template = ServiceTemplate::factory()->create();
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('branch-services.store'), [
+                'service_template_id' => $template->id,
+                'branch_id' => $this->branch->id,
+                'base_commission_pct' => 10,
+                'max_discount_pct' => 5,
+                'max_selling_price' => 250.50,
+            ])->assertSessionHasNoErrors();
+
+        $service = BranchService::where('service_template_id', $template->id)->firstOrFail();
+        expect((float) $service->max_selling_price)->toBe(250.50);
+
+        $this->actingAs($this->branchAdmin)
+            ->put(route('branch-services.update', $service->id), [
+                'base_commission_pct' => 10,
+                'max_discount_pct' => 5,
+                'max_selling_price' => '',
+            ])->assertSessionHasNoErrors();
+
+        expect($service->fresh()->max_selling_price)->toBeNull();
+    });
+
+    it('rejects a negative cap', function () {
+        $template = ServiceTemplate::factory()->create();
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('branch-services.store'), [
+                'service_template_id' => $template->id,
+                'branch_id' => $this->branch->id,
+                'base_commission_pct' => 10,
+                'max_discount_pct' => 5,
+                'max_selling_price' => -1,
+            ])->assertSessionHasErrors('max_selling_price');
+    });
+});

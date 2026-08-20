@@ -4,6 +4,7 @@ use App\Models\PaymentMethod;
 use App\Models\ServiceInvoice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Env;
 use Tests\TestCase;
 
 /*
@@ -102,3 +103,47 @@ function payable(ServiceInvoice $invoice): ServiceInvoice
 
     return $invoice->refresh();
 }
+
+/*
+|--------------------------------------------------------------------------
+| حاجز قاعدة بيانات الاختبارات
+|--------------------------------------------------------------------------
+|
+| `phpunit.xml` يوجّه الاختبارات إلى sqlite في الذاكرة (`:memory:`)، لكن
+| `RefreshDatabase` ينفّذ `migrate:fresh` على أي قاعدة يجدها. فلو بقي
+| `bootstrap/cache/config.php` قديماً — أو ظهر `.env.testing` يشير إلى ملف —
+| فستُمسح قاعدة التطوير `database/database.sqlite` بلا إنذار.
+|
+| لذلك نتحقّق قبل أي اختبار من القاعدة الفعلية التي سيراها التطبيق، ونوقف
+| التشغيل بدل مسح بيانات العمل.
+|
+*/
+(function (): void {
+    $cachedConfig = __DIR__.'/../bootstrap/cache/config.php';
+
+    if (file_exists($cachedConfig)) {
+        $config = require $cachedConfig;
+        $connection = $config['database']['default'] ?? null;
+        $database = $config['database']['connections'][$connection]['database'] ?? null;
+        $source = 'bootstrap/cache/config.php (إعدادات مخزَّنة)';
+    } else {
+        $connection = Env::get('DB_CONNECTION');
+        $database = Env::get('DB_DATABASE');
+        $source = 'phpunit.xml / متغيرات البيئة';
+    }
+
+    $isolated = $database === ':memory:'
+        || (is_string($database) && str_contains(strtolower($database), 'test'));
+
+    if ($isolated) {
+        return;
+    }
+
+    fwrite(STDERR, PHP_EOL.'  توقّفت الاختبارات: قاعدة البيانات ليست معزولة.'.PHP_EOL
+        .'  الاتصال: '.var_export($connection, true).'  |  القاعدة: '.var_export($database, true).PHP_EOL
+        .'  المصدر: '.$source.PHP_EOL
+        .'  تشغيل RefreshDatabase عليها يعني مسح بيانات العمل.'.PHP_EOL
+        .'  الحل: php artisan config:clear  ثم أعد التشغيل (المتوقع DB_DATABASE=:memory:).'.PHP_EOL.PHP_EOL);
+
+    exit(1);
+})();

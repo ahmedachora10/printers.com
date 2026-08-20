@@ -41,6 +41,9 @@ class StoreBranchServiceRequest extends FormRequest
             ],
             'base_commission_pct' => ['required', 'numeric', 'min:0', 'max:100'],
             'max_discount_pct' => ['required', 'numeric', 'min:0', 'max:100'],
+            // سقف سعر البيع (اختياري): فارغ = السعر مفتوح للموظف. معناه يتبع نوع
+            // التسعير — سعر الوحدة لخدمة بالوحدة، وسعر المتر لخدمة بالمتر المربع.
+            'max_selling_price' => ['nullable', 'numeric', 'min:0'],
             'pricing_type' => ['nullable', Rule::enum(ServicePricingTypeEnum::class)],
             'price_per_sqm' => ['nullable', 'required_if:pricing_type,sqm', 'numeric', 'min:0'],
             'agent_commission_per_sqm' => ['nullable', 'numeric', 'min:0'],

@@ -30,6 +30,11 @@ interface PosCartTableProps<T extends PosCartLineBase> {
     renderLineMeta: (line: T) => ReactNode;
     /** whether the unit price is editable (otherwise displayed read-only) */
     isPriceEditable: (line: T) => boolean;
+    /**
+     * رسالة خطأ على سعر السطر — تُلوّن الحقل وتُكتب تحته، ويمنعها المستدعي من
+     * الحفظ. تُعاد null حين لا شيء عليه (وهو الشائع).
+     */
+    getPriceError?: (line: T) => string | null;
     /** max allowed discount % for the line */
     getMaxDiscount: (line: T) => number;
     getLineTotal: (line: T) => number;
@@ -147,6 +152,7 @@ export function PosCartTable<T extends PosCartLineBase>({
     renderLineSelect,
     renderLineMeta,
     isPriceEditable,
+    getPriceError,
     getMaxDiscount,
     getLineTotal,
     renderQtyControl,
@@ -198,19 +204,28 @@ export function PosCartTable<T extends PosCartLineBase>({
             </div>
         );
 
-    const priceControl = (line: T) =>
-        isPriceEditable(line) ? (
-            <Input
-                type="number"
-                min={0}
-                step="0.01"
-                value={line.unitPrice}
-                onChange={(e) => onPriceChange(line, Math.max(0, Number(e.target.value) || 0))}
-                className="h-11 text-center md:h-8"
-            />
-        ) : (
-            <span className="flex h-11 items-center text-sm tabular-nums md:h-8 md:justify-center">{formatCurrency(line.unitPrice)}</span>
+    const priceControl = (line: T) => {
+        const priceError = getPriceError?.(line) ?? null;
+
+        if (!isPriceEditable(line)) {
+            return <span className="flex h-11 items-center text-sm tabular-nums md:h-8 md:justify-center">{formatCurrency(line.unitPrice)}</span>;
+        }
+
+        return (
+            <div className="space-y-1">
+                <Input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={line.unitPrice}
+                    onChange={(e) => onPriceChange(line, Math.max(0, Number(e.target.value) || 0))}
+                    aria-invalid={priceError ? true : undefined}
+                    className={cn('h-11 text-center md:h-8', priceError && 'border-destructive text-destructive focus-visible:ring-destructive')}
+                />
+                {priceError && <p className="text-destructive text-[11px] leading-tight">{priceError}</p>}
+            </div>
         );
+    };
 
     const qtyControl = (line: T) =>
         renderQtyControl?.(line) ?? <QuantityStepper qty={line.qty} onChange={(delta) => onQtyChange(line, delta)} />;

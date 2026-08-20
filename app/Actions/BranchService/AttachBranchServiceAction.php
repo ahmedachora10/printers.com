@@ -17,6 +17,8 @@ class AttachBranchServiceAction
             $serviceTemplate->branches()->attach($data['branch_id'], [
                 'base_commission_pct' => $data['base_commission_pct'],
                 'max_discount_pct' => $data['max_discount_pct'],
+                // فارغ = سعر مفتوح؛ لا يُحوَّل إلى صفر وإلا صار السقف صفراً.
+                'max_selling_price' => $data['max_selling_price'] ?? null,
                 'pricing_type' => $data['pricing_type'] ?? 'unit',
                 'price_per_sqm' => $data['price_per_sqm'] ?? 0,
                 'agent_commission_per_sqm' => $data['agent_commission_per_sqm'] ?? 0,

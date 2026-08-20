@@ -99,6 +99,7 @@ class ServiceInvoiceController extends Controller
                         'unitPrice' => (float) $line->unit_price,
                         'discountPct' => (float) $line->discount_pct,
                         'maxDiscountPct' => (float) ($service['maxDiscountPct'] ?? 0),
+                        'maxSellingPrice' => $service['maxSellingPrice'] ?? null,
                         'baseCommissionPct' => (float) ($service['baseCommissionPct'] ?? $line->commission_pct),
                         'isTahazir' => (bool) ($service['isTahazir'] ?? false),
                         'pricingType' => $service['pricingType'] ?? 'unit',
@@ -588,6 +589,8 @@ class ServiceInvoiceController extends Controller
                 'name' => $service->serviceTemplate?->name,
                 'baseCommissionPct' => (float) ($commissionRates[$service->id] ?? 0),
                 'maxDiscountPct' => (float) $service->max_discount_pct,
+                // سقف سعر البيع للموظف (null = مفتوح) — تُقيَّد به نقطة البيع.
+                'maxSellingPrice' => $service->max_selling_price !== null ? (float) $service->max_selling_price : null,
                 'pricingType' => $service->pricing_type?->value ?? 'unit',
                 'pricePerSqm' => (float) $service->price_per_sqm,
                 'agentCommissionPerSqm' => (float) $service->agent_commission_per_sqm,

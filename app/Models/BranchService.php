@@ -16,6 +16,7 @@ class BranchService extends Pivot
         'service_template_id',
         'base_commission_pct',
         'max_discount_pct',
+        'max_selling_price',
         'pricing_type',
         'price_per_sqm',
         'agent_commission_per_sqm',
@@ -29,6 +30,7 @@ class BranchService extends Pivot
     protected $casts = [
         'base_commission_pct' => 'decimal:2',
         'max_discount_pct' => 'decimal:2',
+        'max_selling_price' => 'decimal:2',
         'pricing_type' => ServicePricingTypeEnum::class,
         'price_per_sqm' => 'decimal:2',
         'agent_commission_per_sqm' => 'decimal:2',

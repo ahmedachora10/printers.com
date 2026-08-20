@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
+import { formatCurrency } from '@/lib/utils';
 import branchServicesRoute from '@/routes/branch-services';
 import { type BreadcrumbItem } from '@/types';
 import { type BranchProductOption, type BranchService } from '@/types/branch-service';
@@ -110,6 +111,19 @@ export default function BranchServicesIndex({
                 key: 'maxDiscountPct',
                 header: 'أقصى خصم',
                 cell: (s) => <span>{s.maxDiscountPct}%</span>,
+            },
+            {
+                key: 'maxSellingPrice',
+                header: 'أعلى سعر',
+                cell: (s) =>
+                    s.maxSellingPrice !== null && s.maxSellingPrice > 0 ? (
+                        <span className="tabular-nums">
+                            {formatCurrency(s.maxSellingPrice)}
+                            {s.pricingType === 'sqm' && <span className="text-muted-foreground text-xs"> /م²</span>}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground text-sm">مفتوح</span>
+                    ),
             },
             {
                 key: 'isTahazir',

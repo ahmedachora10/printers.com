@@ -41,6 +41,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
         branch_id: userBranch.id,
         base_commission_pct: branchService?.baseCommissionPct ?? 0,
         max_discount_pct: branchService?.maxDiscountPct ?? 0,
+        max_selling_price: branchService?.maxSellingPrice ?? null,
         pricing_type: branchService?.pricingType ?? 'unit',
         price_per_sqm: branchService?.pricePerSqm ?? 0,
         agent_commission_per_sqm: branchService?.agentCommissionPerSqm ?? 0,
@@ -58,6 +59,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                 branch_id: userBranch.id,
                 base_commission_pct: branchService.baseCommissionPct ?? 0,
                 max_discount_pct: branchService.maxDiscountPct ?? 0,
+                max_selling_price: branchService.maxSellingPrice ?? null,
                 pricing_type: branchService.pricingType ?? 'unit',
                 price_per_sqm: branchService.pricePerSqm ?? 0,
                 agent_commission_per_sqm: branchService.agentCommissionPerSqm ?? 0,
@@ -326,6 +328,27 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                             </div>
                         </div>
                     )}
+
+                    {/* سقف سعر البيع — يُلزِم الموظف وحده، وفارغه يترك السعر مفتوحاً */}
+                    <div className="space-y-1">
+                        <Label htmlFor="bs-max-price">{data.pricing_type === 'sqm' ? 'أعلى سعر للمتر المربع (ر.س)' : 'أعلى سعر للبيع (ر.س)'}</Label>
+                        <Input
+                            id="bs-max-price"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            dir="ltr"
+                            placeholder="اتركها فارغة ليكون السعر مفتوحاً"
+                            value={data.max_selling_price ?? ''}
+                            onChange={(e) => setData('max_selling_price', e.target.value === '' ? null : Math.max(0, parseFloat(e.target.value) || 0))}
+                        />
+                        <p className="text-muted-foreground text-xs">
+                            {data.pricing_type === 'sqm'
+                                ? 'لا يستطيع الموظف بيع المتر بأعلى من هذا السعر. فارغة = السعر مفتوح له.'
+                                : 'لا يستطيع الموظف البيع بأعلى من هذا السعر. فارغة = السعر مفتوح له.'}
+                        </p>
+                        <InputError message={errors.max_selling_price} />
+                    </div>
 
                     {/* Ready-made detail phrases — become the POS placeholder */}
                     <NoteExamplesField value={data.note_examples} onChange={(next) => setData('note_examples', next)} error={errors.note_examples} />

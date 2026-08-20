@@ -46,6 +46,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         branch_id: 0,
         base_commission_pct: 0,
         max_discount_pct: 0,
+        max_selling_price: null,
         pricing_type: 'unit',
         price_per_sqm: 0,
         agent_commission_per_sqm: 0,
@@ -59,6 +60,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
     const editForm = useForm<BranchServiceUpdateData>({
         base_commission_pct: 0,
         max_discount_pct: 0,
+        max_selling_price: null,
         pricing_type: 'unit',
         price_per_sqm: 0,
         agent_commission_per_sqm: 0,
@@ -85,6 +87,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
             branch_id: branchId,
             base_commission_pct: 0,
             max_discount_pct: 0,
+            max_selling_price: null,
             pricing_type: 'unit',
             price_per_sqm: 0,
             agent_commission_per_sqm: 0,
@@ -101,6 +104,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         editForm.setData({
             base_commission_pct: service.baseCommissionPct,
             max_discount_pct: service.maxDiscountPct,
+            max_selling_price: service.maxSellingPrice ?? null,
             pricing_type: service.pricingType ?? 'unit',
             price_per_sqm: service.pricePerSqm ?? 0,
             agent_commission_per_sqm: service.agentCommissionPerSqm ?? 0,
@@ -241,7 +245,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                                         <BranchServiceFields
                                             data={editForm.data}
                                             errors={editForm.errors}
-                                            setData={editForm.setData as (key: string, value: number | boolean | string | string[]) => void}
+                                            setData={editForm.setData as (key: string, value: number | boolean | string | string[] | null) => void}
                                         />
                                         <div className="flex justify-end gap-2">
                                             <Button type="button" size="sm" variant="outline" onClick={cancelAction} disabled={editForm.processing}>
@@ -260,7 +264,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                                         <BranchServiceFields
                                             data={attachForm.data}
                                             errors={attachForm.errors}
-                                            setData={attachForm.setData as (key: string, value: number | boolean | string | string[]) => void}
+                                            setData={attachForm.setData as (key: string, value: number | boolean | string | string[] | null) => void}
                                         />
                                         <div className="flex justify-end gap-2">
                                             <Button type="button" size="sm" variant="outline" onClick={cancelAction} disabled={attachForm.processing}>
@@ -296,6 +300,7 @@ interface FieldsProps {
     data: {
         base_commission_pct: number;
         max_discount_pct: number;
+        max_selling_price: number | null;
         pricing_type: 'unit' | 'sqm';
         price_per_sqm: number;
         agent_commission_per_sqm: number;
@@ -306,7 +311,7 @@ interface FieldsProps {
         is_active: boolean;
     };
     errors: Partial<Record<string, string>>;
-    setData: (key: string, value: number | boolean | string | string[]) => void;
+    setData: (key: string, value: number | boolean | string | string[] | null) => void;
 }
 
 function BranchServiceFields({ data, errors, setData }: FieldsProps) {
@@ -398,6 +403,22 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                     </div>
                 </div>
             )}
+
+            {/* سقف سعر البيع — يمنع الموظف من تجاوزه، وفارغه يترك السعر مفتوحاً */}
+            <div className="space-y-1">
+                <Label className="text-xs">{data.pricing_type === 'sqm' ? 'أعلى سعر للمتر المربع (ر.س)' : 'أعلى سعر للبيع (ر.س)'}</Label>
+                <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="h-8 text-sm"
+                    placeholder="فارغة = السعر مفتوح"
+                    value={data.max_selling_price ?? ''}
+                    onChange={(e) => setData('max_selling_price', e.target.value === '' ? null : Math.max(0, parseFloat(e.target.value) || 0))}
+                    dir="ltr"
+                />
+                <InputError message={errors.max_selling_price} />
+            </div>
 
             <NoteExamplesField
                 value={data.note_examples}
