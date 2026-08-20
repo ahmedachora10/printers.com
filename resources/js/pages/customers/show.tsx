@@ -1,4 +1,4 @@
-import { DataTable, type ColumnDef } from '@/components/data-table';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -16,7 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate, formatNumber } from '@/lib/utils';
 import customersRoute from '@/routes/customers';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type Paginated } from '@/types';
 import {
     type Customer,
     type CustomerFinancialSummary,
@@ -24,7 +24,7 @@ import {
     type InvoiceHistoryItem,
     type LoyaltyTransaction,
 } from '@/types/customer';
-import { Link, useForm } from '@inertiajs/react';
+import { Link, router, useForm } from '@inertiajs/react';
 import {
     Activity,
     ArrowLeftRight,
@@ -75,8 +75,8 @@ const STATUS_LABELS: Record<string, string> = {
 interface Props {
     customer: Customer;
     financialSummary: CustomerFinancialSummary;
-    loyaltyHistory: LoyaltyTransaction[];
-    invoiceHistory: InvoiceHistoryItem[];
+    loyaltyHistory: Paginated<LoyaltyTransaction>;
+    invoiceHistory: Paginated<InvoiceHistoryItem>;
     customers: Customer[];
     canOverrideTier: boolean;
 }
@@ -152,6 +152,23 @@ export default function CustomerShow({
         tierForm.patch(customersRoute.overrideTier(customer.id).url, {
             preserveScroll: true,
             onSuccess: () => setTierOpen(false),
+        });
+    }
+
+    // لكل جدول اسم صفحته، والمعاملات تُبنى كاملةً في كل تنقّل فلا تسقط صفحة
+    // الجدول الآخر من الرابط.
+    function goToPage(key: 'loyaltyPage' | 'invoicePage', page: number) {
+        const params: Record<string, string> = {
+            loyaltyPage: String(loyaltyHistory.meta.current_page),
+            invoicePage: String(invoiceHistory.meta.current_page),
+        };
+
+        params[key] = String(page);
+
+        router.get(customersRoute.show(customer.id).url, params, {
+            preserveState: true,
+            preserveScroll: true,
+            replace: true,
         });
     }
 
@@ -321,10 +338,19 @@ export default function CustomerShow({
                                 <DataTable
                                     className="rounded-none bg-transparent shadow-none"
                                     columns={invoiceHistoryColumns}
-                                    data={invoiceHistory}
+                                    data={invoiceHistory.data}
                                     keyExtractor={(inv) => `${inv.type}-${inv.id}`}
                                     emptyState={<span className="text-sm text-muted-foreground">لا توجد فواتير مسجّلة</span>}
                                 />
+                                {invoiceHistory.meta.total > 0 && (
+                                    <TablePagination
+                                        currentPage={invoiceHistory.meta.current_page}
+                                        totalPages={invoiceHistory.meta.last_page}
+                                        totalItems={invoiceHistory.meta.total}
+                                        pageSize={invoiceHistory.meta.per_page}
+                                        onPageChange={(page) => goToPage('invoicePage', page)}
+                                    />
+                                )}
                             </CardContent>
                         </Card>
 
@@ -407,14 +433,14 @@ export default function CustomerShow({
                                     سجل النقاط
                                 </CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                {loyaltyHistory.length === 0 ? (
+                            <CardContent className="px-0">
+                                {loyaltyHistory.meta.total === 0 ? (
                                     <p className="text-center text-sm text-muted-foreground py-6">
                                         لا توجد معاملات نقاط
                                     </p>
                                 ) : (
-                                    <div className="space-y-2">
-                                        {loyaltyHistory.slice(0, 10).map((tx) => (
+                                    <div className="space-y-2 px-6">
+                                        {loyaltyHistory.data.map((tx) => (
                                             <div
                                                 key={tx.id}
                                                 className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-2 text-sm"
@@ -437,6 +463,16 @@ export default function CustomerShow({
                                             </div>
                                         ))}
                                     </div>
+                                )}
+                                {loyaltyHistory.meta.total > 0 && (
+                                    <TablePagination
+                                        className="mt-3"
+                                        currentPage={loyaltyHistory.meta.current_page}
+                                        totalPages={loyaltyHistory.meta.last_page}
+                                        totalItems={loyaltyHistory.meta.total}
+                                        pageSize={loyaltyHistory.meta.per_page}
+                                        onPageChange={(page) => goToPage('loyaltyPage', page)}
+                                    />
                                 )}
                             </CardContent>
                         </Card>

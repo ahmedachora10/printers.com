@@ -5,7 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import AppLayout from '@/layouts/app-layout';
 import { formatNumber } from '@/lib/utils';
 import loyaltyRoute from '@/routes/loyalty';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type Paginated } from '@/types';
 import { Head, router } from '@inertiajs/react';
 import { Award, Coins, Power, Users } from 'lucide-react';
 
@@ -44,18 +44,6 @@ interface BranchConfigRow extends LoyaltyConfigSummary {
     outstandingPoints: number;
 }
 
-interface PageMeta {
-    current_page: number;
-    last_page: number;
-    total: number;
-    per_page: number;
-}
-
-interface Paginated<T> {
-    data: T[];
-    meta: PageMeta | null;
-}
-
 interface Props {
     /** null حين ينظر السوبر أدمن إلى الشبكة كلها — لا إعدادات واحدة عندها */
     config: LoyaltyConfigSummary | null;
@@ -63,7 +51,7 @@ interface Props {
     customerCount: number;
     tierDistribution: TierRow[];
     transactions: Paginated<LoyaltyTxRow>;
-    branchConfigs: Paginated<BranchConfigRow>;
+    branchConfigs: { data: BranchConfigRow[]; meta: Paginated<BranchConfigRow>['meta'] | null };
     /** إجماليات الشبكة لبطاقة الحالة — مستقلة عن صفحة الجدول المعروضة */
     branchSummary: { total: number; active: number } | null;
     branches: { id: number; name: string }[];
