@@ -42,6 +42,7 @@ class DatabaseSeeder extends Seeder
             // Settings & Payment Methods
             SettingSeeder::class,
             PaymentMethodSeeder::class,
+            ServiceTemplateSeeder::class
         ]);
     }
 }
