@@ -1,4 +1,4 @@
-import { PosCartTable } from '@/components/pos/cart-table';
+import { LineChip, LineField, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
 import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Badge } from '@/components/ui/badge';
@@ -11,12 +11,12 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
 import { invoiceTotals } from '@/lib/invoice';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatQty } from '@/lib/utils';
 import product from '@/routes/pos/product';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type CartLine, type PosAgent, type PosCustomer, type PosLoyalty, type PosPaymentMethod, type PosProduct } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Award, Paperclip, Printer, Save, Search, Tag, X } from 'lucide-react';
+import { Award, Paperclip, Printer, Ruler, Save, Search, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -56,6 +56,16 @@ interface AppliedCoupon {
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const lineTotal = (line: CartLine) => round2(line.qty * line.unitPrice * (1 - line.discountPct / 100));
+
+/** مساحة القطعة الواحدة بالمتر المربع من مقاسها بالسنتيمتر. */
+const pieceAreaSqm = (line: CartLine) => ((line.widthCm ?? 0) / 100) * ((line.heightCm ?? 0) / 100);
+
+/**
+ * الكمية المحاسَب عليها لسطرٍ ما — مطابقة لاشتقاق الخادم حرفياً: سطر المتر
+ * المربع كميته المساحة × عدد القطع (مدوّرة قبل الضرب في السعر)، وسواه عدد قطعه.
+ */
+const derivedQty = (line: CartLine) => (line.isSqm ? round2(pieceAreaSqm(line) * line.pieces) : line.qty);
+
 
 export default function ProductPos({ products, agents, paymentMethods, vatPct, loyalty }: Props) {
     const { props } = usePage<SharedData>();
@@ -174,8 +184,17 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
         setCart((prev) => {
             const existing = prev.find((l) => l.productId === p.id);
             if (existing) {
+                // سطر المتر المربع تُزاد قطعُه لا كميتُه — المساحة تُشتقّ منها.
+                if (existing.isSqm) {
+                    const next = { ...existing, pieces: existing.pieces + 1 };
+                    if (derivedQty(next) > p.currentStock) {
+                        toast.error(`الكمية القصوى المتاحة من "${p.name}" هي ${formatQty(p.currentStock)} م²`);
+                        return prev;
+                    }
+                    return prev.map((l) => (l.productId === p.id ? { ...next, qty: derivedQty(next) } : l));
+                }
                 if (existing.qty >= p.currentStock) {
-                    toast.error(`الكمية القصوى المتاحة من "${p.name}" هي ${p.currentStock}`);
+                    toast.error(`الكمية القصوى المتاحة من "${p.name}" هي ${formatQty(p.currentStock)}`);
                     return prev;
                 }
                 return prev.map((l) => (l.productId === p.id ? { ...l, qty: l.qty + 1 } : l));
@@ -188,11 +207,16 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                     name: p.name,
                     sku: p.sku,
                     unitPrice: p.sellingPrice,
-                    qty: 1,
+                    // سطر المتر المربع يبدأ بكمية صفر: لا مساحة قبل إدخال المقاس.
+                    qty: p.isSqm ? 0 : 1,
                     discountPct: 0,
                     maxStock: p.currentStock,
                     unitName: p.unitName,
                     isManual: false,
+                    isSqm: p.isSqm,
+                    widthCm: null,
+                    heightCm: null,
+                    pieces: 1,
                 },
             ];
         });
@@ -214,6 +238,10 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                 maxStock: null,
                 unitName: null,
                 isManual: true,
+                isSqm: false,
+                widthCm: null,
+                heightCm: null,
+                pieces: 1,
             },
         ]);
     }
@@ -232,7 +260,15 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
             unitPrice: p.sellingPrice,
             maxStock: p.currentStock,
             unitName: p.unitName,
-            qty: line.maxStock !== null && line.qty > p.currentStock ? Math.max(1, p.currentStock) : line.qty,
+            isSqm: p.isSqm,
+            // منتج بالمتر المربع: الكمية تنتظر المقاس؛ ومنتج بالقطعة يعود لكميته.
+            ...(p.isSqm
+                ? { qty: 0, widthCm: null, heightCm: null, pieces: 1 }
+                : {
+                      widthCm: null,
+                      heightCm: null,
+                      qty: line.maxStock !== null && line.qty > p.currentStock ? Math.max(1, p.currentStock) : Math.max(1, line.qty),
+                  }),
         });
     }
 
@@ -240,10 +276,26 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
         const next = line.qty + delta;
         if (next < 1) return;
         if (line.maxStock !== null && next > line.maxStock) {
-            toast.error(`الكمية القصوى المتاحة هي ${line.maxStock}`);
+            toast.error(`الكمية القصوى المتاحة هي ${formatQty(line.maxStock)}`);
             return;
         }
         updateLine(line.key, { qty: next });
+    }
+
+    /**
+     * تحديث مقاس سطر المتر المربع أو عدد قطعه، وإعادة اشتقاق كميته معه — فالكمية
+     * هي ما يُحاسَب عليه وما يُخصم من المخزون، ولا تُكتب يدوياً على هذا السطر.
+     */
+    function setSqmLine(line: CartLine, patch: Partial<Pick<CartLine, 'widthCm' | 'heightCm' | 'pieces'>>) {
+        const next = { ...line, ...patch };
+        const qty = derivedQty(next);
+
+        if (line.maxStock !== null && qty > line.maxStock) {
+            toast.error(`الكمية القصوى المتاحة هي ${formatQty(line.maxStock)} م²`);
+            return;
+        }
+
+        updateLine(line.key, { ...patch, qty });
     }
 
     function removeLine(key: string) {
@@ -300,6 +352,10 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
             toast.error('اختر منتجاً لكل سطر يدوي');
             return;
         }
+        if (cart.some((l) => l.isSqm && (!l.widthCm || !l.heightCm))) {
+            toast.error('أدخل العرض والطول لكل منتج مسعّر بالمتر المربع');
+            return;
+        }
         if (requiresReceipt && !receipt) {
             toast.error('يجب إرفاق إيصال التحويل لطريقة الدفع المحددة');
             return;
@@ -323,7 +379,12 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                 lines: cart.map((l) => ({
                     product_id: l.productId,
                     name: l.productId ? null : l.name.trim(),
+                    // كمية سطر المتر المربع يعيد الخادم اشتقاقها من المقاس؛ تُرسل
+                    // هنا لأن التحقق يطلبها، والمعتمَد ما يحسبه الخادم.
                     qty: l.qty,
+                    width_cm: l.isSqm ? l.widthCm : null,
+                    height_cm: l.isSqm ? l.heightCm : null,
+                    pieces: l.isSqm ? l.pieces : null,
                     unit_price: l.unitPrice,
                     discount_pct: l.discountPct,
                 })),
@@ -642,8 +703,14 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                                 <p className="text-muted-foreground text-xs">{p.sku}</p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-primary font-semibold">{formatCurrency(p.sellingPrice)}</span>
-                                                <Badge variant={p.currentStock <= 0 ? 'destructive' : 'secondary'}>{p.currentStock}</Badge>
+                                                <span className="text-primary font-semibold">
+                                                    {formatCurrency(p.sellingPrice)}
+                                                    {p.isSqm && <span className="text-muted-foreground text-[11px]"> / م²</span>}
+                                                </span>
+                                                <Badge variant={p.currentStock <= 0 ? 'destructive' : 'secondary'}>
+                                                    {formatQty(p.currentStock)}
+                                                    {p.isSqm && ' م²'}
+                                                </Badge>
                                             </div>
                                         </button>
                                     ))
@@ -671,21 +738,107 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                         <SelectContent>
                                             {products.map((p) => (
                                                 <SelectItem key={p.id} value={String(p.id)} disabled={p.currentStock <= 0}>
-                                                    {p.name} — {formatCurrency(p.sellingPrice)} (متوفر: {p.currentStock})
+                                                    {p.name} — {formatCurrency(p.sellingPrice)}
+                                                    {p.isSqm && ' / م²'} (متوفر: {formatQty(p.currentStock)})
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
                                     </Select>
                                 )}
-                                renderLineMeta={(line) => line.sku}
+                                renderLineMeta={(line) => (line.isSqm ? `${line.sku} • بالمتر المربع` : line.sku)}
                                 isPriceEditable={(line) => line.isManual}
                                 getMaxDiscount={() => 100}
                                 getLineTotal={lineTotal}
+                                // كمية سطر المتر المربع مشتقّة من المقاس، فلا مِعداد لها.
+                                renderQtyControl={(line) =>
+                                    line.isSqm ? (
+                                        <LineReadout tone={line.qty > 0 ? 'info' : 'neutral'}>{formatQty(line.qty)} م²</LineReadout>
+                                    ) : undefined
+                                }
                                 onQtyChange={changeQty}
                                 onPriceChange={(line, price) => updateLine(line.key, { unitPrice: price })}
                                 onDiscountChange={(line, value) => updateLine(line.key, { discountPct: Math.min(100, Math.max(0, value || 0)) })}
                                 onRemove={removeLine}
                                 onAddManual={addManualLine}
+                                // سطر المتر المربع بلا كمية حتى يُدخَل مقاسه — يُفتح فوراً
+                                // كي لا يبحث الكاشير عن الحقول.
+                                isLineDetailsInitiallyOpen={(line) => line.isSqm && (!line.widthCm || !line.heightCm)}
+                                renderLineSummary={(line) => {
+                                    if (!line.isSqm) return null;
+                                    const hasDimensions = !!line.widthCm && !!line.heightCm;
+
+                                    return hasDimensions ? (
+                                        <LineChip>
+                                            <Ruler className="size-3" />
+                                            {line.widthCm}×{line.heightCm} سم × {line.pieces} = {formatQty(line.qty)} م²
+                                        </LineChip>
+                                    ) : (
+                                        <LineChip tone="warning">
+                                            <Ruler className="size-3" /> أدخل الأبعاد
+                                        </LineChip>
+                                    );
+                                }}
+                                renderLineDetails={(line) => {
+                                    if (!line.isSqm) return null;
+
+                                    return (
+                                        <LineSection title="المقاس" aside={`سعر المتر ${formatCurrency(line.unitPrice)}`}>
+                                            <div className="grid gap-3 sm:grid-cols-4">
+                                                <LineField label="العرض (سم)" htmlFor={`p-width-${line.key}`}>
+                                                    <Input
+                                                        id={`p-width-${line.key}`}
+                                                        type="number"
+                                                        min={0}
+                                                        step="0.1"
+                                                        value={line.widthCm ?? ''}
+                                                        onChange={(e) =>
+                                                            setSqmLine(line, {
+                                                                widthCm: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                                                            })
+                                                        }
+                                                        className="h-9 text-center"
+                                                        placeholder="0"
+                                                    />
+                                                </LineField>
+                                                <LineField label="الطول (سم)" htmlFor={`p-height-${line.key}`}>
+                                                    <Input
+                                                        id={`p-height-${line.key}`}
+                                                        type="number"
+                                                        min={0}
+                                                        step="0.1"
+                                                        value={line.heightCm ?? ''}
+                                                        onChange={(e) =>
+                                                            setSqmLine(line, {
+                                                                heightCm: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                                                            })
+                                                        }
+                                                        className="h-9 text-center"
+                                                        placeholder="0"
+                                                    />
+                                                </LineField>
+                                                <LineField label="عدد القطع" htmlFor={`p-pieces-${line.key}`}>
+                                                    <Input
+                                                        id={`p-pieces-${line.key}`}
+                                                        type="number"
+                                                        min={1}
+                                                        step="1"
+                                                        value={line.pieces}
+                                                        onChange={(e) => setSqmLine(line, { pieces: Math.max(1, Number(e.target.value) || 1) })}
+                                                        className="h-9 text-center"
+                                                    />
+                                                </LineField>
+                                                <LineField label="المساحة المخصومة">
+                                                    <LineReadout tone="info">{formatQty(line.qty)} م²</LineReadout>
+                                                </LineField>
+                                            </div>
+                                            {line.maxStock !== null && (
+                                                <p className="text-muted-foreground text-[11px]">
+                                                    المتاح في المخزون: {formatQty(line.maxStock)} م²
+                                                </p>
+                                            )}
+                                        </LineSection>
+                                    );
+                                }}
                             />
                         </CardContent>
                     </Card>

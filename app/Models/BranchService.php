@@ -51,9 +51,24 @@ class BranchService extends Pivot
         return $this->belongsTo(ServiceTemplate::class);
     }
 
+    // ملاحظة لكل علاقة hasMany هنا: هذا الموديل Pivot، و`AsPivot::getForeignKey()`
+    // يعيد خاصية الـpivot الفارغة لا `branch_service_id` — فالمفتاح يُسمّى صراحةً.
+
     /** @return HasMany<UserService, $this> */
     public function userCommissions(): HasMany
     {
-        return $this->hasMany(UserService::class);
+        return $this->hasMany(UserService::class, 'branch_service_id');
+    }
+
+    /**
+     * خامات المخزون التي تستهلكها الخدمة (تاسك 50). منفصلة تماماً عن
+     * `materials_cost` — ذاك رقم محاسبي يُخصم من أساس عمولة الموظف (تاسك 7)،
+     * وهذه حركاتٌ فعلية على المخزون. قد تُعرَّف إحداهما دون الأخرى.
+     *
+     * @return HasMany<BranchServiceMaterial, $this>
+     */
+    public function materials(): HasMany
+    {
+        return $this->hasMany(BranchServiceMaterial::class, 'branch_service_id');
     }
 }

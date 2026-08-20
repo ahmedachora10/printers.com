@@ -13,13 +13,20 @@ class ProductInvoiceLine extends Model
         'product_name',
         'sku',
         'qty',
+        'width_cm',
+        'height_cm',
+        'pieces',
         'unit_price',
         'discount_pct',
         'subtotal',
     ];
 
     protected $casts = [
-        'qty' => 'integer',
+        // كمية عشرية: سطر المنتج المسعّر بالمتر المربع يحمل مساحته لا عدد قطعه.
+        'qty' => 'float',
+        'width_cm' => 'decimal:2',
+        'height_cm' => 'decimal:2',
+        'pieces' => 'integer',
         'unit_price' => 'decimal:2',
         'discount_pct' => 'decimal:2',
         'subtotal' => 'decimal:2',

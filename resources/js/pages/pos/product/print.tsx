@@ -2,7 +2,7 @@ import InvoiceNotes from '@/components/invoices/invoice-notes';
 import { ThermalBranchHeader } from '@/components/invoices/print-header';
 import { ThermalTotals } from '@/components/invoices/print-totals';
 import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
-import { formatCurrency, formatDateTime } from '@/lib/utils';
+import { formatCurrency, formatDateTime, formatQty } from '@/lib/utils';
 import product from '@/routes/pos/product';
 import { type PosBranch, type PosInvoice } from '@/types/pos';
 import { Head, Link } from '@inertiajs/react';
@@ -110,7 +110,7 @@ export default function ProductInvoicePrint({ invoice, branch }: Props) {
                                 {line.name}
                                 {line.discountPct > 0 && <span className="block text-[10px]">خصم {line.discountPct}%</span>}
                             </td>
-                            <td className="py-1 text-center">{line.qty}</td>
+                            <td className="py-1 text-center">{formatQty(line.qty)}</td>
                             <td className="py-1 text-center">{formatCurrency(line.unitPrice)}</td>
                             <td className="py-1 text-left">{formatCurrency(line.subtotal)}</td>
                         </tr>

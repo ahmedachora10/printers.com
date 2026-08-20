@@ -2,7 +2,7 @@ import InvoiceNotes from '@/components/invoices/invoice-notes';
 import { BranchIdentity, ThermalBranchHeader } from '@/components/invoices/print-header';
 import { ThermalTotals, printTotals } from '@/components/invoices/print-totals';
 import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
-import { formatCurrency, formatDateTime, formatDateTimeNumeric } from '@/lib/utils';
+import { formatCurrency, formatDateTime, formatDateTimeNumeric, formatQty } from '@/lib/utils';
 import { type Invoice } from '@/types/invoice';
 import { Head } from '@inertiajs/react';
 import { Printer } from 'lucide-react';
@@ -109,11 +109,12 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                                 {line.widthCm != null && line.heightCm != null && (
                                     <span className="block text-[10px]">
                                         المقاس: {line.widthCm}×{line.heightCm} سم
+                                        {line.pieces != null && line.pieces > 1 && ` × ${line.pieces} قطعة`}
                                     </span>
                                 )}
                                 {line.discountPct > 0 && <span className="block text-[10px]">خصم {line.discountPct}%</span>}
                             </td>
-                            <td className="py-1 text-center">{line.qty}</td>
+                            <td className="py-1 text-center">{formatQty(line.qty)}</td>
                             <td className="py-1 text-center">{formatCurrency(line.unitPrice)}</td>
                             <td className="py-1 text-left">{formatCurrency(line.subtotal)}</td>
                         </tr>
@@ -236,10 +237,11 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
                                 {line.widthCm != null && line.heightCm != null && (
                                     <span className="block text-[10px] text-neutral-500">
                                         المقاس: {line.widthCm}×{line.heightCm} سم
+                                        {line.pieces != null && line.pieces > 1 && ` × ${line.pieces} قطعة`}
                                     </span>
                                 )}
                             </td>
-                            <td className="border border-neutral-300 p-2 text-center">{line.qty}</td>
+                            <td className="border border-neutral-300 p-2 text-center">{formatQty(line.qty)}</td>
                             <td className="border border-neutral-300 p-2 text-center">{formatCurrency(line.unitPrice)}</td>
                             <td className="border border-neutral-300 p-2 text-center">{line.discountPct > 0 ? `${line.discountPct}%` : '—'}</td>
                             <td className="border border-neutral-300 p-2 text-left">{formatCurrency(line.subtotal)}</td>

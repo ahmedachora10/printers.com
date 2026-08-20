@@ -4,14 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Actions\BranchService\AttachBranchServiceAction;
 use App\Actions\BranchService\DetachBranchServiceAction;
+use App\Actions\BranchService\SyncBranchServiceMaterialsAction;
 use App\Actions\BranchService\UpdateBranchServiceAction;
 use App\Actions\UserService\SyncUserServiceCommissionsAction;
 use App\Enums\Roles;
 use App\Http\Requests\BranchService\StoreBranchServiceRequest;
+use App\Http\Requests\BranchService\UpdateBranchServiceMaterialsRequest;
 use App\Http\Requests\BranchService\UpdateBranchServiceRequest;
 use App\Http\Requests\BranchService\UpdateEmployeeCommissionsRequest;
 use App\Http\Resources\BranchService\BranchServiceResource;
 use App\Models\BranchService;
+use App\Models\Product;
 use App\Models\ServiceTemplate;
 use App\Models\User;
 use App\Models\UserService;
@@ -34,7 +37,7 @@ class BranchServiceController extends Controller
 
         $branchId = $userBranch->id;
 
-        $query = BranchService::with(['serviceTemplate', 'branch'])
+        $query = BranchService::with(['serviceTemplate', 'branch', 'materials.product.unit'])
             ->where('branch_id', $branchId);
 
         if ($request->filled('search')) {
@@ -86,9 +89,27 @@ class BranchServiceController extends Controller
                 'commissionPct' => (float) $r->commission_override_pct,
             ])->values());
 
+        // منتجات الفرع التي يجوز تعريفها خامةً لخدمة (تاسك 50). المنتج المسعّر
+        // بالمتر المربع يُستهلك بالمتر، وغيره بوحدته — والتسمية تقول ذلك للمستخدم.
+        $products = Product::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->with('unit:id,name')
+            ->orderBy('name')
+            ->get(['id', 'name', 'sku', 'unit_id', 'is_sqm'])
+            ->map(fn (Product $p) => [
+                'id' => $p->id,
+                'name' => $p->name,
+                'sku' => $p->sku,
+                'unitName' => $p->is_sqm ? 'متر مربع' : $p->unit?->name,
+                'isSqm' => (bool) $p->is_sqm,
+            ])
+            ->values();
+
         return Inertia::render('branch-services/index', [
             'branchServices' => BranchServiceResource::collection($branchServices),
             'serviceTemplates' => $serviceTemplates,
+            'products' => $products,
             'userBranch' => ['id' => $userBranch->id, 'name' => $userBranch->name],
             'employees' => $employees,
             'employeeCommissions' => $employeeCommissions,
@@ -121,6 +142,25 @@ class BranchServiceController extends Controller
         $action->handle($branchService);
 
         return back(fallback: route($this->redirectRoute()));
+    }
+
+    /**
+     * تاسك 50: خامات المخزون لهذه الخدمة. القائمة المرسلة هي القائمة كاملة —
+     * ما لم يَرِد فيها يُحذف من التعريف (ولا يمسّ ذلك حركات المخزون السابقة).
+     */
+    public function updateMaterials(
+        UpdateBranchServiceMaterialsRequest $request,
+        BranchService $branchService,
+        SyncBranchServiceMaterialsAction $action,
+    ): RedirectResponse {
+        Gate::authorize('update', $branchService);
+
+        $action->handle($branchService, array_map(fn (array $row) => [
+            'product_id' => (int) $row['product_id'],
+            'qty_per_unit' => (float) $row['qty_per_unit'],
+        ], $request->validated('materials')));
+
+        return back()->with('success', 'تم تحديث خامات الخدمة بنجاح');
     }
 
     /**

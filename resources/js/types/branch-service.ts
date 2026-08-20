@@ -1,5 +1,23 @@
 export type ServicePricingType = 'unit' | 'sqm';
 
+/** خامة مخزون تستهلكها الخدمة — تُخصم عند اعتماد الفاتورة (تاسك 50). */
+export interface BranchServiceMaterial {
+    productId: number;
+    productName: string | null;
+    unitName: string | null;
+    /** الكمية المستهلكة لكل وحدة محاسَب عليها في السطر (قطعة، أو م² لخدمة بالمتر) */
+    qtyPerUnit: number;
+}
+
+/** منتج من مخزون الفرع، كما يظهر في منتقي الخامات. */
+export interface BranchProductOption {
+    id: number;
+    name: string;
+    sku: string;
+    unitName: string | null;
+    isSqm: boolean;
+}
+
 export interface BranchService {
     id: number;
     branchId: number;
@@ -17,6 +35,8 @@ export interface BranchService {
     /** هل للخدمة خامات، وتكلفتها الافتراضية للوحدة الواحدة */
     hasMaterials: boolean;
     materialsCost: number;
+    /** خامات المخزون المرتبطة بالخدمة — مستقلة عن materialsCost المحاسبي */
+    materials: BranchServiceMaterial[];
     isActive: boolean;
     createdAt: string | null;
     updatedAt: string | null;

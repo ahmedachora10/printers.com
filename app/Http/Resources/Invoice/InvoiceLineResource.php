@@ -17,6 +17,8 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string|null $service_name
  * @property string|null $sku
  * @property string|null $commission_amount
+ * @property string|null $width_cm
+ * @property string|null $height_cm
  */
 class InvoiceLineResource extends JsonResource
 {
@@ -30,13 +32,15 @@ class InvoiceLineResource extends JsonResource
             // Free-text detail; service lines only — product lines have no field.
             'notes' => $isService ? $this->resource->notes : null,
             'sku' => $this->sku,
-            'qty' => $this->qty,
+            'qty' => (float) $this->qty,
             'unitPrice' => (float) $this->unit_price,
-            'widthCm' => $isService && $this->resource->width_cm !== null
-                ? (float) $this->resource->width_cm
-                : null,
-            'heightCm' => $isService && $this->resource->height_cm !== null
-                ? (float) $this->resource->height_cm
+            // كلا نوعَي السطر يحملان مقاساً الآن: الخدمة المسعّرة بالمتر (تاسك 44)
+            // والمنتج المسعّر بالمتر (تاسك 51).
+            'widthCm' => $this->width_cm !== null ? (float) $this->width_cm : null,
+            'heightCm' => $this->height_cm !== null ? (float) $this->height_cm : null,
+            // عدد القطع لسطر المنتج بالمتر — الكمية أعلاه مساحتها الإجمالية.
+            'pieces' => ! $isService && $this->resource->pieces !== null
+                ? (int) $this->resource->pieces
                 : null,
             'discountPct' => (float) $this->discount_pct,
             'subtotal' => (float) $this->subtotal,

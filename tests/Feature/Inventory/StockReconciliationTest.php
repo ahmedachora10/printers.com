@@ -65,9 +65,9 @@ describe('Stock reconciliation', function () {
         expect($reconciliation->lines->pluck('product_id'))->not->toContain($inactive->id);
 
         $line = $reconciliation->lines->first();
-        expect($line->system_qty)->toBe(10);
-        expect($line->physical_qty)->toBe(10);
-        expect($line->variance)->toBe(0);
+        expect($line->system_qty)->toEqual(10);
+        expect($line->physical_qty)->toEqual(10);
+        expect($line->variance)->toEqual(0);
     });
 
     it('blocks starting a second reconciliation while one is in progress', function () use ($startReconciliation) {
@@ -88,8 +88,8 @@ describe('Stock reconciliation', function () {
         ])->assertRedirect();
 
         $line->refresh();
-        expect($line->physical_qty)->toBe(7);
-        expect($line->variance)->toBe(-3);
+        expect($line->physical_qty)->toEqual(7);
+        expect($line->variance)->toEqual(-3);
     });
 
     it('completes a reconciliation by posting adjustment movements for variances', function () use ($startReconciliation) {
@@ -116,7 +116,7 @@ describe('Stock reconciliation', function () {
             'reference_id' => $reconciliation->id,
         ]);
 
-        expect($this->product->refresh()->current_stock)->toBe(7);
+        expect($this->product->refresh()->current_stock)->toEqual(7);
     });
 
     it('posts an adjustment_in movement when the physical count exceeds the snapshot', function () use ($startReconciliation) {
@@ -137,7 +137,7 @@ describe('Stock reconciliation', function () {
             'reference_id' => $reconciliation->id,
         ]);
 
-        expect($this->product->refresh()->current_stock)->toBe(15);
+        expect($this->product->refresh()->current_stock)->toEqual(15);
     });
 
     it('posts no movements for zero-variance lines', function () use ($startReconciliation) {
@@ -148,7 +148,7 @@ describe('Stock reconciliation', function () {
         expect($reconciliation->refresh()->completed_at)->not->toBeNull();
         expect($reconciliation->lines->first()->movement_id)->toBeNull();
         expect(StockMovement::where('reference_type', StockReconciliation::class)->count())->toBe(0);
-        expect($this->product->refresh()->current_stock)->toBe(10);
+        expect($this->product->refresh()->current_stock)->toEqual(10);
     });
 
     it('blocks editing counts or re-completing a completed reconciliation', function () use ($startReconciliation) {
@@ -164,7 +164,7 @@ describe('Stock reconciliation', function () {
         $this->post(route('inventory.stock-reconciliations.complete', $reconciliation))
             ->assertSessionHasErrors('reconciliation');
 
-        expect($line->refresh()->physical_qty)->toBe(10);
+        expect($line->refresh()->physical_qty)->toEqual(10);
     });
 
     it('rejects counts for lines belonging to another reconciliation', function () use ($startReconciliation) {

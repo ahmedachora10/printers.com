@@ -13,7 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatQty } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -93,7 +93,7 @@ const reviewLineColumns: ColumnDef<ReviewLine>[] = [
             </>
         ),
     },
-    { key: 'qty', header: 'الكمية', headerClassName: 'text-center', className: 'text-center', cell: (line) => line.qty },
+    { key: 'qty', header: 'الكمية', headerClassName: 'text-center', className: 'text-center', cell: (line) => formatQty(line.qty) },
     { key: 'unitPrice', header: 'السعر', headerClassName: 'text-center', className: 'text-center', cell: (line) => formatCurrency(line.unitPrice) },
     { key: 'subtotal', header: 'الإجمالي', headerClassName: 'text-start', className: 'text-start', cell: (line) => formatCurrency(line.subtotal) },
 ];

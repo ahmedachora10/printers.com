@@ -3,7 +3,7 @@ import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatQty } from '@/lib/utils';
 import inventory from '@/routes/inventory';
 import { type BreadcrumbItem } from '@/types';
 import { type PaginatedStockMovement, type StockMovement } from '@/types/stock-movement';
@@ -124,7 +124,7 @@ export default function StockMovementsIndex({ items, products, types, filters }:
                                 : 'font-semibold tabular-nums text-red-600'
                         }
                     >
-                        {item.qty > 0 ? `+${item.qty}` : item.qty}
+                        {item.qty > 0 ? `+${formatQty(item.qty)}` : formatQty(item.qty)}
                     </span>
                 ),
             },

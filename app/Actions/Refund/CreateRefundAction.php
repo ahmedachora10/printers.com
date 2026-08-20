@@ -134,7 +134,7 @@ class CreateRefundAction
             $this->recordStockMovement->handle(
                 $line->product,
                 StockMovementTypeEnum::RETURN_IN,
-                (int) $line->qty,
+                (float) $line->qty,
                 [
                     'unit_cost' => $line->product->cost_price,
                     'reference_id' => $refund->id,

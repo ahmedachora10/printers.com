@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
+import { formatQty } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { reconciliationBadgeClass, type StockReconciliation, type StockReconciliationLine } from '@/types/stock-reconciliation';
 import { router } from '@inertiajs/react';
@@ -43,8 +44,9 @@ export default function StockReconciliationShow({ reconciliation, canManage }: P
 
     const parsedCount = (line: StockReconciliationLine): number => {
         const raw = counts[line.id];
-        const value = Number.parseInt(raw ?? '', 10);
-        return Number.isNaN(value) ? line.physicalQty : value;
+        // كميات عشرية منذ تاسك 51 — parseInt كان يبتلع كسر المتر المربع.
+        const value = Number.parseFloat(raw ?? '');
+        return Number.isNaN(value) ? line.physicalQty : Math.round((value + Number.EPSILON) * 100) / 100;
     };
 
     const isDirty = lines.some((line) => parsedCount(line) !== line.physicalQty);
@@ -98,7 +100,7 @@ export default function StockReconciliationShow({ reconciliation, canManage }: P
 
         return (
             <span dir="ltr" className={`font-semibold tabular-nums ${variance > 0 ? 'text-green-700' : 'text-destructive'}`}>
-                {variance > 0 ? `+${variance}` : variance}
+                {variance > 0 ? `+${formatQty(variance)}` : formatQty(variance)}
             </span>
         );
     };
@@ -118,7 +120,7 @@ export default function StockReconciliationShow({ reconciliation, canManage }: P
             {
                 key: 'systemQty',
                 header: 'الرصيد الدفتري',
-                cell: (line) => <span className="tabular-nums">{line.systemQty}</span>,
+                cell: (line) => <span className="tabular-nums">{formatQty(line.systemQty)}</span>,
             },
             {
                 key: 'physicalQty',
@@ -128,13 +130,14 @@ export default function StockReconciliationShow({ reconciliation, canManage }: P
                         <Input
                             type="number"
                             min={0}
+                            step="0.01"
                             dir="ltr"
                             className="h-8 w-24 tabular-nums"
                             value={counts[line.id] ?? ''}
                             onChange={(e) => setCounts((prev) => ({ ...prev, [line.id]: e.target.value }))}
                         />
                     ) : (
-                        <span className="tabular-nums">{line.physicalQty}</span>
+                        <span className="tabular-nums">{formatQty(line.physicalQty)}</span>
                     ),
             },
             {

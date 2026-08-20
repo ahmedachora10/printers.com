@@ -20,6 +20,7 @@ class CreateServiceInvoiceAction
         private readonly CalculateServiceInvoiceAction $calculator,
         private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
+        private readonly ConsumeServiceMaterialsAction $consumeMaterials,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -53,8 +54,11 @@ class CreateServiceInvoiceAction
             // Commission is earned only once the invoice is approved (paid). A due
             // invoice — every employee-raised one — writes no ledger row yet; it is
             // written when the accountant settles it (MarkServiceInvoicePaidAction).
+            // خامات المخزون تتبع القاعدة نفسها (تاسك 50): فاتورةٌ تُنشأ مدفوعة
+            // تخصمها فوراً، والآجلة تنتظر اعتمادها.
             if ($status === InvoiceStatusEnum::PAID) {
                 $this->writeLedgerFromLines($invoice, $user->id, $branchId);
+                $this->consumeMaterials->consume($invoice, (int) $user->id);
             }
 
             $this->syncInvoiceAgents($invoice, $calc['agents']);

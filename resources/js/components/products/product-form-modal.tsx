@@ -38,6 +38,7 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
         name:            product?.name ?? '',
         category_id:     product?.categoryId?.toString() ?? '',
         unit_id:         product?.unitId?.toString() ?? '',
+        is_sqm:          product?.isSqm ?? false,
         cost_price:      product?.costPrice?.toString() ?? '',
         selling_price:   product?.sellingPrice?.toString() ?? '',
         min_stock_level: product?.minStockLevel?.toString() ?? '0',
@@ -52,6 +53,7 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
                 name:            product.name ?? '',
                 category_id:     product.categoryId?.toString() ?? '',
                 unit_id:         product.unitId?.toString() ?? '',
+                is_sqm:          product.isSqm ?? false,
                 cost_price:      product.costPrice?.toString() ?? '',
                 selling_price:   product.sellingPrice?.toString() ?? '',
                 min_stock_level: product.minStockLevel?.toString() ?? '0',
@@ -169,9 +171,29 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
                         </div>
                     </div>
 
+                    {/* تاسك 51: منتج يُباع بالمساحة — نقطة البيع تطلب مقاسه وتخصم
+                        المتر المربع من المخزون بدل القطعة. */}
+                    <div className="bg-muted/40 space-y-1.5 rounded-lg border p-3">
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="prod-is-sqm"
+                                checked={data.is_sqm}
+                                onCheckedChange={(checked) => setData('is_sqm', checked === true)}
+                            />
+                            <Label htmlFor="prod-is-sqm" className="cursor-pointer">
+                                يُحتسب بالمتر المربع
+                            </Label>
+                        </div>
+                        <p className="text-muted-foreground text-xs">
+                            سعر البيع والتكلفة أدناه يصيران <strong>لكل متر مربع</strong>، ونقطة البيع تطلب العرض والطول وعدد القطع فتشتقّ منها
+                            المساحة المباعة وتخصمها من المخزون.
+                        </p>
+                        <InputError message={errors.is_sqm} />
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                            <Label htmlFor="prod-cost">سعر التكلفة (ر.س)</Label>
+                            <Label htmlFor="prod-cost">سعر التكلفة {data.is_sqm ? '(ر.س / م²)' : '(ر.س)'}</Label>
                             <Input
                                 id="prod-cost"
                                 type="number"
@@ -186,7 +208,7 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
                         </div>
 
                         <div className="space-y-1">
-                            <Label htmlFor="prod-selling">سعر البيع (ر.س)</Label>
+                            <Label htmlFor="prod-selling">سعر البيع {data.is_sqm ? '(ر.س / م²)' : '(ر.س)'}</Label>
                             <Input
                                 id="prod-selling"
                                 type="number"
@@ -202,11 +224,12 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
                     </div>
 
                     <div className="space-y-1">
-                        <Label htmlFor="prod-min-stock">الحد الأدنى للمخزون</Label>
+                        <Label htmlFor="prod-min-stock">الحد الأدنى للمخزون {data.is_sqm && '(م²)'}</Label>
                         <Input
                             id="prod-min-stock"
                             type="number"
                             min="0"
+                            step="0.01"
                             value={data.min_stock_level}
                             onChange={(e) => setData('min_stock_level', e.target.value)}
                             placeholder="0"

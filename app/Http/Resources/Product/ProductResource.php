@@ -22,13 +22,14 @@ class ProductResource extends JsonResource
             'categoryName' => $this->category?->name,
             'unitId' => $this->unit_id,
             'unitName' => $this->unit?->name,
+            'isSqm' => (bool) $this->is_sqm,
             'costPrice' => (float) $this->cost_price,
             'sellingPrice' => (float) $this->selling_price,
-            'minStockLevel' => $this->min_stock_level,
-            'currentStock' => $this->current_stock,
+            'minStockLevel' => (float) $this->min_stock_level,
+            'currentStock' => (float) $this->current_stock,
             'barcode' => $this->barcode,
             'isActive' => $this->is_active,
-            'valuation' => round($this->current_stock * (float) $this->cost_price, 2),
+            'valuation' => round((float) $this->current_stock * (float) $this->cost_price, 2),
         ];
     }
 }

@@ -32,7 +32,7 @@ class CreatePurchaseOrderAction
             foreach ($data['lines'] as $line) {
                 $po->lines()->create([
                     'product_id' => $line['product_id'],
-                    'ordered_qty' => $line['ordered_qty'],
+                    'ordered_qty' => round((float) $line['ordered_qty'], 2),
                     'received_qty' => 0,
                     'unit_cost' => $line['unit_cost'],
                     'subtotal' => round($line['ordered_qty'] * $line['unit_cost'], 2),

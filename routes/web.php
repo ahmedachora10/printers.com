@@ -361,6 +361,10 @@ Route::middleware(['auth'])->group(function () {
 
         Route::put('branch-services/{branchService}/employee-commissions', [BranchServiceController::class, 'updateEmployeeCommissions'])
             ->name('branch-services.employee-commissions.update');
+
+        // تاسك 50: خامات المخزون التي تستهلكها الخدمة — تُخصم عند اعتماد الفاتورة.
+        Route::put('branch-services/{branchService}/materials', [BranchServiceController::class, 'updateMaterials'])
+            ->name('branch-services.materials.update');
         Route::resource('branch-services', BranchServiceController::class)
             ->only(['index', 'store', 'update', 'destroy']);
 

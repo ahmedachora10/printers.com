@@ -33,14 +33,16 @@ class ProductInvoiceController extends Controller
             ->where('branch_id', $branchId)
             ->where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'sku', 'selling_price', 'current_stock', 'unit_id'])
+            ->get(['id', 'name', 'sku', 'selling_price', 'current_stock', 'unit_id', 'is_sqm'])
             ->map(fn (Product $product) => [
                 'id' => $product->id,
                 'name' => $product->name,
                 'sku' => $product->sku,
                 'sellingPrice' => (float) $product->selling_price,
-                'currentStock' => $product->current_stock,
+                'currentStock' => (float) $product->current_stock,
                 'unitName' => $product->unit?->name,
+                // منتج بالمتر المربع: السعر أعلاه سعرُ المتر، والكاشير يُدخل المقاس.
+                'isSqm' => (bool) $product->is_sqm,
             ]);
 
         $loyalty = $branchId ? LoyaltyConfig::forBranch($branchId) : null;

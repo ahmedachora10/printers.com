@@ -17,7 +17,7 @@ class UpdateStockReconciliationCountsRequest extends FormRequest
         return [
             'counts' => ['required', 'array', 'min:1'],
             'counts.*.line_id' => ['required', 'integer', 'exists:stock_reconciliation_lines,id'],
-            'counts.*.physical_qty' => ['required', 'integer', 'min:0'],
+            'counts.*.physical_qty' => ['required', 'numeric', 'min:0'],
         ];
     }
 }

@@ -37,7 +37,12 @@ class StoreProductInvoiceRequest extends FormRequest
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
             'lines.*.name' => ['nullable', 'required_without:lines.*.product_id', 'string', 'max:255'],
-            'lines.*.qty' => ['required', 'integer', 'min:1'],
+            // كمية عشرية منذ تاسك 51 — المنتج المسعّر بالمتر يُباع بكسور المتر.
+            // وكمية سطر ذلك المنتج يشتقّها الخادم من المقاس، فما يصل هنا لا يُعتمد له.
+            'lines.*.qty' => ['required', 'numeric', 'min:0.01'],
+            'lines.*.width_cm' => ['nullable', 'numeric', 'min:1', 'max:99999'],
+            'lines.*.height_cm' => ['nullable', 'numeric', 'min:1', 'max:99999'],
+            'lines.*.pieces' => ['nullable', 'integer', 'min:1'],
             'lines.*.unit_price' => ['required', 'numeric', 'min:0'],
             'lines.*.discount_pct' => ['nullable', 'numeric', 'between:0,100'],
         ];
@@ -62,7 +67,9 @@ class StoreProductInvoiceRequest extends FormRequest
             'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',
             'lines.required' => 'يجب إضافة منتج واحد على الأقل للفاتورة.',
             'lines.min' => 'يجب إضافة منتج واحد على الأقل للفاتورة.',
-            'lines.*.qty.min' => 'الكمية يجب أن تكون 1 على الأقل.',
+            'lines.*.qty.min' => 'الكمية يجب أن تكون أكبر من صفر.',
+            'lines.*.width_cm.min' => 'العرض يجب أن يكون 1 سم على الأقل.',
+            'lines.*.height_cm.min' => 'الطول يجب أن يكون 1 سم على الأقل.',
             'lines.*.product_id.exists' => 'المنتج المحدد غير موجود.',
             'lines.*.name.required_without' => 'اسم السطر اليدوي مطلوب.',
         ];

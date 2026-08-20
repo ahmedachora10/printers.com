@@ -12,8 +12,9 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Settles a service invoice: marks it paid, stamps paid_at, writes the
- * employee's commission ledger, and credits loyalty points. Both commission and
- * points are only realised once the invoice becomes paid (approved).
+ * employee's commission ledger, credits loyalty points, and draws the services'
+ * materials out of stock. Commission, points and stock are all only realised
+ * once the invoice becomes paid (approved).
  *
  * This is the single approval path. It is reached either by an accountant
  * approving the whole invoice from the review queue, or by the final instalment
@@ -28,6 +29,7 @@ class MarkServiceInvoicePaidAction
 
     public function __construct(
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
+        private readonly ConsumeServiceMaterialsAction $consumeMaterials,
     ) {}
 
     public function handle(ServiceInvoice $invoice, ?CarbonInterface $paidAt = null): ServiceInvoice
@@ -52,6 +54,10 @@ class MarkServiceInvoicePaidAction
             // Credit points now that the invoice is paid; no-ops for ineligible
             // customers (corporate, agent-linked, or inactive loyalty config).
             $this->earnLoyaltyPoints->handle($invoice);
+
+            // تاسك 50: الخدمة المنفَّذة استهلكت خاماتها — تُخصم من المخزون الآن.
+            // المُنفِّذ هنا هو المعتمِد (المحاسب/مدير الفرع) لا صاحب الفاتورة.
+            $this->consumeMaterials->consume($invoice, (int) (auth()->id() ?? $invoice->user_id));
 
             return $invoice;
         });

@@ -166,10 +166,10 @@ describe('Internal purchase requests', function () {
         expect($po->branch_id)->toBe($this->branch->id);
         expect($po->supplier_id)->toBe($supplier->id);
         expect($po->lines)->toHaveCount(1);
-        expect($po->lines->first()->ordered_qty)->toBe(7);
+        expect($po->lines->first()->ordered_qty)->toEqual(7);
         expect((float) $po->lines->first()->subtotal)->toBe(70.0);
         // Receiving stays in M29 — conversion writes no stock movement.
-        expect($this->product->refresh()->current_stock)->toBe(0);
+        expect($this->product->refresh()->current_stock)->toEqual(0);
 
         // Converting again is refused, so no second purchase order is created.
         $this->post(route('purchase-requests.convert', $request))->assertSessionHasErrors('status');

@@ -69,7 +69,7 @@ describe('Purchase order management', function () {
             'lines' => [['product_id' => $this->product->id, 'ordered_qty' => 20, 'unit_cost' => 5]],
         ])->assertRedirect();
 
-        expect($po->refresh()->lines->first()->ordered_qty)->toBe(20);
+        expect($po->refresh()->lines->first()->ordered_qty)->toEqual(20);
 
         $po->update(['status' => PurchaseOrderStatusEnum::SENT]);
 
@@ -98,8 +98,8 @@ describe('Purchase order management', function () {
         ])->assertRedirect();
 
         expect($po->refresh()->status)->toBe(PurchaseOrderStatusEnum::PARTIAL);
-        expect($line->refresh()->received_qty)->toBe(4);
-        expect($this->product->refresh()->current_stock)->toBe(4);
+        expect($line->refresh()->received_qty)->toEqual(4);
+        expect($this->product->refresh()->current_stock)->toEqual(4);
 
         $this->assertDatabaseHas('stock_movements', [
             'product_id' => $this->product->id,
@@ -123,7 +123,7 @@ describe('Purchase order management', function () {
         ])->assertRedirect();
 
         expect($po->refresh()->status)->toBe(PurchaseOrderStatusEnum::RECEIVED);
-        expect($this->product->refresh()->current_stock)->toBe(10);
+        expect($this->product->refresh()->current_stock)->toEqual(10);
     });
 
     it('rejects receiving more than the remaining quantity', function () use ($makePo) {
@@ -135,7 +135,7 @@ describe('Purchase order management', function () {
             'receipts' => [['line_id' => $line->id, 'qty' => 11]],
         ])->assertSessionHasErrors('receipts.0.qty');
 
-        expect($this->product->refresh()->current_stock)->toBe(0);
+        expect($this->product->refresh()->current_stock)->toEqual(0);
     });
 
     it('cancels a sent order but forbids cancelling after a receipt', function () use ($makePo) {

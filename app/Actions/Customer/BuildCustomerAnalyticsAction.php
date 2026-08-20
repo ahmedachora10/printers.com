@@ -151,7 +151,8 @@ class BuildCustomerAnalyticsAction
             ->get()
             ->map(fn ($row) => [
                 'name' => $row->name,
-                'qty' => (int) $row->qty,
+                // كمية عشرية: سطر المنتج المسعّر بالمتر يُجمع بمساحته (تاسك 51).
+                'qty' => round((float) $row->qty, 2),
                 'total' => (float) $row->total,
             ])
             ->all();

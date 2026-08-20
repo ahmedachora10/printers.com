@@ -33,6 +33,11 @@ interface PosCartTableProps<T extends PosCartLineBase> {
     /** max allowed discount % for the line */
     getMaxDiscount: (line: T) => number;
     getLineTotal: (line: T) => number;
+    /**
+     * يحلّ محلّ مِعداد الكمية لسطرٍ كميتُه مشتقّة لا مكتوبة — كسطر المنتج المسعّر
+     * بالمتر المربع، مساحتُه تأتي من المقاس داخل تفاصيل السطر (تاسك 51).
+     */
+    renderQtyControl?: (line: T) => ReactNode;
     onQtyChange: (line: T, delta: number) => void;
     onPriceChange: (line: T, price: number) => void;
     onDiscountChange: (line: T, value: number) => void;
@@ -144,6 +149,7 @@ export function PosCartTable<T extends PosCartLineBase>({
     isPriceEditable,
     getMaxDiscount,
     getLineTotal,
+    renderQtyControl,
     onQtyChange,
     onPriceChange,
     onDiscountChange,
@@ -205,6 +211,9 @@ export function PosCartTable<T extends PosCartLineBase>({
         ) : (
             <span className="flex h-11 items-center text-sm tabular-nums md:h-8 md:justify-center">{formatCurrency(line.unitPrice)}</span>
         );
+
+    const qtyControl = (line: T) =>
+        renderQtyControl?.(line) ?? <QuantityStepper qty={line.qty} onChange={(delta) => onQtyChange(line, delta)} />;
 
     const discountControl = (line: T) => (
         <Input
@@ -295,9 +304,7 @@ export function PosCartTable<T extends PosCartLineBase>({
                                             <TableRow className={cn(details && 'border-b-0 hover:bg-transparent')}>
                                                 <TableCell className="p-2 align-middle">{nameControl(line)}</TableCell>
 
-                                                <TableCell className="p-2 text-center">
-                                                    <QuantityStepper qty={line.qty} onChange={(delta) => onQtyChange(line, delta)} />
-                                                </TableCell>
+                                                <TableCell className="p-2 text-center">{qtyControl(line)}</TableCell>
 
                                                 <TableCell className="p-2 text-center">{priceControl(line)}</TableCell>
 
@@ -337,9 +344,7 @@ export function PosCartTable<T extends PosCartLineBase>({
                                     </div>
 
                                     <div className="grid grid-cols-2 gap-3">
-                                        <LineField label="الكمية">
-                                            <QuantityStepper qty={line.qty} onChange={(delta) => onQtyChange(line, delta)} />
-                                        </LineField>
+                                        <LineField label="الكمية">{qtyControl(line)}</LineField>
                                         <LineField label="السعر (شامل الضريبة)">{priceControl(line)}</LineField>
                                         <LineField label="خصم %">{discountControl(line)}</LineField>
                                         <LineField label="الإجمالي">
