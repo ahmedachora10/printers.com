@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\AgentDiscountModeEnum;
+use App\Enums\CustomerTierEnum;
 use App\Enums\CustomerTypeEnum;
 use App\Enums\LoyaltyTransactionTypeEnum;
 use App\Enums\Roles;
@@ -260,6 +261,43 @@ describe('Service invoice edit/return', function () {
                 ->where('type', LoyaltyTransactionTypeEnum::ManualAdjust)
                 ->where('points', -26)
                 ->exists())->toBeTrue();
+    });
+
+    // الإنفاق يُضاف ويُخصم بالمقياس نفسه (الإجمالي شامل الضريبة)، والفئة تتبعه
+    // هبوطاً — فكان الإرجاع يخصم 15% زيادة ويترك الفئة معلّقة فوق إنفاقٍ لم يعد
+    // يبلغها.
+    it('drops the tier when returning the invoice takes the spend below its threshold', function () {
+        LoyaltyConfig::query()->create([
+            'branch_id' => $this->branch->id,
+            'earning_rate' => 1,
+            'is_active' => true,
+            'bronze_threshold' => 20,
+            'silver_threshold' => 2000,
+            'gold_threshold' => 5000,
+        ]);
+
+        $customer = Customer::factory()->create([
+            'branch_id' => $this->branch->id,
+            'customer_type' => CustomerTypeEnum::Individual,
+            'points_balance' => 0,
+            'cumulative_spend' => 0,
+            'tier' => CustomerTierEnum::None,
+        ]);
+
+        $invoice = makeOwnedDueInvoice(); // total 30.00 شامل الضريبة
+        $invoice->update(['customer_id' => $customer->id]);
+
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
+
+        // 30.00 يبلغ حدّ البرونزي (20) فيترقّى.
+        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
+            ->and((float) $customer->cumulative_spend)->toBe(30.00);
+
+        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice));
+
+        // والإرجاع يعيد الإنفاق إلى الصفر فتسقط الفئة معه.
+        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::None)
+            ->and((float) $customer->cumulative_spend)->toBe(0.00);
     });
 
     it('blocks returning an invoice already rolled into an agent payment', function () {

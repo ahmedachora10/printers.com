@@ -21,13 +21,15 @@ use App\Models\LoyaltyConfig;
 use App\Models\PaymentMethod;
 use App\Models\Setting;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
 class AppSettingController extends Controller
 {
-    public function index(): Response
+    public function index(Request $request): Response
     {
         Gate::authorize('viewAny', Setting::class);
 
@@ -46,7 +48,20 @@ class AppSettingController extends Controller
             ? json_decode(Setting::get('enabled_payment_methods', $branchId, '[]'), true) ?? []
             : [];
 
-        $loyaltyConfig = $branchId ? LoyaltyConfig::forBranch($branchId) : null;
+        // تاسك 52: السوبر أدمن بلا فرع كان لا يجد أين يفعّل برنامج الولاء أصلاً.
+        // فصار له منتقي فرع يحمّل إعداداته ويحفظ عليها، ويهبط على أول فرع بدل
+        // شاشة فارغة. ومن سواه يبقى مربوطاً بفرعه لا يراه المنتقي.
+        $isSuperAdmin = $user->roleName->isSuperAdmin();
+
+        $loyaltyBranches = $isSuperAdmin
+            ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
+            : collect();
+
+        $loyaltyBranchId = $isSuperAdmin
+            ? $this->resolveLoyaltyBranchId($request, $loyaltyBranches)
+            : $branchId;
+
+        $loyaltyConfig = $loyaltyBranchId ? LoyaltyConfig::forBranch($loyaltyBranchId) : null;
 
         return Inertia::render('app-settings/index', [
             'generalSettings' => [
@@ -67,7 +82,7 @@ class AppSettingController extends Controller
             'paymentMethods' => PaymentMethodResource::collection($paymentMethods),
             'enabledPaymentMethodIds' => $enabledPaymentMethodIds,
             'canManagePaymentMethods' => Gate::allows('create', PaymentMethod::class),
-            'isSuperAdmin' => $user->roleName->isSuperAdmin(),
+            'isSuperAdmin' => $isSuperAdmin,
             'loyaltyConfig' => $loyaltyConfig ? [
                 'isActive' => (bool) $loyaltyConfig->is_active,
                 'earningRate' => (float) $loyaltyConfig->earning_rate,
@@ -82,7 +97,31 @@ class AppSettingController extends Controller
                 'goldDiscountPct' => (float) $loyaltyConfig->gold_discount_pct,
             ] : null,
             'canConfigureLoyalty' => $user->hasPermission('configure-loyalty'),
+            // الفروع تُمرَّر للسوبر أدمن وحده — والمعرّف يعود ليَصدُقَ المنتقي
+            // عمّا هو معروض فعلاً بعد تصحيح أي قيمة لا تخصّ فرعاً قائماً.
+            'loyaltyBranches' => $loyaltyBranches->map(fn (Branch $b) => [
+                'id' => $b->id,
+                'name' => $b->name,
+            ])->values(),
+            'loyaltyBranchId' => $loyaltyBranchId,
         ]);
+    }
+
+    /**
+     * الفرع المعروض في تبويب الولاء للسوبر أدمن: ما اختاره إن كان فرعاً قائماً،
+     * وإلا أول الفروع — فلا يقف أمام شاشةٍ فارغة ولا أمام قيمةٍ لا يملكها.
+     *
+     * @param  Collection<int, Branch>  $branches
+     */
+    private function resolveLoyaltyBranchId(Request $request, Collection $branches): ?int
+    {
+        $requested = $request->filled('loyaltyBranch') ? (int) $request->input('loyaltyBranch') : null;
+
+        if ($requested !== null && $branches->contains('id', $requested)) {
+            return $requested;
+        }
+
+        return $branches->first()?->id;
     }
 
     public function updateGeneral(UpdateGeneralSettingsRequest $request, UpdateGeneralSettingsAction $action): RedirectResponse
@@ -129,11 +168,16 @@ class AppSettingController extends Controller
 
     public function updateLoyalty(UpdateLoyaltyConfigRequest $request, UpdateLoyaltyConfigAction $action): RedirectResponse
     {
-        $branchId = auth()->user()->branchId;
+        $data = $request->validated();
+
+        // تاسك 52: `branch_id` لا يصل إلا من السوبر أدمن — الطلب يُسقطه ممّن
+        // سواه، فيبقى كلُّ مديرِ فرعٍ محبوساً في فرعه مهما أرسل.
+        $branchId = $data['branch_id'] ?? auth()->user()->branchId;
+        unset($data['branch_id']);
 
         abort_if($branchId === null, 403, 'لا يمكن إعداد برنامج الولاء بدون فرع.');
 
-        $action->handle($request->validated(), $branchId);
+        $action->handle($data, (int) $branchId);
 
         return back()->with('success', 'تم حفظ إعدادات برنامج الولاء بنجاح');
     }

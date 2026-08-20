@@ -7,6 +7,7 @@ use App\Enums\LoyaltyTransactionTypeEnum;
 use App\Models\CommissionLedger;
 use App\Models\Coupon;
 use App\Models\Customer;
+use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
@@ -93,8 +94,10 @@ trait ReversesServiceInvoiceAccruals
     /**
      * Claw back points the customer *earned* on this (paid) invoice when it is
      * returned: subtract them from the balance (never below zero) and roll back
-     * the spend they added. The tier is never downgraded (business rule), and
-     * the reversal is recorded as an immutable negative manual adjustment.
+     * the gross spend they added — the same measure the earn added. The tier is
+     * then re-derived from the reduced spend, so a return that drops a customer
+     * below a threshold drops the tier with it. The reversal is recorded as an
+     * immutable negative manual adjustment.
      */
     protected function clawBackEarnedPoints(ServiceInvoice $invoice): void
     {
@@ -129,6 +132,7 @@ trait ReversesServiceInvoiceAccruals
         $customer->update([
             'points_balance' => $newBalance,
             'cumulative_spend' => $newSpend,
+            'tier' => LoyaltyConfig::forBranch($customer->branch_id)->tierForSpend($newSpend),
         ]);
 
         LoyaltyTransaction::create([

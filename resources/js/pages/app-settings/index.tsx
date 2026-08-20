@@ -5,10 +5,10 @@ import {
 import {
     updateGeneral,
     updateInventoryAlerts,
-    updateLoyalty,
     updatePaymentMethods,
 } from '@/actions/App/Http/Controllers/AppSettingController';
 import BranchProfileTab from '@/components/app-settings/branch-profile-tab';
+import LoyaltyTab from '@/components/app-settings/loyalty-tab';
 import PaymentMethodFormModal from '@/components/app-settings/payment-method-form-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -78,6 +78,10 @@ interface Props {
     isSuperAdmin: boolean;
     loyaltyConfig: AppSettingsLoyaltyData | null;
     canConfigureLoyalty: boolean;
+    /** تاسك 52: للسوبر أدمن وحده — من سواه يُعدّ فرعه فلا منتقي له. */
+    loyaltyBranches: { id: number; name: string }[];
+    /** الفرع الذي تخصّه `loyaltyConfig`. */
+    loyaltyBranchId: number | null;
 }
 
 export default function AppSettingsIndex({
@@ -91,6 +95,8 @@ export default function AppSettingsIndex({
     isSuperAdmin,
     loyaltyConfig,
     canConfigureLoyalty,
+    loyaltyBranches,
+    loyaltyBranchId,
 }: Props) {
     const [activeTab, setActiveTab] = useState<TabValue>(() => getInitialTab(isSuperAdmin, !!branchProfile));
     const [pmFormOpen, setPmFormOpen] = useState(false);
@@ -110,20 +116,6 @@ export default function AppSettingsIndex({
 
     const inventoryForm = useForm({
         min_stock_alert_threshold: inventoryAlerts.minStockAlertThreshold ?? '10',
-    });
-
-    const loyaltyForm = useForm({
-        is_active: loyaltyConfig?.isActive ?? true,
-        earning_rate: loyaltyConfig?.earningRate?.toString() ?? '1',
-        redemption_rate: loyaltyConfig?.redemptionRate?.toString() ?? '100',
-        min_redemption_points: loyaltyConfig?.minRedemptionPoints?.toString() ?? '500',
-        expiry_months: loyaltyConfig?.expiryMonths?.toString() ?? '',
-        bronze_threshold: loyaltyConfig?.bronzeThreshold?.toString() ?? '500',
-        silver_threshold: loyaltyConfig?.silverThreshold?.toString() ?? '2000',
-        gold_threshold: loyaltyConfig?.goldThreshold?.toString() ?? '5000',
-        bronze_discount_pct: loyaltyConfig?.bronzeDiscountPct?.toString() ?? '2',
-        silver_discount_pct: loyaltyConfig?.silverDiscountPct?.toString() ?? '5',
-        gold_discount_pct: loyaltyConfig?.goldDiscountPct?.toString() ?? '8',
     });
 
     function openCreate() {
@@ -171,11 +163,6 @@ export default function AppSettingsIndex({
     function submitInventory(e: React.FormEvent) {
         e.preventDefault();
         inventoryForm.put(updateInventoryAlerts.url(), { preserveScroll: true });
-    }
-
-    function submitLoyalty(e: React.FormEvent) {
-        e.preventDefault();
-        loyaltyForm.put(updateLoyalty.url(), { preserveScroll: true });
     }
 
     return (
@@ -337,134 +324,16 @@ export default function AppSettingsIndex({
 
                     {/* ── Loyalty Program ──────────────────────────────── */}
                     <TabsContent value="loyalty">
-                        <div className="rounded-lg border p-6">
-                            <h2 className="mb-1 text-lg font-semibold">برنامج الولاء</h2>
-                            <p className="text-muted-foreground mb-4 text-sm">
-                                تُطبَّق التغييرات على الفواتير الجديدة فقط؛ الأرصدة والفئات الحالية لا تتأثر.
-                            </p>
-
-                            {!loyaltyConfig || !canConfigureLoyalty ? (
-                                <p className="text-muted-foreground text-sm">
-                                    {canConfigureLoyalty
-                                        ? 'إعداد برنامج الولاء غير متاح بدون فرع محدد.'
-                                        : 'لا تملك صلاحية إعداد برنامج الولاء.'}
-                                </p>
-                            ) : (
-                                <form onSubmit={submitLoyalty} className="space-y-6">
-                                    <div className="flex items-center justify-between rounded-md border p-3">
-                                        <div>
-                                            <Label htmlFor="loyalty-active">تفعيل البرنامج</Label>
-                                            <p className="text-muted-foreground text-xs">
-                                                عند الإيقاف لا تُكتسب نقاط ولا تُطبَّق خصومات الفئات أو الاستبدال.
-                                            </p>
-                                        </div>
-                                        <Switch
-                                            id="loyalty-active"
-                                            checked={loyaltyForm.data.is_active}
-                                            onCheckedChange={(v) => loyaltyForm.setData('is_active', v)}
-                                        />
-                                    </div>
-
-                                    <div className="grid gap-4 sm:grid-cols-2">
-                                        <div className="space-y-1">
-                                            <Label htmlFor="earning-rate">نقاط مكتسبة لكل 1 ر.س</Label>
-                                            <Input
-                                                id="earning-rate"
-                                                type="number"
-                                                step="0.0001"
-                                                min="0"
-                                                value={loyaltyForm.data.earning_rate}
-                                                onChange={(e) => loyaltyForm.setData('earning_rate', e.target.value)}
-                                            />
-                                            <InputError message={loyaltyForm.errors.earning_rate} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label htmlFor="redemption-rate">نقاط مقابل خصم 1 ر.س</Label>
-                                            <Input
-                                                id="redemption-rate"
-                                                type="number"
-                                                step="0.0001"
-                                                min="0.01"
-                                                value={loyaltyForm.data.redemption_rate}
-                                                onChange={(e) => loyaltyForm.setData('redemption_rate', e.target.value)}
-                                            />
-                                            <InputError message={loyaltyForm.errors.redemption_rate} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label htmlFor="min-redemption">الحد الأدنى للاستبدال (نقاط)</Label>
-                                            <Input
-                                                id="min-redemption"
-                                                type="number"
-                                                min="0"
-                                                value={loyaltyForm.data.min_redemption_points}
-                                                onChange={(e) => loyaltyForm.setData('min_redemption_points', e.target.value)}
-                                            />
-                                            <InputError message={loyaltyForm.errors.min_redemption_points} />
-                                        </div>
-                                        <div className="space-y-1">
-                                            <Label htmlFor="expiry-months">انتهاء صلاحية النقاط (أشهر)</Label>
-                                            <Input
-                                                id="expiry-months"
-                                                type="number"
-                                                min="1"
-                                                max="120"
-                                                placeholder="بلا انتهاء"
-                                                value={loyaltyForm.data.expiry_months}
-                                                onChange={(e) => loyaltyForm.setData('expiry_months', e.target.value)}
-                                            />
-                                            <p className="text-xs text-muted-foreground">
-                                                يُصفَّر رصيد العميل إذا مضت هذه المدة بلا أي شراء. اتركه فارغاً فلا تنتهي النقاط.
-                                            </p>
-                                            <InputError message={loyaltyForm.errors.expiry_months} />
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <h3 className="mb-3 text-sm font-semibold">فئات الولاء (حد الإنفاق التراكمي ونسبة الخصم)</h3>
-                                        <div className="space-y-3">
-                                            {([
-                                                { key: 'bronze', label: 'برونزي' },
-                                                { key: 'silver', label: 'فضي' },
-                                                { key: 'gold', label: 'ذهبي' },
-                                            ] as const).map((tier) => (
-                                                <div key={tier.key} className="grid items-end gap-3 sm:grid-cols-[6rem_1fr_1fr]">
-                                                    <span className="text-sm font-medium">{tier.label}</span>
-                                                    <div className="space-y-1">
-                                                        <Label htmlFor={`${tier.key}-threshold`}>حد الإنفاق (ر.س)</Label>
-                                                        <Input
-                                                            id={`${tier.key}-threshold`}
-                                                            type="number"
-                                                            step="0.01"
-                                                            min="0"
-                                                            value={loyaltyForm.data[`${tier.key}_threshold`]}
-                                                            onChange={(e) => loyaltyForm.setData(`${tier.key}_threshold`, e.target.value)}
-                                                        />
-                                                        <InputError message={loyaltyForm.errors[`${tier.key}_threshold`]} />
-                                                    </div>
-                                                    <div className="space-y-1">
-                                                        <Label htmlFor={`${tier.key}-discount`}>نسبة الخصم (%)</Label>
-                                                        <Input
-                                                            id={`${tier.key}-discount`}
-                                                            type="number"
-                                                            step="0.01"
-                                                            min="0"
-                                                            max="100"
-                                                            value={loyaltyForm.data[`${tier.key}_discount_pct`]}
-                                                            onChange={(e) => loyaltyForm.setData(`${tier.key}_discount_pct`, e.target.value)}
-                                                        />
-                                                        <InputError message={loyaltyForm.errors[`${tier.key}_discount_pct`]} />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <Button type="submit" disabled={loyaltyForm.processing}>
-                                        {loyaltyForm.processing ? 'جاري الحفظ...' : 'حفظ الإعدادات'}
-                                    </Button>
-                                </form>
-                            )}
-                        </div>
+                        {/* تاسك 52: المفتاح مربوطٌ بفرعٍ بعينه، فالمكوّن يُركَّب
+                            بمفتاح الفرع كي يعيد بناء نموذجه عند تبديله. */}
+                        <LoyaltyTab
+                            key={loyaltyBranchId ?? 'none'}
+                            config={loyaltyConfig}
+                            canConfigure={canConfigureLoyalty}
+                            isSuperAdmin={isSuperAdmin}
+                            branches={loyaltyBranches}
+                            branchId={loyaltyBranchId}
+                        />
                     </TabsContent>
 
                     {/* ── Inventory Alerts ─────────────────────────────── */}

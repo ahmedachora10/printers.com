@@ -178,8 +178,9 @@ describe('Loyalty reversal', function () {
 
             approveServiceInvoice(serviceInvoiceFor($customer->id));
 
+            // النقاط من الصافي (100)، والإنفاق من الإجمالي شامل الضريبة (115).
             expect($customer->refresh()->points_balance)->toBe(100)
-                ->and((float) $customer->cumulative_spend)->toBe(100.00);
+                ->and((float) $customer->cumulative_spend)->toBe(115.00);
         });
     });
 
@@ -213,9 +214,10 @@ describe('Loyalty reversal', function () {
 
             refundInvoice($invoice, 46.00);
 
-            // 46 من 115 = 40%، فيُسحب 40% من 100 نقطة ومن الصافي 100
+            // 46 من 115 = 40%، فيُسحب 40% من 100 نقطة. والإنفاق يُخصم منه المبلغ
+            // المسترجَع كما هو شاملاً الضريبة: 115 − 46 = 69.
             expect($customer->refresh()->points_balance)->toBe(60)
-                ->and((float) $customer->cumulative_spend)->toBe(60.00);
+                ->and((float) $customer->cumulative_spend)->toBe(69.00);
         });
 
         it('reaches exactly the full clawback across successive partial refunds', function () {
@@ -289,7 +291,7 @@ describe('Loyalty reversal', function () {
             expect($customer->refresh()->points_balance)->toBe(0);
         });
 
-        it('does not downgrade the tier when the spend is rolled back', function () {
+        it('keeps the tier when the rolled-back spend still meets the threshold', function () {
             $customer = reversalCustomer(['tier' => CustomerTierEnum::Gold, 'cumulative_spend' => 5000]);
             $this->post(route('pos.product.store'), reversalProductPayload(['customer_id' => $customer->id]));
             $invoice = ProductInvoice::firstOrFail();
@@ -297,9 +299,23 @@ describe('Loyalty reversal', function () {
             // خصم الذهبي 8%: الإجمالي 92 والمكتسب 92 نقطة
             refundInvoice($invoice, (float) $invoice->fresh()->total_amount);
 
+            // عاد الإنفاق إلى 5000 وهو حدّ الذهبي بالتمام، وبلوغُ الحدّ يكفي.
             expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Gold)
                 ->and((float) $customer->cumulative_spend)->toBe(5000.00)
                 ->and($customer->points_balance)->toBe(0);
+        });
+
+        // القاعدة القديمة كانت تُبقي الفئة معلَّقة فوق إنفاقٍ لم يعد يبلغها.
+        it('drops the tier when the refund takes the spend below the threshold', function () {
+            $customer = reversalCustomer(['tier' => CustomerTierEnum::Gold, 'cumulative_spend' => 4950]);
+            $this->post(route('pos.product.store'), reversalProductPayload(['customer_id' => $customer->id]));
+            $invoice = ProductInvoice::firstOrFail();
+
+            // 4950 + 92 = 5042 فيبقى ذهبياً، ثم يعيده المرتجع إلى 4950 دون الحدّ.
+            refundInvoice($invoice, (float) $invoice->fresh()->total_amount);
+
+            expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Silver)
+                ->and((float) $customer->cumulative_spend)->toBe(4950.00);
         });
 
         it('leaves the cumulative spend alone for an invoice that never earned', function () {

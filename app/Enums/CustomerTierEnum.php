@@ -20,9 +20,9 @@ enum CustomerTierEnum: string
     }
 
     /**
-     * Ordinal rank used to compare tiers. Tiers never downgrade, so the
-     * loyalty engine only promotes when a newly computed tier outranks the
-     * customer's current one.
+     * Ordinal rank used to compare two tiers. The engine no longer treats a
+     * lower rank as impossible — the tier follows cumulative spend up *and*
+     * down — so this only answers «أترقية هي أم تنزيل؟» for reporting.
      */
     public function rank(): int
     {

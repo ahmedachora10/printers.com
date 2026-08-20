@@ -107,12 +107,121 @@ describe('Loyalty config (app-settings)', function () {
         ]))->assertSessionHasErrors('silver_threshold');
     });
 
+    // تاسك 52: المنتقي للسوبر أدمن وحده — `branch_id` من مدير فرعٍ يُهمَل ولا
+    // يمسّ فرعاً ليس فرعه.
+    it('ignores a branch_id sent by a branch admin', function () {
+        $other = Branch::factory()->create();
+
+        put(route('app-settings.update-loyalty'), loyaltyConfigPayload([
+            'branch_id' => $other->id,
+            'earning_rate' => 7,
+        ]))->assertRedirect();
+
+        expect((float) LoyaltyConfig::where('branch_id', $this->branch->id)->firstOrFail()->earning_rate)->toBe(7.0)
+            ->and(LoyaltyConfig::where('branch_id', $other->id)->exists())->toBeFalse();
+    });
+
+    it('sees no branch picker', function () {
+        get(route('app-settings.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('loyaltyBranches', 0)
+                ->where('loyaltyBranchId', $this->branch->id));
+    });
+
     it('forbids an employee from updating the loyalty config', function () {
         $employee = User::factory()->create(['branch_id' => $this->branch->id]);
         $employee->addRole(Roles::EMPLOYEE->value);
         actingAs($employee);
 
         put(route('app-settings.update-loyalty'), loyaltyConfigPayload())->assertForbidden();
+    });
+});
+
+/**
+ * تاسك 52: «كيف يُفعَّل برنامج الولاء؟» — الجواب كان محجوباً عن السوبر أدمن: لا
+ * فرع له فلا إعدادات تصله. فصار له منتقي فرع يقرأ إعداداته ويحفظ عليها.
+ */
+describe('Loyalty config for the super admin', function () {
+    beforeEach(function () {
+        $this->withoutVite();
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $this->superAdmin = User::factory()->create(['branch_id' => null]);
+        $this->superAdmin->addRole(Roles::SUPER_ADMIN->value);
+        actingAs($this->superAdmin);
+
+        $this->first = Branch::factory()->create(['name' => 'الفرع الأول']);
+        $this->second = Branch::factory()->create(['name' => 'الفرع الثاني']);
+    });
+
+    it('lands on a branch instead of an empty screen', function () {
+        get(route('app-settings.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('isSuperAdmin', true)
+                ->has('loyaltyBranches', 2)
+                ->where('loyaltyBranchId', $this->first->id)
+                ->has('loyaltyConfig'));
+    });
+
+    it('loads the picked branch config', function () {
+        LoyaltyConfig::factory()->create(['branch_id' => $this->second->id, 'earning_rate' => 3]);
+
+        get(route('app-settings.index', ['loyaltyBranch' => $this->second->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('loyaltyBranchId', $this->second->id)
+                ->where('loyaltyConfig.earningRate', 3));
+    });
+
+    // فرعٌ لا وجود له في القائمة لا يُعرض، ويعود المنتقي إلى فرعٍ قائم.
+    it('falls back to the first branch for an unknown pick', function () {
+        get(route('app-settings.index', ['loyaltyBranch' => 99999]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('loyaltyBranchId', $this->first->id));
+    });
+
+    it('hides inactive branches from the picker', function () {
+        Branch::factory()->create(['name' => 'فرع موقوف', 'is_active' => false]);
+
+        get(route('app-settings.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('loyaltyBranches', 2));
+    });
+
+    it('saves the config onto the picked branch', function () {
+        put(route('app-settings.update-loyalty'), loyaltyConfigPayload([
+            'branch_id' => $this->second->id,
+            'earning_rate' => 4,
+        ]))->assertRedirect()->assertSessionHas('success');
+
+        expect((float) LoyaltyConfig::where('branch_id', $this->second->id)->firstOrFail()->earning_rate)->toBe(4.0)
+            ->and(LoyaltyConfig::where('branch_id', $this->first->id)->exists())->toBeFalse();
+    });
+
+    it('can deactivate the program for one branch alone', function () {
+        put(route('app-settings.update-loyalty'), loyaltyConfigPayload([
+            'branch_id' => $this->first->id,
+            'is_active' => false,
+        ]))->assertRedirect();
+
+        put(route('app-settings.update-loyalty'), loyaltyConfigPayload([
+            'branch_id' => $this->second->id,
+        ]))->assertRedirect();
+
+        expect(LoyaltyConfig::where('branch_id', $this->first->id)->first()->is_active)->toBeFalse()
+            ->and(LoyaltyConfig::where('branch_id', $this->second->id)->first()->is_active)->toBeTrue();
+    });
+
+    it('rejects a branch that does not exist', function () {
+        put(route('app-settings.update-loyalty'), loyaltyConfigPayload(['branch_id' => 99999]))
+            ->assertSessionHasErrors('branch_id');
+    });
+
+    it('requires the super admin to name a branch', function () {
+        put(route('app-settings.update-loyalty'), loyaltyConfigPayload())
+            ->assertSessionHasErrors('branch_id');
     });
 });
 

@@ -2,7 +2,6 @@
 
 namespace App\Actions\Loyalty;
 
-use App\Enums\CustomerTierEnum;
 use App\Enums\CustomerTypeEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\LoyaltyTransactionTypeEnum;
@@ -19,7 +18,8 @@ class EarnLoyaltyPointsAction
      * Credit loyalty points for a paid invoice. Points are earned only on
      * Paid invoices for individual, non-agent-linked customers (business rule).
      * Writes an immutable earn transaction, bumps the balance and cumulative
-     * spend, and promotes the tier (tiers never downgrade).
+     * spend, and re-derives the tier from that spend — up or down. Points are
+     * measured net of VAT, cumulative spend gross of it.
      *
      * Safe to call standalone (future due→paid transition) or nested inside an
      * invoice-creation transaction. Returns null when no points were earned.
@@ -56,20 +56,21 @@ class EarnLoyaltyPointsAction
                 return null;
             }
 
-            // النقاط والإنفاق التراكمي يقومان على قيمة الفاتورة صافيةً من ضريبة
-            // القيمة المضافة: العميل لا يكسب على ضريبةٍ تذهب إلى الدولة، وهي
-            // القاعدة نفسها التي تحكم كل نسبة عمولة في النظام.
-            $base = $invoice->netAmount();
-
-            $earned = (int) floor($base * (float) $config->earning_rate);
+            // النقاط تقوم على قيمة الفاتورة صافيةً من ضريبة القيمة المضافة:
+            // العميل لا يكسب على ضريبةٍ تذهب إلى الدولة، وهي القاعدة نفسها التي
+            // تحكم كل نسبة عمولة في النظام.
+            $earned = (int) floor($invoice->netAmount() * (float) $config->earning_rate);
 
             if ($earned <= 0) {
                 return null;
             }
 
+            // أما الإنفاق التراكمي فيقوم على المبلغ **شاملاً الضريبة**: حدود
+            // الفئات في الإعدادات يقرؤها المستخدم بالمبلغ الذي يدفعه العميل على
+            // الفاتورة، فمن دفع 500 بلغ حدّ 500. المقياسان مختلفان عن قصد.
             $newBalance = $customer->points_balance + $earned;
-            $newSpend = (float) $customer->cumulative_spend + $base;
-            $tier = $this->resolveTier($customer->tier, $newSpend, $config);
+            $newSpend = (float) $customer->cumulative_spend + (float) $invoice->total_amount;
+            $tier = $config->tierForSpend($newSpend);
 
             $customer->update([
                 'points_balance' => $newBalance,
@@ -101,21 +102,5 @@ class EarnLoyaltyPointsAction
         return $invoice instanceof ServiceInvoice
             ? $invoice->agents()->exists()
             : $invoice->agent_id !== null;
-    }
-
-    /**
-     * Tier from cumulative spend against the branch thresholds, but never
-     * below the customer's current tier (tiers never downgrade automatically).
-     */
-    private function resolveTier(CustomerTierEnum $current, float $spend, LoyaltyConfig $config): CustomerTierEnum
-    {
-        $computed = match (true) {
-            $spend >= (float) $config->gold_threshold => CustomerTierEnum::Gold,
-            $spend >= (float) $config->silver_threshold => CustomerTierEnum::Silver,
-            $spend >= (float) $config->bronze_threshold => CustomerTierEnum::Bronze,
-            default => CustomerTierEnum::None,
-        };
-
-        return $computed->rank() > $current->rank() ? $computed : $current;
     }
 }

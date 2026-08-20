@@ -4,6 +4,7 @@ namespace App\Actions\Loyalty;
 
 use App\Enums\LoyaltyTransactionTypeEnum;
 use App\Models\Customer;
+use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
 use App\Models\ProductInvoice;
 use App\Models\Refund;
@@ -57,12 +58,10 @@ class ReverseLoyaltyForRefundAction
         $toRestore = max(0, (int) floor($redeemed * $fraction) - $alreadyRestored);
 
         // الإنفاق التراكمي لا يُرفع إلا في الكتلة نفسها التي تكتب صفّ الاكتساب،
-        // فوجود اكتسابٍ على الفاتورة هو بعينه شرطُ صحّة الخصم منه. وما أُضيف
-        // صافياً من الضريبة يُخصم صافياً منها: المبلغ المسترجَع إجماليٌّ فيُقتطع
-        // منه ما يقابل الضريبة بنسبة الصافي إلى الإجمالي.
-        $spendRollback = $earned > 0
-            ? round($refundAmount * ($invoice->netAmount() / $invoiceTotal), 2)
-            : 0.0;
+        // فوجود اكتسابٍ على الفاتورة هو بعينه شرطُ صحّة الخصم منه. والمبلغ
+        // المسترجَع إجماليٌّ شامل الضريبة، وهو المقياس الذي أُضيف به الإنفاق،
+        // فيُخصم كما هو بلا اقتطاع الضريبة منه.
+        $spendRollback = $earned > 0 ? round($refundAmount, 2) : 0.0;
 
         if ($toClaw === 0 && $toRestore === 0 && $spendRollback <= 0) {
             return;
@@ -94,9 +93,14 @@ class ReverseLoyaltyForRefundAction
             $this->record($invoice, $customer, $toRestore, $balance, "استرجاع نقاط مستبدلة بعد مرتجع الفاتورة {$invoice->invoice_number}");
         }
 
+        // الفئة تتبع الإنفاق هبوطاً كما تتبعه صعوداً، فمرتجعٌ يهبط بالإنفاق دون
+        // حدّ الفئة يُنزل صاحبه عنها.
+        $newSpend = max(0, (float) $customer->cumulative_spend - $spendRollback);
+
         $customer->update([
             'points_balance' => $balance,
-            'cumulative_spend' => max(0, (float) $customer->cumulative_spend - $spendRollback),
+            'cumulative_spend' => $newSpend,
+            'tier' => LoyaltyConfig::forBranch($customer->branch_id)->tierForSpend($newSpend),
         ]);
     }
 

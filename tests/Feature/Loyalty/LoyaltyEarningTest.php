@@ -82,9 +82,10 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        // الصافي من الضريبة = 26.09؛ 26.09 × 0.5 = 13.045 → FLOOR = 13
+        // النقاط من الصافي: 26.09 × 0.5 = 13.045 → FLOOR = 13.
+        // والإنفاق التراكمي من الإجمالي شامل الضريبة: 30.00.
         expect($customer->refresh()->points_balance)->toBe(13)
-            ->and((float) $customer->cumulative_spend)->toBe(26.09);
+            ->and((float) $customer->cumulative_spend)->toBe(30.00);
 
         $invoice = ProductInvoice::firstOrFail();
         $this->assertDatabaseHas('loyalty_transactions', [
@@ -97,7 +98,9 @@ describe('Loyalty earning', function () {
         ]);
     });
 
-    it('excludes VAT from the points base', function () {
+    // المقياسان مختلفان عن قصد: النقاط من الصافي، والإنفاق الذي تُقاس به حدود
+    // الفئات من الإجمالي كما يدفعه العميل على الفاتورة.
+    it('earns points net of VAT but accrues spend gross of it', function () {
         LoyaltyConfig::factory()->create(['branch_id' => $this->branch->id, 'earning_rate' => 1]);
         $customer = makeIndividual();
 
@@ -112,7 +115,7 @@ describe('Loyalty earning', function () {
         expect((float) $invoice->total_amount)->toBe(115.00)
             ->and((float) $invoice->vat_amount)->toBe(15.00)
             ->and($customer->refresh()->points_balance)->toBe(100)
-            ->and((float) $customer->cumulative_spend)->toBe(100.00);
+            ->and((float) $customer->cumulative_spend)->toBe(115.00);
     });
 
     it('accumulates points and balance_after across invoices', function () {
@@ -177,18 +180,39 @@ describe('Loyalty earning', function () {
         expect($customer->refresh()->tier)->toBe(CustomerTierEnum::None);
     });
 
-    it('never downgrades an existing tier', function () {
+    // القاعدة القديمة كانت «الفئة لا تنزل أبداً»، فبقي عملاء معلَّقين في فئةٍ لا
+    // يبلغها إنفاقهم. الفئة اليوم تتبع الإنفاق في الاتجاهين.
+    it('drops a tier the spend no longer supports', function () {
+        LoyaltyConfig::factory()->create([
+            'branch_id' => $this->branch->id,
+            'earning_rate' => 1,
+            'bronze_threshold' => 20,
+            'silver_threshold' => 2000,
+            'gold_threshold' => 5000,
+        ]);
+        // ذهبيٌّ بلا إنفاق: فاتورة صغيرة تُنزله إلى ما يبلغه إنفاقه فعلاً.
+        $customer = makeIndividual(['tier' => CustomerTierEnum::Gold, 'cumulative_spend' => 0]);
+
+        post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
+
+        // 30.00 ناقص خصم الفئة الذهبية 8% = 27.60 شاملة الضريبة: تبلغ حدّ
+        // البرونزي (20) ولا تبلغ الفضي، فينزل من الذهبي إلى البرونزي.
+        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
+            ->and((float) $customer->cumulative_spend)->toBe(27.60);
+    });
+
+    // بلوغ الحدّ يكفي، فلا يُشترط تجاوزه.
+    it('grants the tier when the spend exactly meets the threshold', function () {
         LoyaltyConfig::factory()->create([
             'branch_id' => $this->branch->id,
             'earning_rate' => 1,
             'bronze_threshold' => 30,
         ]);
-        // Gold customer with low spend — a small invoice must not demote them.
-        $customer = makeIndividual(['tier' => CustomerTierEnum::Gold, 'cumulative_spend' => 0]);
+        $customer = makeIndividual(['tier' => CustomerTierEnum::None, 'cumulative_spend' => 0]);
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Gold);
+        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze);
     });
 
     it('earns no points for a corporate customer', function () {

@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Setting;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateLoyaltyConfigRequest extends FormRequest
 {
@@ -26,6 +27,14 @@ class UpdateLoyaltyConfigRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // تاسك 52: السوبر أدمن وحده يختار الفرع الذي يُحفظ عليه الإعداد؛
+            // ومن سواه يُستبعد الحقل من المُتحقَّق منه فيعود الخادم إلى فرعه.
+            'branch_id' => [
+                Rule::excludeIf(! $this->actorIsSuperAdmin()),
+                'required',
+                'integer',
+                Rule::exists('branches', 'id')->whereNull('deleted_at'),
+            ],
             'is_active' => ['required', 'boolean'],
             'earning_rate' => ['required', 'numeric', 'min:0', 'max:9999'],
             'redemption_rate' => ['required', 'numeric', 'min:0.01', 'max:9999'],
@@ -45,11 +54,18 @@ class UpdateLoyaltyConfigRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'branch_id.required' => 'اختر الفرع الذي تُحفظ عليه إعدادات برنامج الولاء.',
+            'branch_id.exists' => 'الفرع المختار غير موجود.',
             'redemption_rate.min' => 'معدل الاستبدال يجب أن يكون أكبر من صفر.',
             'expiry_months.min' => 'مدة انتهاء الصلاحية شهر واحد على الأقل.',
             'expiry_months.max' => 'مدة انتهاء الصلاحية 120 شهراً كحد أقصى.',
             'silver_threshold.gte' => 'حد الفئة الفضية يجب ألا يقل عن حد الفئة البرونزية.',
             'gold_threshold.gte' => 'حد الفئة الذهبية يجب ألا يقل عن حد الفئة الفضية.',
         ];
+    }
+
+    private function actorIsSuperAdmin(): bool
+    {
+        return $this->user()?->roleName?->isSuperAdmin() ?? false;
     }
 }

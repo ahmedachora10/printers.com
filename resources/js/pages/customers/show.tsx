@@ -54,7 +54,6 @@ const TIER_OPTIONS: { value: CustomerTier; label: string }[] = [
     { value: 'gold', label: 'ذهبي' },
 ];
 
-const TIER_RANK: Record<string, number> = { none: 0, bronze: 1, silver: 2, gold: 3 };
 
 const STATUS_COLORS: Record<string, string> = {
     paid: 'border-green-200 bg-green-50 text-green-700',
@@ -172,11 +171,11 @@ export default function CustomerShow({
         });
     }
 
-    // المحرّك يشتقّ المستوى من الإنفاق التراكمي عند كل فاتورة مسدَّدة، فتنزيلٌ
-    // يترك الإنفاق فوق عتبة المستوى الجديد يُنقض عند أول اكتساب. نحذّر منه هنا،
-    // ونتيح تصحيح الإنفاق في النموذج نفسه.
-    const isDowngrade =
-        TIER_RANK[tierForm.data.tier] < TIER_RANK[customer.tier.value];
+    // المحرّك يشتقّ المستوى من الإنفاق التراكمي عند كل فاتورة مسدَّدة — صعوداً
+    // وهبوطاً معاً بعد تصحيح 20/08/2026 — فأيّ تعديل يدويٍّ يخالف ما يستحقّه
+    // إنفاقه يُنقَض عند أول اكتساب، لا التنزيل وحده. نحذّر منه هنا، ونتيح
+    // تصحيح الإنفاق في النموذج نفسه.
+    const isOverride = tierForm.data.tier !== customer.tier.value;
 
     const creditUsedPct =
         financialSummary.creditLimit && financialSummary.creditLimit > 0
@@ -480,7 +479,7 @@ export default function CustomerShow({
                 </div>
             </div>
 
-            {/* Manual tier override — the engine only ever promotes */}
+            {/* Manual tier override — the engine re-derives the tier from spend both ways */}
             <Dialog
                 open={tierOpen}
                 onOpenChange={(open) => {
@@ -492,8 +491,8 @@ export default function CustomerShow({
                     <DialogHeader>
                         <DialogTitle>تعديل مستوى الولاء</DialogTitle>
                         <DialogDescription>
-                            يرقّي النظام المستوى تلقائياً من الإنفاق التراكمي ولا ينزّله أبداً،
-                            فالتنزيل وتصحيح المستوى الخاطئ يتمّان من هنا. يُحفظ السبب في سجلّ العميل.
+                            النظام يشتقّ المستوى من الإنفاق التراكمي صعوداً وهبوطاً، فما يُضبط هنا
+                            لا يثبت إلا إذا وافقه الإنفاق. يُحفظ السبب في سجلّ العميل.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -520,7 +519,7 @@ export default function CustomerShow({
                             )}
                         </div>
 
-                        {isDowngrade && (
+                        {isOverride && (
                             <div className="flex gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
                                 <TriangleAlert className="mt-0.5 size-4 shrink-0" />
                                 <span>
@@ -528,8 +527,8 @@ export default function CustomerShow({
                                     <span dir="ltr" className="font-medium">
                                         {formatCurrency(Number(customer.cumulativeSpend))}
                                     </span>{' '}
-                                    هو ما يُشتقّ منه المستوى عند كل فاتورة مسدَّدة. صحّحه أدناه وإلا
-                                    عاد العميل إلى مستواه السابق عند أول عملية شراء.
+                                    هو ما يُشتقّ منه المستوى عند كل فاتورة مسدَّدة، صعوداً وهبوطاً. صحّحه أدناه وإلا
+                                    عاد العميل إلى ما يستحقّه إنفاقه عند أول عملية شراء.
                                 </span>
                             </div>
                         )}
