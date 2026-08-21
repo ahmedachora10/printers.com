@@ -35,6 +35,8 @@ interface PosCartTableProps<T extends PosCartLineBase> {
      * الحفظ. تُعاد null حين لا شيء عليه (وهو الشائع).
      */
     getPriceError?: (line: T) => string | null;
+    /** تنويه صغير أسفل حقل السعر — وحدة القياس مثلاً: «ر.س/م²». */
+    getPriceHint?: (line: T) => string | null;
     /** max allowed discount % for the line */
     getMaxDiscount: (line: T) => number;
     getLineTotal: (line: T) => number;
@@ -153,6 +155,7 @@ export function PosCartTable<T extends PosCartLineBase>({
     renderLineMeta,
     isPriceEditable,
     getPriceError,
+    getPriceHint,
     getMaxDiscount,
     getLineTotal,
     renderQtyControl,
@@ -206,6 +209,7 @@ export function PosCartTable<T extends PosCartLineBase>({
 
     const priceControl = (line: T) => {
         const priceError = getPriceError?.(line) ?? null;
+        const priceHint = getPriceHint?.(line) ?? null;
 
         if (!isPriceEditable(line)) {
             return <span className="flex h-11 items-center text-sm tabular-nums md:h-8 md:justify-center">{formatCurrency(line.unitPrice)}</span>;
@@ -222,6 +226,7 @@ export function PosCartTable<T extends PosCartLineBase>({
                     aria-invalid={priceError ? true : undefined}
                     className={cn('h-11 text-center md:h-8', priceError && 'border-destructive text-destructive focus-visible:ring-destructive')}
                 />
+                {priceHint && !priceError && <p className="text-muted-foreground text-[10px] leading-tight">{priceHint}</p>}
                 {priceError && <p className="text-destructive text-[11px] leading-tight">{priceError}</p>}
             </div>
         );

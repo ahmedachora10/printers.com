@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
+import { formatLineSize, formatLineUnitPrice } from '@/lib/invoice';
 import { formatCurrency, formatQty } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
@@ -26,6 +27,8 @@ interface ReviewLine {
     notes: string | null;
     qty: number;
     unitPrice: number;
+    /** ما يقيسه السعر: 'sqm' سعر متر مربع، و null سعر وحدة */
+    unitPriceBasis?: 'sqm' | null;
     widthCm: number | null;
     heightCm: number | null;
     discountPct: number;
@@ -85,16 +88,12 @@ const reviewLineColumns: ColumnDef<ReviewLine>[] = [
             <>
                 {line.name}
                 {line.notes && <span className="text-muted-foreground block text-xs whitespace-pre-line">{line.notes}</span>}
-                {line.widthCm != null && line.heightCm != null && (
-                    <span className="text-muted-foreground block text-xs">
-                        المقاس: {line.widthCm}×{line.heightCm} سم
-                    </span>
-                )}
+                {formatLineSize(line) && <span className="text-muted-foreground block text-xs">المقاس: {formatLineSize(line)}</span>}
             </>
         ),
     },
     { key: 'qty', header: 'الكمية', headerClassName: 'text-center', className: 'text-center', cell: (line) => formatQty(line.qty) },
-    { key: 'unitPrice', header: 'السعر', headerClassName: 'text-center', className: 'text-center', cell: (line) => formatCurrency(line.unitPrice) },
+    { key: 'unitPrice', header: 'السعر', headerClassName: 'text-center', className: 'text-center', cell: (line) => formatLineUnitPrice(line) },
     { key: 'subtotal', header: 'الإجمالي', headerClassName: 'text-start', className: 'text-start', cell: (line) => formatCurrency(line.subtotal) },
 ];
 

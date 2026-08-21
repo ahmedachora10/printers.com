@@ -1,5 +1,6 @@
 import { type Invoice, type InvoiceListItem } from '@/types/invoice';
 import { type PosInvoice } from '@/types/pos';
+import { formatCurrency } from '@/lib/utils';
 
 type DocumentSource = Pick<Invoice | InvoiceListItem | PosInvoice, 'status' | 'customerTaxNumber'>;
 
@@ -8,6 +9,35 @@ export interface InvoiceDocument {
     title: string;
     /** غير معتمدة بعد: مستند غير ملزم ولا يحمل أياً من مقوّمات الفاتورة الضريبية */
     isQuotation: boolean;
+}
+
+/** مساحة القطعة الواحدة بالمتر المربع من مقاس السطر — صفر بلا مقاس. */
+export function lineAreaSqm(line: { widthCm: number | null; heightCm: number | null }): number {
+    if (line.widthCm == null || line.heightCm == null) return 0;
+
+    return Math.round(((line.widthCm / 100) * (line.heightCm / 100) + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * سعر السطر كما يُقرأ: سطر الخدمة المسعّر بالمتر يحمل سعر المتر المربع لا سعر
+ * القطعة، فيُلحق به «/م²» كي لا يُقرأ ثمناً للقطعة والإجمالي أقل منه أو أكبر.
+ * الأسطر الأخرى — والأسطر المحفوظة قبل هذا التغيير — تُعرض كما كانت.
+ */
+export function formatLineUnitPrice(line: { unitPrice: number; unitPriceBasis?: 'sqm' | null }): string {
+    return line.unitPriceBasis === 'sqm' ? `${formatCurrency(line.unitPrice)}/م²` : formatCurrency(line.unitPrice);
+}
+
+/**
+ * وصف مقاس السطر للطباعة والعرض: «100×50 سم (0.5 م²)»، ويُذكر عدد القطع لسطر
+ * المنتج المسعّر بالمتر — إذ كميته مساحة مجمّعة. تُعاد null بلا مقاس.
+ */
+export function formatLineSize(line: { widthCm: number | null; heightCm: number | null; pieces?: number | null }): string | null {
+    if (line.widthCm == null || line.heightCm == null) return null;
+
+    const area = lineAreaSqm(line);
+    const size = `${line.widthCm}×${line.heightCm} سم (${area} م²)`;
+
+    return line.pieces != null && line.pieces > 1 ? `${size} × ${line.pieces} قطعة` : size;
 }
 
 /** ألوان بادج الحالة — مصدر واحد لقائمة الفواتير وشاشة عرضها. */

@@ -34,6 +34,9 @@ class InvoiceLineResource extends JsonResource
             'sku' => $this->sku,
             'qty' => (float) $this->qty,
             'unitPrice' => (float) $this->unit_price,
+            // ما يقيسه السعر أعلاه: 'sqm' سعر متر مربع (سطر خدمة مسعّرة بالمتر)،
+            // و null سعر وحدة/قطعة — وهو حال كل سطر منتج وكل سطر خدمة قديم.
+            'unitPriceBasis' => $isService && $this->resource->isPricedPerSqm() ? 'sqm' : null,
             // كلا نوعَي السطر يحملان مقاساً الآن: الخدمة المسعّرة بالمتر (تاسك 44)
             // والمنتج المسعّر بالمتر (تاسك 51).
             'widthCm' => $this->width_cm !== null ? (float) $this->width_cm : null,

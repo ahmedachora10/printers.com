@@ -28,7 +28,7 @@ use Illuminate\Validation\ValidationException;
  * attributes and line rows to persist. It performs no invoice/ledger writes; the
  * only side effect is finding-or-creating a walk-in customer from name/phone.
  *
- * @phpstan-type CalculatedLine array{branch_service_id:int, service_name:string, notes:?string, qty:int, unit_price:float, width_cm:?float, height_cm:?float, discount_pct:float, subtotal:float, commission_pct:float, commission_amount:float, is_tahazir:bool, agent_id:?int, agent_commission_type:?LineAgentCommissionTypeEnum, agent_commission_value:?float, agent_commission_amount:float}
+ * @phpstan-type CalculatedLine array{branch_service_id:int, service_name:string, notes:?string, qty:int, unit_price:float, width_cm:?float, height_cm:?float, unit_price_basis:ServicePricingTypeEnum, discount_pct:float, subtotal:float, commission_pct:float, commission_amount:float, is_tahazir:bool, agent_id:?int, agent_commission_type:?LineAgentCommissionTypeEnum, agent_commission_value:?float, agent_commission_amount:float}
  */
 class CalculateServiceInvoiceAction
 {
@@ -98,12 +98,11 @@ class CalculateServiceInvoiceAction
                 ]);
             }
 
-            // Sqm-priced services still require their dimensions — they are part
-            // of the order and feed the per-m² commission — but the price is no
-            // longer forced: العرض×الطول×سعر المتر يملأ الحقل في نقطة البيع
-            // ويبقى الكاشير قادراً على الكتابة فوقه (تاسك 44). ما يصل من الواجهة
-            // هو المعتمد، ويسقط التقدير من المقاس فقط حين لا يصل سعرٌ موجب —
-            // فلا تُحفظ قطعةٌ بصفر لمجرد أن الحقل لم يُملأ.
+            // الخدمة المسعّرة بالمتر المربع: المقاس مطلوب — فهو جزءٌ من الطلبية
+            // ومنه تُحتسب عمولة المتر — والسعر الوارد من نقطة البيع هو **سعر المتر**
+            // لا سعر القطعة: يُملأ من سعر الخدمة ويبقى قابلاً للكتابة فوقه (تاسك 44)،
+            // وإجمالي السطر = الكمية × المساحة × سعر المتر. ولا يسقط إلى سعر
+            // الخدمة إلا حين لا يصل سعرٌ موجب، فلا يُفوتر مترٌ بصفر لأن الحقل لم يُملأ.
             $widthCm = isset($line['width_cm']) && $line['width_cm'] !== '' ? (float) $line['width_cm'] : null;
             $heightCm = isset($line['height_cm']) && $line['height_cm'] !== '' ? (float) $line['height_cm'] : null;
 
@@ -116,22 +115,21 @@ class CalculateServiceInvoiceAction
 
                 $submitted = round((float) ($line['unit_price'] ?? 0), 2);
 
-                // The derived price is rounded first so the JS preview (round2 on
-                // the same formula) and the stored DECIMAL(12,2) always agree.
-                $unitPrice = $submitted > 0
-                    ? $submitted
-                    : round(($widthCm / 100) * ($heightCm / 100) * (float) $branchService->price_per_sqm, 2);
+                $unitPrice = $submitted > 0 ? $submitted : round((float) $branchService->price_per_sqm, 2);
+                // المساحة بلا تقريب — يُقرّب الإجمالي وحده، وتفعل الواجهة مثله.
+                $units = $qty * (($widthCm / 100) * ($heightCm / 100));
             } else {
                 $widthCm = null;
                 $heightCm = null;
                 $unitPrice = (float) $line['unit_price'];
+                $units = (float) $qty;
             }
 
             if ($priceCapApplies) {
-                $this->assertPriceWithinCap($branchService, $unitPrice, $widthCm, $heightCm);
+                $this->assertPriceWithinCap($branchService, $unitPrice);
             }
 
-            $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
+            $lineSubtotal = round($units * $unitPrice * (1 - $discountPct / 100), 2);
             $commissionPct = (float) ($commissionRates[$branchService->id] ?? 0);
             $commissionAmount = round($lineSubtotal * $commissionPct / 100, 2);
 
@@ -155,6 +153,8 @@ class CalculateServiceInvoiceAction
                 'unit_price' => $unitPrice,
                 'width_cm' => $widthCm,
                 'height_cm' => $heightCm,
+                // ما يقيسه unit_price في هذا السطر: سعر متر أم سعر وحدة.
+                'unit_price_basis' => $branchService->pricing_type ?? ServicePricingTypeEnum::Unit,
                 'discount_pct' => $discountPct,
                 'subtotal' => $lineSubtotal,
                 'commission_pct' => $commissionPct,
@@ -392,12 +392,13 @@ class CalculateServiceInvoiceAction
      * يمنع البيع بأعلى من سقف الخدمة. السقف اختياري: خدمة بلا سقف (null) سعرها
      * مفتوح كما كان دائماً، وكذلك سقف صفر أو أقل — لا يُقرأ «صفر» أمراً بالمجانية.
      *
-     * ما يُقارَن بالسقف يتبع نوع التسعير: سعر الوحدة لخدمة بالوحدة، وسعر المتر
-     * الفعلي (السعر ÷ المساحة) لخدمة بالمتر المربع، إذ إن سعر القطعة هناك يكبر
-     * بكِبَر المقاس فلا يصلح لسقفٍ ثابت. المقارنة على منزلتين — نفس دقّة العمود
+     * السقف يقيس السعر المكتوب نفسه لا إجمالي السطر: سعر الوحدة لخدمة بالوحدة،
+     * وسعر المتر لخدمة بالمتر المربع — وكلاهما هو unit_price بعد أن صار سعرُ سطر
+     * المتر سعرَ مترٍ لا سعرَ قطعة. فمهما كبر المقاس لا يتجاوز السطر سقفه، لأن
+     * السقف على المتر لا على المجموع. المقارنة على منزلتين — نفس دقّة العمود
      * المخزَّن — كي لا يُرفض سعرٌ يطابق السقف لفارقٍ في الفاصلة العائمة.
      */
-    private function assertPriceWithinCap(BranchService $branchService, float $unitPrice, ?float $widthCm, ?float $heightCm): void
+    private function assertPriceWithinCap(BranchService $branchService, float $unitPrice): void
     {
         $cap = $branchService->max_selling_price !== null ? (float) $branchService->max_selling_price : null;
 
@@ -405,29 +406,17 @@ class CalculateServiceInvoiceAction
             return;
         }
 
-        $name = $branchService->serviceTemplate?->name;
-
-        if ($branchService->pricing_type === ServicePricingTypeEnum::Sqm) {
-            $area = (($widthCm ?? 0) / 100) * (($heightCm ?? 0) / 100);
-
-            if ($area <= 0) {
-                return;
-            }
-
-            if (round($unitPrice / $area, 2) > round($cap, 2)) {
-                throw ValidationException::withMessages([
-                    'lines' => "سعر المتر على \"{$name}\" يتجاوز الحد الأعلى المسموح (".number_format($cap, 2).' ر.س للمتر).',
-                ]);
-            }
-
+        if (round($unitPrice, 2) <= round($cap, 2)) {
             return;
         }
 
-        if (round($unitPrice, 2) > round($cap, 2)) {
-            throw ValidationException::withMessages([
-                'lines' => "سعر \"{$name}\" يتجاوز الحد الأعلى المسموح (".number_format($cap, 2).' ر.س).',
-            ]);
-        }
+        $name = $branchService->serviceTemplate?->name;
+        $isSqm = $branchService->pricing_type === ServicePricingTypeEnum::Sqm;
+
+        throw ValidationException::withMessages([
+            'lines' => ($isSqm ? "سعر المتر على \"{$name}\"" : "سعر \"{$name}\"")
+                .' يتجاوز الحد الأعلى المسموح ('.number_format($cap, 2).' ر.س'.($isSqm ? ' للمتر' : '').').',
+        ]);
     }
 
     /**

@@ -96,7 +96,12 @@ class ServiceInvoiceController extends Controller
                         'name' => $line->service_name,
                         'notes' => $line->notes,
                         'qty' => $line->qty,
-                        'unitPrice' => (float) $line->unit_price,
+                        // سطر المتر يعود إلى نقطة البيع بسعر المتر — والسطر القديم
+                        // الذي حُفظ بسعر القطعة يُقسم على مساحته أولاً فلا يتغيّر
+                        // إجماليه لمجرد إعادة حفظه.
+                        'unitPrice' => ($service['pricingType'] ?? 'unit') === 'sqm'
+                            ? $line->unitPricePerSqm()
+                            : (float) $line->unit_price,
                         'discountPct' => (float) $line->discount_pct,
                         'maxDiscountPct' => (float) ($service['maxDiscountPct'] ?? 0),
                         'maxSellingPrice' => $service['maxSellingPrice'] ?? null,
@@ -282,6 +287,7 @@ class ServiceInvoiceController extends Controller
                         'notes' => $line->notes,
                         'qty' => $line->qty,
                         'unitPrice' => (float) $line->unit_price,
+                        'unitPriceBasis' => $line->isPricedPerSqm() ? 'sqm' : null,
                         'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
                         'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
                         'discountPct' => (float) $line->discount_pct,
@@ -517,6 +523,7 @@ class ServiceInvoiceController extends Controller
                     'sku' => null,
                     'qty' => $line->qty,
                     'unitPrice' => (float) $line->unit_price,
+                    'unitPriceBasis' => $line->isPricedPerSqm() ? 'sqm' : null,
                     'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
                     'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
                     'discountPct' => (float) $line->discount_pct,

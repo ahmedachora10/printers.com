@@ -1,7 +1,7 @@
 import InvoiceNotes from '@/components/invoices/invoice-notes';
 import { ThermalBranchHeader } from '@/components/invoices/print-header';
 import { ThermalTotals } from '@/components/invoices/print-totals';
-import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
+import { QUOTATION_DISCLAIMER, formatLineSize, formatLineUnitPrice, invoiceDocument } from '@/lib/invoice';
 import { formatCurrency, formatDateTime, formatDateTimeNumeric, formatQty } from '@/lib/utils';
 import service from '@/routes/pos/service';
 import { type PosBranch, type PosInvoice } from '@/types/pos';
@@ -115,15 +115,11 @@ export default function ServiceInvoicePrint({ invoice, branch }: Props) {
                             <td className="py-1 text-right">
                                 {line.name}
                                 {line.notes && <span className="block text-[10px] whitespace-pre-line">{line.notes}</span>}
-                                {line.widthCm != null && line.heightCm != null && (
-                                    <span className="block text-[10px]">
-                                        المقاس: {line.widthCm}×{line.heightCm} سم
-                                    </span>
-                                )}
+                                {formatLineSize(line) && <span className="block text-[10px]">المقاس: {formatLineSize(line)}</span>}
                                 {line.discountPct > 0 && <span className="block text-[10px]">خصم {line.discountPct}%</span>}
                             </td>
                             <td className="py-1 text-center">{formatQty(line.qty)}</td>
-                            <td className="py-1 text-center">{formatCurrency(line.unitPrice)}</td>
+                            <td className="py-1 text-center">{formatLineUnitPrice(line)}</td>
                             <td className="py-1 text-left">{formatCurrency(line.subtotal)}</td>
                         </tr>
                     ))}

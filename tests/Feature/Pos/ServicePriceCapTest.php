@@ -125,22 +125,25 @@ describe('Max selling price cap', function () {
 
     // ── الخدمات المسعّرة بالمتر المربع ──────────────────────────────
 
-    it('caps the price per square meter, not the price of the piece', function () {
+    it('caps the meter price, not the total of the line', function () {
         $service = cappedService([
             'pricing_type' => 'sqm',
             'price_per_sqm' => 100,
             'max_selling_price' => 150,
         ]);
 
-        // 2م × 1م = 2 م². سعر قطعة 300 = 150 للمتر — عند السقف تماماً فيمرّ،
-        // مع أن رقم القطعة نفسه ضعف السقف.
+        // 2م × 1م = 2 م² بسعر متر 150 — عند السقف تماماً فيمرّ، مع أن إجمالي
+        // السطر (300.00) ضعف السقف: السقف على المتر لا على المجموع.
         $this->post(route('pos.service.store'), capPayload($service, [
-            'unit_price' => 300,
+            'unit_price' => 150,
             'width_cm' => 200,
             'height_cm' => 100,
         ]))->assertSessionHasNoErrors();
 
-        expect((float) ServiceInvoice::firstOrFail()->lines->firstOrFail()->unit_price)->toBe(300.00);
+        $line = ServiceInvoice::firstOrFail()->lines->firstOrFail();
+
+        expect((float) $line->unit_price)->toBe(150.00)
+            ->and((float) $line->subtotal)->toBe(300.00);
     });
 
     it('blocks a sqm line whose per-meter price exceeds the cap', function () {
@@ -150,9 +153,9 @@ describe('Max selling price cap', function () {
             'max_selling_price' => 150,
         ]);
 
-        // 2 م² بسعر قطعة 320 = 160 للمتر > 150.
+        // 160 للمتر > 150.
         $this->post(route('pos.service.store'), capPayload($service, [
-            'unit_price' => 320,
+            'unit_price' => 160,
             'width_cm' => 200,
             'height_cm' => 100,
         ]))->assertSessionHasErrors('lines');

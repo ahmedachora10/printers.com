@@ -39,6 +39,8 @@ trait WritesServiceInvoiceLines
                 'unit_price' => $line['unit_price'],
                 'width_cm' => $line['width_cm'] ?? null,
                 'height_cm' => $line['height_cm'] ?? null,
+                // ما يقيسه unit_price: سعر متر لسطر مسعّر بالمتر، وسعر وحدة لغيره.
+                'unit_price_basis' => $line['unit_price_basis'] ?? null,
                 'discount_pct' => $line['discount_pct'],
                 'subtotal' => $line['subtotal'],
                 'commission_pct' => $line['commission_pct'],

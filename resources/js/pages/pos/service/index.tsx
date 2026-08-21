@@ -78,44 +78,28 @@ function splitDeliveryAt(value: string | null | undefined): { date: string; time
     return { date, time: time.slice(0, 5) };
 }
 
-const lineTotal = (line: ServiceCartLine) => round2(line.qty * line.unitPrice * (1 - line.discountPct / 100));
-
 /** Area of one piece in m² from the entered cm dimensions. */
 const lineAreaSqm = (line: ServiceCartLine) => ((line.widthCm ?? 0) / 100) * ((line.heightCm ?? 0) / 100);
 
-/** Per-piece price of a sqm line — mirrors the server (rounded before qty). */
-const sqmUnitPrice = (line: ServiceCartLine) => round2(lineAreaSqm(line) * line.pricePerSqm);
+/**
+ * الوحدات المُفوترة في السطر: عدد القطع لخدمة بالوحدة، ومجموع الأمتار المربعة
+ * (الكمية × مساحة القطعة) لخدمة بالمتر المربع — إذ سعرها سعرُ متر لا سعرَ قطعة.
+ */
+const lineUnits = (line: ServiceCartLine) => (line.pricingType === 'sqm' ? line.qty * lineAreaSqm(line) : line.qty);
+
+/** إجمالي السطر — نفس صيغة الخادم: الوحدات × السعر، ويُقرَّب المجموع وحده. */
+const lineTotal = (line: ServiceCartLine) => round2(lineUnits(line) * line.unitPrice * (1 - line.discountPct / 100));
+
+/** سعر القطعة الواحدة لسطر بالمتر = مساحتها × سعر المتر — عرضٌ للاطلاع فقط. */
+const linePiecePrice = (line: ServiceCartLine) => round2(lineAreaSqm(line) * line.unitPrice);
 
 /**
- * سعر المتر الفعلي لهذا السطر = سعر القطعة ÷ مساحتها (تاسك 55). السعر المكتوب هو
- * الأصل وسعر المتر يتبعه — لا العكس. صفر قبل إدخال الأبعاد فلا تُقسم على صفر.
+ * هل تجاوز السطر سقف سعر الخدمة؟ السقف يقيس السعر المكتوب نفسه في الحالتين —
+ * سعر الوحدة أو سعر المتر — لا إجمالي السطر مهما كبر المقاس. يُقرَّب كما يقرّب
+ * الخادم: منزلتان.
  */
-const lineEffectivePricePerSqm = (line: ServiceCartLine) => {
-    const area = lineAreaSqm(line);
-
-    return area > 0 ? round2(line.unitPrice / area) : 0;
-};
-
-/**
- * سعر السطر مقيساً بسقف الخدمة: سعر الوحدة لخدمة بالوحدة، وسعر المتر الفعلي
- * لخدمة بالمتر المربع — إذ إن سعر القطعة هناك يتبع المقاس. تُعاد null حين لا
- * سقف للخدمة، أو لم تُدخَل الأبعاد بعد فلا شيء يُقاس.
- */
-const linePriceAgainstCap = (line: ServiceCartLine): number | null => {
-    if (line.maxSellingPrice === null || line.maxSellingPrice <= 0) return null;
-    if (line.pricingType !== 'sqm') return round2(line.unitPrice);
-
-    const area = lineAreaSqm(line);
-
-    return area > 0 ? round2(line.unitPrice / area) : null;
-};
-
-/** هل تجاوز السطر سقف سعر الخدمة؟ يُقرَّب كما يقرّب الخادم — منزلتان. */
-const isLineOverPriceCap = (line: ServiceCartLine): boolean => {
-    const measured = linePriceAgainstCap(line);
-
-    return measured !== null && line.maxSellingPrice !== null && measured > round2(line.maxSellingPrice);
-};
+const isLineOverPriceCap = (line: ServiceCartLine): boolean =>
+    line.maxSellingPrice !== null && line.maxSellingPrice > 0 && round2(line.unitPrice) > round2(line.maxSellingPrice);
 
 /**
  * تكلفة خامات السطر كاملة — المبلغ للوحدة مضروباً في الكمية، كما يفعل الخادم.
@@ -374,7 +358,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     name: s.name,
                     notes: '',
                     noteExamples: s.noteExamples ?? [],
-                    unitPrice: 0,
+                    // سطر المتر يبدأ بسعر متر الخدمة — قابلاً للتعديل؛ وغيره بصفر.
+                    unitPrice: s.pricingType === 'sqm' ? s.pricePerSqm : 0,
                     qty: 1,
                     discountPct: 0,
                     maxDiscountPct: s.maxDiscountPct,
@@ -494,27 +479,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             pricingType: s.pricingType,
             pricePerSqm: s.pricePerSqm,
             agentCommissionPerSqm: s.agentCommissionPerSqm,
-            // A sqm service derives its price from dimensions; reset until entered.
-            ...(s.pricingType === 'sqm' ? { unitPrice: 0, widthCm: null, heightCm: null } : { widthCm: null, heightCm: null }),
+            // سعر سطر المتر هو سعر متر الخدمة؛ والمقاس يُفرَّغ ليُدخَل من جديد.
+            ...(s.pricingType === 'sqm' ? { unitPrice: s.pricePerSqm, widthCm: null, heightCm: null } : { widthCm: null, heightCm: null }),
             // A per_sqm commission type no longer applies on a unit service.
             ...(s.pricingType !== 'sqm' && line.agentCommissionType === 'per_sqm'
                 ? { agentCommissionType: 'percentage' as LineAgentCommissionType, agentCommissionValue: 0 }
                 : {}),
-        });
-    }
-
-    /**
-     * Update a sqm line's dimensions and re-derive its per-piece price — unless
-     * the cashier already typed a price of their own over the derived one, which
-     * a change of measurements must not silently throw away (تاسك 44).
-     */
-    function setDimensions(line: ServiceCartLine, patch: { widthCm?: number | null; heightCm?: number | null }) {
-        const next = { ...line, ...patch };
-        const overridden = line.unitPrice > 0 && round2(line.unitPrice) !== sqmUnitPrice(line);
-
-        updateLine(line.key, {
-            ...patch,
-            ...(overridden ? {} : { unitPrice: sqmUnitPrice(next) }),
         });
     }
 
@@ -1216,6 +1186,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 // الحقل والكاشير يكتب فوقه عند الاتفاق على سعر آخر.
                                 isPriceEditable={() => true}
                                 getPriceError={priceCapError}
+                                // سطر المتر: الرقم في هذا العمود سعر المتر لا سعر القطعة.
+                                getPriceHint={(line) => (line.pricingType === 'sqm' ? 'للمتر المربع' : null)}
                                 getMaxDiscount={(line) => (line.maxDiscountPct > 0 ? line.maxDiscountPct : 100)}
                                 getLineTotal={lineTotal}
                                 onQtyChange={changeQty}
@@ -1223,8 +1195,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 onDiscountChange={setDiscount}
                                 onRemove={removeLine}
                                 onAddManual={addManualLine}
-                                // A sqm line has no price until its dimensions are entered — open it
-                                // on arrival so the cashier is not left hunting for the fields.
+                                // سطر المتر بلا مقاس بلا إجمالي — يُفتح عند إضافته حتى لا
+                                // يبحث الكاشير عن حقول العرض والطول.
                                 isLineDetailsInitiallyOpen={(line) => line.pricingType === 'sqm' && (!line.widthCm || !line.heightCm)}
                                 renderLineSummary={(line) => {
                                     if (!line.branchServiceId) return null;
@@ -1280,12 +1252,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                             {isSqm && (
                                                 <LineSection
                                                     title="مقاس القطعة"
-                                                    // سعر المتر يتبع القيم المُدخلة (تاسك 55)؛ سعر الخدمة بجانبه للمقارنة.
-                                                    aside={
-                                                        lineAreaSqm(line) > 0
-                                                            ? `سعر المتر لهذا السطر: ${formatCurrency(lineEffectivePricePerSqm(line))} (سعر الخدمة: ${formatCurrency(line.pricePerSqm)})`
-                                                            : `سعر المتر: ${formatCurrency(line.pricePerSqm)}`
-                                                    }
+                                                    // السعر هنا سعر المتر المربع لا سعر القطعة، فالمقاس يضربه ولا
+                                                    // يغيّره؛ وسعر متر الخدمة بجانبه للمقارنة.
+                                                    aside={`سعر متر الخدمة: ${formatCurrency(line.pricePerSqm)}`}
                                                 >
                                                     <div className="grid gap-3 sm:grid-cols-3">
                                                         <LineField label="العرض (سم)" htmlFor={`width-${line.key}`}>
@@ -1296,7 +1265,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                                 step="0.1"
                                                                 value={line.widthCm ?? ''}
                                                                 onChange={(e) =>
-                                                                    setDimensions(line, {
+                                                                    updateLine(line.key, {
                                                                         widthCm: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
                                                                     })
                                                                 }
@@ -1312,7 +1281,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                                 step="0.1"
                                                                 value={line.heightCm ?? ''}
                                                                 onChange={(e) =>
-                                                                    setDimensions(line, {
+                                                                    updateLine(line.key, {
                                                                         heightCm: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
                                                                     })
                                                                 }
@@ -1320,7 +1289,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                                 placeholder="70"
                                                             />
                                                         </LineField>
-                                                        <LineField label="سعر القطعة" htmlFor={`sqm-price-${line.key}`}>
+                                                        <LineField label="سعر المتر المربع" htmlFor={`sqm-price-${line.key}`}>
                                                             <Input
                                                                 id={`sqm-price-${line.key}`}
                                                                 type="number"
@@ -1339,31 +1308,37 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                     </div>
                                                     {priceCapError(line) && (
                                                         <p className="text-destructive text-[11px]">
-                                                            سعر المتر لهذا السطر {formatCurrency(lineEffectivePricePerSqm(line))} — والحد الأعلى
-                                                            المسموح {formatCurrency(line.maxSellingPrice ?? 0)} للمتر.
+                                                            سعر المتر {formatCurrency(line.unitPrice)} — والحد الأعلى المسموح{' '}
+                                                            {formatCurrency(line.maxSellingPrice ?? 0)} للمتر.
                                                         </p>
                                                     )}
                                                     {line.widthCm && line.heightCm ? (
                                                         <p className="text-muted-foreground text-[11px]">
-                                                            المساحة {round2(lineAreaSqm(line))} م² — سعر المتر لهذا السطر{' '}
-                                                            {formatCurrency(lineEffectivePricePerSqm(line))} = {formatCurrency(round2(line.unitPrice))}.
-                                                            {round2(line.unitPrice) !== sqmUnitPrice(line) && (
+                                                            المساحة {round2(lineAreaSqm(line))} م² × {formatCurrency(line.unitPrice)} للمتر ={' '}
+                                                            {formatCurrency(linePiecePrice(line))} للقطعة
+                                                            {line.qty > 1 && (
                                                                 <>
                                                                     {' '}
-                                                                    سعر الخدمة {formatCurrency(line.pricePerSqm)} للمتر —{' '}
+                                                                    × {line.qty} = {formatCurrency(round2(lineUnits(line) * line.unitPrice))}
+                                                                </>
+                                                            )}
+                                                            .
+                                                            {line.pricePerSqm > 0 && round2(line.unitPrice) !== round2(line.pricePerSqm) && (
+                                                                <>
+                                                                    {' '}
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => updateLine(line.key, { unitPrice: sqmUnitPrice(line) })}
+                                                                        onClick={() => updateLine(line.key, { unitPrice: line.pricePerSqm })}
                                                                         className="text-primary underline underline-offset-2"
                                                                     >
-                                                                        إعادة الاحتساب من المقاس
+                                                                        استعادة سعر الخدمة
                                                                     </button>
                                                                 </>
                                                             )}
                                                         </p>
                                                     ) : (
                                                         <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                                                            أدخل العرض والطول ليُحتسب سعر القطعة — ويمكنك الكتابة فوقه.
+                                                            أدخل العرض والطول ليُحتسب إجمالي السطر — السعر أعلاه للمتر المربع لا للقطعة.
                                                         </p>
                                                     )}
                                                 </LineSection>

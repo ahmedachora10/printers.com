@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
-import { INVOICE_STATUS_COLORS, invoiceDocumentTitle, invoiceTotals } from '@/lib/invoice';
+import { INVOICE_STATUS_COLORS, formatLineSize, formatLineUnitPrice, invoiceDocumentTitle, invoiceTotals } from '@/lib/invoice';
 import { formatCurrency, formatDateTime, formatQty } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
@@ -42,13 +42,7 @@ const lineColumns: ColumnDef<InvoiceLine>[] = [
                         {line.sku}
                     </span>
                 )}
-                {line.widthCm != null && line.heightCm != null && (
-                    <span className="text-muted-foreground block text-xs">
-                        الأبعاد: {line.widthCm}×{line.heightCm} سم (
-                        {Math.round(((line.widthCm / 100) * (line.heightCm / 100) + Number.EPSILON) * 100) / 100} م²)
-                        {line.pieces != null && line.pieces > 1 && ` × ${line.pieces} قطعة`}
-                    </span>
-                )}
+                {formatLineSize(line) && <span className="text-muted-foreground block text-xs">الأبعاد: {formatLineSize(line)}</span>}
                 {line.lineAgentName && (
                     <span className="block text-xs text-sky-700 dark:text-sky-400">
                         صاحب العمولة: {line.lineAgentName}
@@ -72,7 +66,7 @@ const lineColumns: ColumnDef<InvoiceLine>[] = [
         header: 'السعر',
         headerClassName: 'text-center',
         className: 'text-center tabular-nums',
-        cell: (line) => <span dir="ltr">{formatCurrency(line.unitPrice)}</span>,
+        cell: (line) => <span dir="ltr">{formatLineUnitPrice(line)}</span>,
     },
     {
         key: 'discountPct',

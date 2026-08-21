@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Roles;
+use App\Enums\ServicePricingTypeEnum;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\ServiceInvoice;
@@ -12,8 +13,8 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /**
- * A branch service priced by the square meter: the POS derives the per-piece
- * price from width × height (cm) at price_per_sqm, server-side.
+ * خدمة مسعّرة بالمتر المربع: سعر السطر سعرُ مترٍ مربع، وإجماليه = الكمية ×
+ * مساحة القطعة (العرض × الطول) × ذلك السعر — يحتسبه الخادم.
  */
 function makeSqmService(array $attrs = []): BranchService
 {
@@ -51,7 +52,7 @@ describe('Square-meter priced services', function () {
         $this->sqmService = makeSqmService();
     });
 
-    it('derives the unit price from the dimensions when none is typed', function () {
+    it('falls back to the service meter price when none is typed', function () {
         $this->post(route('pos.service.store'), [
             'status' => 'due',
             'lines' => [[
@@ -68,8 +69,9 @@ describe('Square-meter priced services', function () {
         $invoice = ServiceInvoice::firstOrFail();
         $line = $invoice->lines->firstOrFail();
 
-        // 1.00m × 0.70m = 0.7 م² × 100 = 70.00 per piece; qty 2 → 140.00
-        expect((float) $line->unit_price)->toBe(70.00)
+        // 1.00m × 0.70m = 0.7 م² للقطعة، وقطعتان = 1.4 م² × 100 للمتر = 140.00
+        expect((float) $line->unit_price)->toBe(100.00)
+            ->and($line->unit_price_basis)->toBe(ServicePricingTypeEnum::Sqm)
             ->and((float) $line->width_cm)->toBe(100.00)
             ->and((float) $line->height_cm)->toBe(70.00)
             ->and((float) $line->subtotal)->toBe(140.00)
@@ -79,9 +81,9 @@ describe('Square-meter priced services', function () {
             ->and((float) $invoice->total_amount)->toBe(140.00);
     });
 
-    it('keeps a price typed over the derived one', function () {
-        // تاسك 44: الكاشير يتفق مع العميل على سعر غير سعر المتر، فيكتبه ويُحفظ
-        // كما هو — والأبعاد تبقى مسجّلة لأنها جزء من الطلب وأساس عمولة المتر.
+    it('keeps a meter price typed over the service default', function () {
+        // تاسك 44: الكاشير يتفق مع العميل على سعر مترٍ غير سعر الخدمة، فيكتبه
+        // ويُحفظ كما هو — والأبعاد تضربه لتعطي إجمالي السطر.
         $this->post(route('pos.service.store'), [
             'status' => 'due',
             'lines' => [[
@@ -96,10 +98,11 @@ describe('Square-meter priced services', function () {
 
         $line = ServiceInvoice::firstOrFail()->lines->firstOrFail();
 
+        // 2 قطعة × 0.7 م² = 1.4 م² × 90 للمتر = 126.00
         expect((float) $line->unit_price)->toBe(90.00)
             ->and((float) $line->width_cm)->toBe(100.00)
             ->and((float) $line->height_cm)->toBe(70.00)
-            ->and((float) $line->subtotal)->toBe(180.00);
+            ->and((float) $line->subtotal)->toBe(126.00);
     });
 
     it('still requires the dimensions even when a price is typed', function () {
@@ -130,7 +133,7 @@ describe('Square-meter priced services', function () {
         expect(ServiceInvoice::count())->toBe(0);
     });
 
-    it('applies the line discount to the derived price', function () {
+    it('applies the line discount to the area total', function () {
         $this->post(route('pos.service.store'), [
             'status' => 'due',
             'lines' => [[
@@ -143,9 +146,9 @@ describe('Square-meter priced services', function () {
             ]],
         ]);
 
-        // 0.5 × 0.5 = 0.25 م² × 100 = 25.00; 20% discount → 20.00
+        // 0.5 × 0.5 = 0.25 م² × 100 للمتر = 25.00، وخصم 20% → 20.00
         $invoice = ServiceInvoice::firstOrFail();
-        expect((float) $invoice->lines->first()->unit_price)->toBe(25.00)
+        expect((float) $invoice->lines->first()->unit_price)->toBe(100.00)
             ->and((float) $invoice->subtotal)->toBe(20.00);
     });
 
@@ -192,7 +195,56 @@ describe('Square-meter priced services', function () {
         $line = ServiceInvoice::firstOrFail()->lines->firstOrFail();
         // The client price stands and no dimensions are stored on a unit line.
         expect((float) $line->unit_price)->toBe(40.00)
+            ->and($line->unit_price_basis)->toBe(ServicePricingTypeEnum::Unit)
             ->and($line->width_cm)->toBeNull()
             ->and($line->height_cm)->toBeNull();
+    });
+
+    it('bills the area, not the piece: 0.5 م² at 60 للمتر is 30', function () {
+        // مثال العميل نفسه: 100×50 سم بسعر متر 60 = 30.00 شاملة الضريبة.
+        $service = makeSqmService(['price_per_sqm' => 50, 'max_discount_pct' => 0]);
+
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $service->id,
+                'qty' => 1,
+                'unit_price' => 60,
+                'discount_pct' => 0,
+                'width_cm' => 100,
+                'height_cm' => 50,
+            ]],
+        ])->assertSessionHasNoErrors();
+
+        $invoice = ServiceInvoice::firstOrFail();
+
+        expect((float) $invoice->lines->firstOrFail()->subtotal)->toBe(30.00)
+            ->and((float) $invoice->total_amount)->toBe(30.00)
+            // 30 شاملة 15% → صافيها 26.09 وضريبتها 3.91
+            ->and((float) $invoice->vat_amount)->toBe(3.91);
+    });
+
+    it('reads a legacy line — a piece price with no basis — back as a meter price', function () {
+        // الأسطر المحفوظة قبل التغيير تحمل سعر القطعة ولا عمود يميّزها، فتُقسم
+        // على مساحتها عند فتح الفاتورة للتعديل كي لا يتضاعف إجماليها.
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $this->sqmService->id,
+                'qty' => 1,
+                'unit_price' => 100,
+                'discount_pct' => 0,
+                'width_cm' => 100,
+                'height_cm' => 50,
+            ]],
+        ])->assertSessionHasNoErrors();
+
+        $invoice = ServiceInvoice::firstOrFail();
+        // ارجع بالسطر إلى الشكل القديم: 50.00 للقطعة (0.5 م² × 100) بلا أساس.
+        $invoice->lines()->update(['unit_price' => 50, 'unit_price_basis' => null]);
+
+        // Inertia تُرسل 100.0 عدداً صحيحاً في JSON، فالمقارنة على 100 لا 100.0.
+        $this->get(route('pos.service.edit', $invoice->id))
+            ->assertInertia(fn ($page) => $page->where('invoice.lines.0.unitPrice', 100));
     });
 });

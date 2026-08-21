@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\LineAgentCommissionTypeEnum;
+use App\Enums\ServicePricingTypeEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -17,6 +18,7 @@ class ServiceInvoiceLine extends Model
         'unit_price',
         'width_cm',
         'height_cm',
+        'unit_price_basis',
         'discount_pct',
         'subtotal',
         'commission_pct',
@@ -36,6 +38,7 @@ class ServiceInvoiceLine extends Model
         'unit_price' => 'decimal:2',
         'width_cm' => 'decimal:2',
         'height_cm' => 'decimal:2',
+        'unit_price_basis' => ServicePricingTypeEnum::class,
         'discount_pct' => 'decimal:2',
         'subtotal' => 'decimal:2',
         'commission_pct' => 'decimal:2',
@@ -48,6 +51,44 @@ class ServiceInvoiceLine extends Model
         'agent_commission_value' => 'decimal:2',
         'agent_commission_amount' => 'decimal:2',
     ];
+
+    /**
+     * هل يقيس unit_price في هذا السطر سعرَ مترٍ مربع؟ صحيحٌ للأسطر المسعّرة بالمتر
+     * بعد أن صار سعرها سعر متر (unit_price_basis = sqm)، وخاطئٌ للأسطر القديمة
+     * التي حفظت سعر القطعة ولا عمود يميّزها (null) — فتُعرض وتُقرأ كما حُفظت.
+     */
+    public function isPricedPerSqm(): bool
+    {
+        return $this->unit_price_basis === ServicePricingTypeEnum::Sqm;
+    }
+
+    /** مساحة القطعة الواحدة بالمتر المربع من المقاس المحفوظ — صفر بلا مقاس. */
+    public function areaSqm(): float
+    {
+        if ($this->width_cm === null || $this->height_cm === null) {
+            return 0.0;
+        }
+
+        return ((float) $this->width_cm / 100) * ((float) $this->height_cm / 100);
+    }
+
+    /**
+     * سعر المتر لهذا السطر كما تفهمه نقطة البيع اليوم. السطر الحديث يحمله كما هو،
+     * والسطر القديم يحمل سعر القطعة فيُقسم على مساحته — كي لا يُقرأ سعرُ قطعةٍ
+     * سعرَ مترٍ فيتضاعف إجمالي الفاتورة لمجرد فتحها للتعديل.
+     */
+    public function unitPricePerSqm(): float
+    {
+        $price = (float) $this->unit_price;
+
+        if ($this->isPricedPerSqm()) {
+            return $price;
+        }
+
+        $area = $this->areaSqm();
+
+        return $area > 0 ? round($price / $area, 2) : $price;
+    }
 
     /** @return BelongsTo<ServiceInvoice, $this> */
     public function invoice(): BelongsTo
