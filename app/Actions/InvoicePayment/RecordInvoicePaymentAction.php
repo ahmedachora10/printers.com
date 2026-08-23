@@ -3,6 +3,7 @@
 namespace App\Actions\InvoicePayment;
 
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
+use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\InvoicePayment;
@@ -21,7 +22,8 @@ use Illuminate\Validation\ValidationException;
  *
  *  - مجموع الدفعات < الإجمالي  ← «مدفوعة جزئياً»
  *  - مجموع الدفعات = الإجمالي  ← «مدفوعة»، وتاريخ السداد لحظةُ آخر دفعة، ثم تُسلك
- *    مسارات الاعتماد المعتادة (عمولة الموظف في commission_ledger، ونقاط الولاء).
+ *    مسارات الاعتماد المعتادة (عمولة الموظف في commission_ledger، ونقاط الولاء:
+ *    خصمُ ما استبدله العميل واحتسابُ ما اكتسبه).
  *
  * لا تُسجَّل دفعة على فاتورة مسدَّدة أو ملغاة أو مرتجعة، فلا يُعاد اعتمادُ فاتورة
  * سبق اعتمادها ولا تُكتب عمولتها أو نقاطها مرتين. إشعار الموظف بالاعتماد يرسله
@@ -35,6 +37,7 @@ class RecordInvoicePaymentAction
     public function __construct(
         private readonly MarkServiceInvoicePaidAction $markServiceInvoicePaid,
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
+        private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
     ) {}
 
     /**
@@ -123,6 +126,9 @@ class RecordInvoicePaymentAction
             'paid_at' => $paidAt,
         ]);
 
+        // خصم النقاط المحجوزة ثم احتساب المكتسبة، بالترتيب نفسه الذي يسلكه
+        // اعتماد فاتورة الخدمة.
+        $this->redeemLoyaltyPoints->handle($invoice);
         $this->earnLoyaltyPoints->handle($invoice);
     }
 }

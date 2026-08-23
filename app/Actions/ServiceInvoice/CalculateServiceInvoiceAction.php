@@ -4,6 +4,7 @@ namespace App\Actions\ServiceInvoice;
 
 use App\Actions\Agent\ResolveInvoiceAgentsAction;
 use App\Actions\Loyalty\ApplyLoyaltyDiscountsAction;
+use App\Actions\Loyalty\ResolveAvailablePointsAction;
 use App\Enums\AgentDiscountModeEnum;
 use App\Enums\AgentDiscountTypeEnum;
 use App\Enums\CouponDiscountTypeEnum;
@@ -15,6 +16,7 @@ use App\Models\BranchService;
 use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
+use App\Models\ServiceInvoice;
 use App\Models\User;
 use App\Models\UserService;
 use Carbon\CarbonImmutable;
@@ -35,13 +37,16 @@ class CalculateServiceInvoiceAction
     public function __construct(
         private readonly ResolveInvoiceAgentsAction $resolveAgents,
         private readonly ApplyLoyaltyDiscountsAction $loyalty,
+        private readonly ResolveAvailablePointsAction $availablePoints,
     ) {}
 
     /**
      * @param  array<string, mixed>  $data
+     * @param  ServiceInvoice|null  $editing  الفاتورة المُعاد حسابها، إن كان هذا تعديلاً:
+     *                                        نقاطها المحجوزة لها هي، فلا تُحسب عليها.
      * @return array{attributes: array<string, mixed>, lines: list<CalculatedLine>, agents: list<array<string, mixed>>, coupon: ?Coupon, pointsRedeemed: int}
      */
-    public function handle(array $data, User $user, int $branchId, float $vatPct): array
+    public function handle(array $data, User $user, int $branchId, float $vatPct, ?ServiceInvoice $editing = null): array
     {
         $customerId = $this->resolveCustomerId($data, $branchId);
 
@@ -223,7 +228,12 @@ class CalculateServiceInvoiceAction
         $afterAgent = round($afterCoupon - $agentDiscount, 2);
 
         $requestedPoints = (int) ($data['redeem_points'] ?? 0);
-        [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($customer, $loyaltyEligible, $config, $requestedPoints, $afterAgent);
+
+        // الرصيد المتاح لا المسجَّل: النقاط المحجوزة على فواتير هذا العميل التي لم
+        // تُعتمد بعد ليست له أن يستبدلها مرة أخرى.
+        $available = $customer !== null ? $this->availablePoints->handle($customer, $editing) : null;
+
+        [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($customer, $loyaltyEligible, $config, $requestedPoints, $afterAgent, $available);
 
         // الأسعار المُدخلة في نقطة البيع شاملة لضريبة القيمة المضافة: ما يبقى بعد
         // كامل سلسلة الخصومات هو ما يدفعه العميل بالضبط، والضريبة تُستخرج من

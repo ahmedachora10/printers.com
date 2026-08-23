@@ -3,6 +3,7 @@
 namespace App\Actions\ServiceInvoice;
 
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
+use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\ServiceInvoice;
@@ -12,9 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 /**
  * Settles a service invoice: marks it paid, stamps paid_at, writes the
- * employee's commission ledger, credits loyalty points, and draws the services'
- * materials out of stock. Commission, points and stock are all only realised
- * once the invoice becomes paid (approved).
+ * employee's commission ledger, spends the points the customer redeemed on it,
+ * credits the points it earned, and draws the services' materials out of stock.
+ * Commission, points (redeemed and earned) and stock are all only realised once
+ * the invoice becomes paid (approved).
  *
  * This is the single approval path. It is reached either by an accountant
  * approving the whole invoice from the review queue, or by the final instalment
@@ -29,6 +31,7 @@ class MarkServiceInvoicePaidAction
 
     public function __construct(
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
+        private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
         private readonly ConsumeServiceMaterialsAction $consumeMaterials,
     ) {}
 
@@ -50,6 +53,11 @@ class MarkServiceInvoicePaidAction
             // The invoice is now approved, so the employee earns their commission:
             // write the immutable ledger rows from the persisted lines.
             $this->writeLedgerFromLines($invoice, (int) $invoice->user_id, (int) $invoice->branch_id);
+
+            // الآن وقد اعتُمدت الفاتورة تُخصم نقاطها المحجوزة من رصيد العميل: قبل
+            // الاعتماد كان الخصم ظاهراً على الفاتورة فقط والرصيد لم يُمسّ.
+            // الخصم قبل الاكتساب، فيقرأ الاكتساب رصيداً محدَّثاً.
+            $this->redeemLoyaltyPoints->handle($invoice);
 
             // Credit points now that the invoice is paid; no-ops for ineligible
             // customers (corporate, agent-linked, or inactive loyalty config).

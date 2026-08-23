@@ -55,15 +55,18 @@ trait ReversesServiceInvoiceAccruals
     }
 
     /**
-     * Return points the customer redeemed on this invoice. Redemption runs at
-     * creation regardless of status, so unwinding the invoice must give them
-     * back via a positive manual adjustment.
+     * Give back the points the customer redeemed on this invoice — but only if
+     * they were actually taken. النقاط لا تُخصم إلا عند الاعتماد، فالفاتورة التي
+     * لم تُعتمد نقاطُها محجوزة لا مخصومة: إلغاؤها يحرّر الحجز من تلقاء نفسه (الحجز
+     * مشتقٌّ من حالة الفاتورة) فلا حركة تُكتب ولا رصيد يتغيّر. أما المختومة
+     * بـ points_redeemed_at — المعتمَدة، وكذلك كل فاتورة أُنشئت قبل هذا التغيير —
+     * فتُردّ نقاطها بتعديل يدوي موجب، ويُرفع الختم فلا تُردّ مرتين.
      */
     protected function restoreRedeemedPoints(ServiceInvoice $invoice): void
     {
         $points = (int) $invoice->points_redeemed;
 
-        if ($points <= 0 || $invoice->customer_id === null) {
+        if ($points <= 0 || $invoice->customer_id === null || $invoice->points_redeemed_at === null) {
             return;
         }
 
@@ -79,6 +82,7 @@ trait ReversesServiceInvoiceAccruals
 
         $newBalance = $customer->points_balance + $points;
         $customer->update(['points_balance' => $newBalance]);
+        $invoice->forceFill(['points_redeemed_at' => null])->save();
 
         LoyaltyTransaction::create([
             'customer_id' => $customer->id,

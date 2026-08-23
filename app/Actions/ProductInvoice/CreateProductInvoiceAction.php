@@ -6,6 +6,7 @@ use App\Actions\Agent\ResolveInvoiceAgentAction;
 use App\Actions\Loyalty\ApplyLoyaltyDiscountsAction;
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
+use App\Actions\Loyalty\ResolveAvailablePointsAction;
 use App\Actions\StockMovement\RecordStockMovementAction;
 use App\Enums\AgentDiscountModeEnum;
 use App\Enums\AgentDiscountTypeEnum;
@@ -32,6 +33,7 @@ class CreateProductInvoiceAction
         private readonly ApplyLoyaltyDiscountsAction $loyalty,
         private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
+        private readonly ResolveAvailablePointsAction $availablePoints,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -163,7 +165,12 @@ class CreateProductInvoiceAction
             $afterAgent = round($afterCoupon - $agentDiscount, 2);
 
             $requestedPoints = (int) ($data['redeem_points'] ?? 0);
-            [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($customer, $loyaltyEligible, $config, $requestedPoints, $afterAgent);
+
+            // الرصيد المتاح لا المسجَّل: ما حُجز على فواتير هذا العميل التي لم
+            // تُعتمد بعد ليس له أن يُستبدل مرة أخرى.
+            $available = $customer !== null ? $this->availablePoints->handle($customer) : null;
+
+            [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($customer, $loyaltyEligible, $config, $requestedPoints, $afterAgent, $available);
 
             // الأسعار المُدخلة في نقطة البيع شاملة لضريبة القيمة المضافة: ما يبقى
             // بعد كامل سلسلة الخصومات هو ما يدفعه العميل بالضبط، والضريبة تُستخرج
@@ -244,11 +251,11 @@ class CreateProductInvoiceAction
                 $coupon->increment('used_count');
             }
 
-            // Spend redeemed points (decrement + immutable ledger row), then
-            // accrue earnings. Earning re-reads the post-redemption balance and
-            // no-ops unless the invoice is paid for an eligible customer.
-            if ($pointsRedeemed > 0 && $customerId !== null) {
-                $this->redeemLoyaltyPoints->handle($invoice, $customerId, $pointsRedeemed);
+            // النقاط لا تُخصم من رصيد العميل إلا عند اعتماد الفاتورة: المدفوعة
+            // تُخصم نقاطها الآن، والآجلة تبقى نقاطها محجوزةً عليها حتى يكتمل
+            // سدادها. ثم يأتي الاكتساب، ولا يقع إلا على فاتورة مدفوعة.
+            if ($status === InvoiceStatusEnum::PAID) {
+                $this->redeemLoyaltyPoints->handle($invoice);
             }
 
             $this->earnLoyaltyPoints->handle($invoice);

@@ -818,23 +818,32 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                     </span>
                                 </div>
                                 <div className="flex items-center justify-between text-sm">
-                                    <span className="text-muted-foreground">رصيد النقاط</span>
-                                    <span className="font-medium">{selectedCustomer.pointsBalance.toLocaleString('en-US')}</span>
+                                    <span className="text-muted-foreground">رصيد النقاط المتاح</span>
+                                    <span className="font-medium">{selectedCustomer.availablePoints.toLocaleString('en-US')}</span>
                                 </div>
+                                {selectedCustomer.reservedPoints > 0 && (
+                                    <p className="text-muted-foreground text-xs">
+                                        محجوز {selectedCustomer.reservedPoints.toLocaleString('en-US')} نقطة على فواتير لم تُعتمد بعد — الرصيد الكلي{' '}
+                                        {selectedCustomer.pointsBalance.toLocaleString('en-US')}.
+                                    </p>
+                                )}
                                 <Input
                                     value={redeemPoints}
                                     onChange={(e) => setRedeemPoints(e.target.value.replace(/[^0-9]/g, ''))}
                                     placeholder={`نقاط للاستبدال (الحد الأدنى ${loyalty.minRedemptionPoints})`}
                                     inputMode="numeric"
-                                    disabled={selectedCustomer.pointsBalance < loyalty.minRedemptionPoints}
+                                    disabled={selectedCustomer.availablePoints < loyalty.minRedemptionPoints}
                                 />
-                                {selectedCustomer.pointsBalance < loyalty.minRedemptionPoints ? (
-                                    <p className="text-muted-foreground text-xs">الرصيد أقل من الحد الأدنى للاستبدال.</p>
+                                {selectedCustomer.availablePoints < loyalty.minRedemptionPoints ? (
+                                    <p className="text-muted-foreground text-xs">الرصيد المتاح أقل من الحد الأدنى للاستبدال.</p>
                                 ) : (
                                     pointsDiscount > 0 && (
-                                        <p className="text-xs text-green-600 dark:text-green-400">
-                                            خصم {formatCurrency(pointsDiscount)} مقابل {Number(redeemPoints).toLocaleString('en-US')} نقطة
-                                        </p>
+                                        <>
+                                            <p className="text-xs text-green-600 dark:text-green-400">
+                                                خصم {formatCurrency(pointsDiscount)} مقابل {Number(redeemPoints).toLocaleString('en-US')} نقطة
+                                            </p>
+                                            <p className="text-muted-foreground text-xs">تُخصم النقاط من رصيد العميل عند اعتماد الفاتورة.</p>
+                                        </>
                                     )
                                 )}
                                 {errors.redeem_points && <p className="text-destructive text-xs">{errors.redeem_points}</p>}

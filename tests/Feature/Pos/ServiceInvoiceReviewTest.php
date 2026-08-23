@@ -156,11 +156,13 @@ describe('Service invoice review', function () {
         expect(CommissionLedger::whereIn('invoice_line_id', $lineIds)->count())->toBe(0);
     });
 
-    it('restores redeemed points when cancelling', function () {
+    // نقاط الفاتورة الآجلة محجوزة لا مخصومة، فإلغاؤها يحرّر الحجز بلا حركة ولا
+    // تغيّر في الرصيد — لا يُردّ ما لم يُؤخذ.
+    it('leaves the balance untouched when cancelling an unapproved invoice', function () {
         $customer = Customer::factory()->create([
             'branch_id' => $this->branch->id,
             'customer_type' => CustomerTypeEnum::Individual,
-            'points_balance' => 200,
+            'points_balance' => 700,
         ]);
 
         $invoice = makeDueInvoice(['customer_id' => $customer->id, 'points_redeemed' => 500, 'points_discount' => 5]);
@@ -168,7 +170,30 @@ describe('Service invoice review', function () {
         $this->patch(route('invoices.service.cancel', $invoice), ['reason' => 'إلغاء بطلب الإدارة']);
 
         expect($customer->refresh()->points_balance)->toBe(700)
-            ->and(LoyaltyTransaction::where('type', LoyaltyTransactionTypeEnum::ManualAdjust)->where('points', 500)->count())->toBe(1);
+            ->and(LoyaltyTransaction::count())->toBe(0);
+    });
+
+    // أما فاتورةٌ خُصمت نقاطها فعلاً — معتمَدةً كانت أو مُنشأةً قبل تأجيل الخصم —
+    // فالختم يشهد بذلك، فتُردّ نقاطها بتعديل يدوي موجب.
+    it('restores redeemed points when cancelling an invoice whose points were already taken', function () {
+        $customer = Customer::factory()->create([
+            'branch_id' => $this->branch->id,
+            'customer_type' => CustomerTypeEnum::Individual,
+            'points_balance' => 200,
+        ]);
+
+        $invoice = makeDueInvoice([
+            'customer_id' => $customer->id,
+            'points_redeemed' => 500,
+            'points_discount' => 5,
+            'points_redeemed_at' => now(),
+        ]);
+
+        $this->patch(route('invoices.service.cancel', $invoice), ['reason' => 'إلغاء بطلب الإدارة']);
+
+        expect($customer->refresh()->points_balance)->toBe(700)
+            ->and(LoyaltyTransaction::where('type', LoyaltyTransactionTypeEnum::ManualAdjust)->where('points', 500)->count())->toBe(1)
+            ->and($invoice->refresh()->points_redeemed_at)->toBeNull();
     });
 
     it('requires a reason to cancel', function () {
