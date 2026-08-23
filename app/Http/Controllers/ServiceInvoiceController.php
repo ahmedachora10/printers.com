@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Agent\ListBranchAgentsAction;
 use App\Actions\Customer\UpdateCustomerAction;
+use App\Actions\Loyalty\ResolveAvailablePointsAction;
 use App\Actions\ServiceInvoice\AttachServiceInvoiceCustomerAction;
 use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
@@ -54,7 +55,7 @@ class ServiceInvoiceController extends Controller
      * Re-open a DUE invoice in the POS form for its owning employee to edit
      * (before an accountant approves it). The form is seeded from the invoice.
      */
-    public function edit(ServiceInvoice $invoice, ListBranchAgentsAction $listBranchAgents): Response
+    public function edit(ServiceInvoice $invoice, ListBranchAgentsAction $listBranchAgents, ResolveAvailablePointsAction $availablePoints): Response
     {
         Gate::authorize('update', $invoice);
 
@@ -75,7 +76,13 @@ class ServiceInvoiceController extends Controller
             'invoice' => [
                 'id' => $invoice->id,
                 'invoiceNumber' => $invoice->invoice_number,
-                'customer' => $invoice->customer?->toPosArray($loyalty, $loyaltyActive),
+                // حجز هذه الفاتورة نفسها لا يُطرح من رصيد عميلها هنا: نقاطها لها،
+                // فإعادة إرسال العدد نفسه لا تُرفض ولا يظهر الرصيد منقوصاً مرتين.
+                'customer' => $invoice->customer?->toPosArray(
+                    $loyalty,
+                    $loyaltyActive,
+                    $invoice->customer_id !== null ? $availablePoints->reserved((int) $invoice->customer_id, $invoice) : 0,
+                ),
                 'agentIds' => $invoice->invoiceAgents->pluck('agent_id')->values(),
                 'coupon' => $coupon ? [
                     'code' => $coupon->code,

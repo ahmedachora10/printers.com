@@ -73,6 +73,10 @@ export interface PosCustomer {
     taxNumber: string | null;
     agentId: number | null;
     pointsBalance: number;
+    /** المحجوز على فواتير هذا العميل التي لم تُعتمد بعد — نقاطه لم تُخصم منه بعد */
+    reservedPoints: number;
+    /** pointsBalance − reservedPoints: ما يمكن استبداله فعلاً على فاتورة جديدة */
+    availablePoints: number;
     tier: string;
     tierLabel: string;
     tierDiscountPct: number;

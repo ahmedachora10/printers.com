@@ -2,7 +2,6 @@
 
 namespace App\Actions\ServiceInvoice;
 
-use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
 use App\Actions\ServiceInvoice\Concerns\ReversesServiceInvoiceAccruals;
 use App\Actions\ServiceInvoice\Concerns\SyncsServiceInvoiceAgents;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
@@ -26,7 +25,6 @@ class UpdateServiceInvoiceAction
 
     public function __construct(
         private readonly CalculateServiceInvoiceAction $calculator,
-        private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -60,7 +58,9 @@ class UpdateServiceInvoiceAction
             $this->releaseCoupon($invoice);
             $invoice->lines()->delete();
 
-            $calc = $this->calculator->handle($data, $invoice->user, $branchId, $vatPct);
+            // الفاتورة نفسها تُستثنى من حساب النقاط المحجوزة، فإعادة إرسال العدد
+            // نفسه لا تصطدم بحجزها هي.
+            $calc = $this->calculator->handle($data, $invoice->user, $branchId, $vatPct, $invoice);
 
             $invoice->update([
                 'status' => InvoiceStatusEnum::DUE,
@@ -82,9 +82,8 @@ class UpdateServiceInvoiceAction
                 $calc['coupon']->increment('used_count');
             }
 
-            if ($calc['pointsRedeemed'] > 0 && $invoice->customer_id !== null) {
-                $this->redeemLoyaltyPoints->handle($invoice, $invoice->customer_id, $calc['pointsRedeemed']);
-            }
+            // الفاتورة تبقى آجلة هنا، فنقاطها تبقى محجوزة لا مخصومة — كالعمولة
+            // تماماً، تنتظر اعتماد المحاسب.
 
             return $invoice->refresh();
         });

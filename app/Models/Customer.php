@@ -73,9 +73,12 @@ class Customer extends Model
      * Shape this customer for the POS customer picker, including loyalty eligibility.
      * Shared by the POS create screens and the async customer-search endpoint.
      *
+     * @param  int  $reservedPoints  النقاط المحجوزة على فواتيره التي لم تُعتمد بعد
+     *                               (ResolveAvailablePointsAction): معروضةٌ ومطروحةٌ من
+     *                               المتاح، فما يظهر للكاشير هو ما يمكن استبداله فعلاً.
      * @return array<string, mixed>
      */
-    public function toPosArray(?LoyaltyConfig $loyalty, bool $loyaltyActive): array
+    public function toPosArray(?LoyaltyConfig $loyalty, bool $loyaltyActive, int $reservedPoints = 0): array
     {
         $eligible = $loyaltyActive
             && $this->customer_type === CustomerTypeEnum::Individual
@@ -88,6 +91,8 @@ class Customer extends Model
             'taxNumber' => $this->tax_number,
             'agentId' => $this->agent_id,
             'pointsBalance' => (int) $this->points_balance,
+            'reservedPoints' => $reservedPoints,
+            'availablePoints' => max(0, (int) $this->points_balance - $reservedPoints),
             'tier' => $this->tier->value,
             'tierLabel' => $this->tier->label(),
             'tierDiscountPct' => $eligible ? $loyalty->discountPctForTier($this->tier) : 0.0,

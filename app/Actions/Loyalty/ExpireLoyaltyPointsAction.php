@@ -20,9 +20,15 @@ use Illuminate\Support\Facades\DB;
  * ويُنقذ الرصيد كلّه، فالمدة تُقرأ للعميل لا لكل دفعة نقاط.
  *
  * الفروع التي لا مدة لها (NULL) — وهو الوضع الافتراضي — لا تنتهي نقاطها أبداً.
+ * ويُستثنى من الإنهاء ما كان محجوزاً على فاتورة لم تُعتمد بعد، فذاك خصمٌ وقع على
+ * الفاتورة وينتظر الاعتماد ليقع على الرصيد.
  */
 class ExpireLoyaltyPointsAction
 {
+    public function __construct(
+        private readonly ResolveAvailablePointsAction $availablePoints,
+    ) {}
+
     /**
      * @param  int|null  $branchId  فرعٌ بعينه، أو كل الفروع حين يكون null
      * @param  CarbonInterface|null  $asOf  لحظة القياس، وهي الآن افتراضاً
@@ -67,8 +73,9 @@ class ExpireLoyaltyPointsAction
                 continue;
             }
 
-            $this->expire($customer);
-            $expired++;
+            if ($this->expire($customer)) {
+                $expired++;
+            }
         }
 
         return $expired;
@@ -89,9 +96,10 @@ class ExpireLoyaltyPointsAction
         return collect($timestamps)->max() ?? Date::now();
     }
 
-    private function expire(Customer $customer): void
+    /** @return bool هل انتهت نقاطٌ فعلاً؟ */
+    private function expire(Customer $customer): bool
     {
-        DB::transaction(function () use ($customer) {
+        return DB::transaction(function () use ($customer) {
             /** @var Customer $locked */
             $locked = Customer::query()->whereKey($customer->id)->lockForUpdate()->firstOrFail();
 
@@ -99,20 +107,31 @@ class ExpireLoyaltyPointsAction
 
             // قد يكون العميل قد اشترى بين القراءة والقفل، فيسقط سبب الإنهاء.
             if ($balance <= 0) {
-                return;
+                return false;
             }
 
-            $locked->update(['points_balance' => 0]);
+            // النقاط المحجوزة على فاتورة تنتظر الاعتماد لا تنتهي: خصمُها مستحقٌّ
+            // على الفاتورة وقد نزل من إجماليها فعلاً، فإنهاؤها يمنع اعتمادها.
+            $reserved = $this->availablePoints->reserved((int) $locked->id);
+            $expirable = $balance - $reserved;
+
+            if ($expirable <= 0) {
+                return false;
+            }
+
+            $locked->update(['points_balance' => $reserved]);
 
             LoyaltyTransaction::create([
                 'customer_id' => $locked->id,
                 'invoice_id' => null,
                 'invoice_type' => null,
                 'type' => LoyaltyTransactionTypeEnum::Expire,
-                'points' => -$balance,
-                'balance_after' => 0,
+                'points' => -$expirable,
+                'balance_after' => $reserved,
                 'notes' => 'انتهاء صلاحية النقاط لخمول الحساب',
             ]);
+
+            return true;
         });
     }
 }

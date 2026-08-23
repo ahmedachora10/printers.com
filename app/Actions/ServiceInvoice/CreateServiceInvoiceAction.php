@@ -67,11 +67,12 @@ class CreateServiceInvoiceAction
                 $calc['coupon']->increment('used_count');
             }
 
-            // Spend redeemed points (decrement + immutable ledger row), then
-            // accrue earnings. Earning re-reads the post-redemption balance and
-            // no-ops unless the invoice is paid for an eligible customer.
-            if ($calc['pointsRedeemed'] > 0 && $invoice->customer_id !== null) {
-                $this->redeemLoyaltyPoints->handle($invoice, $invoice->customer_id, $calc['pointsRedeemed']);
+            // النقاط تتبع القاعدة نفسها: لا تُخصم من رصيد العميل إلا عند اعتماد
+            // الفاتورة. فاتورةٌ تُنشأ مدفوعة تُخصم نقاطها الآن، والآجلة تبقى نقاطها
+            // محجوزةً على الفاتورة (points_redeemed بلا ختم) حتى يعتمدها المحاسب.
+            // ثم يأتي الاكتساب، وهو لا يقع أصلاً إلا على فاتورة مدفوعة.
+            if ($status === InvoiceStatusEnum::PAID) {
+                $this->redeemLoyaltyPoints->handle($invoice);
             }
 
             $this->earnLoyaltyPoints->handle($invoice);
