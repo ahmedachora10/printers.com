@@ -202,4 +202,103 @@ describe('Max selling price cap', function () {
                 'max_selling_price' => -1,
             ])->assertSessionHasErrors('max_selling_price');
     });
+
+    // ── تاسك 64: أرضية السعر على تعريف الخدمة ───────────────────────
+    // الإلزام في نقطة البيع يخصّ التاسك 65؛ هنا الخانة وتحقّقها وحدهما.
+
+    it('persists the floor from the branch service form and clears it when emptied', function () {
+        $template = ServiceTemplate::factory()->create();
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('branch-services.store'), [
+                'service_template_id' => $template->id,
+                'branch_id' => $this->branch->id,
+                'base_commission_pct' => 10,
+                'max_discount_pct' => 5,
+                'min_selling_price' => 50.25,
+            ])->assertSessionHasNoErrors();
+
+        $service = BranchService::where('service_template_id', $template->id)->firstOrFail();
+        expect((float) $service->min_selling_price)->toBe(50.25);
+
+        $this->actingAs($this->branchAdmin)
+            ->put(route('branch-services.update', $service->id), [
+                'base_commission_pct' => 10,
+                'max_discount_pct' => 5,
+                'min_selling_price' => '',
+            ])->assertSessionHasNoErrors();
+
+        expect($service->fresh()->min_selling_price)->toBeNull();
+    });
+
+    it('rejects a floor above the cap — the service would be unsellable', function () {
+        $template = ServiceTemplate::factory()->create();
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('branch-services.store'), [
+                'service_template_id' => $template->id,
+                'branch_id' => $this->branch->id,
+                'base_commission_pct' => 10,
+                'max_discount_pct' => 5,
+                'max_selling_price' => 100,
+                'min_selling_price' => 150,
+            ])->assertSessionHasErrors('min_selling_price');
+
+        expect(BranchService::where('service_template_id', $template->id)->exists())->toBeFalse();
+    });
+
+    it('accepts a floor equal to the cap — one price exactly', function () {
+        $template = ServiceTemplate::factory()->create();
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('branch-services.store'), [
+                'service_template_id' => $template->id,
+                'branch_id' => $this->branch->id,
+                'base_commission_pct' => 10,
+                'max_discount_pct' => 5,
+                'max_selling_price' => 100,
+                'min_selling_price' => 100,
+            ])->assertSessionHasNoErrors();
+    });
+
+    it('measures the floor against nothing when the cap is left open', function () {
+        $template = ServiceTemplate::factory()->create();
+
+        // بلا سقف لا معنى لمقارنة الأرضية به — ولا يُقرأ فراغه صفراً.
+        $this->actingAs($this->branchAdmin)
+            ->post(route('branch-services.store'), [
+                'service_template_id' => $template->id,
+                'branch_id' => $this->branch->id,
+                'base_commission_pct' => 10,
+                'max_discount_pct' => 5,
+                'max_selling_price' => '',
+                'min_selling_price' => 900,
+            ])->assertSessionHasNoErrors();
+
+        expect((float) BranchService::where('service_template_id', $template->id)->firstOrFail()->min_selling_price)->toBe(900.00);
+    });
+
+    it('rejects a negative floor', function () {
+        $template = ServiceTemplate::factory()->create();
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('branch-services.store'), [
+                'service_template_id' => $template->id,
+                'branch_id' => $this->branch->id,
+                'base_commission_pct' => 10,
+                'max_discount_pct' => 5,
+                'min_selling_price' => -1,
+            ])->assertSessionHasErrors('min_selling_price');
+    });
+
+    it('ships the floor to the POS beside the cap', function () {
+        $service = cappedService(['min_selling_price' => 40]);
+
+        $this->get(route('pos.service.create'))->assertInertia(
+            fn ($page) => $page->where(
+                'services',
+                fn ($services) => collect($services)->firstWhere('id', $service->id)['minSellingPrice'] === 40,
+            ),
+        );
+    });
 });

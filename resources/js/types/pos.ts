@@ -22,6 +22,8 @@ export interface PosService {
     maxDiscountPct: number;
     /** سقف سعر البيع للموظف — null يعني السعر مفتوح. لخدمة م² هو سقف سعر المتر. */
     maxSellingPrice: number | null;
+    /** أرضية سعر البيع للموظف — null يعني بلا أرضية. لخدمة م² هي أرضية سعر المتر. */
+    minSellingPrice: number | null;
     pricingType: ServicePricingType;
     pricePerSqm: number;
     agentCommissionPerSqm: number;
@@ -61,6 +63,8 @@ export interface ServiceCartLine {
     maxDiscountPct: number;
     /** سقف سعر البيع للموظف — null يعني السعر مفتوح. لخدمة م² هو سقف سعر المتر. */
     maxSellingPrice: number | null;
+    /** أرضية سعر البيع للموظف — null يعني بلا أرضية. لخدمة م² هي أرضية سعر المتر. */
+    minSellingPrice: number | null;
     baseCommissionPct: number;
     isTahazir: boolean;
     /** تكلفة الخامات لهذا السطر — داخلية، تُخصم من أساس عمولة الموظف فقط */
@@ -133,6 +137,8 @@ export interface EditServiceInvoiceLine {
     maxDiscountPct: number;
     /** سقف سعر البيع للموظف — null يعني السعر مفتوح. لخدمة م² هو سقف سعر المتر. */
     maxSellingPrice: number | null;
+    /** أرضية سعر البيع للموظف — null يعني بلا أرضية. لخدمة م² هي أرضية سعر المتر. */
+    minSellingPrice: number | null;
     baseCommissionPct: number;
     isTahazir: boolean;
     /** لقطة الخامات المحفوظة على السطر — لا القيمة الافتراضية للخدمة */

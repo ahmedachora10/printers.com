@@ -126,6 +126,19 @@ export default function BranchServicesIndex({
                     ),
             },
             {
+                key: 'minSellingPrice',
+                header: 'أقل سعر',
+                cell: (s) =>
+                    s.minSellingPrice !== null && s.minSellingPrice > 0 ? (
+                        <span className="tabular-nums">
+                            {formatCurrency(s.minSellingPrice)}
+                            {s.pricingType === 'sqm' && <span className="text-muted-foreground text-xs"> /م²</span>}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground text-sm">مفتوح</span>
+                    ),
+            },
+            {
                 key: 'isTahazir',
                 header: 'تحضير',
                 cell: (s) =>
