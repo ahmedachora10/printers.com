@@ -110,6 +110,33 @@ const lineMaterialsTotal = (line: ServiceCartLine) =>
     line.hasMaterials ? round2(round2(Math.max(0, line.materialsCost)) * lineUnits(line)) : 0;
 
 /**
+ * تكلفة خامات **الوحدة الواحدة** في السطر — الطرف الذي يُقارَن به السعر في
+ * أرضية التاسك 65. صفر حين لا خامات على السطر.
+ */
+const lineMaterialsUnitCost = (line: ServiceCartLine) => (line.hasMaterials ? round2(Math.max(0, line.materialsCost)) : 0);
+
+/**
+ * أرضية سعر السطر (تاسك 65) — أعلى الحدَّين: أقل سعر معرَّف على الخدمة (تاسك 64)
+ * وتكلفة خامات الوحدة. صفر يعني بلا أرضية.
+ */
+const linePriceFloor = (line: ServiceCartLine) => Math.max(line.minSellingPrice ?? 0, lineMaterialsUnitCost(line));
+
+/**
+ * السعر المقبوض فعلاً على الوحدة: بعد خصم السطر وصافياً من الضريبة — نفس ما
+ * يقيسه الخادم، خلافاً للسقف الذي يقيس المكتوب. الأسعار المُدخلة شاملة للضريبة
+ * منذ التاسك 37 والتكلفة صافية، فبلا القسمة تمرّ خسارةٌ بنسبة الضريبة كاملة.
+ */
+const lineNetUnitPrice = (line: ServiceCartLine, vatPct: number) =>
+    round2((line.unitPrice * (1 - line.discountPct / 100)) / (1 + vatPct / 100));
+
+/** هل نزل السطر تحت أرضيته؟ */
+const isLineUnderPriceFloor = (line: ServiceCartLine, vatPct: number): boolean => {
+    const floor = linePriceFloor(line);
+
+    return floor > 0 && lineNetUnitPrice(line, vatPct) < round2(floor);
+};
+
+/**
  * The line's commission-owner share — mirrors the server formulas. Only the
  * percentage case divides VAT out of its base; a fixed or per-sqm rate is an
  * agreed SAR figure with no tax inside it to strip.
@@ -135,15 +162,30 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // تأتي من تعريف الخدمة، والقيد الحقيقي على الخادم (CalculateServiceInvoiceAction).
     const canEditMaterials = !isEmployee;
     /**
-     * سقف سعر البيع يلزم الموظف وحده — المحاسب ومدير الفرع يبيعان بما يريان،
+     * حدّا سعر البيع يلزمان الموظف وحده — المحاسب ومدير الفرع يبيعان بما يريان،
      * تماماً كما يقرّر الخادم. الرسالة تظهر تحت حقل السعر ويمنع الحفظ معها.
+     *
+     * والأرضية (تاسك 65) تسمّي الحدّ الذي لُمس — تكلفة الخامات أو أقل سعر — وإلا
+     * بحث الموظف عن رقمٍ لا يراه في أي شاشة.
      */
-    const priceCapError = (line: ServiceCartLine): string | null => {
-        if (!isEmployee || !isLineOverPriceCap(line)) return null;
+    const priceBoundError = (line: ServiceCartLine): string | null => {
+        if (!isEmployee) return null;
 
-        const cap = formatCurrency(line.maxSellingPrice ?? 0);
+        if (isLineOverPriceCap(line)) {
+            const cap = formatCurrency(line.maxSellingPrice ?? 0);
 
-        return line.pricingType === 'sqm' ? `الحد الأعلى ${cap} للمتر` : `الحد الأعلى ${cap}`;
+            return line.pricingType === 'sqm' ? `الحد الأعلى ${cap} للمتر` : `الحد الأعلى ${cap}`;
+        }
+
+        if (isLineUnderPriceFloor(line, vatPct)) {
+            const floor = linePriceFloor(line);
+            const reason = lineMaterialsUnitCost(line) > (line.minSellingPrice ?? 0) ? 'تكلفة الخامات' : 'أقل سعر';
+            const unit = line.pricingType === 'sqm' ? ' للمتر' : '';
+
+            return `${reason} ${formatCurrency(floor)}${unit} — والمقبوض ${formatCurrency(lineNetUnitPrice(line, vatPct))}${unit} بلا ضريبة`;
+        }
+
+        return null;
     };
     const isEditing = !!invoice;
     const lineSeq = useRef(0);
@@ -633,6 +675,17 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             );
             return;
         }
+        // الأرضية (تاسك 65) — أعلى الحدَّين: تكلفة الخامات وأقل سعر معرَّف.
+        const underFloor = isEmployee ? cart.find((l) => isLineUnderPriceFloor(l, vatPct)) : undefined;
+        if (underFloor) {
+            const reason = lineMaterialsUnitCost(underFloor) > (underFloor.minSellingPrice ?? 0) ? 'تكلفة الخامات' : 'أقل سعر للبيع';
+            toast.error(
+                `سعر "${underFloor.name}" بعد الخصم وبلا ضريبة يقلّ عن ${reason} (${formatCurrency(linePriceFloor(underFloor))}${
+                    underFloor.pricingType === 'sqm' ? ' للمتر' : ''
+                })`,
+            );
+            return;
+        }
         // A bank-transfer method needs a receipt — unless editing an invoice that
         // already carries one and keeps the same method.
         if (requiresReceipt && !receipt && !(isEditing && invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
@@ -686,8 +739,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         }
     }
 
-    // سطر واحد فوق السقف يكفي لتعطيل الحفظ — لا تُرسَل فاتورة يرفضها الخادم.
-    const hasPriceCapViolation = isEmployee && cart.some(isLineOverPriceCap);
+    // سطر واحد خارج حدَّيه يكفي لتعطيل الحفظ — لا تُرسَل فاتورة يرفضها الخادم.
+    const hasPriceCapViolation = isEmployee && cart.some((l) => isLineOverPriceCap(l) || isLineUnderPriceFloor(l, vatPct));
 
     const showResults = searchFocused && search.trim() !== '';
 
@@ -1245,7 +1298,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 // حتى سطر المتر المربع قابل لتحرير سعره: المقاس يملأ
                                 // الحقل والكاشير يكتب فوقه عند الاتفاق على سعر آخر.
                                 isPriceEditable={() => true}
-                                getPriceError={priceCapError}
+                                getPriceError={priceBoundError}
                                 // سطر المتر: الرقم في هذا العمود سعر المتر لا سعر القطعة.
                                 getPriceHint={(line) => (line.pricingType === 'sqm' ? 'للمتر المربع' : null)}
                                 getMaxDiscount={(line) => (line.maxDiscountPct > 0 ? line.maxDiscountPct : 100)}
@@ -1366,10 +1419,11 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                             />
                                                         </LineField>
                                                     </div>
-                                                    {priceCapError(line) && (
+                                                    {/* الرسالة نفسها التي يعرضها عمود السعر — سقفاً كانت
+                                                        أم أرضية، فلا يبقى نصٌّ يسمّي «الحد الأعلى» وحده. */}
+                                                    {priceBoundError(line) && (
                                                         <p className="text-destructive text-[11px]">
-                                                            سعر المتر {formatCurrency(line.unitPrice)} — والحد الأعلى المسموح{' '}
-                                                            {formatCurrency(line.maxSellingPrice ?? 0)} للمتر.
+                                                            سعر المتر {formatCurrency(line.unitPrice)} — {priceBoundError(line)}.
                                                         </p>
                                                     )}
                                                     {line.widthCm && line.heightCm ? (

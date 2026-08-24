@@ -241,7 +241,12 @@ describe('Materials cost (الخامات) before commission', function () {
     it('clamps at zero rather than paying a negative commission', function () {
         $this->service->update(['has_materials' => true, 'materials_cost' => 500]);
 
-        $this->post(route('pos.service.store'), materialsPayload())->assertRedirect();
+        // مرفوعة من مدير الفرع: أرضية السعر (تاسك 65) تمنع الموظف من بيعٍ تحت
+        // تكلفة الخامة أصلاً، فلا يبلغ هذا القصّ إلا من لا تلزمه الأرضية — أو
+        // فاتورةٌ قديمة قبلها. والعمولة تُحسب لصاحب الفاتورة أياً كان دوره.
+        $this->actingAs($this->branchAdmin)
+            ->post(route('pos.service.store'), materialsPayload())
+            ->assertRedirect();
 
         $invoice = ServiceInvoice::firstOrFail();
         $line = $invoice->lines()->firstOrFail();
@@ -250,6 +255,15 @@ describe('Materials cost (الخامات) before commission', function () {
         expect((float) $line->materials_total)->toEqual(500.00)
             ->and((float) $line->commission_amount)->toEqual(0.00)
             ->and((float) $invoice->employee_commission)->toEqual(0.00);
+    });
+
+    it('blocks the employee from raising that loss-making line at all', function () {
+        $this->service->update(['has_materials' => true, 'materials_cost' => 500]);
+
+        $this->post(route('pos.service.store'), materialsPayload())
+            ->assertSessionHasErrors('lines');
+
+        expect(ServiceInvoice::count())->toBe(0);
     });
 
     // ---- تاسك 54: the employee reads the cost, never writes it -------------

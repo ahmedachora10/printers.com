@@ -146,6 +146,12 @@ class CalculateServiceInvoiceAction
             // لخدمة بالمتر (تاسك 63).
             [$materialsCost, $materialsTotal] = $this->lineMaterials($line, $branchService, $units, $mayEditMaterials);
 
+            // الأرضية تُفحص هنا لا مع السقف أعلاه: أحد حدَّيها تكلفةُ خامات
+            // السطر، ولا تُعرف إلا بعد lineMaterials().
+            if ($priceCapApplies) {
+                $this->assertPriceAboveFloor($branchService, $unitPrice, $discountPct, $materialsCost, $vatPct);
+            }
+
             [$lineAgentId, $agentCommissionType, $agentCommissionValue, $agentCommissionAmount] =
                 $this->lineAgentCommission($line, $branchService, $lineAgents, $lineSubtotal, $qty, $widthCm, $heightCm, $vatPct);
 
@@ -428,6 +434,59 @@ class CalculateServiceInvoiceAction
         throw ValidationException::withMessages([
             'lines' => ($isSqm ? "سعر المتر على \"{$name}\"" : "سعر \"{$name}\"")
                 .' يتجاوز الحد الأعلى المسموح ('.number_format($cap, 2).' ر.س'.($isSqm ? ' للمتر' : '').').',
+        ]);
+    }
+
+    /**
+     * يمنع البيع بأقل من أرضية السطر (تاسك 65). الأرضية حدَّان يُؤخذ **أعلاهما**:
+     *
+     * - `min_selling_price` — رقمٌ يكتبه مدير الفرع على الخدمة (تاسك 64).
+     * - **تكلفة خامات السطر** — «لا يمكن التسعير أقل من تكلفة الخامة» بنصّ العميل.
+     *   وهي للوحدة نفسها التي يقيسها السعر بعد التاسك 63 (للمتر في خدمة المتر،
+     *   وللقطعة في خدمة الوحدة)، فالطرفان متناظران بلا قسمة على المساحة.
+     *
+     * وأي حدٍّ فارغ أو صفر يُسقَط من المقارنة، كما يُقرأ السقف الصفري «مفتوحاً».
+     *
+     * **ما يُقاس هو المقبوض لا المكتوب**، وهذا يخالف السقف عن قصد ولا يُوحَّدان:
+     * السقف يحمي **العميل** من سعرٍ مرتفع فيقيس السعر المكتوب قبل الخصم، والأرضية
+     * تحمي **المركز** من خسارة فتقيس ما يدخل الصندوق فعلاً — أي بعد خصم السطر،
+     * وإلا مرّ سعرٌ فوق التكلفة ثم أنزله خصمُ 50% تحتها.
+     *
+     * **والمقارنة صافيةٌ من الضريبة:** الأسعار المُدخلة شاملة لها منذ التاسك 37
+     * بينما التكلفة مبلغُ تكلفة بلا ضريبة، فبيع متر بـ10 ر.س شاملة ضدّ خامة بـ10
+     * هو قبضُ 8.70 مقابل 10 — خسارةٌ يمرّرها الفحص الساذج.
+     */
+    private function assertPriceAboveFloor(
+        BranchService $branchService,
+        float $unitPrice,
+        float $discountPct,
+        float $materialsCost,
+        float $vatPct,
+    ): void {
+        $configured = $branchService->min_selling_price !== null ? (float) $branchService->min_selling_price : 0.0;
+
+        $floor = max($configured, $materialsCost);
+
+        if ($floor <= 0) {
+            return;
+        }
+
+        $effective = round($unitPrice * (1 - $discountPct / 100) / (1 + $vatPct / 100), 2);
+
+        if ($effective >= round($floor, 2)) {
+            return;
+        }
+
+        $name = $branchService->serviceTemplate?->name;
+        $isSqm = $branchService->pricing_type === ServicePricingTypeEnum::Sqm;
+        $unit = $isSqm ? ' للمتر' : '';
+        // يُسمّى الحدّ الذي لُمس، وإلا بحث الموظف عن رقمٍ لا يراه في أي شاشة.
+        $reason = $materialsCost > $configured ? 'تكلفة الخامات' : 'أقل سعر للبيع';
+
+        throw ValidationException::withMessages([
+            'lines' => ($isSqm ? "سعر المتر على \"{$name}\"" : "سعر \"{$name}\"")
+                .' بعد الخصم وبلا ضريبة ('.number_format($effective, 2).' ر.س'.$unit.')'
+                ." يقلّ عن {$reason} (".number_format($floor, 2).' ر.س'.$unit.').',
         ]);
     }
 

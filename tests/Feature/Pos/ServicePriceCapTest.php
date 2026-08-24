@@ -302,3 +302,178 @@ describe('Max selling price cap', function () {
         );
     });
 });
+
+/**
+ * تاسك 65: أرضية السعر — أعلى الحدَّين، أقل سعر معرَّف على الخدمة وتكلفة خامات
+ * السطر. تُقاس على المقبوض: بعد خصم السطر وصافياً من الضريبة (15% في هذا الفرع).
+ */
+describe('Minimum selling price floor', function () {
+    beforeEach(function () {
+        $this->withoutVite();
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $this->branch = Branch::factory()->create(['vat_rate_override' => 15.00]);
+
+        $this->employee = User::factory()->create(['branch_id' => $this->branch->id]);
+        $this->employee->addRole(Roles::EMPLOYEE->value);
+
+        $this->branchAdmin = User::factory()->create();
+        $this->branchAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        $this->branch->update(['owner_id' => $this->branchAdmin->id]);
+
+        $this->actingAs($this->employee);
+    });
+
+    // ── أرضية أقل سعر (تاسك 64) ─────────────────────────────────────
+
+    it('blocks an employee selling below the configured floor', function () {
+        $service = cappedService(['max_selling_price' => null, 'min_selling_price' => 50]);
+
+        // 50 شاملة الضريبة = 43.48 مقبوضة — تحت الأرضية.
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 50]))
+            ->assertSessionHasErrors('lines');
+
+        expect(ServiceInvoice::count())->toBe(0);
+    });
+
+    it('allows the price that nets exactly the floor', function () {
+        $service = cappedService(['max_selling_price' => null, 'min_selling_price' => 50]);
+
+        // 57.50 ÷ 1.15 = 50.00 بالضبط.
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 57.50]))
+            ->assertSessionHasNoErrors();
+
+        expect(ServiceInvoice::count())->toBe(1);
+    });
+
+    it('leaves the price open downwards when no floor is set', function () {
+        $service = cappedService(['max_selling_price' => null, 'min_selling_price' => null]);
+
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 1]))
+            ->assertSessionHasNoErrors();
+
+        expect(ServiceInvoice::count())->toBe(1);
+    });
+
+    it('does not bind a branch admin', function () {
+        $service = cappedService(['max_selling_price' => null, 'min_selling_price' => 50]);
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('pos.service.store'), capPayload($service, ['unit_price' => 10]))
+            ->assertSessionHasNoErrors();
+
+        expect(ServiceInvoice::count())->toBe(1);
+    });
+
+    // ── أرضية تكلفة الخامة (نصّ العميل) ─────────────────────────────
+
+    it('blocks a sale below the line materials cost', function () {
+        $service = cappedService([
+            'max_selling_price' => null,
+            'has_materials' => true,
+            'materials_cost' => 60,
+        ]);
+
+        // 57.50 شاملة = 50.00 مقبوضة، والخامة 60 — بيعٌ بخسارة.
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 57.50]))
+            ->assertSessionHasErrors('lines');
+
+        expect(ServiceInvoice::count())->toBe(0);
+    });
+
+    it('rejects a price that only covers the cost before VAT is stripped', function () {
+        $service = cappedService([
+            'max_selling_price' => null,
+            'has_materials' => true,
+            'materials_cost' => 50,
+        ]);
+
+        // 50 شاملة الضريبة تبدو مساويةً للتكلفة، والمقبوض 43.48 — خسارة 6.52.
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 50]))
+            ->assertSessionHasErrors('lines');
+    });
+
+    it('measures the floor after the line discount, unlike the cap', function () {
+        $service = cappedService([
+            'max_selling_price' => null,
+            'max_discount_pct' => 60,
+            'has_materials' => true,
+            'materials_cost' => 50,
+        ]);
+
+        // 115 مكتوبةً = 100 مقبوضة، فوق التكلفة بمريح. وخصم 50% ينزل بها إلى
+        // 57.50 شاملة = 50.00 مقبوضة — عند التكلفة تماماً فتمرّ.
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 115, 'discount_pct' => 50]))
+            ->assertSessionHasNoErrors();
+
+        // وخصمٌ أكبر بقليل ينزل بها تحت التكلفة فتُرفض.
+        ServiceInvoice::query()->forceDelete();
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 115, 'discount_pct' => 60]))
+            ->assertSessionHasErrors('lines');
+    });
+
+    it('compares metre against metre on a per-sqm service', function () {
+        $service = cappedService([
+            'max_selling_price' => null,
+            'pricing_type' => 'sqm',
+            'price_per_sqm' => 100,
+            'has_materials' => true,
+            'materials_cost' => 10,
+        ]);
+
+        // 11.50 للمتر شاملة = 10.00 مقبوضة للمتر — عند تكلفة المتر تماماً،
+        // مهما كبر المقاس: الطرفان كلاهما «للمتر» بعد التاسك 63.
+        $this->post(route('pos.service.store'), capPayload($service, [
+            'unit_price' => 11.50,
+            'width_cm' => 300,
+            'height_cm' => 200,
+        ]))->assertSessionHasNoErrors();
+
+        ServiceInvoice::query()->forceDelete();
+        $this->post(route('pos.service.store'), capPayload($service, [
+            'unit_price' => 11,
+            'width_cm' => 300,
+            'height_cm' => 200,
+        ]))->assertSessionHasErrors('lines');
+    });
+
+    it('ignores the materials cost when the service carries none', function () {
+        $service = cappedService(['max_selling_price' => null, 'has_materials' => false, 'materials_cost' => 500]);
+
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 5]))
+            ->assertSessionHasNoErrors();
+
+        expect(ServiceInvoice::count())->toBe(1);
+    });
+
+    // ── الحدّان معاً ────────────────────────────────────────────────
+
+    it('takes the higher of the two floors and names it', function () {
+        $service = cappedService([
+            'max_selling_price' => null,
+            'min_selling_price' => 20,
+            'has_materials' => true,
+            'materials_cost' => 80,
+        ]);
+
+        // فوق أقل سعر (20) لكن تحت تكلفة الخامة (80) — تُرفض، والرسالة تسمّيها.
+        $response = $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 57.50]));
+
+        $response->assertSessionHasErrors('lines');
+        expect(session('errors')->first('lines'))->toContain('تكلفة الخامات');
+    });
+
+    it('names the configured floor when it is the higher of the two', function () {
+        $service = cappedService([
+            'max_selling_price' => null,
+            'min_selling_price' => 80,
+            'has_materials' => true,
+            'materials_cost' => 20,
+        ]);
+
+        $response = $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 57.50]));
+
+        $response->assertSessionHasErrors('lines');
+        expect(session('errors')->first('lines'))->toContain('أقل سعر للبيع');
+    });
+});
