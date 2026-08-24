@@ -31,9 +31,13 @@ class BranchServiceResource extends JsonResource
             'serviceTemplateName' => $hasPivot ? null : $this->serviceTemplate?->name,
             'baseCommissionPct' => (float) ($hasPivot ? $this->pivot->base_commission_pct : $this->base_commission_pct),
             'maxDiscountPct' => (float) ($hasPivot ? $this->pivot->max_discount_pct : $this->max_discount_pct),
-            // سقف سعر البيع — null يعني «مفتوح»، فلا يُصبّ في float وإلا صار صفراً.
+            // حدّا سعر البيع — null يعني «مفتوح» من تلك الجهة، فلا يُصبّ أحدهما
+            // في float وإلا صار صفراً وقرأته نقطة البيع حدّاً حقيقياً.
             'maxSellingPrice' => ($hasPivot ? $this->pivot->max_selling_price : $this->max_selling_price) !== null
                 ? (float) ($hasPivot ? $this->pivot->max_selling_price : $this->max_selling_price)
+                : null,
+            'minSellingPrice' => ($hasPivot ? $this->pivot->min_selling_price : $this->min_selling_price) !== null
+                ? (float) ($hasPivot ? $this->pivot->min_selling_price : $this->min_selling_price)
                 : null,
             'pricingType' => ($hasPivot ? $this->pivot->pricing_type : $this->pricing_type)?->value ?? 'unit',
             'pricePerSqm' => (float) ($hasPivot ? $this->pivot->price_per_sqm : $this->price_per_sqm),

@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\Roles;
+use App\Enums\ServicePricingTypeEnum;
 use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\BranchService;
@@ -145,12 +146,107 @@ describe('Materials cost (الخامات) before commission', function () {
             ->and((float) $line->commission_amount)->toEqual(100.44);
     });
 
+    // ---- تاسك 63: the cost unit follows the service's pricing type ---------
+
+    it("matches the client's sqm example: 10 per m² on 100×70 cm costs 7, not 10", function () {
+        $service = materialsService([
+            'pricing_type' => ServicePricingTypeEnum::Sqm,
+            'price_per_sqm' => 100,
+            'has_materials' => true,
+            'materials_cost' => 10,
+        ]);
+        UserService::create([
+            'user_id' => $this->employee->id,
+            'branch_service_id' => $service->id,
+            'commission_override_pct' => 50,
+        ]);
+
+        $this->post(route('pos.service.store'), materialsPayload([
+            'branch_service_id' => $service->id,
+            'unit_price' => 100,
+            'width_cm' => 100,
+            'height_cm' => 70,
+        ]))->assertRedirect();
+
+        $line = ServiceInvoice::firstOrFail()->lines()->firstOrFail();
+
+        // المساحة 0.70 م² × 10 ر.س للمتر = 7.00 — لا 10 كما كان قبل التاسك 63.
+        expect((float) $line->materials_cost)->toEqual(10.00)
+            ->and((float) $line->materials_total)->toEqual(7.00);
+    });
+
+    it('multiplies the sqm cost by the whole line area, pieces included', function () {
+        $service = materialsService([
+            'pricing_type' => ServicePricingTypeEnum::Sqm,
+            'price_per_sqm' => 100,
+            'has_materials' => true,
+            'materials_cost' => 10,
+        ]);
+        UserService::create([
+            'user_id' => $this->employee->id,
+            'branch_service_id' => $service->id,
+            'commission_override_pct' => 50,
+        ]);
+
+        $this->post(route('pos.service.store'), materialsPayload([
+            'branch_service_id' => $service->id,
+            'qty' => 3,
+            'unit_price' => 100,
+            'width_cm' => 100,
+            'height_cm' => 70,
+        ]))->assertRedirect();
+
+        // 3 قطع × 0.70 م² = 2.10 م² × 10 = 21.00
+        expect((float) ServiceInvoice::firstOrFail()->lines()->firstOrFail()->materials_total)->toEqual(21.00);
+    });
+
+    it('shrinks the commission base by the area-scaled cost, not the flat amount', function () {
+        $service = materialsService([
+            'pricing_type' => ServicePricingTypeEnum::Sqm,
+            'price_per_sqm' => 100,
+            'has_materials' => true,
+            'materials_cost' => 10,
+        ]);
+        UserService::create([
+            'user_id' => $this->employee->id,
+            'branch_service_id' => $service->id,
+            'commission_override_pct' => 50,
+        ]);
+
+        $this->post(route('pos.service.store'), materialsPayload([
+            'branch_service_id' => $service->id,
+            'unit_price' => 100,
+            'width_cm' => 100,
+            'height_cm' => 70,
+        ]))->assertRedirect();
+
+        $line = ServiceInvoice::firstOrFail()->lines()->firstOrFail();
+
+        // السطر 0.70 م² × 100 = 70.00 شاملة ← 60.87 صافية − 7.00 خامات = 53.87 × 50% = 26.94
+        // (وبالمبلغ الثابت القديم 10 لكان الأساس 50.87 والعمولة 25.44).
+        expect((float) $line->subtotal)->toEqual(70.00)
+            ->and((float) $line->commission_amount)->toEqual(26.94);
+    });
+
+    it('keeps a per-unit service multiplying by pieces', function () {
+        $this->service->update(['has_materials' => true, 'materials_cost' => 10]);
+
+        $this->post(route('pos.service.store'), materialsPayload(['qty' => 3]))->assertRedirect();
+
+        expect((float) ServiceInvoice::firstOrFail()->lines()->firstOrFail()->materials_total)->toEqual(30.00);
+    });
+
     // ---- Clamping ---------------------------------------------------------
 
     it('clamps at zero rather than paying a negative commission', function () {
         $this->service->update(['has_materials' => true, 'materials_cost' => 500]);
 
-        $this->post(route('pos.service.store'), materialsPayload())->assertRedirect();
+        // مرفوعة من مدير الفرع: أرضية السعر (تاسك 65) تمنع الموظف من بيعٍ تحت
+        // تكلفة الخامة أصلاً، فلا يبلغ هذا القصّ إلا من لا تلزمه الأرضية — أو
+        // فاتورةٌ قديمة قبلها. والعمولة تُحسب لصاحب الفاتورة أياً كان دوره.
+        $this->actingAs($this->branchAdmin)
+            ->post(route('pos.service.store'), materialsPayload())
+            ->assertRedirect();
 
         $invoice = ServiceInvoice::firstOrFail();
         $line = $invoice->lines()->firstOrFail();
@@ -159,6 +255,15 @@ describe('Materials cost (الخامات) before commission', function () {
         expect((float) $line->materials_total)->toEqual(500.00)
             ->and((float) $line->commission_amount)->toEqual(0.00)
             ->and((float) $invoice->employee_commission)->toEqual(0.00);
+    });
+
+    it('blocks the employee from raising that loss-making line at all', function () {
+        $this->service->update(['has_materials' => true, 'materials_cost' => 500]);
+
+        $this->post(route('pos.service.store'), materialsPayload())
+            ->assertSessionHasErrors('lines');
+
+        expect(ServiceInvoice::count())->toBe(0);
     });
 
     // ---- تاسك 54: the employee reads the cost, never writes it -------------

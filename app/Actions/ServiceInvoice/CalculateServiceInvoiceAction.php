@@ -141,8 +141,16 @@ class CalculateServiceInvoiceAction
             // تكلفة الخامات: المواد التي استهلكها تنفيذ هذا السطر. القيمة تأتي من
             // تعريف الخدمة افتراضياً وتبقى قابلة للتعديل في نقطة البيع، وقد تُفعَّل
             // لخدمة بلا خامات معرّفة (خامات استثنائية) أو تُطفأ لخدمة تحملها.
-            // المبلغ للوحدة الواحدة فيُضرب في الكمية.
-            [$materialsCost, $materialsTotal] = $this->lineMaterials($line, $branchService, $qty, $mayEditMaterials);
+            // المبلغ **للوحدة الواحدة** فيُضرب في الوحدات المُفوترة نفسها التي
+            // ضُرب فيها السعر: عدد القطع لخدمة بالوحدة، ومجموع الأمتار المربعة
+            // لخدمة بالمتر (تاسك 63).
+            [$materialsCost, $materialsTotal] = $this->lineMaterials($line, $branchService, $units, $mayEditMaterials);
+
+            // الأرضية تُفحص هنا لا مع السقف أعلاه: أحد حدَّيها تكلفةُ خامات
+            // السطر، ولا تُعرف إلا بعد lineMaterials().
+            if ($priceCapApplies) {
+                $this->assertPriceAboveFloor($branchService, $unitPrice, $discountPct, $materialsCost, $vatPct);
+            }
 
             [$lineAgentId, $agentCommissionType, $agentCommissionValue, $agentCommissionAmount] =
                 $this->lineAgentCommission($line, $branchService, $lineAgents, $lineSubtotal, $qty, $widthCm, $heightCm, $vatPct);
@@ -430,6 +438,59 @@ class CalculateServiceInvoiceAction
     }
 
     /**
+     * يمنع البيع بأقل من أرضية السطر (تاسك 65). الأرضية حدَّان يُؤخذ **أعلاهما**:
+     *
+     * - `min_selling_price` — رقمٌ يكتبه مدير الفرع على الخدمة (تاسك 64).
+     * - **تكلفة خامات السطر** — «لا يمكن التسعير أقل من تكلفة الخامة» بنصّ العميل.
+     *   وهي للوحدة نفسها التي يقيسها السعر بعد التاسك 63 (للمتر في خدمة المتر،
+     *   وللقطعة في خدمة الوحدة)، فالطرفان متناظران بلا قسمة على المساحة.
+     *
+     * وأي حدٍّ فارغ أو صفر يُسقَط من المقارنة، كما يُقرأ السقف الصفري «مفتوحاً».
+     *
+     * **ما يُقاس هو المقبوض لا المكتوب**، وهذا يخالف السقف عن قصد ولا يُوحَّدان:
+     * السقف يحمي **العميل** من سعرٍ مرتفع فيقيس السعر المكتوب قبل الخصم، والأرضية
+     * تحمي **المركز** من خسارة فتقيس ما يدخل الصندوق فعلاً — أي بعد خصم السطر،
+     * وإلا مرّ سعرٌ فوق التكلفة ثم أنزله خصمُ 50% تحتها.
+     *
+     * **والمقارنة صافيةٌ من الضريبة:** الأسعار المُدخلة شاملة لها منذ التاسك 37
+     * بينما التكلفة مبلغُ تكلفة بلا ضريبة، فبيع متر بـ10 ر.س شاملة ضدّ خامة بـ10
+     * هو قبضُ 8.70 مقابل 10 — خسارةٌ يمرّرها الفحص الساذج.
+     */
+    private function assertPriceAboveFloor(
+        BranchService $branchService,
+        float $unitPrice,
+        float $discountPct,
+        float $materialsCost,
+        float $vatPct,
+    ): void {
+        $configured = $branchService->min_selling_price !== null ? (float) $branchService->min_selling_price : 0.0;
+
+        $floor = max($configured, $materialsCost);
+
+        if ($floor <= 0) {
+            return;
+        }
+
+        $effective = round($unitPrice * (1 - $discountPct / 100) / (1 + $vatPct / 100), 2);
+
+        if ($effective >= round($floor, 2)) {
+            return;
+        }
+
+        $name = $branchService->serviceTemplate?->name;
+        $isSqm = $branchService->pricing_type === ServicePricingTypeEnum::Sqm;
+        $unit = $isSqm ? ' للمتر' : '';
+        // يُسمّى الحدّ الذي لُمس، وإلا بحث الموظف عن رقمٍ لا يراه في أي شاشة.
+        $reason = $materialsCost > $configured ? 'تكلفة الخامات' : 'أقل سعر للبيع';
+
+        throw ValidationException::withMessages([
+            'lines' => ($isSqm ? "سعر المتر على \"{$name}\"" : "سعر \"{$name}\"")
+                .' بعد الخصم وبلا ضريبة ('.number_format($effective, 2).' ر.س'.$unit.')'
+                ." يقلّ عن {$reason} (".number_format($floor, 2).' ر.س'.$unit.').',
+        ]);
+    }
+
+    /**
      * Resolve a line's materials cost. The POS toggle decides whether the line
      * carries materials at all and is independent of the service definition: it
      * is merely prefilled from it, so a service with no materials can still be
@@ -441,10 +502,18 @@ class CalculateServiceInvoiceAction
      * definition instead — the toggle too, since switching materials off raises
      * the commission just as surely as zeroing the amount.
      *
+     * تاسك 63: الوحدة التي يقيسها `materials_cost` تتبع تسعير الخدمة، فيُضرب في
+     * **الوحدات المُفوترة** ($units) لا في عدد القطع: خدمةٌ بالمتر المربع تكلفة
+     * خامتها للمتر — استكر 100×70 سم بخامة 10 ر.س يُحمَّل 7 لا 10 — وخدمةٌ
+     * بالوحدة تكلفتها للقطعة كما كانت. وهو نفس ما يفعله خصمُ المخزون منذ تاسك 50
+     * (`ServiceInvoiceLine::billableQty()`)، فالرقمان المحاسبي والعيني يقيسان
+     * الآن الشيء نفسه.
+     *
      * @param  array<string, mixed>  $line
+     * @param  float  $units  الوحدات المُفوترة في السطر — القطع أو الأمتار المربعة
      * @return array{0: float, 1: float} per-unit cost, line total
      */
-    private function lineMaterials(array $line, BranchService $branchService, int $qty, bool $mayEdit): array
+    private function lineMaterials(array $line, BranchService $branchService, float $units, bool $mayEdit): array
     {
         if (! $mayEdit) {
             if (! $branchService->has_materials) {
@@ -453,7 +522,7 @@ class CalculateServiceInvoiceAction
 
             $cost = round(max(0.0, (float) $branchService->materials_cost), 2);
 
-            return [$cost, round($cost * $qty, 2)];
+            return [$cost, round($cost * $units, 2)];
         }
 
         $hasMaterials = array_key_exists('has_materials', $line)
@@ -470,7 +539,7 @@ class CalculateServiceInvoiceAction
 
         $cost = round(max(0.0, $cost), 2);
 
-        return [$cost, round($cost * $qty, 2)];
+        return [$cost, round($cost * $units, 2)];
     }
 
     /**

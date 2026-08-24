@@ -42,6 +42,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
         base_commission_pct: branchService?.baseCommissionPct ?? 0,
         max_discount_pct: branchService?.maxDiscountPct ?? 0,
         max_selling_price: branchService?.maxSellingPrice ?? null,
+        min_selling_price: branchService?.minSellingPrice ?? null,
         pricing_type: branchService?.pricingType ?? 'unit',
         price_per_sqm: branchService?.pricePerSqm ?? 0,
         agent_commission_per_sqm: branchService?.agentCommissionPerSqm ?? 0,
@@ -60,6 +61,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                 base_commission_pct: branchService.baseCommissionPct ?? 0,
                 max_discount_pct: branchService.maxDiscountPct ?? 0,
                 max_selling_price: branchService.maxSellingPrice ?? null,
+                min_selling_price: branchService.minSellingPrice ?? null,
                 pricing_type: branchService.pricingType ?? 'unit',
                 price_per_sqm: branchService.pricePerSqm ?? 0,
                 agent_commission_per_sqm: branchService.agentCommissionPerSqm ?? 0,
@@ -231,12 +233,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                         <p className="text-muted-foreground text-xs">تُضاف الخدمة لفرعك وحده ولا تظهر لبقية الفروع.</p>
                                     </div>
                                 ) : (
-                                    <Button
-                                        type="button"
-                                        variant="link"
-                                        className="h-auto p-0 text-xs"
-                                        onClick={() => setAddingTemplate(true)}
-                                    >
+                                    <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={() => setAddingTemplate(true)}>
                                         <Plus className="size-3" /> لم تجد الخدمة؟ أضف خدمة جديدة
                                     </Button>
                                 )}
@@ -340,7 +337,9 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                             dir="ltr"
                             placeholder="اتركها فارغة ليكون السعر مفتوحاً"
                             value={data.max_selling_price ?? ''}
-                            onChange={(e) => setData('max_selling_price', e.target.value === '' ? null : Math.max(0, parseFloat(e.target.value) || 0))}
+                            onChange={(e) =>
+                                setData('max_selling_price', e.target.value === '' ? null : Math.max(0, parseFloat(e.target.value) || 0))
+                            }
                         />
                         <p className="text-muted-foreground text-xs">
                             {data.pricing_type === 'sqm'
@@ -348,6 +347,30 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                 : 'لا يستطيع الموظف البيع بأعلى من هذا السعر. فارغة = السعر مفتوح له.'}
                         </p>
                         <InputError message={errors.max_selling_price} />
+                    </div>
+
+                    {/* أرضية السعر (تاسك 64) — مرآة السقف أعلاه. والأرضية الفعلية في
+                        نقطة البيع أعلى هذا الرقم وتكلفةِ خامات السطر (تاسك 65). */}
+                    <div className="space-y-1">
+                        <Label htmlFor="bs-min-price">{data.pricing_type === 'sqm' ? 'أقل سعر للمتر المربع (ر.س)' : 'أقل سعر للبيع (ر.س)'}</Label>
+                        <Input
+                            id="bs-min-price"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            dir="ltr"
+                            placeholder="اتركها فارغة ليكون السعر مفتوحاً"
+                            value={data.min_selling_price ?? ''}
+                            onChange={(e) =>
+                                setData('min_selling_price', e.target.value === '' ? null : Math.max(0, parseFloat(e.target.value) || 0))
+                            }
+                        />
+                        <p className="text-muted-foreground text-xs">
+                            {data.pricing_type === 'sqm'
+                                ? 'لا يستطيع الموظف بيع المتر بأقل من هذا السعر. فارغة = لا حدّ أدنى.'
+                                : 'لا يستطيع الموظف البيع بأقل من هذا السعر. فارغة = لا حدّ أدنى.'}
+                        </p>
+                        <InputError message={errors.min_selling_price} />
                     </div>
 
                     {/* Ready-made detail phrases — become the POS placeholder */}
@@ -368,16 +391,16 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                             <Label htmlFor="bs-materials" className="cursor-pointer">
                                 لها خامات
                             </Label>
-                            <Switch
-                                id="bs-materials"
-                                checked={data.has_materials}
-                                onCheckedChange={(checked) => setData('has_materials', checked)}
-                            />
+                            <Switch id="bs-materials" checked={data.has_materials} onCheckedChange={(checked) => setData('has_materials', checked)} />
                         </div>
 
                         {data.has_materials && (
                             <div className="grid gap-2">
-                                <Label htmlFor="bs-materials-cost">تكلفة الخامات للوحدة (ر.س)</Label>
+                                {/* وحدة المبلغ تتبع نوع التسعير (تاسك 63): خدمةٌ بالمتر
+                                    المربع تكلفة خامتها للمتر وتُضرب في مساحة السطر. */}
+                                <Label htmlFor="bs-materials-cost">
+                                    {data.pricing_type === 'sqm' ? 'تكلفة الخامات للمتر المربع (ر.س)' : 'تكلفة الخامات للوحدة (ر.س)'}
+                                </Label>
                                 <Input
                                     id="bs-materials-cost"
                                     type="number"
@@ -389,6 +412,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                 <InputError message={errors.materials_cost} />
                                 <p className="text-muted-foreground text-xs">
                                     قيمة مقترحة فقط — الموظف يعدّلها لكل فاتورة. لا تظهر للعميل ولا تدخل في الإجمالي.
+                                    {data.pricing_type === 'sqm' && ' تُضرب في مساحة السطر: خامة 10 ر.س على مقاس 100×70 سم = 7 ر.س.'}
                                 </p>
                             </div>
                         )}

@@ -47,6 +47,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         base_commission_pct: 0,
         max_discount_pct: 0,
         max_selling_price: null,
+        min_selling_price: null,
         pricing_type: 'unit',
         price_per_sqm: 0,
         agent_commission_per_sqm: 0,
@@ -61,6 +62,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         base_commission_pct: 0,
         max_discount_pct: 0,
         max_selling_price: null,
+        min_selling_price: null,
         pricing_type: 'unit',
         price_per_sqm: 0,
         agent_commission_per_sqm: 0,
@@ -88,6 +90,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
             base_commission_pct: 0,
             max_discount_pct: 0,
             max_selling_price: null,
+            min_selling_price: null,
             pricing_type: 'unit',
             price_per_sqm: 0,
             agent_commission_per_sqm: 0,
@@ -105,6 +108,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
             base_commission_pct: service.baseCommissionPct,
             max_discount_pct: service.maxDiscountPct,
             max_selling_price: service.maxSellingPrice ?? null,
+            min_selling_price: service.minSellingPrice ?? null,
             pricing_type: service.pricingType ?? 'unit',
             price_per_sqm: service.pricePerSqm ?? 0,
             agent_commission_per_sqm: service.agentCommissionPerSqm ?? 0,
@@ -301,6 +305,7 @@ interface FieldsProps {
         base_commission_pct: number;
         max_discount_pct: number;
         max_selling_price: number | null;
+        min_selling_price: number | null;
         pricing_type: 'unit' | 'sqm';
         price_per_sqm: number;
         agent_commission_per_sqm: number;
@@ -420,6 +425,22 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                 <InputError message={errors.max_selling_price} />
             </div>
 
+            {/* أرضية سعر البيع (تاسك 64) — مرآة السقف أعلاه */}
+            <div className="space-y-1">
+                <Label className="text-xs">{data.pricing_type === 'sqm' ? 'أقل سعر للمتر المربع (ر.س)' : 'أقل سعر للبيع (ر.س)'}</Label>
+                <Input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="h-8 text-sm"
+                    placeholder="فارغة = لا حدّ أدنى"
+                    value={data.min_selling_price ?? ''}
+                    onChange={(e) => setData('min_selling_price', e.target.value === '' ? null : Math.max(0, parseFloat(e.target.value) || 0))}
+                    dir="ltr"
+                />
+                <InputError message={errors.min_selling_price} />
+            </div>
+
             <NoteExamplesField
                 value={data.note_examples}
                 onChange={(next) => setData('note_examples', next)}
@@ -432,7 +453,10 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                 من أساس عمولة الموظف وحده — لا تظهر للعميل ولا تدخل الإجمالي. */}
             {data.has_materials && (
                 <div className="space-y-1">
-                    <Label className="text-xs">تكلفة الخامات للوحدة (ر.س)</Label>
+                    {/* وحدة المبلغ تتبع نوع التسعير (تاسك 63). */}
+                    <Label className="text-xs">
+                        {data.pricing_type === 'sqm' ? 'تكلفة الخامات للمتر المربع (ر.س)' : 'تكلفة الخامات للوحدة (ر.س)'}
+                    </Label>
                     <Input
                         type="number"
                         step="0.01"

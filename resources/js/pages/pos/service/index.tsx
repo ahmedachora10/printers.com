@@ -1,6 +1,6 @@
 import { noteExamplesPlaceholder } from '@/components/branch-services/note-examples-field';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
-import { LineChip, LineField, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
+import { LINE_HINT_CLASS, LineChip, LineField, LineHint, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
 import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
 import { invoiceTotals } from '@/lib/invoice';
-import { formatCurrency, formatDateTimeNumeric, formatQty } from '@/lib/utils';
+import { cn, formatCurrency, formatDateTimeNumeric, formatQty } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import service from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
@@ -102,10 +102,39 @@ const isLineOverPriceCap = (line: ServiceCartLine): boolean =>
     line.maxSellingPrice !== null && line.maxSellingPrice > 0 && round2(line.unitPrice) > round2(line.maxSellingPrice);
 
 /**
- * تكلفة خامات السطر كاملة — المبلغ للوحدة مضروباً في الكمية، كما يفعل الخادم.
+ * تكلفة خامات السطر كاملة — المبلغ للوحدة مضروباً في **الوحدات المُفوترة** كما
+ * يفعل الخادم (تاسك 63): عدد القطع لخدمة بالوحدة، والأمتار المربعة لخدمة بالمتر.
  * صفر حين يكون المفتاح مُطفأً حتى لو حملت الخدمة قيمة افتراضية.
  */
-const lineMaterialsTotal = (line: ServiceCartLine) => (line.hasMaterials ? round2(round2(Math.max(0, line.materialsCost)) * line.qty) : 0);
+const lineMaterialsTotal = (line: ServiceCartLine) =>
+    line.hasMaterials ? round2(round2(Math.max(0, line.materialsCost)) * lineUnits(line)) : 0;
+
+/**
+ * تكلفة خامات **الوحدة الواحدة** في السطر — الطرف الذي يُقارَن به السعر في
+ * أرضية التاسك 65. صفر حين لا خامات على السطر.
+ */
+const lineMaterialsUnitCost = (line: ServiceCartLine) => (line.hasMaterials ? round2(Math.max(0, line.materialsCost)) : 0);
+
+/**
+ * أرضية سعر السطر (تاسك 65) — أعلى الحدَّين: أقل سعر معرَّف على الخدمة (تاسك 64)
+ * وتكلفة خامات الوحدة. صفر يعني بلا أرضية.
+ */
+const linePriceFloor = (line: ServiceCartLine) => Math.max(line.minSellingPrice ?? 0, lineMaterialsUnitCost(line));
+
+/**
+ * السعر المقبوض فعلاً على الوحدة: بعد خصم السطر وصافياً من الضريبة — نفس ما
+ * يقيسه الخادم، خلافاً للسقف الذي يقيس المكتوب. الأسعار المُدخلة شاملة للضريبة
+ * منذ التاسك 37 والتكلفة صافية، فبلا القسمة تمرّ خسارةٌ بنسبة الضريبة كاملة.
+ */
+const lineNetUnitPrice = (line: ServiceCartLine, vatPct: number) =>
+    round2((line.unitPrice * (1 - line.discountPct / 100)) / (1 + vatPct / 100));
+
+/** هل نزل السطر تحت أرضيته؟ */
+const isLineUnderPriceFloor = (line: ServiceCartLine, vatPct: number): boolean => {
+    const floor = linePriceFloor(line);
+
+    return floor > 0 && lineNetUnitPrice(line, vatPct) < round2(floor);
+};
 
 /**
  * The line's commission-owner share — mirrors the server formulas. Only the
@@ -133,15 +162,30 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // تأتي من تعريف الخدمة، والقيد الحقيقي على الخادم (CalculateServiceInvoiceAction).
     const canEditMaterials = !isEmployee;
     /**
-     * سقف سعر البيع يلزم الموظف وحده — المحاسب ومدير الفرع يبيعان بما يريان،
+     * حدّا سعر البيع يلزمان الموظف وحده — المحاسب ومدير الفرع يبيعان بما يريان،
      * تماماً كما يقرّر الخادم. الرسالة تظهر تحت حقل السعر ويمنع الحفظ معها.
+     *
+     * والأرضية (تاسك 65) تسمّي الحدّ الذي لُمس — تكلفة الخامات أو أقل سعر — وإلا
+     * بحث الموظف عن رقمٍ لا يراه في أي شاشة.
      */
-    const priceCapError = (line: ServiceCartLine): string | null => {
-        if (!isEmployee || !isLineOverPriceCap(line)) return null;
+    const priceBoundError = (line: ServiceCartLine): string | null => {
+        if (!isEmployee) return null;
 
-        const cap = formatCurrency(line.maxSellingPrice ?? 0);
+        if (isLineOverPriceCap(line)) {
+            const cap = formatCurrency(line.maxSellingPrice ?? 0);
 
-        return line.pricingType === 'sqm' ? `الحد الأعلى ${cap} للمتر` : `الحد الأعلى ${cap}`;
+            return line.pricingType === 'sqm' ? `الحد الأعلى ${cap} للمتر` : `الحد الأعلى ${cap}`;
+        }
+
+        if (isLineUnderPriceFloor(line, vatPct)) {
+            const floor = linePriceFloor(line);
+            const reason = lineMaterialsUnitCost(line) > (line.minSellingPrice ?? 0) ? 'تكلفة الخامات' : 'أقل سعر';
+            const unit = line.pricingType === 'sqm' ? ' للمتر' : '';
+
+            return `${reason} ${formatCurrency(floor)}${unit} — والمقبوض ${formatCurrency(lineNetUnitPrice(line, vatPct))}${unit} بلا ضريبة`;
+        }
+
+        return null;
     };
     const isEditing = !!invoice;
     const lineSeq = useRef(0);
@@ -162,6 +206,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 discountPct: l.discountPct,
                 maxDiscountPct: l.maxDiscountPct,
                 maxSellingPrice: l.maxSellingPrice ?? null,
+                minSellingPrice: l.minSellingPrice ?? null,
                 baseCommissionPct: l.baseCommissionPct,
                 isTahazir: l.isTahazir,
                 hasMaterials: l.hasMaterials ?? false,
@@ -392,6 +437,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     discountPct: 0,
                     maxDiscountPct: s.maxDiscountPct,
                     maxSellingPrice: s.maxSellingPrice ?? null,
+                    minSellingPrice: s.minSellingPrice ?? null,
                     baseCommissionPct: s.baseCommissionPct,
                     isTahazir: s.isTahazir,
                     hasMaterials: s.hasMaterials,
@@ -468,6 +514,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 discountPct: 0,
                 maxDiscountPct: 0,
                 maxSellingPrice: null,
+                minSellingPrice: null,
                 baseCommissionPct: 0,
                 isTahazir: false,
                 hasMaterials: false,
@@ -500,6 +547,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             noteExamples: s.noteExamples ?? [],
             maxDiscountPct: s.maxDiscountPct,
             maxSellingPrice: s.maxSellingPrice ?? null,
+            minSellingPrice: s.minSellingPrice ?? null,
             baseCommissionPct: s.baseCommissionPct,
             isTahazir: s.isTahazir,
             // الخامات تُعاد تعبئتها من الخدمة الجديدة — الخدمة تغيّرت فتغيّرت موادها.
@@ -627,6 +675,17 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             );
             return;
         }
+        // الأرضية (تاسك 65) — أعلى الحدَّين: تكلفة الخامات وأقل سعر معرَّف.
+        const underFloor = isEmployee ? cart.find((l) => isLineUnderPriceFloor(l, vatPct)) : undefined;
+        if (underFloor) {
+            const reason = lineMaterialsUnitCost(underFloor) > (underFloor.minSellingPrice ?? 0) ? 'تكلفة الخامات' : 'أقل سعر للبيع';
+            toast.error(
+                `سعر "${underFloor.name}" بعد الخصم وبلا ضريبة يقلّ عن ${reason} (${formatCurrency(linePriceFloor(underFloor))}${
+                    underFloor.pricingType === 'sqm' ? ' للمتر' : ''
+                })`,
+            );
+            return;
+        }
         // A bank-transfer method needs a receipt — unless editing an invoice that
         // already carries one and keeps the same method.
         if (requiresReceipt && !receipt && !(isEditing && invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
@@ -680,8 +739,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         }
     }
 
-    // سطر واحد فوق السقف يكفي لتعطيل الحفظ — لا تُرسَل فاتورة يرفضها الخادم.
-    const hasPriceCapViolation = isEmployee && cart.some(isLineOverPriceCap);
+    // سطر واحد خارج حدَّيه يكفي لتعطيل الحفظ — لا تُرسَل فاتورة يرفضها الخادم.
+    const hasPriceCapViolation = isEmployee && cart.some((l) => isLineOverPriceCap(l) || isLineUnderPriceFloor(l, vatPct));
 
     const showResults = searchFocused && search.trim() !== '';
 
@@ -1239,7 +1298,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 // حتى سطر المتر المربع قابل لتحرير سعره: المقاس يملأ
                                 // الحقل والكاشير يكتب فوقه عند الاتفاق على سعر آخر.
                                 isPriceEditable={() => true}
-                                getPriceError={priceCapError}
+                                getPriceError={priceBoundError}
                                 // سطر المتر: الرقم في هذا العمود سعر المتر لا سعر القطعة.
                                 getPriceHint={(line) => (line.pricingType === 'sqm' ? 'للمتر المربع' : null)}
                                 getMaxDiscount={(line) => (line.maxDiscountPct > 0 ? line.maxDiscountPct : 100)}
@@ -1360,14 +1419,15 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                             />
                                                         </LineField>
                                                     </div>
-                                                    {priceCapError(line) && (
+                                                    {/* الرسالة نفسها التي يعرضها عمود السعر — سقفاً كانت
+                                                        أم أرضية، فلا يبقى نصٌّ يسمّي «الحد الأعلى» وحده. */}
+                                                    {priceBoundError(line) && (
                                                         <p className="text-destructive text-[11px]">
-                                                            سعر المتر {formatCurrency(line.unitPrice)} — والحد الأعلى المسموح{' '}
-                                                            {formatCurrency(line.maxSellingPrice ?? 0)} للمتر.
+                                                            سعر المتر {formatCurrency(line.unitPrice)} — {priceBoundError(line)}.
                                                         </p>
                                                     )}
                                                     {line.widthCm && line.heightCm ? (
-                                                        <p className="text-muted-foreground text-[11px]">
+                                                        <p className={cn(LINE_HINT_CLASS, 'text-[11px]')}>
                                                             المساحة {round2(lineAreaSqm(line))} م² × {formatCurrency(line.unitPrice)} للمتر ={' '}
                                                             {formatCurrency(linePiecePrice(line))} للقطعة
                                                             {line.qty > 1 && (
@@ -1503,7 +1563,10 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                             >
                                                 {line.hasMaterials ? (
                                                     <div className="grid gap-3 sm:grid-cols-3">
-                                                        <LineField label="التكلفة للوحدة (ر.س)" htmlFor={`materials-cost-${line.key}`}>
+                                                        <LineField
+                                                            label={isSqm ? 'التكلفة للمتر المربع (ر.س)' : 'التكلفة للوحدة (ر.س)'}
+                                                            htmlFor={`materials-cost-${line.key}`}
+                                                        >
                                                             {canEditMaterials ? (
                                                                 <Input
                                                                     id={`materials-cost-${line.key}`}
@@ -1522,13 +1585,21 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                                 <LineReadout>{formatCurrency(line.materialsCost)}</LineReadout>
                                                             )}
                                                         </LineField>
-                                                        <LineField label={`الإجمالي (× ${line.qty})`}>
+                                                        {/* العنوان يسمّي المضروب فيه فعلاً: الأمتار المربعة
+                                                            لخدمة بالمتر، وعدد القطع لخدمة بالوحدة (تاسك 63). */}
+                                                        <LineField
+                                                            label={
+                                                                isSqm
+                                                                    ? `الإجمالي (× ${round2(lineUnits(line))} م²)`
+                                                                    : `الإجمالي (× ${line.qty})`
+                                                            }
+                                                        >
                                                             <LineReadout>{formatCurrency(lineMaterialsTotal(line))}</LineReadout>
                                                         </LineField>
                                                     </div>
                                                 ) : (
                                                     !canEditMaterials && (
-                                                        <p className="text-muted-foreground text-[11px]">لا خامات معرَّفة على هذه الخدمة.</p>
+                                                        <LineHint>لا خامات معرَّفة على هذه الخدمة.</LineHint>
                                                     )
                                                 )}
                                             </LineSection>
@@ -1548,7 +1619,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                     }
                                                     className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[56px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                                 />
-                                                <p className="text-muted-foreground text-[11px]">تُطبع أسفل اسم الخدمة في الفاتورة.</p>
+                                                <LineHint>تُطبع أسفل اسم الخدمة في الفاتورة.</LineHint>
                                             </LineSection>
                                         </>
                                     );

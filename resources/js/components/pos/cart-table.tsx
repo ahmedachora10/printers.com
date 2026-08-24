@@ -58,14 +58,21 @@ interface PosCartTableProps<T extends PosCartLineBase> {
     isLineDetailsInitiallyOpen?: (line: T) => boolean;
 }
 
+/**
+ * ارتفاع كل عنصر تحكّم في صفّ السلة — المِعداد وحقل السعر وحقل الخصم والإجمالي.
+ * واحدٌ لها جميعاً كي تقف على خط أفقي واحد (تاسك 61): بلا هذا يعلو المِعداد
+ * بارتفاع حدوده عن الحقول المجاورة له.
+ */
+const CONTROL_HEIGHT = 'h-11 md:h-8';
+
 function QuantityStepper({ qty, onChange }: { qty: number; onChange: (delta: number) => void }) {
     return (
-        <div className="bg-background inline-flex items-center rounded-md border">
+        <div className={cn('bg-background inline-flex items-center overflow-hidden rounded-md border', CONTROL_HEIGHT)}>
             <Button
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="size-11 rounded-none md:size-7"
+                className="h-full w-11 rounded-none md:w-7"
                 onClick={() => onChange(-1)}
                 aria-label="إنقاص الكمية"
             >
@@ -76,7 +83,7 @@ function QuantityStepper({ qty, onChange }: { qty: number; onChange: (delta: num
                 type="button"
                 size="icon"
                 variant="ghost"
-                className="size-11 rounded-none md:size-7"
+                className="h-full w-11 rounded-none md:w-7"
                 onClick={() => onChange(1)}
                 aria-label="زيادة الكمية"
             >
@@ -132,13 +139,29 @@ export function LineReadout({ children, tone = 'neutral' }: { children: ReactNod
     );
 }
 
+/**
+ * لون نصوص المساعدة داخل تفاصيل السطر (تاسك 62). أفتحُ بوضوح من
+ * `text-muted-foreground` لأن أكثرها أرقامٌ توضيحية — «المساحة 1 م² × 5.00 =
+ * 5.00 للقطعة» — فبلونٍ داكن تُقرأ قيمةً بين القيم لا شرحاً لها. النسبة 75%
+ * تُبقي التباين فوق 4.5:1 في الوضع الفاتح فلا يصير الشرح غير مقروء.
+ *
+ * على العنصر نفسه لا على أبٍ يلفّه: الشفافية على الأب تُبهت معها الأزرار
+ * والروابط الداخلة فيه («استعادة سعر الخدمة»)، وهي إجراءات لا شروح.
+ */
+export const LINE_HINT_CLASS = 'text-muted-foreground/75';
+
+/** Explanatory note under a control in a detail panel — deliberately faint. */
+export function LineHint({ children, className }: { children: ReactNode; className?: string }) {
+    return <p className={cn(LINE_HINT_CLASS, 'text-[11px]', className)}>{children}</p>;
+}
+
 /** Titled group inside a detail panel — keeps unrelated settings visibly apart. */
 export function LineSection({ title, aside, children }: { title: ReactNode; aside?: ReactNode; children: ReactNode }) {
     return (
         <section className="space-y-2 p-3">
             <div className="flex items-center justify-between gap-2">
                 <h4 className="text-xs font-semibold">{title}</h4>
-                {aside && <span className="text-muted-foreground text-[11px]">{aside}</span>}
+                {aside && <span className={cn(LINE_HINT_CLASS, 'text-[11px]')}>{aside}</span>}
             </div>
             {children}
         </section>
@@ -207,16 +230,22 @@ export function PosCartTable<T extends PosCartLineBase>({
             </div>
         );
 
+    // تنويه السعر وخطؤه يُكتبان **تحت** الحقل بلا أن يزيحاه: الخلايا الثلاث
+    // مُحاذاة للأعلى (align-top) فيبقى الحقل نفسه على خط جاريه مهما طال ذيله.
     const priceControl = (line: T) => {
         const priceError = getPriceError?.(line) ?? null;
         const priceHint = getPriceHint?.(line) ?? null;
 
         if (!isPriceEditable(line)) {
-            return <span className="flex h-11 items-center text-sm tabular-nums md:h-8 md:justify-center">{formatCurrency(line.unitPrice)}</span>;
+            return (
+                <span className={cn('flex items-center text-sm tabular-nums md:justify-center', CONTROL_HEIGHT)}>
+                    {formatCurrency(line.unitPrice)}
+                </span>
+            );
         }
 
         return (
-            <div className="space-y-1">
+            <div>
                 <Input
                     type="number"
                     min={0}
@@ -224,16 +253,15 @@ export function PosCartTable<T extends PosCartLineBase>({
                     value={line.unitPrice}
                     onChange={(e) => onPriceChange(line, Math.max(0, Number(e.target.value) || 0))}
                     aria-invalid={priceError ? true : undefined}
-                    className={cn('h-11 text-center md:h-8', priceError && 'border-destructive text-destructive focus-visible:ring-destructive')}
+                    className={cn(CONTROL_HEIGHT, 'text-center', priceError && 'border-destructive text-destructive focus-visible:ring-destructive')}
                 />
-                {priceHint && !priceError && <p className="text-muted-foreground text-[10px] leading-tight">{priceHint}</p>}
-                {priceError && <p className="text-destructive text-[11px] leading-tight">{priceError}</p>}
+                {priceHint && !priceError && <p className={cn(LINE_HINT_CLASS, 'mt-1 text-[10px] leading-tight')}>{priceHint}</p>}
+                {priceError && <p className="text-destructive mt-1 text-[11px] leading-tight">{priceError}</p>}
             </div>
         );
     };
 
-    const qtyControl = (line: T) =>
-        renderQtyControl?.(line) ?? <QuantityStepper qty={line.qty} onChange={(delta) => onQtyChange(line, delta)} />;
+    const qtyControl = (line: T) => renderQtyControl?.(line) ?? <QuantityStepper qty={line.qty} onChange={(delta) => onQtyChange(line, delta)} />;
 
     const discountControl = (line: T) => (
         <Input
@@ -242,7 +270,7 @@ export function PosCartTable<T extends PosCartLineBase>({
             max={getMaxDiscount(line)}
             value={line.discountPct}
             onChange={(e) => onDiscountChange(line, Number(e.target.value))}
-            className="h-11 text-center md:h-8"
+            className={cn(CONTROL_HEIGHT, 'text-center')}
         />
     );
 
@@ -251,7 +279,7 @@ export function PosCartTable<T extends PosCartLineBase>({
             type="button"
             size="icon"
             variant="ghost"
-            className="text-muted-foreground hover:text-destructive size-11 md:size-7"
+            className={cn('text-muted-foreground hover:text-destructive w-11 md:w-7', CONTROL_HEIGHT)}
             onClick={() => onRemove(line.key)}
             aria-label={`حذف ${line.name || itemLabel}`}
         >
@@ -302,16 +330,18 @@ export function PosCartTable<T extends PosCartLineBase>({
                     <div className="hidden overflow-hidden rounded-lg border md:block">
                         <Table>
                             <TableHeader>
+                                {/* الرؤوس مُحاذاة للأعلى فتقف مسمّياتها الخمسة على سطر واحد،
+                                    ويتدلّى تنويه «شامل الضريبة» تحت «السعر» بلا أن يزيحه. */}
                                 <TableRow className="bg-muted/40 hover:bg-muted/40">
-                                    <TableHead className="h-9 text-right">{itemLabel}</TableHead>
-                                    <TableHead className="h-9 w-[8rem] text-center">الكمية</TableHead>
+                                    <TableHead className="h-9 pt-2 text-right align-top">{itemLabel}</TableHead>
+                                    <TableHead className="h-9 w-[8rem] pt-2 text-center align-top">الكمية</TableHead>
                                     {/* الأسعار المُدخلة شاملة للضريبة — التنويه هنا لأن هذا هو الحقل الذي يكتب فيه الموظف. */}
-                                    <TableHead className="h-9 w-[7rem] text-center leading-tight">
+                                    <TableHead className="h-9 w-[7rem] pt-2 text-center align-top leading-tight">
                                         السعر
                                         <span className="text-muted-foreground block text-[10px] font-normal">شامل الضريبة</span>
                                     </TableHead>
-                                    <TableHead className="h-9 w-[6rem] text-center">خصم %</TableHead>
-                                    <TableHead className="h-9 w-[7rem] text-center">الإجمالي</TableHead>
+                                    <TableHead className="h-9 w-[6rem] pt-2 text-center align-top">خصم %</TableHead>
+                                    <TableHead className="h-9 w-[7rem] pt-2 text-center align-top">الإجمالي</TableHead>
                                     <TableHead className="h-9 w-[3rem]" />
                                 </TableRow>
                             </TableHeader>
@@ -321,20 +351,25 @@ export function PosCartTable<T extends PosCartLineBase>({
 
                                     return (
                                         <Fragment key={line.key}>
+                                            {/* كل خلايا الصفّ مُحاذاة للأعلى: عناصر التحكّم بارتفاع
+                                                واحد (CONTROL_HEIGHT) فتقف على خط أفقي واحد، وما يتدلّى
+                                                تحت السعر من تنويه أو خطأ لا يزيح جاريه (تاسك 61). */}
                                             <TableRow className={cn(details && 'border-b-0 hover:bg-transparent')}>
-                                                <TableCell className="p-2 align-middle">{nameControl(line)}</TableCell>
+                                                <TableCell className="p-2 align-top">{nameControl(line)}</TableCell>
 
-                                                <TableCell className="p-2 text-center">{qtyControl(line)}</TableCell>
+                                                <TableCell className="p-2 text-center align-top">{qtyControl(line)}</TableCell>
 
-                                                <TableCell className="p-2 text-center">{priceControl(line)}</TableCell>
+                                                <TableCell className="p-2 text-center align-top">{priceControl(line)}</TableCell>
 
-                                                <TableCell className="p-2 text-center">{discountControl(line)}</TableCell>
+                                                <TableCell className="p-2 text-center align-top">{discountControl(line)}</TableCell>
 
-                                                <TableCell className="p-2 text-center text-sm font-semibold tabular-nums">
-                                                    {formatCurrency(getLineTotal(line))}
+                                                <TableCell className="p-2 text-center align-top text-sm font-semibold tabular-nums">
+                                                    <span className={cn('flex items-center justify-center', CONTROL_HEIGHT)}>
+                                                        {formatCurrency(getLineTotal(line))}
+                                                    </span>
                                                 </TableCell>
 
-                                                <TableCell className="p-2 text-center">{removeControl(line)}</TableCell>
+                                                <TableCell className="p-2 text-center align-top">{removeControl(line)}</TableCell>
                                             </TableRow>
 
                                             {details && (

@@ -30,6 +30,8 @@ export interface BranchService {
     maxDiscountPct: number;
     /** أعلى سعر بيع مسموح للموظف — null = مفتوح. لخدمة م² هو سقف سعر المتر. */
     maxSellingPrice: number | null;
+    /** أقل سعر بيع مسموح للموظف — null = بلا أرضية. لخدمة م² هو أرضية سعر المتر. */
+    minSellingPrice: number | null;
     pricingType: ServicePricingType;
     pricePerSqm: number;
     agentCommissionPerSqm: number;
@@ -52,6 +54,7 @@ export interface BranchServiceFormData {
     base_commission_pct: number;
     max_discount_pct: number;
     max_selling_price: number | null;
+    min_selling_price: number | null;
     pricing_type: ServicePricingType;
     price_per_sqm: number;
     agent_commission_per_sqm: number;
@@ -67,6 +70,7 @@ export interface BranchServiceUpdateData {
     base_commission_pct: number;
     max_discount_pct: number;
     max_selling_price: number | null;
+    min_selling_price: number | null;
     pricing_type: ServicePricingType;
     price_per_sqm: number;
     agent_commission_per_sqm: number;
