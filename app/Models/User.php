@@ -66,6 +66,11 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         'remember_token',
     ];
 
+    /** Per-request memo behind {@see workBranch()} — not an attribute. */
+    protected ?Branch $workBranch = null;
+
+    protected bool $workBranchResolved = false;
+
     /**
      * Get the attributes that should be cast.
      *
@@ -143,6 +148,34 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         return Attribute::make(
             get: fn () => Cache::remember('user_role_'.$this->id, now()->addDay(), fn () => Roles::tryFrom($this->roles->first()?->name)),
         );
+    }
+
+    /**
+     * The branch this user works out of, resolved once and kept on the instance
+     * for the rest of the request. The shared Inertia layout and whatever the
+     * page itself needs from the branch then cost a single query between them
+     * instead of one each.
+     *
+     * A branch-admin is resolved through `branches.owner_id`; that row is
+     * already loaded by the `branchId` accessor, so reusing it here is free.
+     */
+    public function workBranch(): ?Branch
+    {
+        if ($this->workBranchResolved) {
+            return $this->workBranch;
+        }
+
+        $this->workBranchResolved = true;
+
+        if ($this->roleName?->isBranchAdmin()) {
+            return $this->workBranch = $this->branchManager;
+        }
+
+        $branchId = $this->attributes['branch_id'] ?? null;
+
+        return $this->workBranch = $branchId
+            ? Branch::with('media')->find($branchId)
+            : null;
     }
 
     /** @return Attribute<int|null, never> */
