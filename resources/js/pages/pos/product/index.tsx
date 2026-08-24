@@ -1,4 +1,4 @@
-import { LineChip, LineField, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
+import { LineChip, LineField, LineHint, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
 import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Badge } from '@/components/ui/badge';
@@ -840,11 +840,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                                     <LineReadout tone="info">{formatQty(line.qty)} م²</LineReadout>
                                                 </LineField>
                                             </div>
-                                            {line.maxStock !== null && (
-                                                <p className="text-muted-foreground text-[11px]">
-                                                    المتاح في المخزون: {formatQty(line.maxStock)} م²
-                                                </p>
-                                            )}
+                                            {line.maxStock !== null && <LineHint>المتاح في المخزون: {formatQty(line.maxStock)} م²</LineHint>}
                                         </LineSection>
                                     );
                                 }}

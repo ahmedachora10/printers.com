@@ -139,13 +139,29 @@ export function LineReadout({ children, tone = 'neutral' }: { children: ReactNod
     );
 }
 
+/**
+ * لون نصوص المساعدة داخل تفاصيل السطر (تاسك 62). أفتحُ بوضوح من
+ * `text-muted-foreground` لأن أكثرها أرقامٌ توضيحية — «المساحة 1 م² × 5.00 =
+ * 5.00 للقطعة» — فبلونٍ داكن تُقرأ قيمةً بين القيم لا شرحاً لها. النسبة 75%
+ * تُبقي التباين فوق 4.5:1 في الوضع الفاتح فلا يصير الشرح غير مقروء.
+ *
+ * على العنصر نفسه لا على أبٍ يلفّه: الشفافية على الأب تُبهت معها الأزرار
+ * والروابط الداخلة فيه («استعادة سعر الخدمة»)، وهي إجراءات لا شروح.
+ */
+export const LINE_HINT_CLASS = 'text-muted-foreground/75';
+
+/** Explanatory note under a control in a detail panel — deliberately faint. */
+export function LineHint({ children, className }: { children: ReactNode; className?: string }) {
+    return <p className={cn(LINE_HINT_CLASS, 'text-[11px]', className)}>{children}</p>;
+}
+
 /** Titled group inside a detail panel — keeps unrelated settings visibly apart. */
 export function LineSection({ title, aside, children }: { title: ReactNode; aside?: ReactNode; children: ReactNode }) {
     return (
         <section className="space-y-2 p-3">
             <div className="flex items-center justify-between gap-2">
                 <h4 className="text-xs font-semibold">{title}</h4>
-                {aside && <span className="text-muted-foreground text-[11px]">{aside}</span>}
+                {aside && <span className={cn(LINE_HINT_CLASS, 'text-[11px]')}>{aside}</span>}
             </div>
             {children}
         </section>
@@ -239,7 +255,7 @@ export function PosCartTable<T extends PosCartLineBase>({
                     aria-invalid={priceError ? true : undefined}
                     className={cn(CONTROL_HEIGHT, 'text-center', priceError && 'border-destructive text-destructive focus-visible:ring-destructive')}
                 />
-                {priceHint && !priceError && <p className="text-muted-foreground mt-1 text-[10px] leading-tight">{priceHint}</p>}
+                {priceHint && !priceError && <p className={cn(LINE_HINT_CLASS, 'mt-1 text-[10px] leading-tight')}>{priceHint}</p>}
                 {priceError && <p className="text-destructive mt-1 text-[11px] leading-tight">{priceError}</p>}
             </div>
         );

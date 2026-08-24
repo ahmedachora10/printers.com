@@ -1,6 +1,6 @@
 import { noteExamplesPlaceholder } from '@/components/branch-services/note-examples-field';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
-import { LineChip, LineField, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
+import { LINE_HINT_CLASS, LineChip, LineField, LineHint, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
 import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Badge } from '@/components/ui/badge';
@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
 import { invoiceTotals } from '@/lib/invoice';
-import { formatCurrency, formatDateTimeNumeric, formatQty } from '@/lib/utils';
+import { cn, formatCurrency, formatDateTimeNumeric, formatQty } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import service from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
@@ -1367,7 +1367,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                         </p>
                                                     )}
                                                     {line.widthCm && line.heightCm ? (
-                                                        <p className="text-muted-foreground text-[11px]">
+                                                        <p className={cn(LINE_HINT_CLASS, 'text-[11px]')}>
                                                             المساحة {round2(lineAreaSqm(line))} م² × {formatCurrency(line.unitPrice)} للمتر ={' '}
                                                             {formatCurrency(linePiecePrice(line))} للقطعة
                                                             {line.qty > 1 && (
@@ -1528,7 +1528,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                     </div>
                                                 ) : (
                                                     !canEditMaterials && (
-                                                        <p className="text-muted-foreground text-[11px]">لا خامات معرَّفة على هذه الخدمة.</p>
+                                                        <LineHint>لا خامات معرَّفة على هذه الخدمة.</LineHint>
                                                     )
                                                 )}
                                             </LineSection>
@@ -1548,7 +1548,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                     }
                                                     className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[56px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                                 />
-                                                <p className="text-muted-foreground text-[11px]">تُطبع أسفل اسم الخدمة في الفاتورة.</p>
+                                                <LineHint>تُطبع أسفل اسم الخدمة في الفاتورة.</LineHint>
                                             </LineSection>
                                         </>
                                     );
