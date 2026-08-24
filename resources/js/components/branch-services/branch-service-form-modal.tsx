@@ -231,12 +231,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                         <p className="text-muted-foreground text-xs">تُضاف الخدمة لفرعك وحده ولا تظهر لبقية الفروع.</p>
                                     </div>
                                 ) : (
-                                    <Button
-                                        type="button"
-                                        variant="link"
-                                        className="h-auto p-0 text-xs"
-                                        onClick={() => setAddingTemplate(true)}
-                                    >
+                                    <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={() => setAddingTemplate(true)}>
                                         <Plus className="size-3" /> لم تجد الخدمة؟ أضف خدمة جديدة
                                     </Button>
                                 )}
@@ -340,7 +335,9 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                             dir="ltr"
                             placeholder="اتركها فارغة ليكون السعر مفتوحاً"
                             value={data.max_selling_price ?? ''}
-                            onChange={(e) => setData('max_selling_price', e.target.value === '' ? null : Math.max(0, parseFloat(e.target.value) || 0))}
+                            onChange={(e) =>
+                                setData('max_selling_price', e.target.value === '' ? null : Math.max(0, parseFloat(e.target.value) || 0))
+                            }
                         />
                         <p className="text-muted-foreground text-xs">
                             {data.pricing_type === 'sqm'
@@ -368,16 +365,16 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                             <Label htmlFor="bs-materials" className="cursor-pointer">
                                 لها خامات
                             </Label>
-                            <Switch
-                                id="bs-materials"
-                                checked={data.has_materials}
-                                onCheckedChange={(checked) => setData('has_materials', checked)}
-                            />
+                            <Switch id="bs-materials" checked={data.has_materials} onCheckedChange={(checked) => setData('has_materials', checked)} />
                         </div>
 
                         {data.has_materials && (
                             <div className="grid gap-2">
-                                <Label htmlFor="bs-materials-cost">تكلفة الخامات للوحدة (ر.س)</Label>
+                                {/* وحدة المبلغ تتبع نوع التسعير (تاسك 63): خدمةٌ بالمتر
+                                    المربع تكلفة خامتها للمتر وتُضرب في مساحة السطر. */}
+                                <Label htmlFor="bs-materials-cost">
+                                    {data.pricing_type === 'sqm' ? 'تكلفة الخامات للمتر المربع (ر.س)' : 'تكلفة الخامات للوحدة (ر.س)'}
+                                </Label>
                                 <Input
                                     id="bs-materials-cost"
                                     type="number"
@@ -389,6 +386,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                 <InputError message={errors.materials_cost} />
                                 <p className="text-muted-foreground text-xs">
                                     قيمة مقترحة فقط — الموظف يعدّلها لكل فاتورة. لا تظهر للعميل ولا تدخل في الإجمالي.
+                                    {data.pricing_type === 'sqm' && ' تُضرب في مساحة السطر: خامة 10 ر.س على مقاس 100×70 سم = 7 ر.س.'}
                                 </p>
                             </div>
                         )}

@@ -102,10 +102,12 @@ const isLineOverPriceCap = (line: ServiceCartLine): boolean =>
     line.maxSellingPrice !== null && line.maxSellingPrice > 0 && round2(line.unitPrice) > round2(line.maxSellingPrice);
 
 /**
- * تكلفة خامات السطر كاملة — المبلغ للوحدة مضروباً في الكمية، كما يفعل الخادم.
+ * تكلفة خامات السطر كاملة — المبلغ للوحدة مضروباً في **الوحدات المُفوترة** كما
+ * يفعل الخادم (تاسك 63): عدد القطع لخدمة بالوحدة، والأمتار المربعة لخدمة بالمتر.
  * صفر حين يكون المفتاح مُطفأً حتى لو حملت الخدمة قيمة افتراضية.
  */
-const lineMaterialsTotal = (line: ServiceCartLine) => (line.hasMaterials ? round2(round2(Math.max(0, line.materialsCost)) * line.qty) : 0);
+const lineMaterialsTotal = (line: ServiceCartLine) =>
+    line.hasMaterials ? round2(round2(Math.max(0, line.materialsCost)) * lineUnits(line)) : 0;
 
 /**
  * The line's commission-owner share — mirrors the server formulas. Only the
@@ -1503,7 +1505,10 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                             >
                                                 {line.hasMaterials ? (
                                                     <div className="grid gap-3 sm:grid-cols-3">
-                                                        <LineField label="التكلفة للوحدة (ر.س)" htmlFor={`materials-cost-${line.key}`}>
+                                                        <LineField
+                                                            label={isSqm ? 'التكلفة للمتر المربع (ر.س)' : 'التكلفة للوحدة (ر.س)'}
+                                                            htmlFor={`materials-cost-${line.key}`}
+                                                        >
                                                             {canEditMaterials ? (
                                                                 <Input
                                                                     id={`materials-cost-${line.key}`}
@@ -1522,7 +1527,15 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                                 <LineReadout>{formatCurrency(line.materialsCost)}</LineReadout>
                                                             )}
                                                         </LineField>
-                                                        <LineField label={`الإجمالي (× ${line.qty})`}>
+                                                        {/* العنوان يسمّي المضروب فيه فعلاً: الأمتار المربعة
+                                                            لخدمة بالمتر، وعدد القطع لخدمة بالوحدة (تاسك 63). */}
+                                                        <LineField
+                                                            label={
+                                                                isSqm
+                                                                    ? `الإجمالي (× ${round2(lineUnits(line))} م²)`
+                                                                    : `الإجمالي (× ${line.qty})`
+                                                            }
+                                                        >
                                                             <LineReadout>{formatCurrency(lineMaterialsTotal(line))}</LineReadout>
                                                         </LineField>
                                                     </div>

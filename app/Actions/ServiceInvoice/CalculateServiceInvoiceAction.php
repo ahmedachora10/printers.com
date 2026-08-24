@@ -141,8 +141,10 @@ class CalculateServiceInvoiceAction
             // تكلفة الخامات: المواد التي استهلكها تنفيذ هذا السطر. القيمة تأتي من
             // تعريف الخدمة افتراضياً وتبقى قابلة للتعديل في نقطة البيع، وقد تُفعَّل
             // لخدمة بلا خامات معرّفة (خامات استثنائية) أو تُطفأ لخدمة تحملها.
-            // المبلغ للوحدة الواحدة فيُضرب في الكمية.
-            [$materialsCost, $materialsTotal] = $this->lineMaterials($line, $branchService, $qty, $mayEditMaterials);
+            // المبلغ **للوحدة الواحدة** فيُضرب في الوحدات المُفوترة نفسها التي
+            // ضُرب فيها السعر: عدد القطع لخدمة بالوحدة، ومجموع الأمتار المربعة
+            // لخدمة بالمتر (تاسك 63).
+            [$materialsCost, $materialsTotal] = $this->lineMaterials($line, $branchService, $units, $mayEditMaterials);
 
             [$lineAgentId, $agentCommissionType, $agentCommissionValue, $agentCommissionAmount] =
                 $this->lineAgentCommission($line, $branchService, $lineAgents, $lineSubtotal, $qty, $widthCm, $heightCm, $vatPct);
@@ -441,10 +443,18 @@ class CalculateServiceInvoiceAction
      * definition instead — the toggle too, since switching materials off raises
      * the commission just as surely as zeroing the amount.
      *
+     * تاسك 63: الوحدة التي يقيسها `materials_cost` تتبع تسعير الخدمة، فيُضرب في
+     * **الوحدات المُفوترة** ($units) لا في عدد القطع: خدمةٌ بالمتر المربع تكلفة
+     * خامتها للمتر — استكر 100×70 سم بخامة 10 ر.س يُحمَّل 7 لا 10 — وخدمةٌ
+     * بالوحدة تكلفتها للقطعة كما كانت. وهو نفس ما يفعله خصمُ المخزون منذ تاسك 50
+     * (`ServiceInvoiceLine::billableQty()`)، فالرقمان المحاسبي والعيني يقيسان
+     * الآن الشيء نفسه.
+     *
      * @param  array<string, mixed>  $line
+     * @param  float  $units  الوحدات المُفوترة في السطر — القطع أو الأمتار المربعة
      * @return array{0: float, 1: float} per-unit cost, line total
      */
-    private function lineMaterials(array $line, BranchService $branchService, int $qty, bool $mayEdit): array
+    private function lineMaterials(array $line, BranchService $branchService, float $units, bool $mayEdit): array
     {
         if (! $mayEdit) {
             if (! $branchService->has_materials) {
@@ -453,7 +463,7 @@ class CalculateServiceInvoiceAction
 
             $cost = round(max(0.0, (float) $branchService->materials_cost), 2);
 
-            return [$cost, round($cost * $qty, 2)];
+            return [$cost, round($cost * $units, 2)];
         }
 
         $hasMaterials = array_key_exists('has_materials', $line)
@@ -470,7 +480,7 @@ class CalculateServiceInvoiceAction
 
         $cost = round(max(0.0, $cost), 2);
 
-        return [$cost, round($cost * $qty, 2)];
+        return [$cost, round($cost * $units, 2)];
     }
 
     /**

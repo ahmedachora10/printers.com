@@ -432,7 +432,10 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                 من أساس عمولة الموظف وحده — لا تظهر للعميل ولا تدخل الإجمالي. */}
             {data.has_materials && (
                 <div className="space-y-1">
-                    <Label className="text-xs">تكلفة الخامات للوحدة (ر.س)</Label>
+                    {/* وحدة المبلغ تتبع نوع التسعير (تاسك 63). */}
+                    <Label className="text-xs">
+                        {data.pricing_type === 'sqm' ? 'تكلفة الخامات للمتر المربع (ر.س)' : 'تكلفة الخامات للوحدة (ر.س)'}
+                    </Label>
                     <Input
                         type="number"
                         step="0.01"
