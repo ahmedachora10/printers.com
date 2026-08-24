@@ -7,6 +7,8 @@ export interface BranchServiceMaterial {
     unitName: string | null;
     /** الكمية المستهلكة لكل وحدة محاسَب عليها في السطر (قطعة، أو م² لخدمة بالمتر) */
     qtyPerUnit: number;
+    /** نسبة الهالك — فاقد القصّ وضبط الألوان، تُضاف فوق الكمية عند الخصم */
+    wastePct: number;
 }
 
 /** منتج من مخزون الفرع، كما يظهر في منتقي الخامات. */

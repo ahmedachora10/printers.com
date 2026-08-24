@@ -70,6 +70,9 @@ class ReturnServiceInvoiceAction
                     'invoice_id' => $invoice->id,
                     'amount' => $refundable,
                     'reason' => $reason ?: "استرجاع الفاتورة {$invoice->invoice_number}",
+                    // الخامات تعود مع هذا المرتجع، فيحمل صفُّه راية عكس المخزون
+                    // ولا يُعرض إرجاعها ثانيةً على الفاتورة نفسها.
+                    'reverse_stock' => true,
                 ], $actor);
             }
 

@@ -29,6 +29,7 @@ use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoicePaymentController;
 use App\Http\Controllers\InvoiceReceiptController;
 use App\Http\Controllers\LoyaltyController;
+use App\Http\Controllers\MaterialsReportController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
@@ -314,6 +315,13 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.expenses.export');
         Route::get('reports/expenses', [ExpenseReportController::class, 'index'])
             ->name('reports.expenses');
+
+        // استهلاك خامات الخدمات من المخزون: ما صُرف وما عاد وبكم — القراءة
+        // المجمَّعة لحركات المخزون التي تكتبها اعتماداتُ فواتير الخدمات.
+        Route::get('reports/materials/export', [MaterialsReportController::class, 'export'])
+            ->name('reports.materials.export');
+        Route::get('reports/materials', [MaterialsReportController::class, 'index'])
+            ->name('reports.materials');
 
         // Agent (مندوب) commissions: what each agent earned and what is still
         // owed — the counter side of the agent portal.

@@ -50,6 +50,7 @@ class BranchServiceResource extends JsonResource
                     'productName' => $m->product?->name,
                     'unitName' => $m->product?->is_sqm ? 'متر مربع' : $m->product?->unit?->name,
                     'qtyPerUnit' => (float) $m->qty_per_unit,
+                    'wastePct' => (float) $m->waste_pct,
                 ])
                 ->values()
                 ->all(),

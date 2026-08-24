@@ -3,6 +3,7 @@
 namespace App\Actions\Refund;
 
 use App\Actions\Loyalty\ReverseLoyaltyForRefundAction;
+use App\Actions\ServiceInvoice\ConsumeServiceMaterialsAction;
 use App\Actions\StockMovement\RecordStockMovementAction;
 use App\Enums\CommissionSourceTypeEnum;
 use App\Enums\InvoiceStatusEnum;
@@ -20,7 +21,9 @@ use Illuminate\Validation\ValidationException;
 /**
  * Records a refund against a product or service invoice. All side effects are
  * applied atomically:
- *  - product refunds may return stock to inventory (return_in movements);
+ *  - product refunds may return stock to inventory (return_in movements), and
+ *    service refunds may likewise return the materials their services drew out
+ *    of it — كلاهما اختياري ومرة واحدة لكل فاتورة;
  *  - service refunds reverse the employee's *unpaid* commission proportionally
  *    by inserting negative offsetting rows in the immutable commission ledger;
  *  - both types unwind the invoice's loyalty effect by the same refunded
@@ -32,6 +35,7 @@ class CreateRefundAction
     public function __construct(
         private readonly RecordStockMovementAction $recordStockMovement,
         private readonly ReverseLoyaltyForRefundAction $reverseLoyalty,
+        private readonly ConsumeServiceMaterialsAction $consumeMaterials,
     ) {}
 
     /**
@@ -76,7 +80,10 @@ class CreateRefundAction
                 ]);
             }
 
-            $reverseStock = $type === InvoiceTypeEnum::PRODUCT && (bool) ($data['reverse_stock'] ?? false);
+            // عكسُ المخزون اختياري في النوعين: فاتورةُ المنتجات تعيد بضاعتها،
+            // وفاتورةُ الخدمات تعيد خاماتها. والإرجاع كامل لا بالنسبة — المرتجع
+            // الجزئي مبلغٌ لا مادة، ونصفُ بنرٍ مطبوع لا يعود نصفَ مترٍ من الفينيل.
+            $reverseStock = (bool) ($data['reverse_stock'] ?? false);
 
             if ($reverseStock) {
                 $stockAlreadyReversed = Refund::query()
@@ -104,7 +111,14 @@ class CreateRefundAction
             ]);
 
             if ($reverseStock) {
-                $this->reverseStock($invoice, $refund, $actor);
+                if ($invoice instanceof ServiceInvoice) {
+                    // فاتورةٌ لم تُعتمد لم تُخصم خاماتها أصلاً، وفاتورةٌ سبق أن
+                    // أُعيدت خاماتها لا تُعاد مرتين — الدالة تكتشف الحالتين من
+                    // حركات الفاتورة نفسها، فلا حارس إضافي هنا.
+                    $this->consumeMaterials->restore($invoice, (int) $actor->id);
+                } else {
+                    $this->reverseStock($invoice, $refund, $actor);
+                }
             }
 
             if ($type === InvoiceTypeEnum::SERVICE) {

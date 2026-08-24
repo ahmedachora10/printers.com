@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Actions\Refund\CreateRefundAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
+use App\Enums\StockMovementTypeEnum;
 use App\Http\Requests\Refund\StoreRefundRequest;
 use App\Http\Resources\Refund\RefundResource;
 use App\Models\ProductInvoice;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
+use App\Models\StockMovement;
 use App\Notifications\RefundProcessedNotification;
 use App\Support\BranchNotifiables;
 use Illuminate\Http\JsonResponse;
@@ -104,11 +106,28 @@ class RefundController extends Controller
             $hasProducts = $type === InvoiceTypeEnum::PRODUCT
                 && $invoice->lines()->whereNotNull('product_id')->exists();
 
-            $stockReversed = $type === InvoiceTypeEnum::PRODUCT && Refund::query()
+            // خاماتُ فاتورة الخدمة قابلةٌ للإرجاع متى كانت قد خُصمت فعلاً — أي
+            // متى اعتُمدت الفاتورة وكتبت حركات صرفها.
+            $hasMaterials = $type === InvoiceTypeEnum::SERVICE && StockMovement::query()
+                ->where('reference_type', ServiceInvoice::class)
+                ->where('reference_id', $invoice->id)
+                ->where('type', StockMovementTypeEnum::SALE_OUT)
+                ->exists();
+
+            $stockReversed = Refund::query()
                 ->where('invoice_type', $type->modelClass())
                 ->where('invoice_id', $invoice->id)
                 ->where('stock_reversed', true)
                 ->exists();
+
+            // أو أن خاماتها أُعيدت من مسار الاسترجاع قبل أن يمرّ أي مرتجع.
+            if ($hasMaterials && ! $stockReversed) {
+                $stockReversed = StockMovement::query()
+                    ->where('reference_type', ServiceInvoice::class)
+                    ->where('reference_id', $invoice->id)
+                    ->where('type', StockMovementTypeEnum::RETURN_IN)
+                    ->exists();
+            }
 
             return response()->json([
                 'found' => true,
@@ -123,6 +142,7 @@ class RefundController extends Controller
                     'refundable' => round($total - $alreadyRefunded, 2),
                     'customerName' => $invoice->customer?->full_name,
                     'hasProducts' => $hasProducts,
+                    'hasMaterials' => $hasMaterials,
                     'stockReversed' => $stockReversed,
                 ],
             ]);

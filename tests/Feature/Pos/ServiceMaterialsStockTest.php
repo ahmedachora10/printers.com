@@ -73,12 +73,13 @@ function stockProduct(float $openingStock, array $attrs = []): Product
 }
 
 /** ربط منتج بخدمة كخامة تُستهلك بكمية محدّدة لكل وحدة. */
-function linkMaterial(BranchService $service, Product $product, float $qtyPerUnit): BranchServiceMaterial
+function linkMaterial(BranchService $service, Product $product, float $qtyPerUnit, float $wastePct = 0): BranchServiceMaterial
 {
     return BranchServiceMaterial::create([
         'branch_service_id' => $service->id,
         'product_id' => $product->id,
         'qty_per_unit' => $qtyPerUnit,
+        'waste_pct' => $wastePct,
     ]);
 }
 
@@ -358,5 +359,155 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
         $this->put(route('branch-services.materials.update', $service), [
             'materials' => [['product_id' => $product->id, 'qty_per_unit' => 1]],
         ])->assertForbidden();
+    });
+
+    // ---- نسبة الهالك ------------------------------------------------------
+
+    it('draws the waste on top of the recipe quantity', function () {
+        $service = stockService();
+        $product = stockProduct(100);
+        linkMaterial($service, $product, 2, 10);
+
+        $this->post(route('pos.service.store'), stockPayload($service, ['qty' => 3]))->assertRedirect();
+        approveStockInvoice(ServiceInvoice::firstOrFail());
+
+        // 2 × 3 = 6، زائد 10% هالكاً = 6.6
+        expect($product->refresh()->current_stock)->toEqual(93.4);
+    });
+
+    it('returns the waste too, since the return reads the movements', function () {
+        $service = stockService();
+        $product = stockProduct(100);
+        linkMaterial($service, $product, 2, 25);
+
+        $this->post(route('pos.service.store'), stockPayload($service, ['qty' => 2]))->assertRedirect();
+        $invoice = ServiceInvoice::firstOrFail();
+        approveStockInvoice($invoice);
+
+        expect($product->refresh()->current_stock)->toEqual(95.0);
+
+        $this->actingAs($this->employee)
+            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار'])
+            ->assertRedirect();
+
+        expect($product->refresh()->current_stock)->toEqual(100.0);
+    });
+
+    it('stores the waste percentage from the materials screen', function () {
+        $service = stockService();
+        $product = stockProduct(100);
+
+        $this->actingAs($this->branchAdmin)
+            ->put(route('branch-services.materials.update', $service), [
+                'materials' => [['product_id' => $product->id, 'qty_per_unit' => 2, 'waste_pct' => 7.5]],
+            ])
+            ->assertRedirect();
+
+        expect((float) $service->materials()->firstOrFail()->waste_pct)->toEqual(7.5);
+    });
+
+    it('refuses a waste percentage above 100', function () {
+        $service = stockService();
+        $product = stockProduct(100);
+
+        $this->actingAs($this->branchAdmin)
+            ->put(route('branch-services.materials.update', $service), [
+                'materials' => [['product_id' => $product->id, 'qty_per_unit' => 2, 'waste_pct' => 150]],
+            ])
+            ->assertSessionHasErrors('materials.0.waste_pct');
+    });
+
+    // ---- عجز المخزون: تحذير وتأكيد لا منع ---------------------------------
+
+    it('stops the first approval when stock cannot cover the materials', function () {
+        $service = stockService();
+        $product = stockProduct(5);
+        linkMaterial($service, $product, 2);
+
+        $this->post(route('pos.service.store'), stockPayload($service, ['qty' => 4]))->assertRedirect();
+        $invoice = ServiceInvoice::firstOrFail();
+
+        $this->actingAs($this->branchAdmin)
+            ->patch(route('invoices.service.pay', payable($invoice)))
+            ->assertSessionHasErrors('materials_shortage');
+
+        // لا شيء وقع: الفاتورة كما هي والمخزون كما هو.
+        expect($invoice->refresh()->status->value)->toBe('due')
+            ->and($product->refresh()->current_stock)->toEqual(5.0)
+            ->and(StockMovement::where('type', StockMovementTypeEnum::SALE_OUT)->count())->toBe(0);
+    });
+
+    it('approves anyway once the accountant confirms, letting stock go negative', function () {
+        $service = stockService();
+        $product = stockProduct(5);
+        linkMaterial($service, $product, 2);
+
+        $this->post(route('pos.service.store'), stockPayload($service, ['qty' => 4]))->assertRedirect();
+        $invoice = ServiceInvoice::firstOrFail();
+
+        $this->actingAs($this->branchAdmin)
+            ->patch(route('invoices.service.pay', payable($invoice)), ['confirm_materials_shortage' => true])
+            ->assertRedirect();
+
+        expect($invoice->refresh()->status->value)->toBe('paid')
+            ->and($product->refresh()->current_stock)->toEqual(-3.0);
+    });
+
+    it('sums a shared material across lines before judging the shortage', function () {
+        $service = stockService();
+        $other = stockService();
+        $product = stockProduct(10);
+        linkMaterial($service, $product, 6);
+        linkMaterial($other, $product, 6);
+
+        // كل سطر وحده مكفيّ (6 من 10)، ومجموعهما 12 ليس كذلك.
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [
+                ['branch_service_id' => $service->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],
+                ['branch_service_id' => $other->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],
+            ],
+        ])->assertRedirect();
+
+        $this->actingAs($this->branchAdmin)
+            ->patch(route('invoices.service.pay', payable(ServiceInvoice::firstOrFail())))
+            ->assertSessionHasErrors('materials_shortage');
+    });
+
+    it('approves without a confirmation when stock is sufficient', function () {
+        $service = stockService();
+        $product = stockProduct(100);
+        linkMaterial($service, $product, 2);
+
+        $this->post(route('pos.service.store'), stockPayload($service, ['qty' => 3]))->assertRedirect();
+
+        $this->actingAs($this->branchAdmin)
+            ->patch(route('invoices.service.pay', payable(ServiceInvoice::firstOrFail())))
+            ->assertSessionHasNoErrors();
+    });
+
+    // ---- نسبة الحركة إلى سطر الخدمة ---------------------------------------
+
+    it('stamps the consuming service line on the movement', function () {
+        $service = stockService();
+        $product = stockProduct(100);
+        linkMaterial($service, $product, 2);
+
+        $this->post(route('pos.service.store'), stockPayload($service, ['qty' => 2]))->assertRedirect();
+        $invoice = ServiceInvoice::firstOrFail();
+        approveStockInvoice($invoice);
+
+        $lineId = $invoice->lines()->firstOrFail()->id;
+
+        expect(StockMovement::where('type', StockMovementTypeEnum::SALE_OUT)->firstOrFail()->service_invoice_line_id)
+            ->toBe($lineId);
+
+        $this->actingAs($this->employee)
+            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار'])
+            ->assertRedirect();
+
+        // حركة الإرجاع تحمل النسبة نفسها، فيتوازن التقرير على مستوى الخدمة.
+        expect(StockMovement::where('type', StockMovementTypeEnum::RETURN_IN)->firstOrFail()->service_invoice_line_id)
+            ->toBe($lineId);
     });
 });

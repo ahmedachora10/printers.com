@@ -36,5 +36,7 @@ export interface InvoiceLookupResult {
     refundable: number;
     customerName: string | null;
     hasProducts: boolean;
+    /** فاتورة خدمة خُصمت خاماتها من المخزون فعلاً — أي اعتُمدت */
+    hasMaterials: boolean;
     stockReversed: boolean;
 }

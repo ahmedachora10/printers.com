@@ -22,7 +22,8 @@ use Illuminate\Validation\ValidationException;
  * approving the whole invoice from the review queue, or by the final instalment
  * completing an invoice that was being paid off (عربون + دفعات لاحقة) — in which
  * case RecordInvoicePaymentAction calls it with that last payment's moment as
- * $paidAt. Only an invoice that still awaits money (due or partially paid) can
+ * $paidAt. ولأنه المسار الوحيد، فحصُ كفاية الخامات موضوعٌ فيه لا في المتحكِّم:
+ * الاعتمادُ وإكمالُ الدفعة كلاهما يمرّ منه. Only an invoice that still awaits money (due or partially paid) can
  * be settled here, so the ledger and the points are never written twice.
  */
 class MarkServiceInvoicePaidAction
@@ -33,14 +34,38 @@ class MarkServiceInvoicePaidAction
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
         private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
         private readonly ConsumeServiceMaterialsAction $consumeMaterials,
+        private readonly ResolveMaterialsRequirementAction $resolveRequirement,
     ) {}
 
-    public function handle(ServiceInvoice $invoice, ?CarbonInterface $paidAt = null): ServiceInvoice
-    {
+    public function handle(
+        ServiceInvoice $invoice,
+        ?CarbonInterface $paidAt = null,
+        bool $confirmedShortage = false,
+    ): ServiceInvoice {
         if (! $invoice->status->acceptsPayment()) {
             throw ValidationException::withMessages([
                 'status' => 'لا يمكن اعتماد الدفع إلا لفاتورة آجلة أو مدفوعة جزئياً.',
             ]);
+        }
+
+        // كفايةُ المخزون تُفحص قبل فتح المعاملة: العجز ليس منعاً بل وقفةٌ يقرّها
+        // المعتمِد صراحةً، فالشغل قد سُلِّم للعميل فعلاً ورفضُ اعتماده يعلّق
+        // الفاتورة في قائمة المراجعة بلا مخرج. أما المرور صامتاً فيُخفي أن
+        // الرصيد صار سالباً.
+        $requirement = $this->resolveRequirement->forInvoice($invoice);
+
+        if (! $confirmedShortage && $requirement->hasShortage()) {
+            throw ValidationException::withMessages([
+                'materials_shortage' => $requirement->message(),
+            ]);
+        }
+
+        if ($requirement->hasShortage()) {
+            activity('inventory')
+                ->performedOn($invoice)
+                ->causedBy(auth()->user())
+                ->withProperties(['shortages' => $requirement->shortages()->all()])
+                ->log("اعتماد الفاتورة {$invoice->invoice_number} رغم عجز الخامات");
         }
 
         return DB::transaction(function () use ($invoice, $paidAt) {

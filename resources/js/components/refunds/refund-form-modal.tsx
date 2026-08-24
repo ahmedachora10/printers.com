@@ -66,7 +66,7 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
                 setData('source_type', inv.type);
                 setData('invoice_id', inv.id);
                 setData('amount', inv.refundable);
-                setData('reverse_stock', inv.hasProducts && !inv.stockReversed);
+                setData('reverse_stock', (inv.hasProducts || inv.hasMaterials) && !inv.stockReversed);
             } else {
                 setInvoice(null);
                 toast.error(result.message ?? 'لم يتم العثور على الفاتورة.');
@@ -93,7 +93,8 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
         });
     }
 
-    const canReverseStock = invoice?.type === 'product' && invoice.hasProducts && !invoice.stockReversed;
+    // فاتورة المنتجات تعيد بضاعتها، وفاتورة الخدمة تعيد خاماتها — والاثنتان مرة واحدة.
+    const canReverseStock = !!invoice && (invoice.hasProducts || invoice.hasMaterials) && !invoice.stockReversed;
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -186,11 +187,11 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
                                         checked={data.reverse_stock}
                                         onCheckedChange={(checked) => setData('reverse_stock', checked === true)}
                                     />
-                                    <span>إرجاع المنتجات إلى المخزون</span>
+                                    <span>{invoice.type === 'service' ? 'إرجاع خامات الفاتورة إلى المخزون' : 'إرجاع المنتجات إلى المخزون'}</span>
                                 </label>
                             )}
 
-                            {invoice.type === 'product' && invoice.stockReversed && (
+                            {(invoice.hasProducts || invoice.hasMaterials) && invoice.stockReversed && (
                                 <p className="text-xs text-muted-foreground">تم إرجاع مخزون هذه الفاتورة مسبقاً.</p>
                             )}
                         </form>

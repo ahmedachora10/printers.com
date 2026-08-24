@@ -37,6 +37,8 @@ class StoreInvoicePaymentRequest extends FormRequest
             ],
             'paid_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:500'],
+            // إقرارُ المحاسب بعجز خامات المخزون حين تُغلق هذه الدفعةُ الفاتورة.
+            'confirm_materials_shortage' => ['nullable', 'boolean'],
         ];
     }
 

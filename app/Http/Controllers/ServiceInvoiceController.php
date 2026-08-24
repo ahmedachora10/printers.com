@@ -24,6 +24,7 @@ use App\Http\Requests\ServiceInvoice\UpdateInvoicePaymentMethodRequest;
 use App\Http\Requests\ServiceInvoice\UpdateServiceInvoiceRequest;
 use App\Models\Branch;
 use App\Models\BranchService;
+use App\Models\BranchServiceMaterial;
 use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
@@ -34,6 +35,7 @@ use App\Notifications\DueInvoiceNotification;
 use App\Notifications\ServiceInvoiceReviewedNotification;
 use App\Support\BranchNotifiables;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -329,7 +331,7 @@ class ServiceInvoiceController extends Controller
         ]);
     }
 
-    public function markPaid(ServiceInvoice $invoice, MarkServiceInvoicePaidAction $action): RedirectResponse
+    public function markPaid(Request $request, ServiceInvoice $invoice, MarkServiceInvoicePaidAction $action): RedirectResponse
     {
         Gate::authorize('updateStatus', $invoice);
 
@@ -343,7 +345,9 @@ class ServiceInvoiceController extends Controller
 
         $this->assertPaymentMethodChosen($invoice);
 
-        $action->handle($invoice);
+        // العجز في خامات المخزون يوقف الاعتماد مرةً واحدة ويعرض الناقص؛ فإن أقرّه
+        // المعتمِد أعاد الإرسال بهذا المفتاح فيمرّ، ويُسجَّل إقراره في سجلّ النشاط.
+        $action->handle($invoice, null, $request->boolean('confirm_materials_shortage'));
 
         Notification::send(
             $this->reviewNotifiables($invoice),
@@ -555,8 +559,10 @@ class ServiceInvoiceController extends Controller
      */
     private function posFormData(User $user, ListBranchAgentsAction $listBranchAgents): array
     {
+        // Shared with the Inertia layout, which already resolved this branch —
+        // workBranch() hands back that same row instead of querying again.
+        $branch = $user->workBranch();
         $branchId = $user->branchId;
-        $branch = Branch::find($branchId);
 
         $loyalty = $branchId ? LoyaltyConfig::forBranch($branchId) : null;
 
@@ -596,7 +602,12 @@ class ServiceInvoiceController extends Controller
         return BranchService::query()
             ->where('branch_id', $branchId)
             ->where('is_active', true)
-            ->with('serviceTemplate:id,name')
+            ->with([
+                'serviceTemplate:id,name',
+                // خامات المخزون ومتاحُها — استعلامان ثابتان لا واحدٌ لكل خدمة.
+                'materials.product:id,name,unit_id,is_sqm,current_stock',
+                'materials.product.unit:id,name',
+            ])
             ->get()
             ->map(fn (BranchService $service) => [
                 'id' => $service->id,
@@ -615,6 +626,21 @@ class ServiceInvoiceController extends Controller
                 // تكلفة الخامات الافتراضية — تُعبّئ خانة السطر وتبقى قابلة للتعديل.
                 'hasMaterials' => $service->has_materials,
                 'materialsCost' => (float) $service->materials_cost,
+                // خامات المخزون التي ستُخصم عند اعتماد الفاتورة، ومتاحُ كلٍّ منها
+                // لحظةَ فتح الشاشة. إرشاديّ لا مانع: الموظف يُنشئ فاتورة آجلة،
+                // والخصم والفحص الحقيقي يقعان عند الاعتماد على الخادم.
+                'materials' => $service->materials
+                    ->filter(fn (BranchServiceMaterial $m) => $m->product !== null)
+                    ->map(fn (BranchServiceMaterial $m) => [
+                        'productId' => $m->product_id,
+                        'name' => $m->product->name,
+                        'unitName' => $m->product->is_sqm ? 'متر مربع' : $m->product->unit?->name,
+                        'qtyPerUnit' => (float) $m->qty_per_unit,
+                        'wastePct' => (float) $m->waste_pct,
+                        'availableStock' => (float) $m->product->current_stock,
+                    ])
+                    ->values()
+                    ->all(),
             ])
             ->filter(fn ($service) => $service['name'] !== null)
             ->values();

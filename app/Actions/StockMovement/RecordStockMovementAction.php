@@ -41,6 +41,7 @@ class RecordStockMovementAction
                 'unit_cost' => $attributes['unit_cost'] ?? null,
                 'reference_id' => $attributes['reference_id'] ?? null,
                 'reference_type' => $attributes['reference_type'] ?? null,
+                'service_invoice_line_id' => $attributes['service_invoice_line_id'] ?? null,
                 'notes' => $attributes['notes'] ?? null,
                 'created_by' => $attributes['created_by'] ?? Auth::id(),
             ]);

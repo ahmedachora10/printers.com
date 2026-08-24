@@ -19,14 +19,25 @@ interface Props {
     current: BranchServiceMaterial[];
 }
 
-/** سطر قيد التحرير — الكمية نصّ ليبقى الحقل فارغاً حتى يكتب المستخدم. */
+/** سطر قيد التحرير — الأرقام نصٌّ لتبقى الحقول فارغة حتى يكتب المستخدم. */
 interface DraftRow {
     productId: string;
     qtyPerUnit: string;
+    wastePct: string;
+}
+
+/** رقمان بعد الفاصلة، بلا أصفار عائدة — كما يعرضها الخادم. */
+function round2(value: number): number {
+    return Math.round(value * 100) / 100;
 }
 
 function buildRows(current: BranchServiceMaterial[]): DraftRow[] {
-    return current.map((m) => ({ productId: String(m.productId), qtyPerUnit: String(m.qtyPerUnit) }));
+    return current.map((m) => ({
+        productId: String(m.productId),
+        qtyPerUnit: String(m.qtyPerUnit),
+        // الصفر يُترك فارغاً: «بلا هالك» أوضح من «0» في خانةٍ نادراً ما تُملأ.
+        wastePct: m.wastePct > 0 ? String(m.wastePct) : '',
+    }));
 }
 
 /**
@@ -64,7 +75,11 @@ export default function BranchServiceMaterialsModal({
         transform(() => ({
             materials: rows
                 .filter((r) => r.productId !== '' && Number(r.qtyPerUnit) > 0)
-                .map((r) => ({ product_id: Number(r.productId), qty_per_unit: Number(r.qtyPerUnit) })),
+                .map((r) => ({
+                    product_id: Number(r.productId),
+                    qty_per_unit: Number(r.qtyPerUnit),
+                    waste_pct: r.wastePct === '' ? 0 : Number(r.wastePct),
+                })),
         }));
 
         put(materials.update(branchServiceId).url, {
@@ -105,9 +120,11 @@ export default function BranchServiceMaterialsModal({
                     ) : (
                         rows.map((row, index) => {
                             const product = products.find((p) => String(p.id) === row.productId);
+                            // ما يقع في المخزون فعلاً — نفس صيغة الخادم: الكمية زائد الهالك.
+                            const effective = round2(Number(row.qtyPerUnit || 0) * (1 + Number(row.wastePct || 0) / 100));
 
                             return (
-                                <div key={index} className="bg-card grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_9rem_auto] sm:items-end">
+                                <div key={index} className="bg-card grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_8rem_7rem_auto] sm:items-end">
                                     <div className="space-y-1.5">
                                         <label className="text-muted-foreground block text-[11px] font-medium">الخامة</label>
                                         <Select value={row.productId} onValueChange={(v) => updateRow(index, { productId: v })}>
@@ -145,6 +162,21 @@ export default function BranchServiceMaterialsModal({
                                         />
                                     </div>
 
+                                    <div className="space-y-1.5">
+                                        <label className="text-muted-foreground block text-[11px] font-medium">الهالك %</label>
+                                        <Input
+                                            type="number"
+                                            min="0"
+                                            max="100"
+                                            step="0.5"
+                                            className="h-9 text-center"
+                                            value={row.wastePct}
+                                            onChange={(e) => updateRow(index, { wastePct: e.target.value })}
+                                            placeholder="0"
+                                            dir="ltr"
+                                        />
+                                    </div>
+
                                     <Button
                                         type="button"
                                         variant="ghost"
@@ -155,6 +187,13 @@ export default function BranchServiceMaterialsModal({
                                     >
                                         <Trash2 className="size-4" />
                                     </Button>
+
+                                    {effective > 0 && (
+                                        <p className="text-muted-foreground text-[11px] sm:col-span-4">
+                                            يُخصم من المخزون {effective} {product?.unitName ?? ''} {unitLabel}
+                                            {Number(row.wastePct) > 0 ? ` (شاملةً % هالكاً)` : ''}
+                                        </p>
+                                    )}
                                 </div>
                             );
                         })
@@ -166,7 +205,7 @@ export default function BranchServiceMaterialsModal({
                             variant="outline"
                             size="sm"
                             className="w-full"
-                            onClick={() => setRows((prev) => [...prev, { productId: '', qtyPerUnit: '' }])}
+                            onClick={() => setRows((prev) => [...prev, { productId: '', qtyPerUnit: '', wastePct: '' }])}
                             disabled={chosenIds.size >= products.length && rows.every((r) => r.productId !== '')}
                         >
                             <Plus className="size-4" /> إضافة خامة

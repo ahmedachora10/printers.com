@@ -29,6 +29,7 @@ class StockMovement extends Model
         'unit_cost',
         'reference_id',
         'reference_type',
+        'service_invoice_line_id',
         'notes',
         'created_by',
     ];
@@ -51,6 +52,17 @@ class StockMovement extends Model
         static::deleting(function (): void {
             throw new RuntimeException('Stock movements are immutable and cannot be deleted.');
         });
+    }
+
+    /**
+     * سطر الخدمة الذي استهلك هذه الخامة — لحركات خامات فواتير الخدمات وحدها،
+     * وفارغٌ لكل ما عداها ولحركاتِ ما قبل إضافة العمود.
+     *
+     * @return BelongsTo<ServiceInvoiceLine, $this>
+     */
+    public function serviceInvoiceLine(): BelongsTo
+    {
+        return $this->belongsTo(ServiceInvoiceLine::class);
     }
 
     /** @return BelongsTo<Product, $this> */
