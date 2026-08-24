@@ -54,11 +54,11 @@ class ConsumeServiceMaterialsAction
         foreach ($invoice->lines as $line) {
             /** @var ServiceInvoiceLine $line */
             $materials = $line->branchService?->materials ?? collect();
-            $billableQty = $this->billableQty($line);
+            $billableQty = $line->billableQty();
 
             foreach ($materials as $material) {
                 /** @var BranchServiceMaterial $material */
-                $qty = round((float) $material->qty_per_unit * $billableQty, 2);
+                $qty = $material->consumptionFor($billableQty);
 
                 // A material whose product was deleted since is skipped rather
                 // than blocking the approval — the invoice is the record of the
@@ -75,6 +75,8 @@ class ConsumeServiceMaterialsAction
                         'unit_cost' => $material->product->cost_price,
                         'reference_id' => $invoice->id,
                         'reference_type' => ServiceInvoice::class,
+                        // للتقرير وحده: المرجع يبقى الفاتورة، وهذا يقول أي خدمةٍ منها استهلكت.
+                        'service_invoice_line_id' => $line->id,
                         'created_by' => $actorId,
                         'notes' => "خامات الفاتورة {$invoice->invoice_number} — {$line->service_name}",
                     ],
@@ -112,6 +114,7 @@ class ConsumeServiceMaterialsAction
                     'unit_cost' => $movement->unit_cost,
                     'reference_id' => $invoice->id,
                     'reference_type' => ServiceInvoice::class,
+                    'service_invoice_line_id' => $movement->service_invoice_line_id,
                     'created_by' => $actorId,
                     'notes' => "إرجاع خامات الفاتورة {$invoice->invoice_number}",
                 ],
@@ -130,21 +133,5 @@ class ConsumeServiceMaterialsAction
             ->where('reference_type', ServiceInvoice::class)
             ->where('reference_id', $invoice->id)
             ->where('type', $type);
-    }
-
-    /**
-     * How much of a material one line consumes a unit of: the line's area in m²
-     * when it carries a size (سطر مسعّر بالمتر المربع), otherwise its piece count.
-     */
-    private function billableQty(ServiceInvoiceLine $line): float
-    {
-        $widthCm = $line->width_cm !== null ? (float) $line->width_cm : 0.0;
-        $heightCm = $line->height_cm !== null ? (float) $line->height_cm : 0.0;
-
-        if ($widthCm > 0 && $heightCm > 0) {
-            return round(($widthCm / 100) * ($heightCm / 100) * (int) $line->qty, 4);
-        }
-
-        return (float) $line->qty;
     }
 }

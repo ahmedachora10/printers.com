@@ -90,6 +90,18 @@ class ServiceInvoiceLine extends Model
         return $area > 0 ? round($price / $area, 2) : $price;
     }
 
+    /**
+     * وحدة استهلاك الخامات لهذا السطر: مساحتُه بالمتر المربع إن حمل مقاساً (مترٌ
+     * من الفينيل لكل متر مبيع من البنر)، وإلا عددُ قطعه. تُقرأ من لقطة السطر لا
+     * من تعريف الخدمة اليوم، فتغييرُ التسعير لاحقاً لا يعيد كتابة ما بيع.
+     */
+    public function billableQty(): float
+    {
+        $area = $this->areaSqm();
+
+        return $area > 0 ? round($area * $this->qty, 4) : (float) $this->qty;
+    }
+
     /** @return BelongsTo<ServiceInvoice, $this> */
     public function invoice(): BelongsTo
     {

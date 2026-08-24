@@ -1,6 +1,7 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import DeliveryBadge from '@/components/invoices/delivery-badge';
 import InvoiceNotes from '@/components/invoices/invoice-notes';
+import MaterialsShortageDialog from '@/components/invoices/materials-shortage-dialog';
 import RecordPaymentModal, { type PaymentMethodOption } from '@/components/invoices/record-payment-modal';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { Badge } from '@/components/ui/badge';
@@ -109,6 +110,8 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
     const [refundOpen, setRefundOpen] = useState(false);
     const [paymentOpen, setPaymentOpen] = useState(false);
     const [approveOpen, setApproveOpen] = useState(false);
+    // نص عجز الخامات كما ردّه الخادم — وجودُه يفتح حوار الإقرار.
+    const [materialsShortage, setMaterialsShortage] = useState<string | null>(null);
     const [approving, setApproving] = useState(false);
     const [returnOpen, setReturnOpen] = useState(false);
     const [returnReason, setReturnReason] = useState('');
@@ -131,19 +134,18 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
         }
     }, [props.success]);
 
-    function confirmApprove() {
+    function confirmApprove(confirmedShortage = false) {
         setApproving(true);
-        router.patch(
-            serviceInvoice.pay(invoice.id).url,
-            {},
-            {
-                preserveScroll: true,
-                onFinish: () => {
-                    setApproving(false);
-                    setApproveOpen(false);
-                },
+        router.patch(serviceInvoice.pay(invoice.id).url, confirmedShortage ? { confirm_materials_shortage: true } : {}, {
+            preserveScroll: true,
+            // العجز يرجع مرة واحدة على هذا المفتاح؛ الحوار يعيد الإرسال مُقِرّاً.
+            onError: (errors) => setMaterialsShortage(errors.materials_shortage ?? null),
+            onSuccess: () => setMaterialsShortage(null),
+            onFinish: () => {
+                setApproving(false);
+                setApproveOpen(false);
             },
-        );
+        });
     }
 
     // «تم تسليم العمل» (تاسك 31): ختم لا يمسّ مبلغ الفاتورة ولا حالتها المالية —
@@ -569,12 +571,19 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                         <Button variant="outline" onClick={() => setApproveOpen(false)} disabled={approving}>
                             تراجع
                         </Button>
-                        <Button onClick={confirmApprove} disabled={approving}>
+                        <Button onClick={() => confirmApprove()} disabled={approving}>
                             <CheckCircle2 className="size-4" /> تأكيد الدفع
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <MaterialsShortageDialog
+                message={materialsShortage}
+                processing={approving}
+                onCancel={() => setMaterialsShortage(null)}
+                onConfirm={() => confirmApprove(true)}
+            />
 
             {/* Delivery confirmation (تاسك 31) */}
             <Dialog open={deliverOpen} onOpenChange={(open) => !open && !delivering && setDeliverOpen(false)}>

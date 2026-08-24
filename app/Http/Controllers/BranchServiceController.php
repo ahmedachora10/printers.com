@@ -158,6 +158,7 @@ class BranchServiceController extends Controller
         $action->handle($branchService, array_map(fn (array $row) => [
             'product_id' => (int) $row['product_id'],
             'qty_per_unit' => (float) $row['qty_per_unit'],
+            'waste_pct' => (float) ($row['waste_pct'] ?? 0),
         ], $request->validated('materials')));
 
         return back()->with('success', 'تم تحديث خامات الخدمة بنجاح');

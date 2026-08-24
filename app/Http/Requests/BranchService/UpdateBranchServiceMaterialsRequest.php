@@ -33,6 +33,8 @@ class UpdateBranchServiceMaterialsRequest extends FormRequest
                     ->whereNull('deleted_at'),
             ],
             'materials.*.qty_per_unit' => ['required', 'numeric', 'min:0.01', 'max:99999.99'],
+            // نسبة الهالك: فاقد القصّ وضبط الألوان. صفرٌ حين لا تُرسل.
+            'materials.*.waste_pct' => ['nullable', 'numeric', 'min:0', 'max:100'],
         ];
     }
 
@@ -43,6 +45,7 @@ class UpdateBranchServiceMaterialsRequest extends FormRequest
             'materials.*.product_id.exists' => 'الخامة المحددة ليست من منتجات هذا الفرع.',
             'materials.*.product_id.distinct' => 'لا تُضاف الخامة نفسها مرتين لخدمة واحدة.',
             'materials.*.qty_per_unit.min' => 'كمية الاستهلاك يجب أن تكون أكبر من صفر.',
+            'materials.*.waste_pct.max' => 'نسبة الهالك يجب ألا تتجاوز 100%.',
         ];
     }
 }

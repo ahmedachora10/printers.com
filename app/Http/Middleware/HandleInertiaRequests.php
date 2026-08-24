@@ -3,7 +3,6 @@
 namespace App\Http\Middleware;
 
 use App\Enums\Roles;
-use App\Models\Branch;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -68,15 +67,10 @@ class HandleInertiaRequests extends Middleware
      */
     private function branch(Request $request): ?array
     {
-        // branchId resolves a branch-admin through branches.owner_id, so this
-        // covers managers as well as ordinary branch staff.
-        $branchId = $request->user()?->branchId;
-
-        if ($branchId === null) {
-            return null;
-        }
-
-        $branch = Branch::with('media')->find($branchId);
+        // workBranch() resolves a branch-admin through branches.owner_id, so
+        // this covers managers as well as ordinary branch staff — and memoises
+        // the row, so a page that also needs the branch does not re-fetch it.
+        $branch = $request->user()?->workBranch();
 
         if ($branch === null) {
             return null;
@@ -350,6 +344,13 @@ class HandleInertiaRequests extends Middleware
                 'title' => 'تقرير المصروفات',
                 'url' => route('reports.expenses'),
                 'icon' => 'Receipt',
+                'group' => 'reports',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
+                'title' => 'استهلاك الخامات',
+                'url' => route('reports.materials'),
+                'icon' => 'Boxes',
                 'group' => 'reports',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],

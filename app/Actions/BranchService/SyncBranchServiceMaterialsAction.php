@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
  */
 class SyncBranchServiceMaterialsAction
 {
-    /** @param list<array{product_id: int, qty_per_unit: float}> $materials */
+    /** @param list<array{product_id: int, qty_per_unit: float, waste_pct: float}> $materials */
     public function handle(BranchService $branchService, array $materials): void
     {
         DB::transaction(function () use ($branchService, $materials): void {
@@ -21,7 +21,10 @@ class SyncBranchServiceMaterialsAction
             foreach ($materials as $material) {
                 $branchService->materials()->updateOrCreate(
                     ['product_id' => $material['product_id']],
-                    ['qty_per_unit' => round((float) $material['qty_per_unit'], 2)],
+                    [
+                        'qty_per_unit' => round((float) $material['qty_per_unit'], 2),
+                        'waste_pct' => round((float) $material['waste_pct'], 2),
+                    ],
                 );
 
                 $keptProductIds[] = $material['product_id'];

@@ -3,7 +3,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowLeftRight, Award, Bell, BookOpen, CalendarDays, ChartPie, ClipboardCheck, ClipboardList, FileText, FolderKanban, GitBranch, Handshake, LayoutGrid, LucideIcon, Package, Receipt, ServerIcon, Settings, ShoppingBasket, ShoppingCart, Tags, Ticket, TrendingUp, Trophy, Truck, Undo2, User, Users, Wallet } from 'lucide-react';
+import { ArrowLeftRight, Award, Bell, BookOpen, Boxes, CalendarDays, ChartPie, ClipboardCheck, ClipboardList, FileText, FolderKanban, GitBranch, Handshake, LayoutGrid, LucideIcon, Package, Receipt, ServerIcon, Settings, ShoppingBasket, ShoppingCart, Tags, Ticket, TrendingUp, Trophy, Truck, Undo2, User, Users, Wallet } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import AppLogo from './app-logo';
 
@@ -40,6 +40,7 @@ export function AppSidebar() {
         TrendingUp,
         ChartPie,
         CalendarDays,
+        Boxes,
         Tags,
         // Named by sidebar items that were silently falling back to LayoutGrid.
         Settings,

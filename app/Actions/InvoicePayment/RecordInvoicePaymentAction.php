@@ -43,10 +43,11 @@ class RecordInvoicePaymentAction
     /**
      * @param  array{amount: float|string, paid_at?: string|null, payment_method_id?: int|null, notes?: string|null}  $data
      * @param  UploadedFile|null  $receipt  إيصال التحويل حين تشترطه طريقة الدفع
+     * @param  bool  $confirmedShortage  إقرارُ المعتمِد بعجز خامات المخزون حين تُغلق هذه الدفعةُ الفاتورة
      */
-    public function handle(ProductInvoice|ServiceInvoice $invoice, array $data, User $actor, ?UploadedFile $receipt = null): InvoicePayment
+    public function handle(ProductInvoice|ServiceInvoice $invoice, array $data, User $actor, ?UploadedFile $receipt = null, bool $confirmedShortage = false): InvoicePayment
     {
-        return DB::transaction(function () use ($invoice, $data, $actor, $receipt) {
+        return DB::transaction(function () use ($invoice, $data, $actor, $receipt, $confirmedShortage) {
             // قفل صف الفاتورة يُسلسل الدفعات المتزامنة، فلا يمرّ تحصيلان معاً
             // فيتجاوز مجموعُهما الإجمالي.
             $invoice = $invoice->newQuery()->whereKey($invoice->getKey())->lockForUpdate()->firstOrFail();
@@ -99,7 +100,7 @@ class RecordInvoicePaymentAction
             }
 
             if (round($collected + $amount, 2) >= $total) {
-                $this->settle($invoice, $paidAt);
+                $this->settle($invoice, $paidAt, $confirmedShortage);
             } else {
                 $invoice->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID]);
             }
@@ -113,10 +114,10 @@ class RecordInvoicePaymentAction
      * الفاتورة كاملة. فواتير الخدمات تمرّ من MarkServiceInvoicePaidAction (عمولة
      * + نقاط)، وفواتير المنتجات لا عمولة لها فيبقى منها احتساب النقاط.
      */
-    private function settle(ProductInvoice|ServiceInvoice $invoice, CarbonInterface $paidAt): void
+    private function settle(ProductInvoice|ServiceInvoice $invoice, CarbonInterface $paidAt, bool $confirmedShortage = false): void
     {
         if ($invoice instanceof ServiceInvoice) {
-            $this->markServiceInvoicePaid->handle($invoice, $paidAt);
+            $this->markServiceInvoicePaid->handle($invoice, $paidAt, $confirmedShortage);
 
             return;
         }

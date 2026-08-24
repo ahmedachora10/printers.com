@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
 import { invoiceTotals } from '@/lib/invoice';
-import { formatCurrency, formatDateTimeNumeric } from '@/lib/utils';
+import { formatCurrency, formatDateTimeNumeric, formatQty } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import service from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
@@ -29,7 +29,7 @@ import {
     type ServiceCartLine,
 } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Award, BadgePercent, CalendarClock, Package, Paperclip, Printer, Ruler, Save, Search, StickyNote, Tag, X } from 'lucide-react';
+import { AlertTriangle, Award, BadgePercent, CalendarClock, Package, Paperclip, Printer, Ruler, Save, Search, StickyNote, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -166,6 +166,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 isTahazir: l.isTahazir,
                 hasMaterials: l.hasMaterials ?? false,
                 materialsCost: l.materialsCost ?? 0,
+                // خامات المخزون تُقرأ من الخدمة لا من لقطة السطر: لم تُحفظ عليه،
+                // والتحذير عن الرصيد شأنُ اليوم لا شأنُ يوم الفوترة.
+                materials: services.find((s) => s.id === l.branchServiceId)?.materials ?? [],
                 isManual: false,
                 pricingType: l.pricingType ?? 'unit',
                 pricePerSqm: l.pricePerSqm ?? 0,
@@ -246,6 +249,31 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
     // إجمالي تكلفة الخامات — داخلي، لا يمسّ ما يدفعه العميل.
+    // نقص خامات المخزون في السلة كلها، مجموعاً حسب المنتج لا حسب السطر: خامةٌ
+    // تستهلكها خدمتان في الفاتورة نفسها لا يُكشف عجزها إلا بعد جمعهما. إرشاديٌّ
+    // محض — الرصيد لقطةٌ وقتَ فتح الشاشة، والفحص المُلزِم عند الاعتماد على الخادم.
+    const materialsShortfall = useMemo(() => {
+        const demand = new Map<number, { name: string; unitName: string | null; required: number; available: number }>();
+
+        for (const line of cart) {
+            const units = lineUnits(line);
+            if (units <= 0) continue;
+
+            for (const material of line.materials ?? []) {
+                const row = demand.get(material.productId) ?? {
+                    name: material.name,
+                    unitName: material.unitName,
+                    required: 0,
+                    available: material.availableStock,
+                };
+                row.required = round2(row.required + round2(material.qtyPerUnit * units * (1 + material.wastePct / 100)));
+                demand.set(material.productId, row);
+            }
+        }
+
+        return [...demand.values()].filter((row) => row.required > row.available);
+    }, [cart]);
+
     const materialsTotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineMaterialsTotal(l), 0)), [cart]);
     const selectedAgents = useMemo(() => agents.filter((a) => agentIds.includes(a.id)), [agentIds, agents]);
     const selectedPaymentMethod = useMemo(() => paymentMethods.find((m) => m.id === paymentMethodId) ?? null, [paymentMethods, paymentMethodId]);
@@ -368,6 +396,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     isTahazir: s.isTahazir,
                     hasMaterials: s.hasMaterials,
                     materialsCost: s.materialsCost,
+                    materials: s.materials ?? [],
                     isManual: false,
                     pricingType: s.pricingType,
                     pricePerSqm: s.pricePerSqm,
@@ -443,6 +472,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 isTahazir: false,
                 hasMaterials: false,
                 materialsCost: 0,
+                materials: [],
                 isManual: true,
                 pricingType: 'unit',
                 pricePerSqm: 0,
@@ -475,6 +505,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             // الخامات تُعاد تعبئتها من الخدمة الجديدة — الخدمة تغيّرت فتغيّرت موادها.
             hasMaterials: s.hasMaterials,
             materialsCost: s.materialsCost,
+            materials: s.materials ?? [],
             discountPct: Math.min(cap, line.discountPct),
             pricingType: s.pricingType,
             pricePerSqm: s.pricePerSqm,
@@ -915,6 +946,20 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                             </div>
                         </CardContent>
                     </Card>
+
+                    {materialsShortfall.length > 0 && (
+                        <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+                            <AlertTriangle className="mt-0.5 size-4 shrink-0" />
+                            <div className="space-y-0.5">
+                                <p className="font-medium">المخزون قد لا يكفي خامات هذه الفاتورة</p>
+                                {materialsShortfall.map((row) => (
+                                    <p key={row.name}>
+                                        {row.name}: مطلوب {formatQty(row.required)} — المتاح {formatQty(row.available)} {row.unitName ?? ''}
+                                    </p>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Invoice-level note — printed under the whole lines table,
                         unlike the per-line detail edited inside each cart row. */}

@@ -31,6 +31,19 @@ export interface PosService {
     /** هل للخدمة خامات، وتكلفتها الافتراضية للوحدة الواحدة */
     hasMaterials: boolean;
     materialsCost: number;
+    /** خامات المخزون التي تستهلكها الخدمة، ومتاحُ كلٍّ منها لحظةَ فتح الشاشة */
+    materials: ServiceMaterialOption[];
+}
+
+/** خامة مخزون على خدمة، كما تصل نقطةَ البيع للتحذير من نقص الرصيد. */
+export interface ServiceMaterialOption {
+    productId: number;
+    name: string;
+    unitName: string | null;
+    qtyPerUnit: number;
+    wastePct: number;
+    /** لقطةُ رصيدٍ وقتَ فتح الشاشة — إرشادية، والفحص الحقيقي عند الاعتماد */
+    availableStock: number;
 }
 
 export interface ServiceCartLine {
@@ -54,6 +67,8 @@ export interface ServiceCartLine {
     hasMaterials: boolean;
     /** المبلغ للوحدة الواحدة؛ يُضرب في الكمية */
     materialsCost: number;
+    /** خامات المخزون التي سيستهلكها السطر — للتحذير وحده، لا تُرسَل للخادم */
+    materials: ServiceMaterialOption[];
     isManual: boolean;
     pricingType: ServicePricingType;
     pricePerSqm: number;

@@ -1,5 +1,6 @@
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
+import MaterialsShortageDialog from '@/components/invoices/materials-shortage-dialog';
 import RecordPaymentModal from '@/components/invoices/record-payment-modal';
 import DateRangeBar from '@/components/reports/date-range-bar';
 import { Badge } from '@/components/ui/badge';
@@ -130,6 +131,8 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
 
     const hasFilters = !!applied.from || !!applied.to || !!applied.search;
     const [paying, setPaying] = useState<ReviewInvoice | null>(null);
+    // نص عجز الخامات كما ردّه الخادم، والفاتورة التي وقف عندها.
+    const [materialsShortage, setMaterialsShortage] = useState<{ invoice: ReviewInvoice; message: string } | null>(null);
     const [payingPartial, setPayingPartial] = useState<ReviewInvoice | null>(null);
     const [cancelling, setCancelling] = useState<ReviewInvoice | null>(null);
     const [reason, setReason] = useState('');
@@ -199,14 +202,18 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
         );
     }
 
-    function confirmPay() {
-        if (!paying) return;
+    function confirmPay(invoice: ReviewInvoice | null = paying, confirmedShortage = false) {
+        if (!invoice) return;
         setSubmitting(true);
         router.patch(
-            serviceInvoice.pay(paying.id).url,
-            {},
+            serviceInvoice.pay(invoice.id).url,
+            confirmedShortage ? { confirm_materials_shortage: true } : {},
             {
                 preserveScroll: true,
+                // العجز يرجع مرة واحدة على هذا المفتاح؛ الحوار يعيد الإرسال مُقِرّاً.
+                onError: (errors) =>
+                    setMaterialsShortage(errors.materials_shortage ? { invoice, message: errors.materials_shortage } : null),
+                onSuccess: () => setMaterialsShortage(null),
                 onFinish: () => {
                     setSubmitting(false);
                     setPaying(null);
@@ -613,12 +620,19 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                         <Button variant="outline" onClick={() => setPaying(null)} disabled={submitting}>
                             تراجع
                         </Button>
-                        <Button onClick={confirmPay} disabled={submitting}>
+                        <Button onClick={() => confirmPay()} disabled={submitting}>
                             <CheckCircle2 className="size-4" /> تأكيد الدفع
                         </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <MaterialsShortageDialog
+                message={materialsShortage?.message ?? null}
+                processing={submitting}
+                onCancel={() => setMaterialsShortage(null)}
+                onConfirm={() => materialsShortage && confirmPay(materialsShortage.invoice, true)}
+            />
 
             {/* Cancel with reason */}
             <Dialog open={!!cancelling} onOpenChange={(open) => !open && setCancelling(null)}>

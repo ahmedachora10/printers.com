@@ -21,7 +21,7 @@ class StoreRefundRequest extends FormRequest
             'invoice_id' => ['required', 'integer'],
             'amount' => ['required', 'numeric', 'min:0.01'],
             'reason' => ['required', 'string', 'max:1000'],
-            // Only meaningful for product refunds; ignored otherwise.
+            // فواتير المنتجات تعيد بضاعتها، وفواتير الخدمات تعيد خاماتها.
             'reverse_stock' => ['nullable', 'boolean'],
         ];
     }
