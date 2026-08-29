@@ -49,20 +49,22 @@ class InvoiceListResource extends JsonResource
             && $user->roleName->isEmployee()
             && (int) $this->user_id === $user->id;
 
-        // Inline customer name/phone editing mirrors the review-queue endpoint
-        // (invoices.service.update-customer): service invoices only, and only for
-        // the roles that guard permits — never employees. The server keeps the
-        // final, policy-aware say on the actual update.
-        $canEditCustomer = $user !== null
+        // A reviewer of service invoices — branch admin, accountant or super admin.
+        // They edit the customer inline (invoices.service.update-customer) and,
+        // since تاسك 70, the due invoice itself. Never employees. The server keeps
+        // the final, policy-aware say on either update.
+        $isReviewer = $user !== null
             && $type === InvoiceTypeEnum::SERVICE
             && ($user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin() || $user->roleName->isAccountant());
+
+        $canEditCustomer = $isReviewer;
 
         // Who may stamp "تم تسليم العمل" from the list, mirroring
         // ServiceInvoicePolicy::deliver — the owning employee or a reviewer, on a
         // service invoice that is still live and not delivered yet. The list row
         // is a raw union record, not a model, hence the repetition.
         $canDeliver = $type === InvoiceTypeEnum::SERVICE
-            && ($isOwnerEmployee || $canEditCustomer)
+            && ($isOwnerEmployee || $isReviewer)
             && $this->delivered_at === null
             && $status !== InvoiceStatusEnum::CANCELLED
             && $status !== InvoiceStatusEnum::RETURNED;
@@ -110,7 +112,9 @@ class InvoiceListResource extends JsonResource
             // شروط ServiceInvoicePolicy::deliver هنا؛ الخادم يبقى صاحب القرار
             // النهائي عند الضغط.
             'canDeliver' => $canDeliver,
-            'canEdit' => $isOwnerEmployee && $status === InvoiceStatusEnum::DUE,
+            // تاسك 70: يعدّل الفاتورة المعلّقة صاحبُها الموظف أو مراجعٌ في فرعها —
+            // وهم أنفسهم من يعدّلون بيانات العميل هنا — مرآةً لـServiceInvoicePolicy::update.
+            'canEdit' => ($isOwnerEmployee || $isReviewer) && $status === InvoiceStatusEnum::DUE,
             'canReturn' => $isOwnerEmployee
                 && $status !== InvoiceStatusEnum::CANCELLED
                 && $status !== InvoiceStatusEnum::RETURNED,

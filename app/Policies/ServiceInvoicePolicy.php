@@ -60,14 +60,23 @@ class ServiceInvoicePolicy
     }
 
     /**
-     * The employee who raised an invoice may re-edit it only while it is still
-     * DUE (before an accountant approves it). After approval it is locked.
+     * Who may re-edit an invoice, and only while it is still DUE: its owning
+     * employee, or a reviewer in its branch (branch admin, accountant, super
+     * admin) correcting it before approval — تاسك 70. The materials cost is the
+     * case that needs it: it comes off the employee's own commission base, so
+     * تاسك 54 bars the employee from typing it, leaving the reviewer as the
+     * only one who can. The status condition is shared, not repeated: approval
+     * writes the immutable commission_ledger, and nothing may move under it.
      */
     public function update(User $user, ServiceInvoice $invoice): bool
     {
-        return $user->roleName->isEmployee()
-            && $user->id === $invoice->user_id
-            && $invoice->status === InvoiceStatusEnum::DUE;
+        if ($invoice->status !== InvoiceStatusEnum::DUE) {
+            return false;
+        }
+
+        $isOwnerEmployee = $user->roleName->isEmployee() && $user->id === $invoice->user_id;
+
+        return $isOwnerEmployee || $this->updateStatus($user, $invoice);
     }
 
     /**

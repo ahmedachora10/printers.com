@@ -145,13 +145,123 @@ describe('Service invoice edit/return', function () {
         $this->actingAs($other)->get(route('pos.service.edit', $invoice))->assertForbidden();
     });
 
-    it('forbids an accountant from editing a service invoice', function () {
+    // ---- تاسك 70: المراجع يصحّح قبل الاعتماد -----------------------------
+
+    it('lets a branch admin edit a due invoice raised by an employee in their branch', function () {
+        // الخدمة تحمل خامات بـ 5 للوحدة — وهذا بالضبط ما لا يملك الموظف تغييره.
+        $this->service->update(['has_materials' => true, 'materials_cost' => 5]);
+
+        $invoice = makeOwnedDueInvoice(); // 3 × 10 = 30 شاملة الضريبة ← صافٍ 26.09، خامات 15
+
+        expect((float) $invoice->lines()->firstOrFail()->commission_amount)->toEqual(1.11);
+
+        $this->actingAs($this->branchAdmin)
+            ->put(route('pos.service.update', $invoice), [
+                'lines' => [[
+                    'branch_service_id' => $this->service->id,
+                    'qty' => 3,
+                    'unit_price' => 10,
+                    'discount_pct' => 0,
+                    'has_materials' => true,
+                    'materials_cost' => 2,
+                ]],
+            ])->assertRedirect(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]));
+
+        $invoice->refresh();
+        $line = $invoice->lines()->firstOrFail();
+
+        // الخامات نزلت إلى 6، فقاعدة العمولة 20.09 وعند 10% = 2.01 — والفاتورة
+        // تبقى للموظف ومعلّقة: التعديل ليس اعتماداً.
+        expect((float) $line->materials_cost)->toEqual(2.00)
+            ->and((float) $line->commission_amount)->toEqual(2.01)
+            ->and((float) $invoice->employee_commission)->toEqual(2.01)
+            ->and($invoice->user_id)->toBe($this->employee->id)
+            ->and($invoice->status->value)->toBe('due');
+
+        // وعند الاعتماد يُكتب الرقم المصحّح للموظف لا لمن عدّل.
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice->refresh())));
+
+        expect((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toEqual(2.01)
+            ->and(CommissionLedger::where('user_id', $this->branchAdmin->id)->count())->toBe(0);
+    });
+
+    it('lets an accountant in the branch edit a due invoice', function () {
         $invoice = makeOwnedDueInvoice();
 
         $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
         $accountant->addRole(Roles::ACCOUNTANT->value);
 
+        $this->actingAs($accountant)
+            ->get(route('pos.service.edit', $invoice))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->component('pos/service/index')
+                ->where('invoice.id', $invoice->id)
+                ->where('invoice.isOwn', false)
+                ->where('invoice.employeeName', $this->employee->name));
+    });
+
+    it('seeds a reviewer edit screen with the invoice owner commission rate', function () {
+        $invoice = makeOwnedDueInvoice();
+
+        // مدير الفرع لا يملك صفّ user_services أصلاً؛ لو قُرئت النسبة به لظهرت
+        // صفراً على الشاشة بينما يحسب الخادم 10% عند الحفظ.
+        $this->actingAs($this->branchAdmin)
+            ->get(route('pos.service.edit', $invoice))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('services.0.baseCommissionPct', 10)
+                ->where('invoice.lines.0.baseCommissionPct', 10));
+    });
+
+    it('forbids a reviewer from another branch', function () {
+        $invoice = makeOwnedDueInvoice();
+
+        $otherBranch = Branch::factory()->create();
+        $otherAdmin = User::factory()->create();
+        $otherAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        $otherBranch->update(['owner_id' => $otherAdmin->id]);
+
+        $otherAccountant = User::factory()->create(['branch_id' => $otherBranch->id]);
+        $otherAccountant->addRole(Roles::ACCOUNTANT->value);
+
+        $this->actingAs($otherAdmin)->get(route('pos.service.edit', $invoice))->assertForbidden();
+        $this->actingAs($otherAccountant)->get(route('pos.service.edit', $invoice))->assertForbidden();
+    });
+
+    it('forbids a reviewer from editing an approved invoice', function () {
+        $invoice = makeOwnedDueInvoice();
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
+
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole(Roles::ACCOUNTANT->value);
+
+        // الاعتماد يكتب commission_ledger غير القابل للنقض، فيُقفل التحرير على الجميع.
+        $this->actingAs($this->branchAdmin)->get(route('pos.service.edit', $invoice))->assertForbidden();
         $this->actingAs($accountant)->get(route('pos.service.edit', $invoice))->assertForbidden();
+        $this->actingAs($accountant)->put(route('pos.service.update', $invoice), [
+            'lines' => [['branch_service_id' => $this->service->id, 'qty' => 1, 'unit_price' => 10]],
+        ])->assertForbidden();
+    });
+
+    it('still refuses the owning employee the materials cost on their own edit', function () {
+        $this->service->update(['has_materials' => true, 'materials_cost' => 5]);
+
+        $invoice = makeOwnedDueInvoice();
+
+        $this->put(route('pos.service.update', $invoice), [
+            'lines' => [[
+                'branch_service_id' => $this->service->id,
+                'qty' => 3,
+                'unit_price' => 10,
+                'discount_pct' => 0,
+                'has_materials' => false,
+                'materials_cost' => 0,
+            ]],
+        ])->assertRedirect();
+
+        // تاسك 54 لم ينكسر: الموظف يعدّل فاتورته، وتبقى خامات الخدمة كما هي.
+        expect((float) $invoice->fresh()->lines()->firstOrFail()->materials_cost)->toEqual(5.00);
     });
 
     // ---- Return (استرجاع) ---------------------------------------------------

@@ -54,8 +54,10 @@ class ServiceInvoiceController extends Controller
     }
 
     /**
-     * Re-open a DUE invoice in the POS form for its owning employee to edit
-     * (before an accountant approves it). The form is seeded from the invoice.
+     * Re-open a DUE invoice in the POS form (before an accountant approves it):
+     * for its owning employee, or for a reviewer in its branch correcting it —
+     * the materials cost above all, which the employee may not touch (تاسك 70).
+     * The form is seeded from the invoice.
      */
     public function edit(ServiceInvoice $invoice, ListBranchAgentsAction $listBranchAgents, ResolveAvailablePointsAction $availablePoints): Response
     {
@@ -64,20 +66,26 @@ class ServiceInvoiceController extends Controller
         $user = Auth::user();
         $branchId = (int) $invoice->branch_id;
 
-        $invoice->load(['lines', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'invoiceAgents:id,service_invoice_id,agent_id']);
+        $invoice->load(['lines', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'invoiceAgents:id,service_invoice_id,agent_id']);
 
         $loyalty = LoyaltyConfig::forBranch($branchId);
         $loyaltyActive = (bool) $loyalty->is_active;
 
-        $servicesById = $this->branchServiceOptions($branchId, $user->id)->keyBy('id');
+        // العمولات تُقرأ بـ**موظف الفاتورة** لا بمن يعدّلها: المراجع لا يملك
+        // صفوف user_services أصلاً، فلو قُرئت به لظهرت كل النسب صفراً على الشاشة
+        // بينما يحسب الخادم عمولة الموظف الحقيقية عند الحفظ.
+        $servicesById = $this->branchServiceOptions($branchId, (int) $invoice->user_id)->keyBy('id');
 
         $coupon = $invoice->coupon_id ? Coupon::find($invoice->coupon_id) : null;
 
         return Inertia::render('pos/service/index', [
-            ...$this->posFormData($user, $listBranchAgents),
+            ...$this->posFormData($user, $listBranchAgents, $invoice),
             'invoice' => [
                 'id' => $invoice->id,
                 'invoiceNumber' => $invoice->invoice_number,
+                // صاحب الفاتورة — تعرضه اللافتة حين يفتحها غيرُه (تاسك 70).
+                'employeeName' => $invoice->user?->name,
+                'isOwn' => $user->id === (int) $invoice->user_id,
                 // حجز هذه الفاتورة نفسها لا يُطرح من رصيد عميلها هنا: نقاطها لها،
                 // فإعادة إرسال العدد نفسه لا تُرفض ولا يظهر الرصيد منقوصاً مرتين.
                 'customer' => $invoice->customer?->toPosArray(
@@ -159,8 +167,9 @@ class ServiceInvoiceController extends Controller
     }
 
     /**
-     * Persist an employee's in-place edit of their own DUE invoice, then return
-     * to the invoice viewer. The invoice stays DUE for the accountant to review.
+     * Persist an in-place edit of a DUE invoice — by its owning employee, or by
+     * a reviewer in its branch (تاسك 70) — then return to the invoice viewer.
+     * The invoice stays DUE either way: editing never approves it.
      */
     public function update(UpdateServiceInvoiceRequest $request, ServiceInvoice $invoice, UpdateServiceInvoiceAction $action): RedirectResponse
     {
@@ -554,16 +563,23 @@ class ServiceInvoiceController extends Controller
 
     /**
      * The shared POS form payload (services, agents, payment methods, VAT and
-     * loyalty config) for a user's branch — identical for create and edit.
+     * loyalty config) — identical for create and edit.
+     *
+     * On the edit path the payload belongs to the **invoice**, not to whoever
+     * opened it: its branch fixes the services, agents, payment methods, VAT and
+     * loyalty, and its owning employee fixes the commission rates. A reviewer
+     * from another role would otherwise seed the form from their own branch —
+     * and a super admin, who has none, from an empty one.
      *
      * @return array<string, mixed>
      */
-    private function posFormData(User $user, ListBranchAgentsAction $listBranchAgents): array
+    private function posFormData(User $user, ListBranchAgentsAction $listBranchAgents, ?ServiceInvoice $invoice = null): array
     {
         // Shared with the Inertia layout, which already resolved this branch —
         // workBranch() hands back that same row instead of querying again.
-        $branch = $user->workBranch();
-        $branchId = $user->branchId;
+        $branch = $invoice ? Branch::find($invoice->branch_id) : $user->workBranch();
+        $branchId = $invoice ? (int) $invoice->branch_id : $user->branchId;
+        $commissionUserId = $invoice ? (int) $invoice->user_id : $user->id;
 
         $loyalty = $branchId ? LoyaltyConfig::forBranch($branchId) : null;
 
@@ -576,7 +592,7 @@ class ServiceInvoiceController extends Controller
             : collect();
 
         return [
-            'services' => $this->branchServiceOptions($branchId, $user->id),
+            'services' => $this->branchServiceOptions($branchId, $commissionUserId),
             'agents' => $listBranchAgents->handle($branchId),
             'paymentMethods' => $paymentMethods,
             'vatPct' => (float) ($branch->vat_rate_override ?? 15),

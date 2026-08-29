@@ -157,6 +157,10 @@ export interface EditServiceInvoiceLine {
 export interface EditServiceInvoice {
     id: number;
     invoiceNumber: string;
+    /** موظف الفاتورة — تعرضه اللافتة حين يفتحها مراجعٌ لا صاحبُها (تاسك 70) */
+    employeeName: string | null;
+    /** هل الفاعل هو صاحب الفاتورة؟ */
+    isOwn: boolean;
     customer: PosCustomer | null;
     agentIds: number[];
     coupon: { code: string; type: 'percentage' | 'fixed'; value: number } | null;
