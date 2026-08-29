@@ -36,6 +36,7 @@ trait NormalizesAgentBranchTerms
                 'discount_mode' => $this->input('discount_mode'),
                 'discount_type' => $this->input('discount_type'),
                 'rate' => $this->input('rate'),
+                'deduct_materials' => $this->input('deduct_materials'),
             ]];
         }
 
@@ -53,6 +54,7 @@ trait NormalizesAgentBranchTerms
                 'discount_mode' => $own['discount_mode'] ?? $this->input('discount_mode'),
                 'discount_type' => $own['discount_type'] ?? $this->input('discount_type'),
                 'rate' => $own['rate'] ?? $this->input('rate'),
+                'deduct_materials' => $own['deduct_materials'] ?? $this->input('deduct_materials'),
             ]];
         }
 
@@ -65,6 +67,9 @@ trait NormalizesAgentBranchTerms
             // Left null when absent so `required` still reports a missing rate
             // rather than silently reading as zero.
             'rate' => $row['rate'] ?? null,
+            // تاسك 69: an unchecked box posts nothing, and its absence means
+            // "do not deduct" — today's behaviour for every existing agent.
+            'deduct_materials' => (bool) ($row['deduct_materials'] ?? false),
         ], $branches));
 
         $this->merge([
@@ -74,6 +79,7 @@ trait NormalizesAgentBranchTerms
             'discount_mode' => $branches[0]['discount_mode'] ?? null,
             'discount_type' => $branches[0]['discount_type'] ?? 'percentage',
             'rate' => $branches[0]['rate'] ?? null,
+            'deduct_materials' => $branches[0]['deduct_materials'] ?? false,
         ]);
     }
 
@@ -86,6 +92,7 @@ trait NormalizesAgentBranchTerms
             'branches.*.discount_mode' => ['required', new Enum(AgentDiscountModeEnum::class)],
             'branches.*.discount_type' => ['required', new Enum(AgentDiscountTypeEnum::class)],
             'branches.*.rate' => ['required', 'numeric', 'min:0'],
+            'branches.*.deduct_materials' => ['boolean'],
         ];
     }
 

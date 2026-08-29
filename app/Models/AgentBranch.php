@@ -25,5 +25,7 @@ class AgentBranch extends Pivot
         'discount_mode' => AgentDiscountModeEnum::class,
         'discount_type' => AgentDiscountTypeEnum::class,
         'rate' => 'decimal:2',
+        // تاسك 69: هل تُطرح تكلفة خامات السطر من قاعدة عمولته (النسبة وحدها)؟
+        'deduct_materials' => 'boolean',
     ];
 }

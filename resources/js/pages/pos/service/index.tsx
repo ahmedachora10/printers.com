@@ -140,12 +140,24 @@ const isLineUnderPriceFloor = (line: ServiceCartLine, vatPct: number): boolean =
  * The line's commission-owner share — mirrors the server formulas. Only the
  * percentage case divides VAT out of its base; a fixed or per-sqm rate is an
  * agreed SAR figure with no tax inside it to strip.
+ *
+ * تاسك 69: and only the percentage case bears the line's materials cost, when
+ * this branch's terms with the owner say so. The owner has to be passed in
+ * because that flag lives on the agent, not on the cart line — and the preview
+ * must land on the server's figure or the cashier reads 8.70 while 7.70 saves.
  */
-function lineAgentCommission(line: ServiceCartLine, vatPct: number): number {
+function lineAgentCommission(line: ServiceCartLine, vatPct: number, agents: PosAgent[]): number {
     if (!line.agentId || !line.agentCommissionType) return 0;
     switch (line.agentCommissionType) {
-        case 'percentage':
-            return round2((round2(lineTotal(line) / (1 + vatPct / 100)) * line.agentCommissionValue) / 100);
+        case 'percentage': {
+            const netBeforeVat = round2(lineTotal(line) / (1 + vatPct / 100));
+            const deducts = agents.find((a) => a.id === line.agentId)?.deductMaterials ?? false;
+            // Materials dearer than the line leave no commission, never a
+            // negative one — the same clamp the employee's base uses.
+            const base = deducts ? Math.max(0, round2(netBeforeVat - lineMaterialsTotal(line))) : netBeforeVat;
+
+            return round2((base * line.agentCommissionValue) / 100);
+        }
         case 'fixed':
             return round2(line.agentCommissionValue * line.qty);
         case 'per_sqm':
@@ -414,7 +426,10 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     );
     // Per-line commission owners' shares — informational: paid to the agents
     // later, never deducted from the customer's total.
-    const lineAgentsCommission = useMemo(() => round2(cart.reduce((sum, l) => sum + lineAgentCommission(l, vatPct), 0)), [cart, vatPct]);
+    const lineAgentsCommission = useMemo(
+        () => round2(cart.reduce((sum, l) => sum + lineAgentCommission(l, vatPct, agents), 0)),
+        [cart, vatPct, agents],
+    );
 
     function addService(s: PosService) {
         setCart((prev) => {
@@ -1360,7 +1375,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
 
                                             {!!line.agentId && (
                                                 <LineChip tone="info">
-                                                    <BadgePercent className="size-3" /> عمولة {formatCurrency(lineAgentCommission(line, vatPct))}
+                                                    <BadgePercent className="size-3" /> عمولة {formatCurrency(lineAgentCommission(line, vatPct, agents))}
                                                 </LineChip>
                                             )}
 
@@ -1553,7 +1568,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                                 />
                                                             </LineField>
                                                             <LineField label="العمولة المحتسبة">
-                                                                <LineReadout tone="info">{formatCurrency(lineAgentCommission(line, vatPct))}</LineReadout>
+                                                                <LineReadout tone="info">{formatCurrency(lineAgentCommission(line, vatPct, agents))}</LineReadout>
                                                             </LineField>
                                                         </div>
                                                     )}

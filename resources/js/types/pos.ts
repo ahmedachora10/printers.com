@@ -117,6 +117,11 @@ export interface PosAgent {
     discountMode: AgentDiscountMode | null;
     discountType: AgentDiscountType;
     rate: number;
+    /**
+     * تاسك 69: تُطرح تكلفة خامات السطر من قاعدة عمولته قبل تطبيق النسبة — كما
+     * في عمولة الموظف. لا أثر لها على العمولة بمبلغ ثابت ولا بعمولة المتر.
+     */
+    deductMaterials: boolean;
 }
 
 export interface PosPaymentMethod {

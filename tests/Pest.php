@@ -69,6 +69,8 @@ function setAgentBranchTerms(User $agent, int $branchId, array $terms): void
             'discount_mode' => $terms['discount_mode'] ?? $agent->agentProfile->discount_mode->value,
             'discount_type' => $terms['discount_type'] ?? $agent->agentProfile->discount_type->value,
             'rate' => $terms['rate'] ?? $agent->agentProfile->rate,
+            // تاسك 69: خصم خامات السطر من قاعدة عمولة النسبة. الافتراض false.
+            'deduct_materials' => $terms['deduct_materials'] ?? false,
         ],
     ]);
 

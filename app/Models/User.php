@@ -123,7 +123,7 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
     {
         return $this->belongsToMany(Branch::class, 'agent_branch', 'agent_id', 'branch_id')
             ->using(AgentBranch::class)
-            ->withPivot(['id', 'discount_mode', 'discount_type', 'rate'])
+            ->withPivot(['id', 'discount_mode', 'discount_type', 'rate', 'deduct_materials'])
             ->withTimestamps();
     }
 

@@ -49,6 +49,7 @@ class AgentResource extends JsonResource
                     'discountMode' => $branch->pivot->discount_mode?->value,
                     'discountType' => $branch->pivot->discount_type?->value,
                     'rate' => (float) $branch->pivot->rate,
+                    'deductMaterials' => (bool) $branch->pivot->deduct_materials,
                 ])
                 ->values(), []),
             'commercialRegNo' => $profile?->commercial_reg_no,

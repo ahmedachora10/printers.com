@@ -21,6 +21,7 @@ class AgentProfile extends Model
         'discount_mode',
         'discount_type',
         'rate',
+        'deduct_materials',
         'commercial_reg_no',
     ];
 
@@ -29,6 +30,7 @@ class AgentProfile extends Model
         'discount_mode' => AgentDiscountModeEnum::class,
         'discount_type' => AgentDiscountTypeEnum::class,
         'rate' => 'decimal:2',
+        'deduct_materials' => 'boolean',
     ];
 
     /** @return BelongsTo<User, $this> */

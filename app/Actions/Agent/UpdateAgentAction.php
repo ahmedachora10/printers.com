@@ -23,8 +23,8 @@ class UpdateAgentAction
             unset($data['branch_id']);
         }
 
-        $profile = Arr::only($data, ['agent_type', 'discount_mode', 'discount_type', 'rate', 'commercial_reg_no']);
-        $userData = Arr::except($data, ['agent_type', 'discount_mode', 'discount_type', 'rate', 'commercial_reg_no', 'branches']);
+        $profile = Arr::only($data, ['agent_type', 'discount_mode', 'discount_type', 'rate', 'deduct_materials', 'commercial_reg_no']);
+        $userData = Arr::except($data, ['agent_type', 'discount_mode', 'discount_type', 'rate', 'deduct_materials', 'commercial_reg_no', 'branches']);
 
         // Leave the password untouched when not provided.
         if (array_key_exists('password', $userData) && empty($userData['password'])) {

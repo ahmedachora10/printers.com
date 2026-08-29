@@ -27,6 +27,7 @@ trait SyncsAgentBranches
                     'discount_mode' => $row['discount_mode'],
                     'discount_type' => $row['discount_type'] ?? 'percentage',
                     'rate' => $row['rate'] ?? 0,
+                    'deduct_materials' => (bool) ($row['deduct_materials'] ?? false),
                 ],
             ])
             ->all();

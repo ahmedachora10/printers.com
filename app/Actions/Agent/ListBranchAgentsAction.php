@@ -37,6 +37,9 @@ class ListBranchAgentsAction
                     'discountMode' => $terms?->discount_mode?->value,
                     'discountType' => $terms?->discount_type?->value ?? AgentDiscountTypeEnum::Percentage->value,
                     'rate' => (float) ($terms?->rate ?? 0),
+                    // تاسك 69: the POS preview has to reach the same figure the
+                    // server will, or the cashier sees 8.70 and 7.70 is saved.
+                    'deductMaterials' => (bool) ($terms?->deduct_materials ?? false),
                 ];
             })
             ->values();

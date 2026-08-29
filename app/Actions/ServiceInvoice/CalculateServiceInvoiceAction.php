@@ -153,7 +153,10 @@ class CalculateServiceInvoiceAction
             }
 
             [$lineAgentId, $agentCommissionType, $agentCommissionValue, $agentCommissionAmount] =
-                $this->lineAgentCommission($line, $branchService, $lineAgents, $lineSubtotal, $qty, $widthCm, $heightCm, $vatPct);
+                $this->lineAgentCommission(
+                    $line, $branchService, $lineAgents, $lineSubtotal, $qty,
+                    $widthCm, $heightCm, $vatPct, $branchId, $materialsTotal,
+                );
 
             $subtotal += $lineSubtotal;
 
@@ -375,6 +378,9 @@ class CalculateServiceInvoiceAction
 
         return Agent::query()
             ->forBranch($branchId)
+            // Terms come along: lineAgentCommission() reads deduct_materials
+            // off them for every line (تاسك 69).
+            ->withBranchTerms($branchId)
             ->where('is_active', true)
             ->whereIn('id', $ids)
             ->get()
@@ -552,6 +558,12 @@ class CalculateServiceInvoiceAction
      * Only the percentage case divides out VAT — a fixed or per-sqm rate is an
      * agreed SAR figure with no tax inside it to strip.
      *
+     * تاسك 69: and only the percentage case can have the line's materials cost
+     * taken off its base first, when this branch's terms with the owner say so
+     * — mirroring what تاسك 7 already does to the employee's own base. A fixed
+     * or per-sqm rate is an agreed amount, not a share of a base, so there is
+     * nothing to deduct from.
+     *
      * @param  array<string, mixed>  $line
      * @param  Collection<int, Agent>  $lineAgents
      * @return array{0: ?int, 1: ?LineAgentCommissionTypeEnum, 2: ?float, 3: float}
@@ -565,6 +577,8 @@ class CalculateServiceInvoiceAction
         ?float $widthCm,
         ?float $heightCm,
         float $vatPct,
+        int $branchId,
+        float $materialsTotal,
     ): array {
         $agentId = (int) ($line['agent_id'] ?? 0);
 
@@ -607,8 +621,17 @@ class CalculateServiceInvoiceAction
 
         $lineNetBeforeVat = round($lineSubtotal / (1 + $vatPct / 100), 2);
 
+        // The employee's base and the owner's are two separate pots paid to two
+        // separate people, so charging the materials to both is not a double
+        // deduction — it is each pot bearing its own share of the same cost.
+        // The floor is zero: materials dearer than the line leave no commission,
+        // never a negative one.
+        $percentageBase = $agent->termsForBranch($branchId)?->deduct_materials
+            ? max(0.0, round($lineNetBeforeVat - $materialsTotal, 2))
+            : $lineNetBeforeVat;
+
         $amount = match ($type) {
-            LineAgentCommissionTypeEnum::Percentage => round($lineNetBeforeVat * $value / 100, 2),
+            LineAgentCommissionTypeEnum::Percentage => round($percentageBase * $value / 100, 2),
             LineAgentCommissionTypeEnum::Fixed => round($value * $qty, 2),
             LineAgentCommissionTypeEnum::PerSqm => round(
                 $qty * (($widthCm ?? 0) / 100) * (($heightCm ?? 0) / 100) * $value,

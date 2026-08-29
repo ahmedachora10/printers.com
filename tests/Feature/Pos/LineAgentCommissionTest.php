@@ -138,6 +138,115 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
             ->and((float) $invoice->invoiceAgents()->first()->line_commission_amount)->toBe(7.00);
     });
 
+    it('leaves the materials cost out of the commission base by default', function () {
+        // The client's worked example: 100 gross at 15% VAT is 86.96 net, and
+        // 10% of that is 8.70 — the figure the screenshot shows today.
+        $service = commissionService(['has_materials' => true, 'materials_cost' => 10]);
+
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $service->id,
+                'qty' => 1,
+                'unit_price' => 100,
+                'discount_pct' => 0,
+                'agent_id' => $this->agent->id,
+                'agent_commission_type' => 'percentage',
+                'agent_commission_value' => 10,
+            ]],
+        ])->assertRedirect();
+
+        $line = ServiceInvoice::firstOrFail()->lines->firstOrFail();
+
+        expect((float) $line->materials_total)->toBe(10.00)
+            ->and((float) $line->agent_commission_amount)->toBe(8.70);
+    });
+
+    it('takes the materials cost off the base when the branch terms say so', function () {
+        // Same line, same rate — but this branch deducts materials from the
+        // owner's base the way تاسك 7 already does to the employee's:
+        // (86.96 − 10) × 10% = 7.70.
+        setAgentBranchTerms($this->agent, $this->branch->id, [
+            'discount_mode' => 'rebate',
+            'rate' => 10,
+            'deduct_materials' => true,
+        ]);
+
+        $service = commissionService(['has_materials' => true, 'materials_cost' => 10]);
+
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $service->id,
+                'qty' => 1,
+                'unit_price' => 100,
+                'discount_pct' => 0,
+                'agent_id' => $this->agent->id,
+                'agent_commission_type' => 'percentage',
+                'agent_commission_value' => 10,
+            ]],
+        ])->assertRedirect();
+
+        expect((float) ServiceInvoice::firstOrFail()->lines->firstOrFail()->agent_commission_amount)->toBe(7.70);
+    });
+
+    it('leaves a fixed commission untouched by the deduction option', function () {
+        setAgentBranchTerms($this->agent, $this->branch->id, [
+            'discount_mode' => 'rebate',
+            'rate' => 10,
+            'deduct_materials' => true,
+        ]);
+
+        $service = commissionService(['has_materials' => true, 'materials_cost' => 10]);
+
+        $this->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $service->id,
+                'qty' => 3,
+                'unit_price' => 100,
+                'discount_pct' => 0,
+                'agent_id' => $this->agent->id,
+                'agent_commission_type' => 'fixed',
+                'agent_commission_value' => 7,
+            ]],
+        ])->assertRedirect();
+
+        // An agreed SAR amount per piece is not a share of a base, so there is
+        // nothing for the materials to come out of: 7 × 3 = 21.00.
+        expect((float) ServiceInvoice::firstOrFail()->lines->firstOrFail()->agent_commission_amount)->toBe(21.00);
+    });
+
+    it('floors the commission at zero when the materials cost more than the line', function () {
+        setAgentBranchTerms($this->agent, $this->branch->id, [
+            'discount_mode' => 'rebate',
+            'rate' => 10,
+            'deduct_materials' => true,
+        ]);
+
+        $service = commissionService(['has_materials' => true, 'materials_cost' => 200]);
+
+        // Raised by the branch admin: تاسك 65 bars an employee from selling
+        // below the materials cost at all, so only a manager can produce a
+        // line where the materials outrun the line's own net.
+        $this->actingAs($this->branchAdmin)->post(route('pos.service.store'), [
+            'status' => 'due',
+            'lines' => [[
+                'branch_service_id' => $service->id,
+                'qty' => 1,
+                'unit_price' => 100,
+                'discount_pct' => 0,
+                'agent_id' => $this->agent->id,
+                'agent_commission_type' => 'percentage',
+                'agent_commission_value' => 10,
+            ]],
+        ])->assertRedirect();
+
+        // 200 of materials against 86.96 net earns no commission — never a
+        // negative one.
+        expect((float) ServiceInvoice::firstOrFail()->lines->firstOrFail()->agent_commission_amount)->toBe(0.00);
+    });
+
     it('rejects a per-sqm commission on a unit-priced service', function () {
         $this->post(route('pos.service.store'), lineWithAgent([
             'agent_id' => $this->agent->id,

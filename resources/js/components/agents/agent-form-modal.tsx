@@ -1,12 +1,7 @@
 import { store, update } from '@/actions/App/Http/Controllers/AgentController';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
@@ -37,11 +32,13 @@ interface Props {
  * signature is what makes the row assignable to Inertia's FormDataConvertible.
  */
 interface BranchTermRow {
-    [key: string]: string;
+    [key: string]: string | boolean;
     branch_id: string;
     discount_mode: AgentDiscountMode;
     discount_type: AgentDiscountType;
     rate: string;
+    /** تاسك 69: خصم تكلفة الخامات من قاعدة العمولة بالنسبة في هذا الفرع. */
+    deduct_materials: boolean;
 }
 
 function blankRow(branchId?: number): BranchTermRow {
@@ -50,6 +47,7 @@ function blankRow(branchId?: number): BranchTermRow {
         discount_mode: 'discount',
         discount_type: 'percentage',
         rate: '',
+        deduct_materials: false,
     };
 }
 
@@ -60,6 +58,7 @@ function rowsFor(agent: Agent | undefined, branches: Branch[] | null | undefined
             discount_mode: b.discountMode ?? 'discount',
             discount_type: b.discountType ?? 'percentage',
             rate: b.rate?.toString() ?? '',
+            deduct_materials: b.deductMaterials ?? false,
         }));
     }
 
@@ -77,7 +76,7 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
         phone: agent?.phone ?? '',
         password: '',
         password_confirmation: '',
-        branch_id: agent?.branchId?.toString() ?? (branches?.[0]?.id?.toString() ?? ''),
+        branch_id: agent?.branchId?.toString() ?? branches?.[0]?.id?.toString() ?? '',
         is_active: agent?.isActive ?? true,
         agent_type: (agent?.agentType?.value ?? 'individual') as AgentType,
         commercial_reg_no: agent?.commercialRegNo ?? '',
@@ -94,7 +93,7 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                 phone: agent.phone ?? '',
                 password: '',
                 password_confirmation: '',
-                branch_id: agent.branchId?.toString() ?? (branches?.[0]?.id?.toString() ?? ''),
+                branch_id: agent.branchId?.toString() ?? branches?.[0]?.id?.toString() ?? '',
                 is_active: agent.isActive ?? true,
                 agent_type: (agent.agentType?.value ?? 'individual') as AgentType,
                 commercial_reg_no: agent.commercialRegNo ?? '',
@@ -119,7 +118,10 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
     }
 
     function removeRow(index: number) {
-        setData('branches', data.branches.filter((_, i) => i !== index));
+        setData(
+            'branches',
+            data.branches.filter((_, i) => i !== index),
+        );
     }
 
     function handleSubmit(e: React.FormEvent) {
@@ -132,24 +134,31 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
             discount_mode: payload.branches[0]?.discount_mode ?? 'discount',
             discount_type: payload.branches[0]?.discount_type ?? 'percentage',
             rate: payload.branches[0]?.rate ?? '0',
+            deduct_materials: payload.branches[0]?.deduct_materials ?? false,
         }));
 
         if (isEdit) {
             put(update.url(agent), {
                 preserveScroll: true,
-                onSuccess: () => { onOpenChange(false); reset(); },
+                onSuccess: () => {
+                    onOpenChange(false);
+                    reset();
+                },
             });
         } else {
             post(store.url(), {
                 preserveScroll: true,
-                onSuccess: () => { onOpenChange(false); reset(); },
+                onSuccess: () => {
+                    onOpenChange(false);
+                    reset();
+                },
             });
         }
     }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>{isEdit ? 'تعديل مندوب' : 'إضافة مندوب'}</DialogTitle>
                 </DialogHeader>
@@ -158,21 +167,13 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <Label htmlFor="agent-name">الاسم</Label>
-                            <Input
-                                id="agent-name"
-                                value={data.name}
-                                onChange={(e) => setData('name', e.target.value)}
-                                placeholder="اسم المندوب"
-                            />
+                            <Input id="agent-name" value={data.name} onChange={(e) => setData('name', e.target.value)} placeholder="اسم المندوب" />
                             <InputError message={errors.name} />
                         </div>
 
                         <div className="space-y-1">
                             <Label htmlFor="agent-type">النوع</Label>
-                            <Select
-                                value={data.agent_type}
-                                onValueChange={(val) => setData('agent_type', val as AgentType)}
-                            >
+                            <Select value={data.agent_type} onValueChange={(val) => setData('agent_type', val as AgentType)}>
                                 <SelectTrigger id="agent-type">
                                     <SelectValue placeholder="اختر النوع" />
                                 </SelectTrigger>
@@ -218,9 +219,7 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
-                            <Label htmlFor="agent-password">
-                                {isEdit ? 'كلمة المرور (اتركها فارغة لعدم التغيير)' : 'كلمة المرور'}
-                            </Label>
+                            <Label htmlFor="agent-password">{isEdit ? 'كلمة المرور (اتركها فارغة لعدم التغيير)' : 'كلمة المرور'}</Label>
                             <PasswordInput
                                 id="agent-password"
                                 value={data.password}
@@ -295,15 +294,12 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                         </div>
 
                         {data.branches.map((row, index) => (
-                            <div key={index} className="space-y-2 rounded-md border bg-muted/30 p-3">
+                            <div key={index} className="bg-muted/30 space-y-2 rounded-md border p-3">
                                 {isSuperAdmin && (
                                     <div className="flex items-end gap-2">
                                         <div className="flex-1 space-y-1">
                                             <Label htmlFor={`agent-branch-${index}`}>الفرع</Label>
-                                            <Select
-                                                value={row.branch_id}
-                                                onValueChange={(val) => updateRow(index, { branch_id: val })}
-                                            >
+                                            <Select value={row.branch_id} onValueChange={(val) => updateRow(index, { branch_id: val })}>
                                                 <SelectTrigger id={`agent-branch-${index}`}>
                                                     <SelectValue placeholder="اختر الفرع" />
                                                 </SelectTrigger>
@@ -324,7 +320,7 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                                                 onClick={() => removeRow(index)}
                                                 aria-label="إزالة الفرع"
                                             >
-                                                <Trash2 className="size-4 text-destructive" />
+                                                <Trash2 className="text-destructive size-4" />
                                             </Button>
                                         )}
                                     </div>
@@ -384,6 +380,24 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
                                         />
                                     </div>
                                 </div>
+                                {/* تاسك 69: the owner's percentage can bear the line's
+                                    materials cost the way the employee's already does. */}
+                                <label className="bg-background flex cursor-pointer items-start gap-2 rounded-md border p-2.5">
+                                    <Checkbox
+                                        id={`agent-deduct-materials-${index}`}
+                                        checked={row.deduct_materials}
+                                        onCheckedChange={(checked) => updateRow(index, { deduct_materials: checked === true })}
+                                        className="mt-0.5"
+                                    />
+                                    <span className="space-y-0.5">
+                                        <span className="block text-sm font-medium">يتم خصم الخامات من العمولة</span>
+                                        <span className="text-muted-foreground block text-xs">
+                                            تُطرح تكلفة خامات السطر من قاعدة العمولة قبل تطبيق النسبة — كما في عمولة الموظف. لا أثر لها على العمولة
+                                            بمبلغ ثابت أو بعمولة المتر.
+                                        </span>
+                                    </span>
+                                </label>
+
                                 <InputError message={errors[`branches.${index}.rate` as keyof typeof errors]} />
                                 <InputError message={errors[`branches.${index}.discount_mode` as keyof typeof errors]} />
                             </div>
@@ -395,21 +409,12 @@ export default function AgentFormModal({ open, onOpenChange, agent, agentTypes, 
 
                     <div className="flex items-center justify-between rounded-lg border px-4 py-3">
                         <Label htmlFor="agent-active">المندوب نشط</Label>
-                        <Switch
-                            id="agent-active"
-                            checked={data.is_active}
-                            onCheckedChange={(val) => setData('is_active', val)}
-                        />
+                        <Switch id="agent-active" checked={data.is_active} onCheckedChange={(val) => setData('is_active', val)} />
                     </div>
                 </form>
 
                 <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={processing}
-                    >
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={processing}>
                         إلغاء
                     </Button>
                     <Button type="submit" form="agent-form" disabled={processing}>

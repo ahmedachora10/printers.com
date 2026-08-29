@@ -13,6 +13,8 @@ export interface AgentBranchTerms {
     discountMode: AgentDiscountMode | null;
     discountType: AgentDiscountType | null;
     rate: number;
+    /** تاسك 69: طرح تكلفة خامات السطر من قاعدة العمولة بالنسبة. */
+    deductMaterials: boolean;
 }
 
 export interface Agent {
