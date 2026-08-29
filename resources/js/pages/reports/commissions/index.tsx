@@ -41,8 +41,8 @@ interface Props {
 const dayColumns: ColumnDef<CommissionReportDayRow>[] = [
     { key: 'date', header: 'التاريخ', className: 'font-medium', cell: (row) => formatDate(row.date) },
     { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
-    { key: 'earned', header: 'إجمالي العمولة', cell: (row) => formatCurrency(row.earned) },
-    { key: 'lineCommission', header: 'العمولات', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
+    { key: 'earned', header: 'عمولات الموظفين', cell: (row) => formatCurrency(row.earned) },
+    { key: 'lineCommission', header: 'عمولات خارجية', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
     { key: 'materials', header: 'تكلفة الخامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.materials) },
     { key: 'paid', header: 'المصروف', className: 'text-green-600', cell: (row) => formatCurrency(row.paid) },
     { key: 'pending', header: 'المستحق', className: 'text-amber-600', cell: (row) => formatCurrency(row.pending) },
@@ -53,8 +53,8 @@ const REPORT_URL = '/reports/commissions';
 const summaryColumns: ColumnDef<CommissionReportSummaryRow>[] = [
     { key: 'userName', header: 'الموظف', className: 'font-medium', cell: (row) => row.userName },
     { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
-    { key: 'earned', header: 'إجمالي العمولة', cell: (row) => formatCurrency(row.earned) },
-    { key: 'lineCommission', header: 'العمولات', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
+    { key: 'earned', header: 'عمولات الموظفين', cell: (row) => formatCurrency(row.earned) },
+    { key: 'lineCommission', header: 'عمولات خارجية', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
     { key: 'materials', header: 'تكلفة الخامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.materials) },
     { key: 'paid', header: 'المصروف', className: 'text-green-600', cell: (row) => formatCurrency(row.paid) },
     {
@@ -95,7 +95,7 @@ const detailColumns: ColumnDef<CommissionReportLine>[] = [
     { key: 'amount', header: 'المبلغ', cell: (line) => formatCurrency(line.amount) },
     {
         key: 'lineCommission',
-        header: 'العمولات',
+        header: 'عمولات خارجية',
         className: 'text-sky-600',
         cell: (line) => (line.lineCommission > 0 ? formatCurrency(line.lineCommission) : <span className="text-muted-foreground">—</span>),
     },
@@ -215,7 +215,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                     six readable cards — at lg the content column is ~712px and the
                     currency figures overflow their tracks. */}
                 <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
-                    <SummaryCard icon={<TrendingUp className="size-4" />} label="إجمالي العمولات" value={formatCurrency(totals.earned)} />
+                    <SummaryCard icon={<TrendingUp className="size-4" />} label="عمولات الموظفين" value={formatCurrency(totals.earned)} />
                     <SummaryCard
                         icon={<Banknote className="size-4" />}
                         label="المصروف"
@@ -230,7 +230,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                     />
                     <SummaryCard
                         icon={<Handshake className="size-4" />}
-                        label="العمولات (المناديب)"
+                        label="عمولات خارجية"
                         value={formatCurrency(totals.lineCommission)}
                         valueClass="text-sky-600"
                     />
