@@ -16,6 +16,7 @@ import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters'
 import AppLayout from '@/layouts/app-layout';
 import { formatLineSize, formatLineUnitPrice } from '@/lib/invoice';
 import { formatCurrency, formatQty } from '@/lib/utils';
+import posService from '@/routes/pos/service';
 import serviceInvoice from '@/routes/invoices/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -361,6 +362,21 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                                                     }}
                                                 >
                                                     <Wallet className="size-4" />
+                                                </Button>
+                                                {/* تاسك 70: تصحيح الفاتورة — وتكلفة الخامات خاصّةً —
+                                                    قبل الاعتماد؛ فبعده يُقفل التحرير. */}
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="icon"
+                                                    aria-label="تعديل الفاتورة"
+                                                    title="تعديل الفاتورة قبل الاعتماد"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        router.get(posService.edit(invoice.id).url);
+                                                    }}
+                                                >
+                                                    <Pencil className="size-4" />
                                                 </Button>
                                                 <Button
                                                     type="button"

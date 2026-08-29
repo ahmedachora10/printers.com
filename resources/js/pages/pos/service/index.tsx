@@ -29,7 +29,7 @@ import {
     type ServiceCartLine,
 } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { AlertTriangle, Award, BadgePercent, CalendarClock, Package, Paperclip, Printer, Ruler, Save, Search, StickyNote, Tag, X } from 'lucide-react';
+import { AlertTriangle, Award, BadgePercent, CalendarClock, Info, Package, Paperclip, Printer, Ruler, Save, Search, StickyNote, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -759,6 +759,20 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             <Head title={isEditing ? `تعديل فاتورة ${invoice!.invoiceNumber}` : 'نقطة البيع — فاتورة خدمة'} />
             <Toaster position="top-center" richColors />
 
+            {/* تاسك 70: مراجعٌ يصحّح فاتورة موظف قبل اعتمادها — يُقال له صراحةً
+                إنّ الفاتورة ليست له وإنّ التعديل مُسجّل. */}
+            {isEditing && invoice!.isOwn === false && (
+                <div className="px-4 pt-4">
+                    <div className="flex items-start gap-2 rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-sm text-sky-700 dark:text-sky-400">
+                        <Info className="mt-0.5 size-4 shrink-0" />
+                        <span>
+                            تعدّل فاتورة الموظف <span className="font-semibold">{invoice!.employeeName ?? '—'}</span> — تبقى الفاتورة معلّقة بعد
+                            الحفظ، وعمولتها تُحتسب له هو، ويُسجَّل التعديل في سجلّ النشاط.
+                        </span>
+                    </div>
+                </div>
+            )}
+
             {/* pb-24 below lg clears the fixed total bar at the bottom. */}
             <div className="grid gap-4 p-4 pb-24 lg:grid-cols-3 lg:pb-4">
                 {/* Sidebar — customer, status, coupon, totals, payment, actions.
@@ -842,9 +856,19 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                             <CardTitle className="text-base">حالة الفاتورة</CardTitle>
                         </CardHeader>
                         <CardContent>
-                            {isEmployee ? (
+                            {/* التعديل لا يعتمد: الفاتورة تبقى معلّقة حتّى تُعتمد من طابور
+                                المراجعة — فلا يُعرض مفتاحٌ لا يُرسَل أصلاً. */}
+                            {isEmployee || isEditing ? (
                                 <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
-                                    تُحفظ الفاتورة كـ <span className="font-semibold">معلقة</span> ليراجعها المحاسب ويعتمد الدفع.
+                                    {isEditing ? (
+                                        <>
+                                            تبقى الفاتورة <span className="font-semibold">معلقة</span> بعد التعديل — تُعتمد من طابور المراجعة.
+                                        </>
+                                    ) : (
+                                        <>
+                                            تُحفظ الفاتورة كـ <span className="font-semibold">معلقة</span> ليراجعها المحاسب ويعتمد الدفع.
+                                        </>
+                                    )}
                                 </div>
                             ) : (
                                 <div className="grid grid-cols-2 gap-2">

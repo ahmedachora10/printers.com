@@ -179,11 +179,19 @@ Route::middleware(['auth'])->group(function () {
             Route::get('service', [ServiceInvoiceController::class, 'create'])->name('service.create');
             Route::post('service', [ServiceInvoiceController::class, 'store'])->name('service.store');
             Route::get('service/{invoice}/print', [ServiceInvoiceController::class, 'print'])->name('service.print');
-            // Owner-employee edit (DUE only) and return (DUE or PAID) — authorized
-            // per-invoice by ServiceInvoicePolicy, never by an accountant.
+            // Return (DUE or PAID) is the owning employee's alone — an accountant
+            // cancels or refunds instead — and ServiceInvoicePolicy says so per invoice.
+            Route::post('service/{invoice}/return', [ServiceInvoiceController::class, 'returnInvoice'])->name('service.return');
+        });
+    });
+
+    // تاسك 70: تعديل فاتورة خدمة معلّقة — صاحبُها الموظف، أو مراجعٌ في فرعها
+    // (مدير الفرع أو المحاسب) يصحّح تكلفة الخامات قبل الاعتماد. الميدلوير يفتح الباب
+    // للأدوار الأربعة، والصلاحية النهائية تبقى لـServiceInvoicePolicy::update لا له.
+    Route::middleware('role:branch-admin|super-admin|employee|accountant')->group(function () {
+        Route::prefix('pos')->name('pos.')->group(function () {
             Route::get('service/{invoice}/edit', [ServiceInvoiceController::class, 'edit'])->name('service.edit');
             Route::put('service/{invoice}', [ServiceInvoiceController::class, 'update'])->name('service.update');
-            Route::post('service/{invoice}/return', [ServiceInvoiceController::class, 'returnInvoice'])->name('service.return');
         });
     });
 
