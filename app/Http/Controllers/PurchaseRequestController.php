@@ -8,6 +8,7 @@ use App\Actions\PurchaseRequest\CreatePurchaseRequestAction;
 use App\Actions\PurchaseRequest\RejectPurchaseRequestAction;
 use App\Enums\PurchaseRequestStatusEnum;
 use App\Enums\Roles;
+use App\Http\Requests\PurchaseRequest\ApprovePurchaseRequestRequest;
 use App\Http\Requests\PurchaseRequest\ConvertPurchaseRequestRequest;
 use App\Http\Requests\PurchaseRequest\RejectPurchaseRequestRequest;
 use App\Http\Requests\PurchaseRequest\StorePurchaseRequestRequest;
@@ -79,15 +80,16 @@ class PurchaseRequestController extends Controller
         return to_route('purchase-requests.index')->with('success', 'تم إرسال طلب الشراء بنجاح');
     }
 
-    public function approve(PurchaseRequest $purchaseRequest, ApprovePurchaseRequestAction $action): RedirectResponse
+    public function approve(ApprovePurchaseRequestRequest $request, PurchaseRequest $purchaseRequest, ApprovePurchaseRequestAction $action): RedirectResponse
     {
         Gate::authorize('decide', $purchaseRequest);
 
-        $action->handle($purchaseRequest);
+        $action->handle($purchaseRequest, $request->linesById());
 
         $this->notifyRequester($purchaseRequest);
 
-        return back(fallback: route('purchase-requests.index'))->with('success', 'تم اعتماد طلب الشراء');
+        return back(fallback: route('purchase-requests.index'))
+            ->with('success', 'تم اعتماد طلب الشراء وتغذية المخزون بأصنافه');
     }
 
     public function reject(RejectPurchaseRequestRequest $request, PurchaseRequest $purchaseRequest, RejectPurchaseRequestAction $action): RedirectResponse

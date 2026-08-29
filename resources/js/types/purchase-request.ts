@@ -23,6 +23,8 @@ export interface PurchaseRequest {
     notes: string | null;
     decidedByName?: string | null;
     decidedAt: string | null;
+    /** Set when approval fed the stock — such a request never converts (تاسك 68). */
+    stockFedAt: string | null;
     decisionReason: string | null;
     purchaseOrderId: number | null;
     purchaseOrderNumber?: string | null;

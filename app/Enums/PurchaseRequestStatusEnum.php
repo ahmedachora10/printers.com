@@ -25,7 +25,11 @@ enum PurchaseRequestStatusEnum: string
         return $this === self::PENDING;
     }
 
-    /** Only an approved request may become a purchase order, and only once. */
+    /**
+     * Only an approved request may become a purchase order, and only once.
+     * The status alone is not the whole answer since تاسك 68 — see
+     * PurchaseRequest::canConvert(), which also refuses an already-fed request.
+     */
     public function canConvert(): bool
     {
         return $this === self::APPROVED;

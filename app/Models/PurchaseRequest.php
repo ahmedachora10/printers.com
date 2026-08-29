@@ -31,12 +31,14 @@ class PurchaseRequest extends Model
         'decided_by',
         'decided_at',
         'decision_reason',
+        'stock_fed_at',
         'purchase_order_id',
     ];
 
     protected $casts = [
         'status' => PurchaseRequestStatusEnum::class,
         'decided_at' => 'datetime',
+        'stock_fed_at' => 'datetime',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -72,6 +74,17 @@ class PurchaseRequest extends Model
     public function lines(): HasMany
     {
         return $this->hasMany(PurchaseRequestLine::class, 'request_id');
+    }
+
+    /**
+     * تاسك 68: a request whose approval already fed the stock never walks the
+     * purchase-order path as well — the same quantity would land in the
+     * insert-only ledger twice, and no row there can be taken back. Requests
+     * approved before that change carry no seal, so they still convert.
+     */
+    public function canConvert(): bool
+    {
+        return $this->status->canConvert() && $this->stock_fed_at === null;
     }
 
     /** Estimated total of the request (lines with no estimate count as zero). */

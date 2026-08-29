@@ -28,6 +28,15 @@ class ConvertToPurchaseOrderAction
             ]);
         }
 
+        // تاسك 68: approval already wrote the purchase_in movements. Receiving
+        // a purchase order on top would double the quantity in an insert-only
+        // ledger, so the two paths are mutually exclusive.
+        if ($request->stock_fed_at !== null) {
+            throw ValidationException::withMessages([
+                'status' => 'غُذّي المخزون بهذا الطلب عند اعتماده، فلا يُحوَّل إلى أمر شراء حتى لا تُحتسب الكمية مرّتين.',
+            ]);
+        }
+
         $request->load('lines.product');
 
         // A purchase order can only carry catalogued products; free-text items

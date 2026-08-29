@@ -25,6 +25,7 @@ class PurchaseRequestResource extends JsonResource
             'notes' => $this->notes,
             'decidedByName' => $this->whenLoaded('decidedBy', fn () => $this->decidedBy?->name),
             'decidedAt' => $this->decided_at?->format('d/m/Y'),
+            'stockFedAt' => $this->stock_fed_at?->format('d/m/Y'),
             'decisionReason' => $this->decision_reason,
             'purchaseOrderId' => $this->purchase_order_id,
             'purchaseOrderNumber' => $this->whenLoaded('purchaseOrder', fn () => $this->purchaseOrder?->po_number),
@@ -35,7 +36,9 @@ class PurchaseRequestResource extends JsonResource
             // The branch admin only gets the decide/convert buttons on rows
             // they are actually allowed to act on.
             'canDecide' => $this->status->canDecide() && Gate::allows('decide', $this->resource),
-            'canConvert' => $this->status->canConvert() && Gate::allows('convert', $this->resource),
+            // The model — not the status alone — decides: a request whose
+            // approval fed the stock is closed to conversion (تاسك 68).
+            'canConvert' => $this->canConvert() && Gate::allows('convert', $this->resource),
         ];
     }
 }

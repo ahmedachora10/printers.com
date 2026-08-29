@@ -3,12 +3,14 @@
 use App\Enums\PurchaseOrderStatusEnum;
 use App\Enums\PurchaseRequestStatusEnum;
 use App\Enums\Roles;
+use App\Enums\StockMovementTypeEnum;
 use App\Models\Branch;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductUnit;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
+use App\Models\StockMovement;
 use App\Models\Supplier;
 use App\Models\User;
 use App\Notifications\PurchaseRequestDecidedNotification;
@@ -50,6 +52,20 @@ describe('Internal purchase requests', function () {
         test()->post(route('purchase-requests.store'), ['lines' => $lines])->assertRedirect();
 
         return PurchaseRequest::latest('id')->first();
+    };
+
+    /**
+     * تاسك 68: approval settles each line — its inventory product and its unit
+     * cost — because it writes a stock movement per line. Unless a test says
+     * otherwise, every line keeps the product and estimate it was raised with,
+     * and a free-text line falls back to the branch's default product.
+     */
+    $approvalPayload = function (PurchaseRequest $request, array $overrides = []): array {
+        return ['lines' => $request->lines->map(fn ($line) => [
+            'id' => $line->id,
+            'product_id' => $overrides[$line->id]['product_id'] ?? $line->product_id ?? test()->product->id,
+            'unit_cost' => $overrides[$line->id]['unit_cost'] ?? (float) ($line->estimated_unit_cost ?? 0),
+        ])->all()];
     };
 
     it('lets an employee raise a request for their own branch and notifies the branch admin and accountant', function () use ($submit) {
@@ -103,13 +119,13 @@ describe('Internal purchase requests', function () {
         $this->patch(route('purchase-requests.reject', $request), ['decision_reason' => 'لا'])->assertForbidden();
     });
 
-    it('lets the branch admin approve a request and notifies the requester', function () use ($submit) {
+    it('lets the branch admin approve a request and notifies the requester', function () use ($submit, $approvalPayload) {
         $this->actingAs($this->employee);
         $request = $submit();
 
         Notification::fake();
         $this->actingAs($this->admin)
-            ->patch(route('purchase-requests.approve', $request))
+            ->patch(route('purchase-requests.approve', $request), $approvalPayload($request))
             ->assertRedirect();
 
         $request->refresh();
@@ -120,7 +136,117 @@ describe('Internal purchase requests', function () {
         Notification::assertSentTo($this->employee, PurchaseRequestDecidedNotification::class);
     });
 
-    it('requires a reason to reject and refuses a second decision', function () use ($submit) {
+    it('feeds the branch stock with one movement per line at the cost the approver settled', function () use ($submit, $approvalPayload) {
+        $sqmProduct = Product::factory()->create([
+            'branch_id' => $this->branch->id,
+            'category_id' => ProductCategory::factory(),
+            'unit_id' => ProductUnit::factory(),
+            'is_sqm' => true,
+            'current_stock' => 0,
+        ]);
+
+        $this->actingAs($this->employee);
+        $request = $submit([
+            ['product_id' => $this->product->id, 'qty' => 3, 'estimated_unit_cost' => 10],
+            // A free-text line the approver links to a product on the spot.
+            ['item_name' => 'فينيل بالمتر', 'qty' => 7.1, 'is_sqm' => true],
+        ]);
+
+        $freeLine = $request->lines->last();
+
+        $this->actingAs($this->admin)
+            ->patch(route('purchase-requests.approve', $request), $approvalPayload($request, [
+                // The approver overrides the estimate the requester typed.
+                $request->lines->first()->id => ['product_id' => $this->product->id, 'unit_cost' => 14.5],
+                $freeLine->id => ['product_id' => $sqmProduct->id, 'unit_cost' => 30],
+            ]))
+            ->assertRedirect();
+
+        $request->refresh();
+        expect($request->stock_fed_at)->not->toBeNull();
+
+        $movements = StockMovement::where('reference_type', PurchaseRequest::class)
+            ->where('reference_id', $request->id)
+            ->get();
+
+        expect($movements)->toHaveCount(2);
+        expect($movements->every(fn ($m) => $m->type === StockMovementTypeEnum::PURCHASE_IN))->toBeTrue();
+
+        expect($this->product->refresh()->current_stock)->toEqual(3);
+        // The decimal quantity survives all the way into the ledger.
+        expect($sqmProduct->refresh()->current_stock)->toEqual(7.10);
+
+        expect((float) $movements->firstWhere('product_id', $this->product->id)->unit_cost)->toBe(14.5);
+        expect((float) $movements->firstWhere('product_id', $sqmProduct->id)->unit_cost)->toBe(30.0);
+
+        // The settled line now carries the approver's product, name and cost.
+        $freeLine->refresh();
+        expect($freeLine->product_id)->toBe($sqmProduct->id);
+        expect($freeLine->item_name)->toBe($sqmProduct->name);
+        expect($freeLine->is_sqm)->toBeTrue();
+        expect((float) $freeLine->estimated_unit_cost)->toBe(30.0);
+    });
+
+    it('refuses to approve a line with no product or no cost, and writes no movement', function () use ($submit) {
+        $this->actingAs($this->employee);
+        $request = $submit([['item_name' => 'حبر خاص', 'qty' => 2]]);
+        $line = $request->lines->first();
+
+        $this->actingAs($this->admin);
+
+        $this->patch(route('purchase-requests.approve', $request), [
+            'lines' => [['id' => $line->id, 'unit_cost' => 5]],
+        ])->assertSessionHasErrors('lines.0.product_id');
+
+        $this->patch(route('purchase-requests.approve', $request), [
+            'lines' => [['id' => $line->id, 'product_id' => $this->product->id]],
+        ])->assertSessionHasErrors('lines.0.unit_cost');
+
+        expect($request->refresh()->status)->toBe(PurchaseRequestStatusEnum::PENDING);
+        expect(StockMovement::count())->toBe(0);
+    });
+
+    it('refuses to feed a line with a product from another branch', function () use ($submit) {
+        $otherProduct = Product::factory()->create([
+            'branch_id' => Branch::factory()->create()->id,
+            'category_id' => ProductCategory::factory(),
+            'unit_id' => ProductUnit::factory(),
+        ]);
+
+        $this->actingAs($this->employee);
+        $request = $submit();
+
+        $this->actingAs($this->admin)
+            ->patch(route('purchase-requests.approve', $request), [
+                'lines' => [['id' => $request->lines->first()->id, 'product_id' => $otherProduct->id, 'unit_cost' => 5]],
+            ])
+            ->assertSessionHasErrors('lines.0.product_id');
+
+        expect(StockMovement::count())->toBe(0);
+    });
+
+    it('never lets an approved request feed the stock twice', function () use ($submit, $approvalPayload) {
+        $this->actingAs($this->employee);
+        $request = $submit([['product_id' => $this->product->id, 'qty' => 4, 'estimated_unit_cost' => 10]]);
+
+        $this->actingAs($this->admin);
+        $payload = $approvalPayload($request);
+
+        $this->patch(route('purchase-requests.approve', $request), $payload)->assertRedirect();
+        // A second decision is refused, so the ledger keeps a single movement.
+        $this->patch(route('purchase-requests.approve', $request), $payload)->assertSessionHasErrors('status');
+
+        expect(StockMovement::count())->toBe(1);
+        expect($this->product->refresh()->current_stock)->toEqual(4);
+
+        // And the old purchase-order path is closed on a fed request, so the
+        // quantity can never arrive a second time through receiving.
+        expect($request->refresh()->canConvert())->toBeFalse();
+        $this->post(route('purchase-requests.convert', $request))->assertSessionHasErrors('status');
+        expect(PurchaseOrder::count())->toBe(0);
+    });
+
+    it('requires a reason to reject and refuses a second decision', function () use ($submit, $approvalPayload) {
         $this->actingAs($this->employee);
         $request = $submit();
 
@@ -137,12 +263,14 @@ describe('Internal purchase requests', function () {
         expect($request->status)->toBe(PurchaseRequestStatusEnum::REJECTED);
         expect($request->decision_reason)->toBe('الميزانية مستنفدة');
 
-        // The decision is final: approving a rejected request is rejected too.
-        $this->patch(route('purchase-requests.approve', $request))->assertSessionHasErrors('status');
+        // The decision is final: approving a rejected request is rejected too,
+        // even with a payload that would otherwise be perfectly valid.
+        $this->patch(route('purchase-requests.approve', $request), $approvalPayload($request))
+            ->assertSessionHasErrors('status');
         expect($request->refresh()->status)->toBe(PurchaseRequestStatusEnum::REJECTED);
     });
 
-    it('converts an approved request into exactly one draft purchase order', function () use ($submit) {
+    it('converts a legacy approved request into exactly one draft purchase order', function () use ($submit) {
         $this->actingAs($this->employee);
         $request = $submit([
             ['product_id' => $this->product->id, 'qty' => 7, 'estimated_unit_cost' => 10],
@@ -152,9 +280,16 @@ describe('Internal purchase requests', function () {
 
         $supplier = Supplier::factory()->create(['branch_id' => $this->branch->id]);
 
-        $this->actingAs($this->admin)->patch(route('purchase-requests.approve', $request))->assertRedirect();
+        // Approved before تاسك 68: no seal, no movements, its free-text line
+        // never linked. Only such a request still converts.
+        $request->update([
+            'status' => PurchaseRequestStatusEnum::APPROVED,
+            'decided_by' => $this->admin->id,
+            'decided_at' => now(),
+        ]);
 
-        $this->post(route('purchase-requests.convert', $request), ['supplier_id' => $supplier->id])
+        $this->actingAs($this->admin)
+            ->post(route('purchase-requests.convert', $request), ['supplier_id' => $supplier->id])
             ->assertRedirect();
 
         $request->refresh();
@@ -168,21 +303,25 @@ describe('Internal purchase requests', function () {
         expect($po->lines)->toHaveCount(1);
         expect($po->lines->first()->ordered_qty)->toEqual(7);
         expect((float) $po->lines->first()->subtotal)->toBe(70.0);
-        // Receiving stays in M29 — conversion writes no stock movement.
-        expect($this->product->refresh()->current_stock)->toEqual(0);
+        // Receiving stays in M29 — conversion itself writes no stock movement,
+        // so the product only carries what approval fed it.
+        expect(StockMovement::where('reference_type', PurchaseOrder::class)->count())->toBe(0);
 
         // Converting again is refused, so no second purchase order is created.
         $this->post(route('purchase-requests.convert', $request))->assertSessionHasErrors('status');
         expect(PurchaseOrder::count())->toBe(1);
     });
 
-    it('refuses to convert a request that has no catalogued items', function () use ($submit) {
+    it('refuses to convert a legacy approved request that has no catalogued items', function () use ($submit) {
         $this->actingAs($this->accountant);
         $request = $submit([['item_name' => 'حبر خاص', 'qty' => 1]]);
 
-        $this->actingAs($this->admin)->patch(route('purchase-requests.approve', $request))->assertRedirect();
+        // Approved before تاسك 68 — approved, unlinked and unfed.
+        $request->update(['status' => PurchaseRequestStatusEnum::APPROVED, 'decided_by' => $this->admin->id, 'decided_at' => now()]);
 
-        $this->post(route('purchase-requests.convert', $request))->assertSessionHasErrors('lines');
+        $this->actingAs($this->admin)
+            ->post(route('purchase-requests.convert', $request))
+            ->assertSessionHasErrors('lines');
 
         expect($request->refresh()->status)->toBe(PurchaseRequestStatusEnum::APPROVED);
         expect(PurchaseOrder::count())->toBe(0);
@@ -211,7 +350,7 @@ describe('Internal purchase requests', function () {
         expect(PurchaseRequest::count())->toBe(0);
     });
 
-    it('takes the quantity in the unit the product is defined with and keeps its decimals', function () use ($submit) {
+    it('takes the quantity in the unit the product is defined with and keeps its decimals', function () use ($submit, $approvalPayload) {
         $sqmProduct = Product::factory()->create([
             'branch_id' => $this->branch->id,
             'category_id' => ProductCategory::factory(),
@@ -242,7 +381,11 @@ describe('Internal purchase requests', function () {
 
         // A purchase order has accepted decimals since تاسك 51, so conversion
         // passes the quantity straight through.
-        $this->actingAs($this->admin)->patch(route('purchase-requests.approve', $request))->assertRedirect();
+        $this->actingAs($this->admin)
+            ->patch(route('purchase-requests.approve', $request), $approvalPayload($request))
+            ->assertRedirect();
+
+        $request->refresh()->update(['stock_fed_at' => null]);
         $this->post(route('purchase-requests.convert', $request))->assertRedirect();
 
         expect(PurchaseOrder::latest('id')->first()->lines->firstWhere('product_id', $sqmProduct->id)->ordered_qty)

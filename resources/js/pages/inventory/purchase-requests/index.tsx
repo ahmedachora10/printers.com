@@ -181,7 +181,7 @@ export default function PurchaseRequestsIndex({ items, products, suppliers, bran
 
             <PrFormModal open={formOpen} onOpenChange={setFormOpen} products={products} branches={branches} />
 
-            <PrDetailModal request={selected} onOpenChange={() => setSelected(null)} suppliers={suppliers} />
+            <PrDetailModal request={selected} onOpenChange={() => setSelected(null)} suppliers={suppliers} products={products} />
         </AppLayout>
     );
 }

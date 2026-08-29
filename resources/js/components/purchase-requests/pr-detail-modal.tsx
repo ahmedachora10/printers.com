@@ -7,15 +7,26 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/utils';
 import purchaseRequests from '@/routes/purchase-requests';
-import { PR_STATUS_BADGE, type PrSupplierOption, type PurchaseRequest } from '@/types/purchase-request';
+import { PR_STATUS_BADGE, type PrProductOption, type PrSupplierOption, type PurchaseRequest } from '@/types/purchase-request';
 import { useForm } from '@inertiajs/react';
-import { Check, ShoppingCart, X } from 'lucide-react';
-import { useState } from 'react';
+import { Check, PackagePlus, ShoppingCart, X } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface Props {
     request: PurchaseRequest | null;
     onOpenChange: (open: boolean) => void;
     suppliers: PrSupplierOption[];
+    /** تاسك 68: the approver links each line to an inventory product. */
+    products: PrProductOption[];
+}
+
+/** What the approver settles per line before the stock is fed. */
+interface SettledLine {
+    // Indexed so the shape stays assignable to useForm's FormDataType.
+    [key: string]: string | number;
+    id: number;
+    product_id: string;
+    unit_cost: string;
 }
 
 type Panel = 'none' | 'reject' | 'convert';
@@ -24,12 +35,28 @@ type Panel = 'none' | 'reject' | 'convert';
 const unitLabel = (isSqm: boolean) => (isSqm ? 'م²' : 'قطعة');
 const formatQty = (qty: number) => (Number.isInteger(qty) ? qty.toString() : qty.toFixed(2));
 
-export default function PrDetailModal({ request, onOpenChange, suppliers }: Props) {
+export default function PrDetailModal({ request, onOpenChange, suppliers, products }: Props) {
     const [panel, setPanel] = useState<Panel>('none');
 
-    const approveForm = useForm({});
+    const approveForm = useForm<{ lines: SettledLine[] }>({ lines: [] });
+
     const rejectForm = useForm({ decision_reason: '' });
     const convertForm = useForm({ supplier_id: '', order_date: new Date().toISOString().slice(0, 10), expected_delivery: '' });
+
+    // تاسك 68: approving writes one purchase_in movement per line, so the
+    // approver first settles what each line is and what it costs. A line the
+    // requester left free-text starts empty and has to be linked by hand.
+    const { setData: setApproveData } = approveForm;
+    useEffect(() => {
+        setApproveData(
+            'lines',
+            (request?.lines ?? []).map((line) => ({
+                id: line.id,
+                product_id: line.productId?.toString() ?? '',
+                unit_cost: (line.estimatedUnitCost ?? '').toString(),
+            })),
+        );
+    }, [request, setApproveData]);
 
     const close = () => {
         setPanel('none');
@@ -41,7 +68,28 @@ export default function PrDetailModal({ request, onOpenChange, suppliers }: Prop
     if (!request) return null;
 
     const branchSuppliers = suppliers.filter((s) => s.branchId === request.branchId);
+    // The decision dialog is a read-only record everywhere except here: while
+    // the request is still pending and this user is the one who decides.
+    const editable = request.canDecide && panel === 'none';
     const processing = approveForm.processing || rejectForm.processing || convertForm.processing;
+
+    // `status` is not one of the form's fields — it is the guard the action
+    // raises when a decision has already been taken — so the map is widened.
+    const approveErrors = approveForm.errors as Record<string, string | undefined>;
+
+    const settled = approveForm.data.lines;
+    const setSettled = (id: number, key: 'product_id' | 'unit_cost', value: string) =>
+        approveForm.setData(
+            'lines',
+            settled.map((line) => (line.id === id ? { ...line, [key]: value } : line)),
+        );
+
+    // Every line needs a product and a cost: a movement cannot be written
+    // against a name, and the ledger records the cost that comes with it.
+    const readyToApprove =
+        settled.length > 0 && settled.length === (request.lines?.length ?? 0) && settled.every((l) => l.product_id !== '' && l.unit_cost !== '');
+
+    const branchProducts = products.filter((p) => p.branchId === request.branchId);
 
     const approve = () => approveForm.patch(purchaseRequests.approve(request.id).url, { onSuccess: close, preserveScroll: true });
 
@@ -122,6 +170,32 @@ export default function PrDetailModal({ request, onOpenChange, suppliers }: Prop
                         </div>
                     )}
 
+                    {editable && (
+                        <div className="flex gap-2 rounded-md border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100">
+                            <PackagePlus className="mt-0.5 size-4 shrink-0" />
+                            <div>
+                                <p className="font-medium">الاعتماد يغذّي المخزون مباشرة</p>
+                                <p className="text-xs">
+                                    اربط كل صنف بمنتج في المخزون واضبط تكلفة وحدته، فتُسجَّل بها حركة إدخال لا تُعدَّل ولا تُحذف بعد كتابتها. ولن
+                                    يُحوَّل الطلب بعدها إلى أمر شراء حتى لا تُحتسب الكمية مرّتين.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
+                    {request.stockFedAt && (
+                        <div className="flex gap-2 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-900 dark:border-green-900 dark:bg-green-950/40 dark:text-green-100">
+                            <PackagePlus className="mt-0.5 size-4 shrink-0" />
+                            <div>
+                                <p className="font-medium">غُذّي المخزون بأصناف هذا الطلب</p>
+                                <p className="text-xs">
+                                    دخلت الكميات إلى المخزون يوم {request.stockFedAt} عند الاعتماد، فلا يُحوَّل الطلب إلى أمر شراء — أوامر الشراء تبقى
+                                    لما يُشترى من مورّد بفاتورة.
+                                </p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="overflow-x-auto rounded-md border">
                         <table className="w-full text-sm">
                             <thead className="bg-muted/50 text-muted-foreground text-xs">
@@ -143,6 +217,25 @@ export default function PrDetailModal({ request, onOpenChange, suppliers }: Prop
                                                 </Badge>
                                             )}
                                             {line.notes && <p className="text-muted-foreground mt-0.5 text-xs">{line.notes}</p>}
+                                            {editable && (
+                                                <div className="mt-1.5 max-w-64">
+                                                    <Select
+                                                        value={settled.find((l) => l.id === line.id)?.product_id ?? ''}
+                                                        onValueChange={(val) => setSettled(line.id, 'product_id', val)}
+                                                    >
+                                                        <SelectTrigger className="h-8 text-xs">
+                                                            <SelectValue placeholder="اربط بمنتج في المخزون" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            {branchProducts.map((product) => (
+                                                                <SelectItem key={product.id} value={product.id.toString()}>
+                                                                    {product.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            )}
                                         </td>
                                         <td dir="ltr" className="p-2 text-right tabular-nums">
                                             {/* تاسك 67: the approver has to see what they are approving —
@@ -150,7 +243,22 @@ export default function PrDetailModal({ request, onOpenChange, suppliers }: Prop
                                             {formatQty(line.qty)} <span className="text-muted-foreground text-xs">{unitLabel(line.isSqm)}</span>
                                         </td>
                                         <td dir="ltr" className="p-2 text-right tabular-nums">
-                                            {line.estimatedUnitCost === null ? '—' : formatCurrency(line.estimatedUnitCost)}
+                                            {editable ? (
+                                                <Input
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    dir="ltr"
+                                                    className="h-8 w-28 text-right"
+                                                    placeholder="التكلفة"
+                                                    value={settled.find((l) => l.id === line.id)?.unit_cost ?? ''}
+                                                    onChange={(e) => setSettled(line.id, 'unit_cost', e.target.value)}
+                                                />
+                                            ) : line.estimatedUnitCost === null ? (
+                                                '—'
+                                            ) : (
+                                                formatCurrency(line.estimatedUnitCost)
+                                            )}
                                         </td>
                                         <td dir="ltr" className="p-2 text-right tabular-nums">
                                             {formatCurrency(line.estimatedSubtotal)}
@@ -170,6 +278,9 @@ export default function PrDetailModal({ request, onOpenChange, suppliers }: Prop
                             </tfoot>
                         </table>
                     </div>
+
+                    {typeof approveErrors.lines === 'string' && <InputError message={approveErrors.lines} />}
+                    <InputError message={approveErrors.status} />
 
                     {panel === 'reject' && (
                         <form id="pr-reject-form" onSubmit={reject} className="space-y-1 rounded-md border p-3">
@@ -248,8 +359,8 @@ export default function PrDetailModal({ request, onOpenChange, suppliers }: Prop
                                 </Button>
                             )}
                             {panel === 'none' && (
-                                <Button type="button" onClick={approve} disabled={processing}>
-                                    <Check className="size-4" /> {approveForm.processing ? 'جاري الاعتماد...' : 'اعتماد'}
+                                <Button type="button" onClick={approve} disabled={processing || !readyToApprove}>
+                                    <Check className="size-4" /> {approveForm.processing ? 'جاري الاعتماد...' : 'اعتماد وتغذية المخزون'}
                                 </Button>
                             )}
                         </>
