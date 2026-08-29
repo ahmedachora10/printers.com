@@ -11,7 +11,8 @@ enum IncentiveBonusTypeEnum: string
     {
         return match ($this) {
             self::Fixed => 'مبلغ ثابت',
-            self::Percentage => 'نسبة من المبيعات',
+            // تاسك 73: النسبة تُقاس على الهدف لا على المبيعات المحقّقة.
+            self::Percentage => 'نسبة من الهدف',
         };
     }
 }

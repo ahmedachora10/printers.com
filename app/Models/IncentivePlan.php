@@ -67,13 +67,21 @@ class IncentivePlan extends Model
 
     /**
      * The bonus owed if this plan is paid out now: a flat amount for `fixed`,
-     * or a percentage of the achieved sales for `percentage`.
+     * or a percentage **of the target** for `percentage`.
+     *
+     * تاسك 73: the percentage used to be taken from `achieved_amount`, which
+     * made the bonus a commission on sales rather than a reward for reaching
+     * an agreed target. The bonus is never paid before the target is met
+     * (PayBonusAction refuses an unmet plan), so measuring it on the achieved
+     * figure paid whoever exactly hit the target *less* than whoever overshot
+     * it — which is not what was agreed. A target of 20,000 at 10% is 2,000,
+     * for everyone who reaches it.
      */
     public function bonusAmount(): float
     {
         return match ($this->bonus_type) {
             IncentiveBonusTypeEnum::Fixed => (float) $this->bonus_value,
-            IncentiveBonusTypeEnum::Percentage => round((float) $this->achieved_amount * (float) $this->bonus_value / 100, 2),
+            IncentiveBonusTypeEnum::Percentage => round((float) $this->target_amount * (float) $this->bonus_value / 100, 2),
         };
     }
 }

@@ -178,6 +178,11 @@ export default function PlanFormModal({ open, onOpenChange, plan, employees, bon
                                 placeholder="0.00"
                                 dir="ltr"
                             />
+                            {data.bonus_type === 'percentage' && (
+                                <p className="text-muted-foreground text-xs">
+                                    تُحتسب من مبلغ الهدف — هدف 20,000 بنسبة 10% = 2,000 ر.س عند التحقيق.
+                                </p>
+                            )}
                             <InputError message={errors.bonus_value} />
                         </div>
                     </div>

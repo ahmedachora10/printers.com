@@ -52,6 +52,11 @@ export default function PayBonusModal({ open, onOpenChange, plan }: Props) {
                             <span className="text-muted-foreground">الفترة</span>
                             <span className="tabular-nums" dir="ltr">{plan?.periodLabel}</span>
                         </div>
+                        {/* الهدف بجانب المحقّق: النسبة تُقاس على الهدف (تاسك 73)، فيرى الصارف من أين جاء الرقم. */}
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">الهدف</span>
+                            <span className="tabular-nums">{formatCurrency(plan?.targetAmount ?? 0)}</span>
+                        </div>
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">المبيعات المحققة</span>
                             <span className="tabular-nums">{formatCurrency(plan?.achievedAmount ?? 0)}</span>

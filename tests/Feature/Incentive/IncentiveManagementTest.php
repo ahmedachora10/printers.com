@@ -168,25 +168,69 @@ describe('Incentives', function () {
         expect($plan->fresh()->status)->toBe(IncentivePlanStatusEnum::Paid);
     });
 
-    it('computes a percentage bonus from achieved sales', function () {
-        salesInvoice($this->branch->id, $this->employee->id, 2000, now()->year, now()->month);
+    /**
+     * تاسك 73: النسبة تُقاس على **الهدف** لا على المبيعات المحقّقة. مثال العميل
+     * حرفياً: هدف 20,000 بنسبة 10% يستحق 2,000 عند بلوغ الهدف — ويبقى 2,000
+     * لمن تجاوزه، فالمكافأة مقابل بلوغ هدفٍ متفق عليه لا عمولة على المبيعات.
+     */
+    it('computes a percentage bonus from the target, whatever the sales were', function (float $achieved) {
+        salesInvoice($this->branch->id, $this->employee->id, $achieved, now()->year, now()->month);
 
         $plan = IncentivePlan::factory()->create([
             'user_id' => $this->employee->id,
             'branch_id' => $this->branch->id,
             'period_month' => now()->month,
             'period_year' => now()->year,
-            'target_amount' => 1000,
+            'target_amount' => 20000,
             'bonus_type' => 'percentage',
             'bonus_value' => 10,
-            'achieved_amount' => 2000,
+            'achieved_amount' => $achieved,
             'status' => IncentivePlanStatusEnum::Achieved,
         ]);
 
         $this->post(route('incentives.pay', $plan))->assertRedirect();
 
-        // 10% of 2000 achieved sales.
-        expect((float) BonusPayment::firstOrFail()->amount)->toBe(200.0);
+        expect((float) BonusPayment::firstOrFail()->amount)->toBe(2000.0);
+    })->with([20000.0, 25000.0]);
+
+    it('pays nothing when the target is missed by one riyal', function () {
+        salesInvoice($this->branch->id, $this->employee->id, 19999, now()->year, now()->month);
+
+        $plan = IncentivePlan::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+            'target_amount' => 20000,
+            'bonus_type' => 'percentage',
+            'bonus_value' => 10,
+            'achieved_amount' => 19999,
+            'status' => IncentivePlanStatusEnum::Active,
+        ]);
+
+        $this->post(route('incentives.pay', $plan))->assertSessionHasErrors('incentive_plan_id');
+
+        expect(BonusPayment::count())->toBe(0);
+    });
+
+    it('leaves a fixed bonus untouched by the target', function () {
+        salesInvoice($this->branch->id, $this->employee->id, 20000, now()->year, now()->month);
+
+        $plan = IncentivePlan::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+            'target_amount' => 20000,
+            'bonus_type' => 'fixed',
+            'bonus_value' => 750,
+            'achieved_amount' => 20000,
+            'status' => IncentivePlanStatusEnum::Achieved,
+        ]);
+
+        $this->post(route('incentives.pay', $plan))->assertRedirect();
+
+        expect((float) BonusPayment::firstOrFail()->amount)->toBe(750.0);
     });
 
     it('refuses to pay a bonus when the target is not met', function () {
