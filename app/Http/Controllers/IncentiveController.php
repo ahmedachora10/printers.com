@@ -7,14 +7,17 @@ use App\Actions\Incentive\DeleteIncentivePlanAction;
 use App\Actions\Incentive\PayBonusAction;
 use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\Incentive\UpdateIncentivePlanAction;
+use App\Enums\DeductionReasonEnum;
 use App\Enums\IncentiveBonusTypeEnum;
 use App\Enums\IncentivePlanStatusEnum;
 use App\Enums\Roles;
 use App\Http\Requests\Incentive\PayBonusRequest;
 use App\Http\Requests\Incentive\StoreIncentivePlanRequest;
 use App\Http\Requests\Incentive\UpdateIncentivePlanRequest;
+use App\Http\Resources\Deduction\EmployeeDeductionResource;
 use App\Http\Resources\Incentive\IncentivePlanResource;
 use App\Models\Branch;
+use App\Models\EmployeeDeduction;
 use App\Models\IncentivePlan;
 use App\Models\User;
 use App\Notifications\BonusPaidNotification;
@@ -52,8 +55,30 @@ class IncentiveController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        // تاسك 74: الحسومات بندٌ مستقلّ يُعرض بجانب الخطط ولا يُعيد كتابة أي رقم
+        // منشور — لا عمولة ولا مكافأة. صفحتها الخاصّة كي لا يزاحم تصفيحُها تصفيحَ
+        // الخطط في الشاشة الواحدة.
+        $deductions = EmployeeDeduction::query()
+            ->with(['user:id,name', 'branch:id,name', 'deductedBy:id,name'])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($request->filled('search'), fn ($q) => $q->whereHas(
+                'user',
+                fn (Builder $u) => $u->where('name', 'like', '%'.$request->input('search').'%')
+            ))
+            ->latest('deducted_at')
+            ->paginate(10, pageName: 'deductionsPage')
+            ->withQueryString();
+
         return Inertia::render('incentives/index', [
             'plans' => IncentivePlanResource::collection($plans),
+            'deductions' => EmployeeDeductionResource::collection($deductions),
+            'deductionsTotal' => (float) EmployeeDeduction::query()
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                ->sum('amount'),
+            'deductionReasons' => array_map(
+                fn (DeductionReasonEnum $c) => ['value' => $c->value, 'label' => $c->label(), 'requiresNote' => $c->requiresNote()],
+                DeductionReasonEnum::cases(),
+            ),
             'employees' => $this->employees($branchId, $isSuper),
             'bonusTypes' => array_map(fn ($c) => ['value' => $c->value, 'label' => $c->label()], IncentiveBonusTypeEnum::cases()),
             'statuses' => array_map(fn ($c) => ['value' => $c->value, 'label' => $c->label()], IncentivePlanStatusEnum::cases()),

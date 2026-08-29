@@ -39,3 +39,31 @@ export interface PaginatedIncentivePlan {
     links: Record<string, string | null>;
     meta: Record<string, unknown>;
 }
+
+/** تاسك 74: حسم مطبَّق على موظف — بند مستقل بجانب الحوافز لا يمسّ عمولةً ولا مكافأة. */
+export interface DeductionReasonOption extends EnumOption {
+    requiresNote: boolean;
+}
+
+export interface EmployeeDeduction {
+    id: number;
+    userId: number;
+    userName: string | null;
+    branchId: number;
+    branchName?: string | null;
+    amount: number;
+    reason: string;
+    reasonLabel: string;
+    reasonNote: string | null;
+    /** السبب كما يُقرأ: التسمية، ونصّ «أخرى» ملحقاً بها. */
+    reasonText: string;
+    deductedBy: string | null;
+    deductedAt: string | null;
+    notes: string | null;
+}
+
+export interface PaginatedEmployeeDeduction {
+    data: EmployeeDeduction[];
+    links: Record<string, string | null>;
+    meta: Record<string, unknown>;
+}

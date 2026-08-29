@@ -19,6 +19,7 @@ import {
     Package,
     ShoppingBasket,
     Trash2,
+    TrendingDown,
     Undo2,
     Wallet,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
     ClipboardCheck,
     CalendarClock,
     Building2,
+    TrendingDown,
 };
 
 interface Props {

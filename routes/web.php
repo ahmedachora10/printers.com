@@ -20,6 +20,7 @@ use App\Http\Controllers\CustomerActivityController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseReportController;
@@ -427,6 +428,11 @@ Route::middleware(['auth'])->group(function () {
         Route::put('incentives/{incentive_plan}', [IncentiveController::class, 'update'])->name('incentives.update');
         Route::delete('incentives/{incentive_plan}', [IncentiveController::class, 'destroy'])->name('incentives.destroy');
         Route::post('incentives/{incentive_plan}/pay', [IncentiveController::class, 'pay'])->name('incentives.pay');
+
+        // تاسك 74: حسومات الموظفين — بند مستقل تحت الحوافز، في المجموعة نفسها:
+        // «للإدارة صلاحية تطبيق الخصم» يحقّقها role:branch-admin|super-admin.
+        Route::post('employee-deductions', [EmployeeDeductionController::class, 'store'])
+            ->name('employee-deductions.store');
 
         Route::prefix('inventory')->name('inventory.')->group(function () {
             // تاسك 72: تصدير/استيراد Excel — قبل الـresource لنفس سبب الفئات.

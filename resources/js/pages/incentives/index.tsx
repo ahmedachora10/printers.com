@@ -1,7 +1,9 @@
 import { destroy, index, recalculate } from '@/actions/App/Http/Controllers/IncentiveController';
+import DeductionFormModal from '@/components/incentives/deduction-form-modal';
 import PayBonusModal from '@/components/incentives/pay-bonus-modal';
 import PlanFormModal from '@/components/incentives/plan-form-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
+import { TableCell, TableRow } from '@/components/ui/table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,9 +18,17 @@ import {
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
-import { type EmployeeOption, type EnumOption, type IncentivePlan, type PaginatedIncentivePlan } from '@/types/incentive';
+import {
+    type DeductionReasonOption,
+    type EmployeeDeduction,
+    type EmployeeOption,
+    type EnumOption,
+    type IncentivePlan,
+    type PaginatedEmployeeDeduction,
+    type PaginatedIncentivePlan,
+} from '@/types/incentive';
 import { router } from '@inertiajs/react';
-import { Pencil, Plus, RefreshCw, Trash2, Wallet } from 'lucide-react';
+import { Minus, Pencil, Plus, RefreshCw, Trash2, Wallet } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'الحوافز والمكافآت', href: '/incentives' }];
@@ -32,6 +42,10 @@ const STATUS_VARIANT: Record<string, 'secondary' | 'default' | 'outline' | 'dest
 
 interface Props {
     plans: PaginatedIncentivePlan;
+    /** تاسك 74: سجل الحسومات — بند مستقل تحت الحوافز. */
+    deductions: PaginatedEmployeeDeduction;
+    deductionsTotal: number;
+    deductionReasons: DeductionReasonOption[];
     employees: EmployeeOption[];
     bonusTypes: EnumOption[];
     statuses: EnumOption[];
@@ -45,12 +59,23 @@ interface Props {
     };
 }
 
-export default function IncentivesIndex({ plans, employees, bonusTypes, statuses, branches, filters }: Props) {
+export default function IncentivesIndex({
+    plans,
+    deductions,
+    deductionsTotal,
+    deductionReasons,
+    employees,
+    bonusTypes,
+    statuses,
+    branches,
+    filters,
+}: Props) {
     const isSuperAdmin = Array.isArray(branches);
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<IncentivePlan | null>(null);
     const [deleting, setDeleting] = useState<IncentivePlan | null>(null);
     const [paying, setPaying] = useState<IncentivePlan | null>(null);
+    const [deductionOpen, setDeductionOpen] = useState(false);
 
     function openCreate() {
         setEditing(null);
@@ -152,6 +177,48 @@ export default function IncentivesIndex({ plans, employees, bonusTypes, statuses
         [isSuperAdmin],
     );
 
+    const deductionColumns = useMemo<ColumnDef<EmployeeDeduction>[]>(
+        () => [
+            {
+                key: 'deductedAt',
+                header: 'التاريخ',
+                cell: (d) => <span className="tabular-nums whitespace-nowrap">{d.deductedAt}</span>,
+            },
+            {
+                key: 'userName',
+                header: 'الموظف',
+                cell: (d) => <span className="font-medium">{d.userName ?? '—'}</span>,
+            },
+            ...(isSuperAdmin
+                ? [
+                      {
+                          key: 'branchName',
+                          header: 'الفرع',
+                          cell: (d: EmployeeDeduction) => d.branchName ?? '—',
+                      },
+                  ]
+                : []),
+            {
+                key: 'amount',
+                header: 'القيمة',
+                cell: (d) => (
+                    <span className="font-semibold tabular-nums text-destructive">{formatCurrency(d.amount)}</span>
+                ),
+            },
+            {
+                key: 'reason',
+                header: 'السبب',
+                cell: (d) => <span className="text-sm">{d.reasonText}</span>,
+            },
+            {
+                key: 'deductedBy',
+                header: 'بواسطة',
+                cell: (d) => d.deductedBy ?? '—',
+            },
+        ],
+        [isSuperAdmin],
+    );
+
     const [search, setSearch] = useState(filters.search ?? '');
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
         status: filters.status ?? '',
@@ -242,6 +309,46 @@ export default function IncentivesIndex({ plans, employees, bonusTypes, statuses
                         router.reload({ data: { page } })
                     }
                 />
+
+                {/*
+                    تاسك 74: الحسومات. بندٌ مستقلّ عمداً — لا يُنقص صفّاً في
+                    commission_ledger ولا مكافأةً مصروفة، فكلاهما جدولٌ غير قابل
+                    للتعديل. يُعرض هنا بجانب المستحق ولا يُعيد كتابة رقمٍ منشور.
+                */}
+                <div className="mt-10 mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h2 className="text-xl font-bold">الحسومات</h2>
+                        <p className="text-muted-foreground text-sm">
+                            حسمٌ تطبّقه الإدارة بسببه وقيمته. القيد نهائي لا يُعدَّل، وتصحيحه بقيدٍ معاكس.
+                        </p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => setDeductionOpen(true)}>
+                        <Minus className="size-4" /> تسجيل حسم
+                    </Button>
+                </div>
+
+                <DataTable
+                    columns={deductionColumns}
+                    data={deductions.data}
+                    keyExtractor={(d) => d.id}
+                    footer={
+                        <TableRow>
+                            <TableCell className="font-bold whitespace-nowrap">الإجمالي — كل الفترات</TableCell>
+                            <TableCell />
+                            {isSuperAdmin && <TableCell />}
+                            <TableCell className="font-bold tabular-nums">{formatCurrency(deductionsTotal)}</TableCell>
+                            <TableCell />
+                            <TableCell />
+                        </TableRow>
+                    }
+                />
+
+                <TablePagination
+                    currentPage={deductions.meta.current_page as number}
+                    totalPages={deductions.meta.last_page as number}
+                    totalItems={deductions.meta.total as number}
+                    onPageChange={(page) => router.reload({ data: { deductionsPage: page } })}
+                />
             </div>
 
             <Dialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
@@ -277,6 +384,13 @@ export default function IncentivesIndex({ plans, employees, bonusTypes, statuses
                 open={!!paying}
                 onOpenChange={(open) => !open && setPaying(null)}
                 plan={paying}
+            />
+
+            <DeductionFormModal
+                open={deductionOpen}
+                onOpenChange={setDeductionOpen}
+                employees={employees}
+                reasons={deductionReasons}
             />
         </AppLayout>
     );
