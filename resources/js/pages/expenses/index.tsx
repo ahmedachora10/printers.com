@@ -6,6 +6,7 @@ import DateRangeBar from '@/components/reports/date-range-bar';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TableCell, TableRow } from '@/components/ui/table';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
@@ -237,7 +238,28 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                     />
                 </div>
 
-                <DataTable columns={columns} data={items.data} keyExtractor={(item) => item.id} />
+                {/*
+                    صفّ الإجماليات يقرأ periodTotal الآتي من الخادم لا مجموع صفوف الصفحة الظاهرة:
+                    الجدول مصفَّح، ورقمٌ يجمع الصفحة وحدها كان سيخالف بطاقة «إجمالي الفترة» فوقه.
+                    ولا تُجمع «سعر الوحدة» (متوسط لا مجموع) ولا «الكمية» (لتر وقطعة وكرتون معاً).
+                */}
+                <DataTable
+                    columns={columns}
+                    data={items.data}
+                    keyExtractor={(item) => item.id}
+                    footer={
+                        <TableRow>
+                            <TableCell className="font-bold whitespace-nowrap">الإجمالي — {rangeLabel(applied.from, applied.to)}</TableCell>
+                            <TableCell />
+                            <TableCell />
+                            <TableCell />
+                            <TableCell />
+                            <TableCell className="font-bold tabular-nums">{formatSar(periodTotal)}</TableCell>
+                            <TableCell />
+                            <TableCell />
+                        </TableRow>
+                    }
+                />
 
                 <TablePagination
                     currentPage={items.meta.current_page as number}
