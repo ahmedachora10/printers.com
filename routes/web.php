@@ -390,6 +390,15 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('branch-services', BranchServiceController::class)
             ->only(['index', 'store', 'update', 'destroy']);
 
+        // تاسك 72: تصدير/استيراد Excel — تُسجَّل قبل الـresource كي لا يبتلع
+        // `product-categories/{productCategory}` مساراتِها.
+        Route::controller(ProductCategoryController::class)->group(function () {
+            Route::get('product-categories/export', 'export')->name('product-categories.export');
+            Route::get('product-categories/import/template', 'importTemplate')->name('product-categories.import.template');
+            Route::post('product-categories/import/preview', 'importPreview')->name('product-categories.import.preview');
+            Route::post('product-categories/import', 'import')->name('product-categories.import');
+        });
+
         Route::patch('product-categories/{productCategory}/toggle-status', [ProductCategoryController::class, 'toggleStatus'])
             ->name('product-categories.toggle-status');
         Route::resource('product-categories', ProductCategoryController::class)
@@ -420,6 +429,14 @@ Route::middleware(['auth'])->group(function () {
         Route::post('incentives/{incentive_plan}/pay', [IncentiveController::class, 'pay'])->name('incentives.pay');
 
         Route::prefix('inventory')->name('inventory.')->group(function () {
+            // تاسك 72: تصدير/استيراد Excel — قبل الـresource لنفس سبب الفئات.
+            Route::controller(ProductController::class)->group(function () {
+                Route::get('products/export', 'export')->name('products.export');
+                Route::get('products/import/template', 'importTemplate')->name('products.import.template');
+                Route::post('products/import/preview', 'importPreview')->name('products.import.preview');
+                Route::post('products/import', 'import')->name('products.import');
+            });
+
             Route::patch('products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])
                 ->name('products.toggle-status');
             Route::resource('products', ProductController::class)

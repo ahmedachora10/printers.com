@@ -1,4 +1,5 @@
-import { destroy, index, toggleStatus } from '@/actions/App/Http/Controllers/ProductCategoryController';
+import categoryRoutes, { destroy, index, toggleStatus } from '@/actions/App/Http/Controllers/ProductCategoryController';
+import ImportDialog from '@/components/import/import-dialog';
 import ProductCategoryFormModal from '@/components/product-categories/product-category-form-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
@@ -16,7 +17,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type PaginatedProductCategory, type ProductCategory } from '@/types/product-category';
 import { router } from '@inertiajs/react';
-import { Plus, Pencil, Trash2 } from 'lucide-react';
+import { Download, Plus, Pencil, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -35,6 +36,7 @@ export default function ProductCategoriesIndex({ items, filters }: Props) {
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<ProductCategory | null>(null);
     const [deleting, setDeleting] = useState<ProductCategory | null>(null);
+    const [importOpen, setImportOpen] = useState(false);
 
     function openCreate() {
         setEditing(null);
@@ -170,9 +172,19 @@ export default function ProductCategoriesIndex({ items, filters }: Props) {
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
                         actions={
-                            <Button size="sm" onClick={openCreate}>
-                                <Plus className="size-4" /> إضافة فئة
-                            </Button>
+                            <>
+                                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                                    <Upload className="size-4" /> استيراد الكل
+                                </Button>
+                                <Button variant="outline" size="sm" asChild>
+                                    <a href={categoryRoutes.export.url()}>
+                                        <Download className="size-4" /> تصدير الكل
+                                    </a>
+                                </Button>
+                                <Button size="sm" onClick={openCreate}>
+                                    <Plus className="size-4" /> إضافة فئة
+                                </Button>
+                            </>
                         }
                     />
                 </div>
@@ -211,6 +223,17 @@ export default function ProductCategoriesIndex({ items, filters }: Props) {
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <ImportDialog
+                open={importOpen}
+                onOpenChange={setImportOpen}
+                title="استيراد فئات المنتجات"
+                description="ملف Excel بعمودَي الاسم والحالة. الاستيراد يضيف ويحدّث فقط — لا يحذف فئة قائمة، فقد تكون معلّقة بمنتجات."
+                previewUrl={categoryRoutes.importPreview.url()}
+                commitUrl={categoryRoutes.import.url()}
+                templateUrl={categoryRoutes.importTemplate.url()}
+                onImported={() => router.reload()}
+            />
 
             <ProductCategoryFormModal
                 key={editing?.id ?? 'create'}
