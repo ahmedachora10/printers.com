@@ -35,6 +35,7 @@ function receiptBranchService(int $branchId): BranchService
 function receiptPayload(int $serviceId, array $overrides = []): array
 {
     return array_merge([
+        'payment_method_id' => paymentMethodId(),
         'status' => 'due',
         'lines' => [
             ['branch_service_id' => $serviceId, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],

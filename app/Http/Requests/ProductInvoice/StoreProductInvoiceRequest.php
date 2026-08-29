@@ -3,6 +3,7 @@
 namespace App\Http\Requests\ProductInvoice;
 
 use App\Enums\InvoiceStatusEnum;
+use App\Models\Branch;
 use App\Models\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -24,7 +25,10 @@ class StoreProductInvoiceRequest extends FormRequest
             'walkin_phone' => ['nullable', 'string', 'max:30'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
-            'payment_method_id' => ['nullable', 'integer', 'exists:payment_methods,id'],
+            // طريقة الدفع إلزامية على كل فاتورة، مدفوعةً كانت أو آجلة: فاتورةٌ
+            // بلا طريقة تسقط من تفصيل طرق الدفع في التقارير، ويتعثّر اعتمادها
+            // لاحقاً عند المحاسب. ولا تُقبل إلا طريقةٌ يراها فرع الفاتورة.
+            'payment_method_id' => ['required', 'integer', Rule::in($this->enabledPaymentMethodIds())],
             // A bank-transfer (requires-attachment) method must carry its proof.
             'receipt' => [
                 $this->paymentMethodRequiresAttachment() ? 'required' : 'nullable',
@@ -49,6 +53,19 @@ class StoreProductInvoiceRequest extends FormRequest
     }
 
     /**
+     * The payment methods enabled for the branch this invoice is raised in —
+     * the very list the POS screen offered the cashier.
+     *
+     * @return array<int, int>
+     */
+    private function enabledPaymentMethodIds(): array
+    {
+        $branch = Branch::find($this->user()?->branchId);
+
+        return $branch ? $branch->enabledPaymentMethods()->pluck('id')->all() : [];
+    }
+
+    /**
      * Whether the chosen payment method mandates a receipt upload.
      */
     private function paymentMethodRequiresAttachment(): bool
@@ -61,6 +78,8 @@ class StoreProductInvoiceRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'payment_method_id.required' => 'طريقة الدفع مطلوبة — اخترها قبل حفظ الفاتورة.',
+            'payment_method_id.in' => 'طريقة الدفع غير متاحة لهذا الفرع.',
             'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.',
             'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',

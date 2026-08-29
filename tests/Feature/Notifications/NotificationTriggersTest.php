@@ -96,6 +96,7 @@ describe('Notification triggers', function () {
     it('notifies branch-admin and accountant when a due product invoice is created', function () {
         $this->actingAs($this->admin)
             ->post(route('pos.product.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => InvoiceStatusEnum::DUE->value,
                 'lines' => [['name' => 'طباعة يدوية', 'qty' => 1, 'unit_price' => 100]],
             ])->assertRedirect();
@@ -109,6 +110,7 @@ describe('Notification triggers', function () {
     it('does not notify when a paid product invoice is created', function () {
         $this->actingAs($this->admin)
             ->post(route('pos.product.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => InvoiceStatusEnum::PAID->value,
                 'lines' => [['name' => 'طباعة يدوية', 'qty' => 1, 'unit_price' => 100]],
             ])->assertRedirect();

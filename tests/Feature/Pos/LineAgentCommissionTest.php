@@ -38,6 +38,7 @@ function lineWithAgent(array $agentAttrs, array $lineAttrs = []): array
 {
     return [
         'status' => 'due',
+        'payment_method_id' => paymentMethodId(),
         'lines' => [array_merge([
             'branch_service_id' => test()->service->id,
             'qty' => 3,
@@ -118,6 +119,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         ]);
 
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $sqm->id,
@@ -144,6 +146,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         $service = commissionService(['has_materials' => true, 'materials_cost' => 10]);
 
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $service->id,
@@ -175,6 +178,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         $service = commissionService(['has_materials' => true, 'materials_cost' => 10]);
 
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $service->id,
@@ -200,6 +204,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         $service = commissionService(['has_materials' => true, 'materials_cost' => 10]);
 
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $service->id,
@@ -230,6 +235,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         // below the materials cost at all, so only a manager can produce a
         // line where the materials outrun the line's own net.
         $this->actingAs($this->branchAdmin)->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $service->id,
@@ -277,6 +283,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
 
     it('merges an invoice-level rebate and line commissions onto one pivot row', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'agent_ids' => [$this->agent->id],
             'lines' => [[
@@ -305,6 +312,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         // The client's worked example applied to a commission owner:
         // 100 / 1.15 = 86.96, at 50% = 43.48 — not 50.00 on the gross.
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->service->id,
@@ -325,6 +333,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
 
     it('leaves a fixed line commission whole — there is no VAT inside a flat rate', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->service->id,
@@ -343,6 +352,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
 
     it('sums the line commissions of several lines for the same agent', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [
                 [
@@ -404,6 +414,7 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
 
         // The owner edits the line and removes the commission owner entirely.
         $this->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => paymentMethodId(),
             'lines' => [[
                 'branch_service_id' => $this->service->id,
                 'qty' => 3,

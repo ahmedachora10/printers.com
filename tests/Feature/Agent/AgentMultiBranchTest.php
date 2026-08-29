@@ -70,6 +70,7 @@ function paidServiceInvoiceFor(array $site, Agent $agent): ServiceInvoice
 {
     test()->actingAs($site['employee'])
         ->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'agent_ids' => [$agent->id],
             'lines' => [
@@ -130,6 +131,7 @@ describe('Agent multi-branch (تاسك 20-د)', function () {
 
         $this->actingAs($c['employee'])
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'agent_ids' => [$this->agent->id],
                 'lines' => [

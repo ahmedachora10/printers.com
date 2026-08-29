@@ -51,7 +51,11 @@ function makeOwnedDueInvoice(array $lineOverrides = []): ServiceInvoice
         $lineOverrides,
     );
 
-    test()->post(route('pos.service.store'), ['status' => 'due', 'lines' => [$line]]);
+    test()->post(route('pos.service.store'), [
+        'status' => 'due',
+        'payment_method_id' => paymentMethodId(),
+        'lines' => [$line],
+    ]);
 
     return ServiceInvoice::latest('id')->firstOrFail();
 }
@@ -99,6 +103,7 @@ describe('Service invoice edit/return', function () {
         $number = $invoice->invoice_number;
 
         $this->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => paymentMethodId(),
             'lines' => [
                 ['branch_service_id' => $this->service->id, 'qty' => 5, 'unit_price' => 10, 'discount_pct' => 0],
             ],
@@ -132,6 +137,7 @@ describe('Service invoice edit/return', function () {
 
         $this->get(route('pos.service.edit', $invoice))->assertForbidden();
         $this->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => paymentMethodId(),
             'lines' => [['branch_service_id' => $this->service->id, 'qty' => 1, 'unit_price' => 10]],
         ])->assertForbidden();
     });
@@ -157,6 +163,7 @@ describe('Service invoice edit/return', function () {
 
         $this->actingAs($this->branchAdmin)
             ->put(route('pos.service.update', $invoice), [
+                'payment_method_id' => paymentMethodId(),
                 'lines' => [[
                     'branch_service_id' => $this->service->id,
                     'qty' => 3,
@@ -240,6 +247,7 @@ describe('Service invoice edit/return', function () {
         $this->actingAs($this->branchAdmin)->get(route('pos.service.edit', $invoice))->assertForbidden();
         $this->actingAs($accountant)->get(route('pos.service.edit', $invoice))->assertForbidden();
         $this->actingAs($accountant)->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => paymentMethodId(),
             'lines' => [['branch_service_id' => $this->service->id, 'qty' => 1, 'unit_price' => 10]],
         ])->assertForbidden();
     });
@@ -250,6 +258,7 @@ describe('Service invoice edit/return', function () {
         $invoice = makeOwnedDueInvoice();
 
         $this->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => paymentMethodId(),
             'lines' => [[
                 'branch_service_id' => $this->service->id,
                 'qty' => 3,
@@ -595,6 +604,7 @@ describe('Service invoice edit/return', function () {
 
     it('stores the free-text detail typed against a service line', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->service->id,
@@ -612,6 +622,7 @@ describe('Service invoice edit/return', function () {
 
     it('collapses a blank detail box to null', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->service->id,
@@ -627,6 +638,7 @@ describe('Service invoice edit/return', function () {
 
     it('rejects a detail longer than 500 characters', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->service->id,
@@ -642,6 +654,7 @@ describe('Service invoice edit/return', function () {
         $invoice = makeOwnedDueInvoice();
 
         $this->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => paymentMethodId(),
             'lines' => [[
                 'branch_service_id' => $this->service->id,
                 'qty' => 2,
@@ -656,6 +669,7 @@ describe('Service invoice edit/return', function () {
 
     it('surfaces the line detail on the edit screen', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->service->id,

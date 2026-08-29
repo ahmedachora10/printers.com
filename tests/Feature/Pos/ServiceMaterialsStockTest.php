@@ -87,6 +87,7 @@ function linkMaterial(BranchService $service, Product $product, float $qtyPerUni
 function stockPayload(BranchService $service, array $lineAttrs = [], array $overrides = []): array
 {
     return array_merge([
+        'payment_method_id' => paymentMethodId(),
         'status' => 'due',
         'lines' => [array_merge([
             'branch_service_id' => $service->id,
@@ -213,6 +214,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
         linkMaterial($service, $vinyl, 1); // متر فينيل لكل متر مبيع
 
         $this->post(route('pos.service.store'), stockPayload($service, [
+            'payment_method_id' => paymentMethodId(),
             'qty' => 2,
             'unit_price' => 0,
             'width_cm' => 100,
@@ -462,6 +464,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
 
         // كل سطر وحده مكفيّ (6 من 10)، ومجموعهما 12 ليس كذلك.
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [
                 ['branch_service_id' => $service->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],

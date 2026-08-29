@@ -93,6 +93,7 @@ describe('Service invoice delivery date', function () {
 
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'delivery_at' => $deliveryAt->format('Y-m-d H:i'),
                 'lines' => $this->lines,
@@ -108,6 +109,7 @@ describe('Service invoice delivery date', function () {
     it('keeps the delivery date empty when none is chosen', function () {
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'lines' => $this->lines,
             ])
@@ -119,6 +121,7 @@ describe('Service invoice delivery date', function () {
     it('rejects a delivery date in the past', function () {
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'delivery_at' => now()->subDay()->format('Y-m-d H:i'),
                 'lines' => $this->lines,
@@ -131,6 +134,7 @@ describe('Service invoice delivery date', function () {
     it('accepts a delivery date later today', function () {
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'delivery_at' => now()->format('Y-m-d').' 23:59',
                 'lines' => $this->lines,
@@ -145,6 +149,7 @@ describe('Service invoice delivery date', function () {
 
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'delivery_at' => $original->format('Y-m-d H:i'),
                 'lines' => $this->lines,
@@ -164,6 +169,7 @@ describe('Service invoice delivery date', function () {
 
         $this->actingAs($this->employee)
             ->put(route('pos.service.update', $invoice), [
+                'payment_method_id' => paymentMethodId(),
                 'delivery_at' => $moved->format('Y-m-d H:i'),
                 'lines' => $this->lines,
             ])
@@ -175,6 +181,7 @@ describe('Service invoice delivery date', function () {
     it('clears the delivery date when the edit submits an empty picker', function () {
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'delivery_at' => now()->addDay()->format('Y-m-d H:i'),
                 'lines' => $this->lines,
@@ -185,6 +192,7 @@ describe('Service invoice delivery date', function () {
 
         $this->actingAs($this->employee)
             ->put(route('pos.service.update', $invoice), [
+                'payment_method_id' => paymentMethodId(),
                 'delivery_at' => null,
                 'lines' => $this->lines,
             ])
@@ -198,6 +206,7 @@ describe('Service invoice delivery date', function () {
 
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'delivery_at' => $deliveryAt->format('Y-m-d H:i'),
                 'lines' => $this->lines,

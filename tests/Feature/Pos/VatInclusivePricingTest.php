@@ -52,6 +52,7 @@ describe('VAT-inclusive pricing', function () {
 
     it('prints the client worked example: 100 in, 100 out', function () {
         $this->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'paid',
             'lines' => [
                 ['product_id' => $this->product->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],
@@ -75,6 +76,7 @@ describe('VAT-inclusive pricing', function () {
             ProductInvoice::query()->forceDelete();
 
             $this->post(route('pos.product.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'paid',
                 'lines' => [
                     ['product_id' => $this->product->id, 'qty' => 1, 'unit_price' => $price, 'discount_pct' => 0],
@@ -93,6 +95,7 @@ describe('VAT-inclusive pricing', function () {
 
     it('leaves the total VAT-inclusive after a discount too', function () {
         $this->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'paid',
             'lines' => [
                 ['product_id' => $this->product->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 10],
@@ -110,6 +113,7 @@ describe('VAT-inclusive pricing', function () {
         $this->branch->update(['vat_rate_override' => 0]);
 
         $this->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'paid',
             'lines' => [
                 ['product_id' => $this->product->id, 'qty' => 2, 'unit_price' => 25, 'discount_pct' => 0],

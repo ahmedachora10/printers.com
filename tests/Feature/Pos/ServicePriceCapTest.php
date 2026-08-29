@@ -39,6 +39,7 @@ function cappedService(array $attrs = []): BranchService
 function capPayload(BranchService $service, array $lineAttrs = []): array
 {
     return [
+        'payment_method_id' => paymentMethodId(),
         'status' => 'due',
         'lines' => [array_merge([
             'branch_service_id' => $service->id,
@@ -135,6 +136,7 @@ describe('Max selling price cap', function () {
         // 2م × 1م = 2 م² بسعر متر 150 — عند السقف تماماً فيمرّ، مع أن إجمالي
         // السطر (300.00) ضعف السقف: السقف على المتر لا على المجموع.
         $this->post(route('pos.service.store'), capPayload($service, [
+            'payment_method_id' => paymentMethodId(),
             'unit_price' => 150,
             'width_cm' => 200,
             'height_cm' => 100,
@@ -155,6 +157,7 @@ describe('Max selling price cap', function () {
 
         // 160 للمتر > 150.
         $this->post(route('pos.service.store'), capPayload($service, [
+            'payment_method_id' => paymentMethodId(),
             'unit_price' => 160,
             'width_cm' => 200,
             'height_cm' => 100,
@@ -424,6 +427,7 @@ describe('Minimum selling price floor', function () {
         // 11.50 للمتر شاملة = 10.00 مقبوضة للمتر — عند تكلفة المتر تماماً،
         // مهما كبر المقاس: الطرفان كلاهما «للمتر» بعد التاسك 63.
         $this->post(route('pos.service.store'), capPayload($service, [
+            'payment_method_id' => paymentMethodId(),
             'unit_price' => 11.50,
             'width_cm' => 300,
             'height_cm' => 200,
@@ -431,6 +435,7 @@ describe('Minimum selling price floor', function () {
 
         ServiceInvoice::query()->forceDelete();
         $this->post(route('pos.service.store'), capPayload($service, [
+            'payment_method_id' => paymentMethodId(),
             'unit_price' => 11,
             'width_cm' => 300,
             'height_cm' => 200,

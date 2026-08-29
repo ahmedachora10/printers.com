@@ -78,6 +78,25 @@ function setAgentBranchTerms(User $agent, int $branchId, array $terms): void
 }
 
 /**
+ * The id of a payment method the branch may use, creating a shared global one
+ * the first time it is asked for.
+ *
+ * طريقة الدفع صارت إلزامية على كل فاتورة عند الإنشاء والتعديل، فكل حمولة نقطة
+ * بيع تحتاج معرِّف طريقة. وأغلب الاختبارات لا تعنيها الطريقة نفسها، فتكتفي بهذه:
+ *
+ *     'payment_method_id' => paymentMethodId(),
+ */
+function paymentMethodId(?int $branchId = null): int
+{
+    $method = PaymentMethod::query()
+        ->where('is_active', true)
+        ->when($branchId !== null, fn ($query) => $query->visibleToBranch($branchId))
+        ->first() ?? PaymentMethod::factory()->create(['name' => 'نقد اختبارات', 'branch_id' => null]);
+
+    return (int) $method->id;
+}
+
+/**
  * Give a service invoice a usable payment method, then return it.
  *
  * تاسك 59: لم يعد يُعتمد اعتماد فاتورة بلا طريقة دفع. الاختبارات التي تعنيها

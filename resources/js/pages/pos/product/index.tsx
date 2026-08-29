@@ -356,6 +356,10 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
             toast.error('أدخل العرض والطول لكل منتج مسعّر بالمتر المربع');
             return;
         }
+        if (!paymentMethodId) {
+            toast.error('اختر طريقة الدفع قبل حفظ الفاتورة');
+            return;
+        }
         if (requiresReceipt && !receipt) {
             toast.error('يجب إرفاق إيصال التحويل لطريقة الدفع المحددة');
             return;
@@ -617,11 +621,15 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                     {/* Payment method */}
                     <Card>
                         <CardHeader className="pb-3">
-                            <CardTitle className="text-base">طريقة الدفع</CardTitle>
+                            <CardTitle className="text-base">
+                                طريقة الدفع <span className="text-destructive">*</span>
+                            </CardTitle>
                         </CardHeader>
                         <CardContent>
                             {paymentMethods.length === 0 ? (
-                                <p className="text-muted-foreground text-sm">لا توجد طرق دفع مفعّلة</p>
+                                <p className="text-destructive text-sm">
+                                    لا توجد طرق دفع مفعّلة لهذا الفرع — أضف طريقة دفع من الإعدادات قبل إصدار الفواتير.
+                                </p>
                             ) : (
                                 <div className="space-y-3">
                                     <div className="grid grid-cols-2 gap-2">
@@ -658,6 +666,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                     )}
                                 </div>
                             )}
+                            {errors.payment_method_id && <p className="text-destructive mt-2 text-xs">{errors.payment_method_id}</p>}
                         </CardContent>
                     </Card>
 
