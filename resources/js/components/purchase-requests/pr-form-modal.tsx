@@ -13,6 +13,12 @@ import { Plus, Trash2 } from 'lucide-react';
 /** Sentinel for "an item that is not in the inventory yet" — see item_name. */
 const CUSTOM_ITEM = '__custom__';
 
+/**
+ * تاسك 67: a request line is counted in the unit its product is defined with —
+ * pieces, or square metres for an item stocked by the metre.
+ */
+const unitLabel = (isSqm: boolean) => (isSqm ? 'م²' : 'قطعة');
+
 interface LineInput {
     // Every field is a string so the shape stays assignable to useForm's
     // FormDataType index signature.
@@ -20,6 +26,8 @@ interface LineInput {
     product_id: string;
     item_name: string;
     qty: string;
+    /** '1' for a square-metre item, '0' for pieces. */
+    is_sqm: string;
     estimated_unit_cost: string;
     notes: string;
 }
@@ -32,7 +40,7 @@ interface Props {
     branches: PrBranchOption[];
 }
 
-const emptyLine: LineInput = { product_id: '', item_name: '', qty: '1', estimated_unit_cost: '', notes: '' };
+const emptyLine: LineInput = { product_id: '', item_name: '', qty: '1', is_sqm: '0', estimated_unit_cost: '', notes: '' };
 
 export default function PrFormModal({ open, onOpenChange, products, branches }: Props) {
     const { data, setData, post, processing, errors, reset } = useForm<{
@@ -66,6 +74,9 @@ export default function PrFormModal({ open, onOpenChange, products, branches }: 
                           ...line,
                           product_id: value === CUSTOM_ITEM ? '' : value,
                           item_name: product ? product.name : '',
+                          // A catalogued item forces its own unit; a free-text
+                          // one keeps whatever the requester picked.
+                          is_sqm: product ? (product.isSqm ? '1' : '0') : line.is_sqm,
                           estimated_unit_cost: line.estimated_unit_cost || (product ? product.costPrice.toString() : ''),
                       }
                     : line,
@@ -134,6 +145,7 @@ export default function PrFormModal({ open, onOpenChange, products, branches }: 
                         <div className="space-y-4 p-4">
                             {data.lines.map((line, index) => {
                                 const isCustom = line.product_id === '';
+                                const isSqm = line.is_sqm === '1';
 
                                 return (
                                     <div key={index} className="space-y-2 rounded-md border border-dashed p-3">
@@ -160,10 +172,13 @@ export default function PrFormModal({ open, onOpenChange, products, branches }: 
                                             </div>
 
                                             <div className="col-span-6 space-y-1 sm:col-span-3">
-                                                <Label>الكمية</Label>
+                                                <Label>
+                                                    الكمية <span className="text-muted-foreground text-xs">({unitLabel(isSqm)})</span>
+                                                </Label>
                                                 <Input
                                                     type="number"
-                                                    min="1"
+                                                    min={isSqm ? '0.01' : '1'}
+                                                    step={isSqm ? '0.01' : '1'}
                                                     dir="ltr"
                                                     value={line.qty}
                                                     onChange={(e) => setLine(index, 'qty', e.target.value)}
@@ -201,14 +216,31 @@ export default function PrFormModal({ open, onOpenChange, products, branches }: 
                                         </div>
 
                                         {isCustom && (
-                                            <div className="space-y-1">
-                                                <Label>اسم الصنف</Label>
-                                                <Input
-                                                    value={line.item_name}
-                                                    placeholder="اكتب اسم الصنف المطلوب"
-                                                    onChange={(e) => setLine(index, 'item_name', e.target.value)}
-                                                />
-                                                <InputError message={errors[`lines.${index}.item_name` as keyof typeof errors]} />
+                                            <div className="grid grid-cols-12 items-end gap-3">
+                                                <div className="col-span-12 space-y-1 sm:col-span-8">
+                                                    <Label>اسم الصنف</Label>
+                                                    <Input
+                                                        value={line.item_name}
+                                                        placeholder="اكتب اسم الصنف المطلوب"
+                                                        onChange={(e) => setLine(index, 'item_name', e.target.value)}
+                                                    />
+                                                    <InputError message={errors[`lines.${index}.item_name` as keyof typeof errors]} />
+                                                </div>
+                                                {/* A catalogued item takes its product's unit; only here does the
+                                                    requester get to say what they are counting. */}
+                                                <div className="col-span-12 space-y-1 sm:col-span-4">
+                                                    <Label>وحدة الكمية</Label>
+                                                    <Select value={line.is_sqm} onValueChange={(val) => setLine(index, 'is_sqm', val)}>
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="0">قطعة</SelectItem>
+                                                            <SelectItem value="1">متر مربع (م²)</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                    <InputError message={errors[`lines.${index}.is_sqm` as keyof typeof errors]} />
+                                                </div>
                                             </div>
                                         )}
 

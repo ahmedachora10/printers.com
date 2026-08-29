@@ -17,12 +17,14 @@ class PurchaseRequestLine extends Model
         'product_id',
         'item_name',
         'qty',
+        'is_sqm',
         'estimated_unit_cost',
         'notes',
     ];
 
     protected $casts = [
-        'qty' => 'integer',
+        'qty' => 'decimal:2',
+        'is_sqm' => 'boolean',
         'estimated_unit_cost' => 'decimal:2',
     ];
 

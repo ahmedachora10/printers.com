@@ -6,6 +6,8 @@ export interface PurchaseRequestLine {
     itemName: string;
     sku?: string | null;
     qty: number;
+    /** تاسك 67: pinned when the request was raised — pieces or square metres. */
+    isSqm: boolean;
     estimatedUnitCost: number | null;
     estimatedSubtotal: number;
     notes: string | null;
@@ -44,6 +46,7 @@ export interface PrProductOption {
     name: string;
     sku: string | null;
     costPrice: number;
+    isSqm: boolean;
 }
 
 export interface PrSupplierOption {

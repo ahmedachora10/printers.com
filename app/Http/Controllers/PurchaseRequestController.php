@@ -140,13 +140,16 @@ class PurchaseRequestController extends Controller
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'branch_id', 'name', 'sku', 'cost_price'])
+            ->get(['id', 'branch_id', 'name', 'sku', 'cost_price', 'is_sqm'])
             ->map(fn (Product $product) => [
                 'id' => $product->id,
                 'branchId' => $product->branch_id,
                 'name' => $product->name,
                 'sku' => $product->sku,
                 'costPrice' => (float) $product->cost_price,
+                // تاسك 67: the form switches the quantity unit (piece / m²)
+                // the moment an item is picked.
+                'isSqm' => (bool) $product->is_sqm,
             ]);
     }
 

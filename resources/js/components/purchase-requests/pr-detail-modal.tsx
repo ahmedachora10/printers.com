@@ -20,6 +20,10 @@ interface Props {
 
 type Panel = 'none' | 'reject' | 'convert';
 
+/** تاسك 67: pieces stay whole, square metres keep their two decimals. */
+const unitLabel = (isSqm: boolean) => (isSqm ? 'م²' : 'قطعة');
+const formatQty = (qty: number) => (Number.isInteger(qty) ? qty.toString() : qty.toFixed(2));
+
 export default function PrDetailModal({ request, onOpenChange, suppliers }: Props) {
     const [panel, setPanel] = useState<Panel>('none');
 
@@ -141,7 +145,9 @@ export default function PrDetailModal({ request, onOpenChange, suppliers }: Prop
                                             {line.notes && <p className="text-muted-foreground mt-0.5 text-xs">{line.notes}</p>}
                                         </td>
                                         <td dir="ltr" className="p-2 text-right tabular-nums">
-                                            {line.qty}
+                                            {/* تاسك 67: the approver has to see what they are approving —
+                                                2 pieces and 7.10 m² are not the same request. */}
+                                            {formatQty(line.qty)} <span className="text-muted-foreground text-xs">{unitLabel(line.isSqm)}</span>
                                         </td>
                                         <td dir="ltr" className="p-2 text-right tabular-nums">
                                             {line.estimatedUnitCost === null ? '—' : formatCurrency(line.estimatedUnitCost)}

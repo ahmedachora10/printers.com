@@ -34,7 +34,12 @@ class StorePurchaseRequestRequest extends FormRequest
             // A free-text item must name itself; a catalogued one takes the
             // product's name in the action.
             'lines.*.item_name' => ['required_without:lines.*.product_id', 'nullable', 'string', 'max:255'],
-            'lines.*.qty' => ['required', 'integer', 'min:1'],
+            // Decimal since تاسك 67: a product priced per square metre is
+            // requested in fractions of a metre, not whole pieces.
+            'lines.*.qty' => ['required', 'numeric', 'min:0.01'],
+            // Only a free-text item carries its own unit; a catalogued one
+            // takes the product's in the action.
+            'lines.*.is_sqm' => ['nullable', 'boolean'],
             'lines.*.estimated_unit_cost' => ['nullable', 'numeric', 'min:0'],
             'lines.*.notes' => ['nullable', 'string', 'max:500'],
         ];
@@ -47,6 +52,7 @@ class StorePurchaseRequestRequest extends FormRequest
             'lines' => 'الأصناف',
             'lines.*.item_name' => 'اسم الصنف',
             'lines.*.qty' => 'الكمية',
+            'lines.*.is_sqm' => 'وحدة الكمية',
             'lines.*.estimated_unit_cost' => 'السعر التقديري',
         ];
     }

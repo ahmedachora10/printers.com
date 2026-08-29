@@ -211,6 +211,58 @@ describe('Internal purchase requests', function () {
         expect(PurchaseRequest::count())->toBe(0);
     });
 
+    it('takes the quantity in the unit the product is defined with and keeps its decimals', function () use ($submit) {
+        $sqmProduct = Product::factory()->create([
+            'branch_id' => $this->branch->id,
+            'category_id' => ProductCategory::factory(),
+            'unit_id' => ProductUnit::factory(),
+            'is_sqm' => true,
+            'cost_price' => 20,
+        ]);
+
+        $this->actingAs($this->employee);
+        $request = $submit([
+            ['product_id' => $sqmProduct->id, 'qty' => 7.1, 'estimated_unit_cost' => 20],
+            ['product_id' => $this->product->id, 'qty' => 2, 'estimated_unit_cost' => 10],
+            // A free-text item has no product to read the unit off, so the
+            // requester says what they are counting.
+            ['item_name' => 'فينيل بالمتر', 'qty' => 3.5, 'is_sqm' => true],
+        ]);
+
+        [$sqmLine, $pieceLine, $customLine] = $request->lines->all();
+
+        expect((float) $sqmLine->qty)->toBe(7.10);
+        expect($sqmLine->is_sqm)->toBeTrue();
+        expect((float) $pieceLine->qty)->toBe(2.0);
+        // The unit is pinned from the product, never read live afterwards.
+        expect($pieceLine->is_sqm)->toBeFalse();
+        expect((float) $customLine->qty)->toBe(3.5);
+        expect($customLine->is_sqm)->toBeTrue();
+        expect($request->estimatedTotal())->toBe(162.0);
+
+        // A purchase order has accepted decimals since تاسك 51, so conversion
+        // passes the quantity straight through.
+        $this->actingAs($this->admin)->patch(route('purchase-requests.approve', $request))->assertRedirect();
+        $this->post(route('purchase-requests.convert', $request))->assertRedirect();
+
+        expect(PurchaseOrder::latest('id')->first()->lines->firstWhere('product_id', $sqmProduct->id)->ordered_qty)
+            ->toEqual(7.10);
+    });
+
+    it('refuses a zero or negative quantity', function () {
+        $this->actingAs($this->employee);
+
+        $this->post(route('purchase-requests.store'), [
+            'lines' => [['product_id' => $this->product->id, 'qty' => 0]],
+        ])->assertSessionHasErrors('lines.0.qty');
+
+        $this->post(route('purchase-requests.store'), [
+            'lines' => [['product_id' => $this->product->id, 'qty' => -3]],
+        ])->assertSessionHasErrors('lines.0.qty');
+
+        expect(PurchaseRequest::count())->toBe(0);
+    });
+
     it('keeps a request invisible to a branch admin of another branch', function () use ($submit) {
         $this->actingAs($this->employee);
         $request = $submit();
