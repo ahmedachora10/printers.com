@@ -78,6 +78,7 @@ describe('Invoice-level notes', function () {
     it('saves the note on a service invoice', function () {
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'notes' => '  التسليم بعد 3 أيام عمل  ',
                 'lines' => [
@@ -93,6 +94,7 @@ describe('Invoice-level notes', function () {
     it('saves the note on a product invoice', function () {
         $this->actingAs($this->accountant)
             ->post(route('pos.product.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'paid',
                 'notes' => 'الأسعار شاملة التوصيل داخل المدينة',
                 'lines' => [
@@ -107,6 +109,7 @@ describe('Invoice-level notes', function () {
     it('stores a blank note as null rather than an empty string', function () {
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'notes' => '   ',
                 'lines' => [
@@ -123,6 +126,7 @@ describe('Invoice-level notes', function () {
 
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'notes' => $tooLong,
                 'lines' => [
@@ -133,6 +137,7 @@ describe('Invoice-level notes', function () {
 
         $this->actingAs($this->accountant)
             ->post(route('pos.product.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'paid',
                 'notes' => $tooLong,
                 'lines' => [
@@ -148,6 +153,7 @@ describe('Invoice-level notes', function () {
     it('loads the saved note back into the POS edit screen and updates it', function () {
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'notes' => 'الملاحظة الأصلية',
                 'lines' => [
@@ -167,6 +173,7 @@ describe('Invoice-level notes', function () {
 
         $this->actingAs($this->employee)
             ->put(route('pos.service.update', $invoice), [
+                'payment_method_id' => paymentMethodId(),
                 'notes' => 'الملاحظة المعدّلة',
                 'lines' => [
                     ['branch_service_id' => $this->service->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],
@@ -180,6 +187,7 @@ describe('Invoice-level notes', function () {
     it('clears the note when the edit submits an empty box', function () {
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'notes' => 'ملاحظة ستُحذف',
                 'lines' => [
@@ -192,6 +200,7 @@ describe('Invoice-level notes', function () {
 
         $this->actingAs($this->employee)
             ->put(route('pos.service.update', $invoice), [
+                'payment_method_id' => paymentMethodId(),
                 'notes' => null,
                 'lines' => [
                     ['branch_service_id' => $this->service->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],
@@ -205,6 +214,7 @@ describe('Invoice-level notes', function () {
     it('carries the note to the service POS print sheet and the invoice viewer', function () {
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'due',
                 'notes' => 'ملاحظة الطباعة',
                 'lines' => [
@@ -240,6 +250,7 @@ describe('Invoice-level notes', function () {
     it('carries the note to the product POS print sheet and the invoice viewer', function () {
         $this->actingAs($this->accountant)
             ->post(route('pos.product.store'), [
+                'payment_method_id' => paymentMethodId(),
                 'status' => 'paid',
                 'notes' => 'ملاحظة فاتورة المنتجات',
                 'lines' => [

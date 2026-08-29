@@ -35,6 +35,7 @@ function makeService(Branch $branch, array $attrs = []): BranchService
 function dueServicePayload(BranchService $service): array
 {
     return [
+        'payment_method_id' => paymentMethodId(),
         'status' => 'due',
         'lines' => [
             ['branch_service_id' => $service->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0],

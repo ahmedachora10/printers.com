@@ -32,6 +32,7 @@ uses(RefreshDatabase::class);
 function reversalProductPayload(array $overrides = []): array
 {
     return array_merge([
+        'payment_method_id' => paymentMethodId(),
         'status' => 'paid',
         'lines' => [
             ['product_id' => test()->product->id, 'qty' => 10, 'unit_price' => 11.5, 'discount_pct' => 0],
@@ -69,6 +70,7 @@ function serviceInvoiceFor(?int $customerId, array $overrides = []): ServiceInvo
     test()->actingAs(test()->employee)
         ->post(route('pos.service.store'), array_merge([
             'status' => 'due',
+            'payment_method_id' => paymentMethodId(),
             'customer_id' => $customerId,
             'lines' => [
                 ['branch_service_id' => test()->service->id, 'qty' => 10, 'unit_price' => 11.5, 'discount_pct' => 0],

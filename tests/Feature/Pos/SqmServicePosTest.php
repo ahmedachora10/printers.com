@@ -54,6 +54,7 @@ describe('Square-meter priced services', function () {
 
     it('falls back to the service meter price when none is typed', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->sqmService->id,
@@ -85,6 +86,7 @@ describe('Square-meter priced services', function () {
         // تاسك 44: الكاشير يتفق مع العميل على سعر مترٍ غير سعر الخدمة، فيكتبه
         // ويُحفظ كما هو — والأبعاد تضربه لتعطي إجمالي السطر.
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->sqmService->id,
@@ -107,6 +109,7 @@ describe('Square-meter priced services', function () {
 
     it('still requires the dimensions even when a price is typed', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->sqmService->id,
@@ -121,6 +124,7 @@ describe('Square-meter priced services', function () {
 
     it('rejects a sqm line without dimensions', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->sqmService->id,
@@ -135,6 +139,7 @@ describe('Square-meter priced services', function () {
 
     it('applies the line discount to the area total', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->sqmService->id,
@@ -154,6 +159,7 @@ describe('Square-meter priced services', function () {
 
     it('still enforces the max discount ceiling on a sqm line', function () {
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->sqmService->id,
@@ -181,6 +187,7 @@ describe('Square-meter priced services', function () {
         $unitService = BranchService::where('service_template_id', $unitTemplate->id)->firstOrFail();
 
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $unitService->id,
@@ -205,6 +212,7 @@ describe('Square-meter priced services', function () {
         $service = makeSqmService(['price_per_sqm' => 50, 'max_discount_pct' => 0]);
 
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $service->id,
@@ -228,6 +236,7 @@ describe('Square-meter priced services', function () {
         // الأسطر المحفوظة قبل التغيير تحمل سعر القطعة ولا عمود يميّزها، فتُقسم
         // على مساحتها عند فتح الفاتورة للتعديل كي لا يتضاعف إجماليها.
         $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $this->sqmService->id,

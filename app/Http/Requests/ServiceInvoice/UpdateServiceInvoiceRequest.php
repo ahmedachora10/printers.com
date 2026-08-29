@@ -3,6 +3,7 @@
 namespace App\Http\Requests\ServiceInvoice;
 
 use App\Enums\LineAgentCommissionTypeEnum;
+use App\Models\Branch;
 use App\Models\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -31,7 +32,9 @@ class UpdateServiceInvoiceRequest extends FormRequest
             'walkin_tax_number' => ['nullable', 'string', 'digits:15'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
-            'payment_method_id' => ['nullable', 'integer', 'exists:payment_methods,id'],
+            // طريقة الدفع إلزامية في التعديل كما في الإنشاء — والفاتورة القديمة
+            // التي حُفظت بلا طريقة تُجبَر عليها عند أول تعديل.
+            'payment_method_id' => ['required', 'integer', Rule::in($this->allowedPaymentMethodIds())],
             'receipt' => [
                 $this->paymentMethodRequiresAttachment() ? 'required' : 'nullable',
                 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120',
@@ -59,6 +62,27 @@ class UpdateServiceInvoiceRequest extends FormRequest
     }
 
     /**
+     * The methods this invoice may carry: those enabled for **its own** branch —
+     * not the reviewer's — plus whatever it already carries, so a method that was
+     * disabled after the invoice was raised does not block a re-edit.
+     *
+     * @return array<int, int>
+     */
+    private function allowedPaymentMethodIds(): array
+    {
+        $invoice = $this->route('invoice');
+
+        $branch = Branch::find($invoice?->branch_id);
+        $ids = $branch ? $branch->enabledPaymentMethods()->pluck('id')->all() : [];
+
+        if ($invoice?->payment_method_id !== null) {
+            $ids[] = (int) $invoice->payment_method_id;
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
      * Whether the chosen payment method mandates a receipt upload. On edit the
      * proof is only demanded when none is already attached, so a re-edit that
      * keeps the same bank-transfer method need not re-upload it.
@@ -75,6 +99,8 @@ class UpdateServiceInvoiceRequest extends FormRequest
     {
         return [
             'walkin_tax_number.digits' => 'الرقم الضريبي يجب أن يكون 15 رقماً.',
+            'payment_method_id.required' => 'طريقة الدفع مطلوبة — اخترها قبل حفظ الفاتورة.',
+            'payment_method_id.in' => 'طريقة الدفع غير متاحة لهذا الفرع.',
             'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.',
             'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',

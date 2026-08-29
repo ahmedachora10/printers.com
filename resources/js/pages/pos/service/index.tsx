@@ -701,6 +701,10 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             );
             return;
         }
+        if (!paymentMethodId) {
+            toast.error('اختر طريقة الدفع قبل حفظ الفاتورة');
+            return;
+        }
         // A bank-transfer method needs a receipt — unless editing an invoice that
         // already carries one and keeps the same method.
         if (requiresReceipt && !receipt && !(isEditing && invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
@@ -1083,11 +1087,15 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     {/* Payment method */}
                     <Card>
                         <CardHeader className="pb-3">
-                            <CardTitle className="text-base">طريقة الدفع</CardTitle>
+                            <CardTitle className="text-base">
+                                طريقة الدفع <span className="text-destructive">*</span>
+                            </CardTitle>
                         </CardHeader>
                         <CardContent>
                             {paymentMethods.length === 0 ? (
-                                <p className="text-muted-foreground text-sm">لا توجد طرق دفع مفعّلة</p>
+                                <p className="text-destructive text-sm">
+                                    لا توجد طرق دفع مفعّلة لهذا الفرع — أضف طريقة دفع من الإعدادات قبل إصدار الفواتير.
+                                </p>
                             ) : (
                                 <div className="space-y-3">
                                     <div className="grid grid-cols-2 gap-2">
@@ -1124,6 +1132,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                     )}
                                 </div>
                             )}
+                            {errors.payment_method_id && <p className="text-destructive mt-2 text-xs">{errors.payment_method_id}</p>}
                         </CardContent>
                     </Card>
 

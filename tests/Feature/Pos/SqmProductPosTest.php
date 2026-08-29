@@ -100,6 +100,7 @@ describe('Products priced by the square metre (تاسك 51)', function () {
         $product = sqmTestProduct(20, ['is_sqm' => true, 'selling_price' => 50]);
 
         $this->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'paid',
             'lines' => [[
                 'product_id' => $product->id,
@@ -126,6 +127,7 @@ describe('Products priced by the square metre (تاسك 51)', function () {
         $product = sqmTestProduct(20, ['is_sqm' => true, 'selling_price' => 50]);
 
         $this->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'paid',
             'lines' => [[
                 'product_id' => $product->id,
@@ -149,6 +151,7 @@ describe('Products priced by the square metre (تاسك 51)', function () {
         $product = sqmTestProduct(20, ['is_sqm' => true, 'selling_price' => 50]);
 
         $this->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'paid',
             'lines' => [[
                 'product_id' => $product->id,
@@ -171,6 +174,7 @@ describe('Products priced by the square metre (تاسك 51)', function () {
         $product = sqmTestProduct(20, ['is_sqm' => true, 'selling_price' => 50]);
 
         $this->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'paid',
             'lines' => [[
                 'product_id' => $product->id,
@@ -188,6 +192,7 @@ describe('Products priced by the square metre (تاسك 51)', function () {
         $product = sqmTestProduct(1, ['is_sqm' => true, 'selling_price' => 50]);
 
         $this->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'paid',
             'lines' => [[
                 'product_id' => $product->id,
@@ -210,6 +215,7 @@ describe('Products priced by the square metre (تاسك 51)', function () {
         $product = sqmTestProduct(20, ['selling_price' => 10]);
 
         $this->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'paid',
             'lines' => [[
                 'product_id' => $product->id,
@@ -237,6 +243,7 @@ describe('Products priced by the square metre (تاسك 51)', function () {
         $product = sqmTestProduct(20, ['is_sqm' => true, 'selling_price' => 50]);
 
         $this->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'paid',
             'lines' => [[
                 'product_id' => $product->id,

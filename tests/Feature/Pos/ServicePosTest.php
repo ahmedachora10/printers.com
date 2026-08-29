@@ -53,6 +53,7 @@ function setCommissionRate(User $user, BranchService $service, float $pct): void
 function svcPayload(array $overrides = []): array
 {
     return array_merge([
+        'payment_method_id' => paymentMethodId(),
         'status' => 'due',
         'lines' => [
             ['branch_service_id' => test()->service->id, 'qty' => 3, 'unit_price' => 10, 'discount_pct' => 0],

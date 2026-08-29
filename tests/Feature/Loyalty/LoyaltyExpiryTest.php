@@ -144,6 +144,7 @@ describe('Loyalty points expiry', function () {
         ]);
 
         $this->actingAs($accountant)->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'customer_id' => $customer->id,
             'lines' => [['product_id' => $product->id, 'qty' => 1, 'unit_price' => 10, 'discount_pct' => 0]],

@@ -28,6 +28,7 @@ uses(RefreshDatabase::class);
 function loyaltyPayload(array $overrides = []): array
 {
     return array_merge([
+        'payment_method_id' => paymentMethodId(),
         'status' => 'paid',
         'lines' => [
             ['product_id' => test()->product->id, 'qty' => 3, 'unit_price' => 10, 'discount_pct' => 0],

@@ -41,6 +41,7 @@ function materialsService(array $attrs = []): BranchService
 function materialsPayload(array $lineAttrs = [], array $overrides = []): array
 {
     return array_merge([
+        'payment_method_id' => paymentMethodId(),
         'status' => 'due',
         'lines' => [array_merge([
             'branch_service_id' => test()->service->id,

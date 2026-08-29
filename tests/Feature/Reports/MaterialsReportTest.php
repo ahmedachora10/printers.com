@@ -74,6 +74,7 @@ function reportInvoice(BranchService $service, int $qty = 3): ServiceInvoice
 {
     test()->actingAs(test()->employee)
         ->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId(),
             'status' => 'due',
             'lines' => [[
                 'branch_service_id' => $service->id,
