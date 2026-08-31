@@ -52,7 +52,7 @@ class HandleInertiaRequests extends Middleware
                     ? ['active' => true, 'viewingName' => $request->user()?->name]
                     : null,
             ],
-            'notifications' => fn () => $this->notifications($request),
+            'notifications' => fn() => $this->notifications($request),
             'success' => $request->session()->get('success'),
             'error' => $request->session()->get('error'),
         ]);
@@ -92,11 +92,11 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
 
-        if (! $user) {
+        if (!$user) {
             return ['unreadCount' => 0, 'items' => []];
         }
 
-        $items = $user->notifications()->latest()->limit(10)->get()->map(fn ($n) => [
+        $items = $user->notifications()->latest()->limit(10)->get()->map(fn($n) => [
             'id' => $n->id,
             'type' => $n->data['type'] ?? 'general',
             'title' => $n->data['title'] ?? '',
@@ -120,7 +120,7 @@ class HandleInertiaRequests extends Middleware
 
         $userRole = $request->user()?->roleName;
 
-        if (! $userRole) {
+        if (!$userRole) {
             return [];
         }
 
@@ -318,6 +318,14 @@ class HandleInertiaRequests extends Middleware
                 'group' => 'finance',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
+            // وجه الموظف من البند نفسه — شاشةٌ للقراءة لا للإدارة.
+            [
+                'title' => 'حوافزي وحسوماتي',
+                'url' => route('my-incentives.index'),
+                'icon' => 'Trophy',
+                'group' => 'finance',
+                'role' => [Roles::EMPLOYEE],
+            ],
             // ---- Reports & Analytics ----
             [
                 'title' => 'تقرير المبيعات',
@@ -353,6 +361,13 @@ class HandleInertiaRequests extends Middleware
                 'icon' => 'Boxes',
                 'group' => 'reports',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
+                'title' => 'الحوافز والخصومات',
+                'url' => route('reports.incentives'),
+                'icon' => 'Trophy',
+                'group' => 'reports',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
                 'title' => 'التقرير اليومي',
@@ -424,16 +439,16 @@ class HandleInertiaRequests extends Middleware
 
         // Keep only items visible to this role, stripped of the internal keys.
         $visible = array_map(
-            fn ($item) => array_diff_key($item, ['role' => null, 'group' => null]) + ['group' => $item['group']],
-            array_filter($items, fn ($item) => in_array($userRole, $item['role']))
+            fn($item) => array_diff_key($item, ['role' => null, 'group' => null]) + ['group' => $item['group']],
+            array_filter($items, fn($item) => in_array($userRole, $item['role']))
         );
 
         // Bucket into the defined group order, dropping empty groups.
         $result = [];
         foreach ($groups as $key => $group) {
             $groupItems = array_values(array_map(
-                fn ($item) => array_diff_key($item, ['group' => null]),
-                array_filter($visible, fn ($item) => $item['group'] === $key)
+                fn($item) => array_diff_key($item, ['group' => null]),
+                array_filter($visible, fn($item) => $item['group'] === $key)
             ));
 
             if ($groupItems !== []) {

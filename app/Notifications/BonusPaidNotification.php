@@ -26,7 +26,7 @@ class BonusPaidNotification extends Notification
             'type' => 'bonus_paid',
             'title' => 'تم صرف مكافأتك',
             'body' => "تم صرف مكافأة تحفيزية بمبلغ {$amount} ر.س.",
-            'url' => route('incentives.index'),
+            'url' => route('my-incentives.index'),
             'icon' => 'Trophy',
         ];
     }

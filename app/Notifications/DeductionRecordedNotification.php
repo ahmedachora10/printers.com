@@ -30,7 +30,7 @@ class DeductionRecordedNotification extends Notification
             'type' => 'deduction_recorded',
             'title' => 'تم تسجيل حسم عليك',
             'body' => "حسم بمبلغ {$amount} ر.س — السبب: {$this->deduction->reasonLabel()}.",
-            'url' => route('dashboard'),
+            'url' => route('my-incentives.index'),
             'icon' => 'TrendingDown',
         ];
     }

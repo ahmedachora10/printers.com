@@ -4,7 +4,11 @@ import PayBonusModal from '@/components/incentives/pay-bonus-modal';
 import PlanFormModal from '@/components/incentives/plan-form-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { TableCell, TableRow } from '@/components/ui/table';
-import { FilterBar } from '@/components/filter-bar';
+import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
+import DateRangeBar from '@/components/reports/date-range-bar';
+import { FilterSelect } from '@/components/reports/filter-fields';
+import { FilterModal } from '@/components/reports/filter-modal';
+import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,7 +33,7 @@ import {
 } from '@/types/incentive';
 import { router } from '@inertiajs/react';
 import { Minus, Pencil, Plus, RefreshCw, Trash2, Wallet } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'الحوافز والمكافآت', href: '/incentives' }];
 
@@ -42,7 +46,7 @@ const STATUS_VARIANT: Record<string, 'secondary' | 'default' | 'outline' | 'dest
 
 interface Props {
     plans: PaginatedIncentivePlan;
-    /** تاسك 74: سجل الحسومات — بند مستقل تحت الحوافز. */
+    /** تاسك 74: سجل الخصومات — بند مستقل تحت الحوافز. */
     deductions: PaginatedEmployeeDeduction;
     deductionsTotal: number;
     deductionReasons: DeductionReasonOption[];
@@ -51,11 +55,11 @@ interface Props {
     statuses: EnumOption[];
     branches?: { id: number; name: string }[] | null;
     filters: {
-        search?: string;
-        status?: string;
-        period_month?: string;
-        period_year?: string;
-        branch_id?: string;
+        employee?: string | null;
+        status?: string | null;
+        from?: string | null;
+        to?: string | null;
+        branch?: string | null;
     };
 }
 
@@ -219,42 +223,38 @@ export default function IncentivesIndex({
         [isSuperAdmin],
     );
 
-    const [search, setSearch] = useState(filters.search ?? '');
-    const [filterValues, setFilterValues] = useState<Record<string, string>>({
-        status: filters.status ?? '',
-        branch_id: filters.branch_id ?? '',
-    });
-    const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+    // نفس آليّة تصفية التقارير: الفروق كلها في الحقول، فلا نسخةَ ثانية من منطق
+    // المسوّدة والتنقّل. والمدى هنا يبدأ فارغاً — القائمة تُفتح على كل الفترات.
+    const defaults = useMemo<FilterValues>(() => ({ from: '', to: '', employee: 'all', branch: 'all', status: 'all' }), []);
 
-    const buildQuery = (overrides: Record<string, string | undefined>) => {
-        const params: Record<string, string> = {};
-        const merged = { search, status: filterValues.status, branch_id: filterValues.branch_id, ...overrides };
-        Object.entries(merged).forEach(([key, value]) => {
-            if (value) params[key] = value;
-        });
-        return params;
+    const applied: FilterValues = {
+        from: filters.from ?? '',
+        to: filters.to ?? '',
+        employee: filters.employee ?? 'all',
+        branch: filters.branch ?? 'all',
+        status: filters.status ?? 'all',
     };
+    const f = useReportFilters(index.url(), applied, defaults);
 
-    const handleSearchChange = (value: string) => {
-        setSearch(value);
-        if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        searchTimeout.current = setTimeout(() => {
-            router.get(index.url(), buildQuery({ search: value }), { preserveState: true, replace: true });
-        }, 400);
-    };
-
-    const handleFilterChange = (key: string, val: string) => {
-        const next = { ...filterValues, [key]: val };
-        setFilterValues(next);
-        router.get(index.url(), buildQuery({ [key]: val }), { preserveState: true, replace: true });
-    };
-
-    const handleClearAll = () => {
-        setSearch('');
-        setFilterValues({ status: '', branch_id: '' });
-        if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        router.get(index.url(), {}, { preserveState: true, replace: true });
-    };
+    const chips: FilterChip[] = [];
+    if (f.isActive('branch')) {
+        const name = branches?.find((b) => b.id.toString() === applied.branch)?.name ?? applied.branch;
+        chips.push({ key: 'branch', label: `الفرع: ${name}`, onRemove: () => f.remove('branch') });
+    }
+    if (f.isActive('employee')) {
+        const name = employees.find((e) => e.id.toString() === applied.employee)?.name ?? applied.employee;
+        chips.push({ key: 'employee', label: `الموظف: ${name}`, onRemove: () => f.remove('employee') });
+    }
+    if (f.isActive('status')) {
+        const label = statuses.find((s) => s.value === applied.status)?.label ?? applied.status;
+        chips.push({ key: 'status', label: `الحالة: ${label}`, onRemove: () => f.remove('status') });
+    }
+    if (f.isActive('from')) {
+        chips.push({ key: 'from', label: `من: ${applied.from}`, onRemove: () => f.remove('from') });
+    }
+    if (f.isActive('to')) {
+        chips.push({ key: 'to', label: `إلى: ${applied.to}`, onRemove: () => f.remove('to') });
+    }
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -266,38 +266,41 @@ export default function IncentivesIndex({
                     </Button>
                 </div>
 
-                <div className="mb-6">
-                    <FilterBar
-                        searchable
-                        searchPlaceholder="بحث باسم الموظف..."
-                        searchValue={search}
-                        onSearchChange={handleSearchChange}
-                        filters={[
-                            ...(isSuperAdmin
-                                ? [
-                                      {
-                                          key: 'branch_id',
-                                          placeholder: 'الفرع',
-                                          options: branches!.map((b) => ({ value: b.id.toString(), label: b.name })),
-                                      },
-                                  ]
-                                : []),
-                            {
-                                key: 'status',
-                                placeholder: 'الحالة',
-                                options: statuses.map((s) => ({ value: s.value, label: s.label })),
-                            },
-                        ]}
-                        filterValues={filterValues}
-                        onFilterChange={handleFilterChange}
-                        onClearAll={handleClearAll}
-                        actions={
-                            <Button size="sm" onClick={openCreate}>
-                                <Plus className="size-4" /> خطة حوافز
-                            </Button>
-                        }
-                    />
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                    <DateRangeBar filters={f} from={applied.from} to={applied.to} extended />
+                    <div className="flex items-center gap-2">
+                        <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
+                            {isSuperAdmin && (
+                                <FilterSelect
+                                    label="الفرع"
+                                    value={f.draft.branch}
+                                    onChange={(v) => f.setField('branch', v)}
+                                    allLabel="كل الفروع"
+                                    options={branches!.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                                />
+                            )}
+                            <FilterSelect
+                                label="الموظف"
+                                value={f.draft.employee}
+                                onChange={(v) => f.setField('employee', v)}
+                                allLabel="كل الموظفين"
+                                options={employees.map((e) => ({ value: e.id.toString(), label: e.name }))}
+                            />
+                            <FilterSelect
+                                label="الحالة"
+                                value={f.draft.status}
+                                onChange={(v) => f.setField('status', v)}
+                                allLabel="كل الحالات"
+                                options={statuses}
+                            />
+                        </FilterModal>
+                        <Button size="sm" onClick={openCreate}>
+                            <Plus className="size-4" /> خطة حوافز
+                        </Button>
+                    </div>
                 </div>
+
+                <ActiveFilterChips chips={chips} />
 
                 <DataTable columns={columns} data={plans.data} keyExtractor={(p) => p.id} />
 
@@ -311,13 +314,13 @@ export default function IncentivesIndex({
                 />
 
                 {/*
-                    تاسك 74: الحسومات. بندٌ مستقلّ عمداً — لا يُنقص صفّاً في
+                    تاسك 74: الخصومات. بندٌ مستقلّ عمداً — لا يُنقص صفّاً في
                     commission_ledger ولا مكافأةً مصروفة، فكلاهما جدولٌ غير قابل
                     للتعديل. يُعرض هنا بجانب المستحق ولا يُعيد كتابة رقمٍ منشور.
                 */}
                 <div className="mt-10 mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
-                        <h2 className="text-xl font-bold">الحسومات</h2>
+                        <h2 className="text-xl font-bold">الخصومات</h2>
                         <p className="text-muted-foreground text-sm">
                             حسمٌ تطبّقه الإدارة بسببه وقيمته. القيد نهائي لا يُعدَّل، وتصحيحه بقيدٍ معاكس.
                         </p>
@@ -333,7 +336,7 @@ export default function IncentivesIndex({
                     keyExtractor={(d) => d.id}
                     footer={
                         <TableRow>
-                            <TableCell className="font-bold whitespace-nowrap">الإجمالي — كل الفترات</TableCell>
+                            <TableCell className="font-bold whitespace-nowrap">الإجمالي — حسب التصفية</TableCell>
                             <TableCell />
                             {isSuperAdmin && <TableCell />}
                             <TableCell className="font-bold tabular-nums">{formatCurrency(deductionsTotal)}</TableCell>
