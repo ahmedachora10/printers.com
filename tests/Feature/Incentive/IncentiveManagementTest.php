@@ -4,6 +4,7 @@ use App\Enums\IncentivePlanStatusEnum;
 use App\Enums\Roles;
 use App\Models\BonusPayment;
 use App\Models\Branch;
+use App\Models\EmployeeDeduction;
 use App\Models\IncentivePlan;
 use App\Models\ServiceInvoice;
 use App\Models\User;
@@ -281,5 +282,90 @@ describe('Incentives', function () {
         ])->assertForbidden();
 
         expect(IncentivePlan::count())->toBe(0);
+    });
+    it('filters the screen by employee', function () {
+        $colleague = User::factory()->create(['branch_id' => $this->branch->id]);
+        $colleague->addRole(Roles::EMPLOYEE->value);
+
+        IncentivePlan::factory()->create(['user_id' => $this->employee->id, 'branch_id' => $this->branch->id]);
+        IncentivePlan::factory()->create(['user_id' => $colleague->id, 'branch_id' => $this->branch->id]);
+        EmployeeDeduction::factory()->create([
+            'user_id' => $colleague->id,
+            'branch_id' => $this->branch->id,
+            'amount' => 50,
+            'deducted_by' => $this->branchAdmin->id,
+            'deducted_at' => now(),
+        ]);
+
+        $this->get(route('incentives.index', ['employee' => $this->employee->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('plans.data', 1)
+                ->where('plans.data.0.userId', $this->employee->id)
+                // الحسم على الزميل يسقط مع خطته — المرشِّح واحدٌ للجدولين.
+                ->has('deductions.data', 0)
+                ->where('deductionsTotal', 0));
+    });
+
+    /**
+     * الخطة شهرٌ لا يوم: مدىً يلامس أيَّ يومٍ من الشهر يُدخلها، ومدىً خارجه يُسقطها.
+     */
+    it('filters plans by the months a date range touches', function () {
+        $last = now()->subMonthNoOverflow();
+
+        IncentivePlan::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+        ]);
+        IncentivePlan::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'period_month' => $last->month,
+            'period_year' => $last->year,
+        ]);
+
+        $this->get(route('incentives.index', [
+            'from' => now()->startOfMonth()->toDateString(),
+            'to' => now()->toDateString(),
+        ]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('plans.data', 1)
+                ->where('plans.data.0.periodMonth', now()->month));
+
+        $this->get(route('incentives.index', [
+            'from' => $last->copy()->startOfMonth()->toDateString(),
+            'to' => now()->endOfMonth()->toDateString(),
+        ]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->has('plans.data', 2));
+    });
+
+    it('filters deductions by their own date and totals only what is shown', function () {
+        EmployeeDeduction::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'amount' => 100,
+            'deducted_by' => $this->branchAdmin->id,
+            'deducted_at' => now(),
+        ]);
+        EmployeeDeduction::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'amount' => 40,
+            'deducted_by' => $this->branchAdmin->id,
+            'deducted_at' => now()->subMonthNoOverflow(),
+        ]);
+
+        $this->get(route('incentives.index', [
+            'from' => now()->startOfMonth()->toDateString(),
+            'to' => now()->endOfMonth()->toDateString(),
+        ]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->has('deductions.data', 1)
+                ->where('deductionsTotal', 100));
     });
 });

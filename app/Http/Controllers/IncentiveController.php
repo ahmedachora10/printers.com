@@ -6,6 +6,7 @@ use App\Actions\Incentive\CreateIncentivePlanAction;
 use App\Actions\Incentive\DeleteIncentivePlanAction;
 use App\Actions\Incentive\PayBonusAction;
 use App\Actions\Incentive\RecalculateIncentivePlanAction;
+use App\Actions\Incentive\ResolveIncentiveScope;
 use App\Actions\Incentive\UpdateIncentivePlanAction;
 use App\Enums\DeductionReasonEnum;
 use App\Enums\IncentiveBonusTypeEnum;
@@ -31,40 +32,35 @@ use Inertia\Response;
 
 class IncentiveController extends Controller
 {
-    public function index(Request $request): Response
+    public function index(Request $request, ResolveIncentiveScope $resolveScope): Response
     {
         Gate::authorize('viewAny', IncentivePlan::class);
 
-        $isSuper = $request->user()->roleName->isSuperAdmin();
-        $branchId = $isSuper
-            ? ($request->filled('branch_id') ? (int) $request->input('branch_id') : null)
-            : $request->user()->branchId;
+        $scope = $resolveScope->handle($request);
+        $isSuper = $scope['isSuper'];
+        $branchId = $scope['branchId'];
 
         $plans = IncentivePlan::query()
-            ->with(['user:id,name', 'branch:id,name', 'bonusPayments' => fn ($q) => $q->with('paidBy:id,name')->latest('paid_at')])
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
-            ->when($request->filled('period_year'), fn ($q) => $q->where('period_year', (int) $request->input('period_year')))
-            ->when($request->filled('period_month'), fn ($q) => $q->where('period_month', (int) $request->input('period_month')))
-            ->when($request->filled('search'), fn ($q) => $q->whereHas(
-                'user',
-                fn (Builder $u) => $u->where('name', 'like', '%'.$request->input('search').'%')
-            ))
+            ->with(['user:id,name', 'branch:id,name', 'bonusPayments' => fn($q) => $q->with('paidBy:id,name')->latest('paid_at')])
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($scope['userId'], fn($q) => $q->where('user_id', $scope['userId']))
+            ->when($scope['status'], fn($q) => $q->where('status', $scope['status']))
+            ->inPeriodRange($scope['from'], $scope['to'])
             ->orderByDesc('period_year')
             ->orderByDesc('period_month')
             ->paginate(15)
             ->withQueryString();
 
-        // تاسك 74: الحسومات بندٌ مستقلّ يُعرض بجانب الخطط ولا يُعيد كتابة أي رقم
+        // تاسك 74: الخصومات بندٌ مستقلّ يُعرض بجانب الخطط ولا يُعيد كتابة أي رقم
         // منشور — لا عمولة ولا مكافأة. صفحتها الخاصّة كي لا يزاحم تصفيحُها تصفيحَ
         // الخطط في الشاشة الواحدة.
-        $deductions = EmployeeDeduction::query()
+        $deductionQuery = fn() => EmployeeDeduction::query()
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($scope['userId'], fn($q) => $q->where('user_id', $scope['userId']))
+            ->deductedBetween($scope['from'], $scope['to']);
+
+        $deductions = $deductionQuery()
             ->with(['user:id,name', 'branch:id,name', 'deductedBy:id,name'])
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->when($request->filled('search'), fn ($q) => $q->whereHas(
-                'user',
-                fn (Builder $u) => $u->where('name', 'like', '%'.$request->input('search').'%')
-            ))
             ->latest('deducted_at')
             ->paginate(10, pageName: 'deductionsPage')
             ->withQueryString();
@@ -72,25 +68,25 @@ class IncentiveController extends Controller
         return Inertia::render('incentives/index', [
             'plans' => IncentivePlanResource::collection($plans),
             'deductions' => EmployeeDeductionResource::collection($deductions),
-            'deductionsTotal' => (float) EmployeeDeduction::query()
-                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-                ->sum('amount'),
+            // الإجمالي يتبع التصفية لا كل التاريخ: رقمٌ أسفل جدولٍ مصفّى لا يقرؤه
+            // أحدٌ إلا على أنه مجموع ما يراه.
+            'deductionsTotal' => (float) $deductionQuery()->sum('amount'),
             'deductionReasons' => array_map(
-                fn (DeductionReasonEnum $c) => ['value' => $c->value, 'label' => $c->label(), 'requiresNote' => $c->requiresNote()],
+                fn(DeductionReasonEnum $c) => ['value' => $c->value, 'label' => $c->label(), 'requiresNote' => $c->requiresNote()],
                 DeductionReasonEnum::cases(),
             ),
             'employees' => $this->employees($branchId, $isSuper),
-            'bonusTypes' => array_map(fn ($c) => ['value' => $c->value, 'label' => $c->label()], IncentiveBonusTypeEnum::cases()),
-            'statuses' => array_map(fn ($c) => ['value' => $c->value, 'label' => $c->label()], IncentivePlanStatusEnum::cases()),
+            'bonusTypes' => array_map(fn($c) => ['value' => $c->value, 'label' => $c->label()], IncentiveBonusTypeEnum::cases()),
+            'statuses' => array_map(fn($c) => ['value' => $c->value, 'label' => $c->label()], IncentivePlanStatusEnum::cases()),
             'branches' => $isSuper
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,
             'filters' => [
-                'search' => $request->input('search'),
-                'status' => $request->input('status'),
-                'period_month' => $request->input('period_month'),
-                'period_year' => $request->input('period_year'),
-                'branch_id' => $request->input('branch_id'),
+                'employee' => $scope['userId'] ? (string) $scope['userId'] : null,
+                'status' => $scope['status'],
+                'from' => $scope['from']?->toDateString(),
+                'to' => $scope['to']?->toDateString(),
+                'branch' => $isSuper && $branchId ? (string) $branchId : null,
             ],
         ]);
     }
@@ -140,8 +136,8 @@ class IncentiveController extends Controller
 
         IncentivePlan::query()
             ->where('status', '!=', IncentivePlanStatusEnum::Paid->value)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->each(fn (IncentivePlan $plan) => $action->handle($plan));
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->each(fn(IncentivePlan $plan) => $action->handle($plan));
 
         return back(fallback: route('incentives.index'))->with('success', 'تم تحديث المبيعات المحققة');
     }
@@ -169,7 +165,7 @@ class IncentiveController extends Controller
         abort_if($branchId === null, 422, 'الموظف غير مرتبط بفرع.');
 
         // Branch-admins may only file plans for their own branch's employees.
-        if (! auth()->user()->roleName->isSuperAdmin()) {
+        if (!auth()->user()->roleName->isSuperAdmin()) {
             abort_unless((int) $branchId === auth()->user()->branchId, 403);
         }
 
@@ -182,13 +178,13 @@ class IncentiveController extends Controller
     private function employees(?int $branchId, bool $isSuper)
     {
         return User::query()
-            ->whereHas('roles', fn (Builder $q) => $q->where('name', Roles::EMPLOYEE->value))
+            ->whereHas('roles', fn(Builder $q) => $q->where('name', Roles::EMPLOYEE->value))
             ->where('is_active', true)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
             ->with('branch:id,name')
             ->orderBy('name')
             ->get(['id', 'name', 'branch_id'])
-            ->map(fn (User $u) => [
+            ->map(fn(User $u) => [
                 'id' => $u->id,
                 'name' => $u->name,
                 'branchName' => $isSuper ? $u->branch?->name : null,

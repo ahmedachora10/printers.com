@@ -3,7 +3,9 @@
 namespace App\Models;
 
 use App\Enums\DeductionReasonEnum;
+use Carbon\CarbonInterface;
 use Database\Factories\EmployeeDeductionFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -36,6 +38,19 @@ class EmployeeDeduction extends Model
         'deducted_at' => 'datetime',
     ];
 
+    /**
+     * الخصومات الواقعة داخل مدى تاريخين — نظير `IncentivePlan::inPeriodRange`،
+     * إلا أن للحسم تاريخاً فعلياً فيُقارَن به مباشرة.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeDeductedBetween(Builder $query, ?CarbonInterface $from, ?CarbonInterface $to): void
+    {
+        $query
+            ->when($from, fn(Builder $q) => $q->where('deducted_at', '>=', $from))
+            ->when($to, fn(Builder $q) => $q->where('deducted_at', '<=', $to));
+    }
+
     /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
@@ -58,7 +73,7 @@ class EmployeeDeduction extends Model
     public function reasonLabel(): string
     {
         return $this->reason->requiresNote() && $this->reason_note
-            ? $this->reason->label().' — '.$this->reason_note
+            ? $this->reason->label() . ' — ' . $this->reason_note
             : $this->reason->label();
     }
 }

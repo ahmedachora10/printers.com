@@ -6,6 +6,7 @@ import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import {
+    type DashboardDeductions,
     type DashboardIncentive,
     type DashboardKpis,
     type DashboardPaymentMethod,
@@ -16,7 +17,7 @@ import {
     type DashboardTrendPoint,
 } from '@/types/dashboard';
 import { Head, Link } from '@inertiajs/react';
-import { AlertTriangle, CalendarDays, Package, Target, Wallet } from 'lucide-react';
+import { AlertTriangle, CalendarDays, Minus, Package, Target, Wallet } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'لوحة التحكم', href: '/dashboard' }];
 
@@ -28,6 +29,8 @@ interface Props {
     topServices: DashboardTopService[];
     recentInvoices: DashboardRecentInvoice[];
     incentive: DashboardIncentive | null;
+    /** للموظف وحده — null لبقية الأدوار. */
+    deductions: DashboardDeductions | null;
     scope: DashboardScope;
 }
 
@@ -55,7 +58,7 @@ const recentInvoiceColumns: ColumnDef<DashboardRecentInvoice>[] = [
     { key: 'createdAt', header: 'التاريخ', className: 'text-sm', cell: (inv) => (inv.createdAt ? formatDate(inv.createdAt) : '—') },
 ];
 
-export default function Dashboard({ kpis, revenueTrend, salesByType, paymentMethods, topServices, recentInvoices, incentive, scope }: Props) {
+export default function Dashboard({ kpis, revenueTrend, salesByType, paymentMethods, topServices, recentInvoices, incentive, deductions, scope }: Props) {
     const salesLabel = scope.isEmployee ? 'مبيعاتي' : 'المبيعات';
     const trendTitle = `${scope.isEmployee ? 'مبيعاتي' : 'المبيعات'} خلال آخر ${scope.trendDays} يومًا`;
 
@@ -121,6 +124,10 @@ export default function Dashboard({ kpis, revenueTrend, salesByType, paymentMeth
                         </ChartCard>
                     )}
 
+                    {/* الخصومات: كارتٌ مستقلّ يظهر للموظف دائماً ولو كان صفراً — القصد
+                        ألّا يفاجئه الحسم في كشف الراتب. */}
+                    {deductions && <DeductionsCard deductions={deductions} />}
+
                     {/* Top services gets its own card when not already used as the fallback above. */}
                     {(salesByType || incentive) && (
                         <ChartCard title="أعلى الخدمات" className={paymentMethods ? '' : 'lg:col-span-2'}>
@@ -159,6 +166,55 @@ function KpiCard({ icon, label, value, valueClass }: { icon: React.ReactNode; la
             </CardHeader>
             <CardContent>
                 <p className={`text-2xl font-bold ${valueClass ?? ''}`}>{value}</p>
+            </CardContent>
+        </Card>
+    );
+}
+
+function DeductionsCard({ deductions }: { deductions: DashboardDeductions }) {
+    const has = deductions.monthTotal > 0 || deductions.total > 0;
+
+    return (
+        <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                    <Minus className="size-4" /> الخصومات
+                </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <div>
+                    <p className={`text-2xl font-bold ${deductions.monthTotal > 0 ? 'text-destructive' : ''}`}>
+                        {formatCurrency(deductions.monthTotal)}
+                    </p>
+                    <p className="text-xs text-muted-foreground">هذا الشهر — {deductions.monthCount} حسم</p>
+                </div>
+
+                {has ? (
+                    <div className="space-y-1 text-sm">
+                        <div className="flex items-center justify-between gap-2">
+                            <span className="text-muted-foreground">الإجمالي منذ البداية</span>
+                            <span className="font-semibold tabular-nums">{formatCurrency(deductions.total)}</span>
+                        </div>
+                        {deductions.lastReason && (
+                            <div className="flex items-start justify-between gap-2">
+                                <span className="shrink-0 text-muted-foreground">آخر سبب</span>
+                                <span className="text-end">{deductions.lastReason}</span>
+                            </div>
+                        )}
+                        {deductions.lastDate && (
+                            <div className="flex items-center justify-between gap-2">
+                                <span className="text-muted-foreground">آخر حسم</span>
+                                <span className="tabular-nums">{formatDate(deductions.lastDate)}</span>
+                            </div>
+                        )}
+                    </div>
+                ) : (
+                    <p className="text-sm text-muted-foreground">لا توجد حسومات عليك.</p>
+                )}
+
+                <Link href="/my-incentives" className="text-sm text-primary hover:underline">
+                    عرض التفاصيل
+                </Link>
             </CardContent>
         </Card>
     );

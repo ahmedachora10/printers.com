@@ -4,7 +4,9 @@ namespace App\Models;
 
 use App\Enums\IncentiveBonusTypeEnum;
 use App\Enums\IncentivePlanStatusEnum;
+use Carbon\CarbonInterface;
 use Database\Factories\IncentivePlanFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -58,6 +60,24 @@ class IncentivePlan extends Model
     public function bonusPayments(): HasMany
     {
         return $this->hasMany(BonusPayment::class);
+    }
+
+    /**
+     * الخطط الواقعة داخل مدى تاريخين.
+     *
+     * الخطة شهرٌ لا يوم، فلا عمود تاريخٍ تُقارَن به. المقارنة إذاً على مفتاح
+     * `السنة×100 + الشهر` — وهو بعينه `Ym` — فتدخل خطةُ 08/2026 ما دام المدى
+     * لامس أيَّ يومٍ من أغسطس، ولا يسقط شهرٌ لأن المدى بدأ في منتصفه.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeInPeriodRange(Builder $query, ?CarbonInterface $from, ?CarbonInterface $to): void
+    {
+        $key = '(period_year * 100 + period_month)';
+
+        $query
+            ->when($from, fn (Builder $q) => $q->whereRaw($key.' >= ?', [(int) $from->format('Ym')]))
+            ->when($to, fn (Builder $q) => $q->whereRaw($key.' <= ?', [(int) $to->format('Ym')]));
     }
 
     public function isTargetMet(): bool

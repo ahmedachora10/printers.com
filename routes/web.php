@@ -26,11 +26,13 @@ use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseReportController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\IncentiveController;
+use App\Http\Controllers\IncentiveReportController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoicePaymentController;
 use App\Http\Controllers\InvoiceReceiptController;
 use App\Http\Controllers\LoyaltyController;
 use App\Http\Controllers\MaterialsReportController;
+use App\Http\Controllers\MyIncentiveController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
@@ -238,6 +240,13 @@ Route::middleware(['auth'])->group(function () {
             ->name('customers.outstanding-balance');
     });
 
+    // «حوافزي وحسوماتي»: وجه الموظف من شاشة الحوافز المغلقة على الإدارة. قراءةٌ
+    // لصفوفه هو وحدها — المتحكّم لا يقرأ معرِّفاً من الطلب أصلاً.
+    Route::middleware('role:employee')->group(function () {
+        Route::get('my-incentives', [MyIncentiveController::class, 'index'])
+            ->name('my-incentives.index');
+    });
+
     // سجلّ العملاء: مدير الفرع والسوبر أدمن والموظف (الموظف يسجّل عميل فاتورته).
     // المحاسب خارجه بقرار العميل (تاسك 40) — ولا يزال يبحث عن العميل داخل نقطة
     // البيع، ويرى اسمه على الفاتورة التي يحصّلها.
@@ -434,6 +443,14 @@ Route::middleware(['auth'])->group(function () {
         Route::post('employee-deductions', [EmployeeDeductionController::class, 'store'])
             ->name('employee-deductions.store');
 
+        // تقرير الحوافز والخصومات: القراءة المجمَّعة للبندين معاً. جمهوره جمهور
+        // الشاشة نفسها — الإدارة وحدها — لا جمهور بقية التقارير: أرقام الرواتب
+        // ليست من شأن المحاسب.
+        Route::get('reports/incentives/export', [IncentiveReportController::class, 'export'])
+            ->name('reports.incentives.export');
+        Route::get('reports/incentives', [IncentiveReportController::class, 'index'])
+            ->name('reports.incentives');
+
         Route::prefix('inventory')->name('inventory.')->group(function () {
             // تاسك 72: تصدير/استيراد Excel — قبل الـresource لنفس سبب الفئات.
             Route::controller(ProductController::class)->group(function () {
@@ -481,5 +498,5 @@ Route::middleware(['auth'])->group(function () {
 
 });
 
-require __DIR__.'/settings.php';
-require __DIR__.'/auth.php';
+require __DIR__ . '/settings.php';
+require __DIR__ . '/auth.php';

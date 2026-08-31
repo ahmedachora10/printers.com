@@ -38,6 +38,15 @@ export interface DashboardIncentive {
     status: string;
 }
 
+/** ما حُسم على الموظف: حسومات الشهر الجاري، ومجملها، وآخر سببٍ حُسم لأجله. */
+export interface DashboardDeductions {
+    monthTotal: number;
+    monthCount: number;
+    total: number;
+    lastReason: string | null;
+    lastDate: string | null;
+}
+
 export interface DashboardRecentInvoice {
     id: number;
     type: 'product' | 'service';
