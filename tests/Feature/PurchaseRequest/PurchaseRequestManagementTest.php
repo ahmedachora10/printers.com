@@ -55,15 +55,17 @@ describe('Internal purchase requests', function () {
     };
 
     /**
-     * تاسك 68: approval settles each line — its inventory product and its unit
-     * cost — because it writes a stock movement per line. Unless a test says
-     * otherwise, every line keeps the product and estimate it was raised with,
-     * and a free-text line falls back to the branch's default product.
+     * تاسك 68: approval settles each line — its inventory product, the approved
+     * quantity and its unit cost — because it writes a stock movement per line.
+     * Unless a test says otherwise, every line keeps the product, quantity and
+     * estimate it was raised with, and a free-text line falls back to the
+     * branch's default product.
      */
     $approvalPayload = function (PurchaseRequest $request, array $overrides = []): array {
         return ['lines' => $request->lines->map(fn ($line) => [
             'id' => $line->id,
             'product_id' => $overrides[$line->id]['product_id'] ?? $line->product_id ?? test()->product->id,
+            'qty' => $overrides[$line->id]['qty'] ?? (float) $line->qty,
             'unit_cost' => $overrides[$line->id]['unit_cost'] ?? (float) ($line->estimated_unit_cost ?? 0),
         ])->all()];
     };
@@ -187,6 +189,31 @@ describe('Internal purchase requests', function () {
         expect((float) $freeLine->estimated_unit_cost)->toBe(30.0);
     });
 
+    it('feeds the stock with the quantity the approver settled, not the one that was asked for', function () use ($submit, $approvalPayload) {
+        $this->actingAs($this->employee);
+        $request = $submit([['product_id' => $this->product->id, 'qty' => 10, 'estimated_unit_cost' => 10]]);
+        $line = $request->lines->first();
+
+        // The branch admin only approves part of what was asked for.
+        $this->actingAs($this->admin)
+            ->patch(route('purchase-requests.approve', $request), $approvalPayload($request, [
+                $line->id => ['qty' => 4, 'unit_cost' => 12],
+            ]))
+            ->assertRedirect();
+
+        // The approved quantity replaces the requested one — it is what the
+        // movement carries, so it is what the line records.
+        expect((float) $line->refresh()->qty)->toBe(4.0);
+        expect($this->product->refresh()->current_stock)->toEqual(4);
+
+        $movement = StockMovement::where('reference_type', PurchaseRequest::class)
+            ->where('reference_id', $request->id)
+            ->sole();
+
+        expect((float) $movement->qty)->toBe(4.0);
+        expect((float) $movement->unit_cost)->toBe(12.0);
+    });
+
     it('refuses to approve a line with no product or no cost, and writes no movement', function () use ($submit) {
         $this->actingAs($this->employee);
         $request = $submit([['item_name' => 'حبر خاص', 'qty' => 2]]);
@@ -195,12 +222,18 @@ describe('Internal purchase requests', function () {
         $this->actingAs($this->admin);
 
         $this->patch(route('purchase-requests.approve', $request), [
-            'lines' => [['id' => $line->id, 'unit_cost' => 5]],
+            'lines' => [['id' => $line->id, 'qty' => 2, 'unit_cost' => 5]],
         ])->assertSessionHasErrors('lines.0.product_id');
 
         $this->patch(route('purchase-requests.approve', $request), [
-            'lines' => [['id' => $line->id, 'product_id' => $this->product->id]],
+            'lines' => [['id' => $line->id, 'qty' => 2, 'product_id' => $this->product->id]],
         ])->assertSessionHasErrors('lines.0.unit_cost');
+
+        // The quantity is what enters the stock, so a line can never be
+        // approved with none of it.
+        $this->patch(route('purchase-requests.approve', $request), [
+            'lines' => [['id' => $line->id, 'product_id' => $this->product->id, 'qty' => 0, 'unit_cost' => 5]],
+        ])->assertSessionHasErrors('lines.0.qty');
 
         expect($request->refresh()->status)->toBe(PurchaseRequestStatusEnum::PENDING);
         expect(StockMovement::count())->toBe(0);
@@ -218,7 +251,7 @@ describe('Internal purchase requests', function () {
 
         $this->actingAs($this->admin)
             ->patch(route('purchase-requests.approve', $request), [
-                'lines' => [['id' => $request->lines->first()->id, 'product_id' => $otherProduct->id, 'unit_cost' => 5]],
+                'lines' => [['id' => $request->lines->first()->id, 'product_id' => $otherProduct->id, 'qty' => 5, 'unit_cost' => 5]],
             ])
             ->assertSessionHasErrors('lines.0.product_id');
 

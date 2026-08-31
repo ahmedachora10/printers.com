@@ -27,9 +27,10 @@ class ApprovePurchaseRequestAction
     public function __construct(private readonly RecordStockMovementAction $recordStockMovement) {}
 
     /**
-     * @param  array<int, array{product_id: int, unit_cost: float}>  $linesById
-     *                                                                           keyed by purchase_request_lines.id — what the approver settled
-     *                                                                           on for each line (its inventory product and its unit cost).
+     * @param  array<int, array{product_id: int, unit_cost: float, qty: float}>  $linesById
+     *                                                                                       keyed by purchase_request_lines.id — what the approver
+     *                                                                                       settled on for each line (its inventory product, the
+     *                                                                                       approved quantity and its unit cost).
      */
     public function handle(PurchaseRequest $request, array $linesById): PurchaseRequest
     {
@@ -62,13 +63,16 @@ class ApprovePurchaseRequestAction
                     // unit of the product it was just linked to.
                     'item_name' => $product->name,
                     'is_sqm' => (bool) $product->is_sqm,
+                    // The approved quantity replaces the requested one: it is
+                    // what enters the stock, so it is what the line records.
+                    'qty' => $settled['qty'],
                     'estimated_unit_cost' => $settled['unit_cost'],
                 ]);
 
                 $this->recordStockMovement->handle(
                     $product,
                     StockMovementTypeEnum::PURCHASE_IN,
-                    (float) $line->qty,
+                    (float) $settled['qty'],
                     [
                         'unit_cost' => $settled['unit_cost'],
                         'reference_id' => $request->id,

@@ -7,7 +7,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/utils';
 import purchaseRequests from '@/routes/purchase-requests';
-import { PR_STATUS_BADGE, type PrProductOption, type PrSupplierOption, type PurchaseRequest } from '@/types/purchase-request';
+import {
+    PR_STATUS_BADGE,
+    type PrProductOption,
+    type PrSupplierOption,
+    type PurchaseRequest,
+    type PurchaseRequestLine,
+} from '@/types/purchase-request';
 import { useForm } from '@inertiajs/react';
 import { Check, PackagePlus, ShoppingCart, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -26,6 +32,7 @@ interface SettledLine {
     [key: string]: string | number;
     id: number;
     product_id: string;
+    qty: string;
     unit_cost: string;
 }
 
@@ -44,8 +51,9 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
     const convertForm = useForm({ supplier_id: '', order_date: new Date().toISOString().slice(0, 10), expected_delivery: '' });
 
     // تاسك 68: approving writes one purchase_in movement per line, so the
-    // approver first settles what each line is and what it costs. A line the
-    // requester left free-text starts empty and has to be linked by hand.
+    // approver first settles what each line is, how much of it is approved and
+    // what it costs. A line the requester left free-text starts empty and has
+    // to be linked by hand.
     const { setData: setApproveData } = approveForm;
     useEffect(() => {
         setApproveData(
@@ -53,6 +61,7 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
             (request?.lines ?? []).map((line) => ({
                 id: line.id,
                 product_id: line.productId?.toString() ?? '',
+                qty: line.qty.toString(),
                 unit_cost: (line.estimatedUnitCost ?? '').toString(),
             })),
         );
@@ -78,16 +87,32 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
     const approveErrors = approveForm.errors as Record<string, string | undefined>;
 
     const settled = approveForm.data.lines;
-    const setSettled = (id: number, key: 'product_id' | 'unit_cost', value: string) =>
+    const setSettled = (id: number, key: 'product_id' | 'qty' | 'unit_cost', value: string) =>
         approveForm.setData(
             'lines',
             settled.map((line) => (line.id === id ? { ...line, [key]: value } : line)),
         );
 
-    // Every line needs a product and a cost: a movement cannot be written
-    // against a name, and the ledger records the cost that comes with it.
+    // While the approver is still settling the lines the totals come from what
+    // they are typing, not from what the server sent with the request — the
+    // quantity and the cost are both theirs to change until they approve.
+    const lineSubtotal = (line: PurchaseRequestLine) => {
+        if (!editable) return line.estimatedSubtotal;
+
+        const draft = settled.find((l) => l.id === line.id);
+
+        return (Number(draft?.qty) || 0) * (Number(draft?.unit_cost) || 0);
+    };
+
+    const total = editable ? (request.lines ?? []).reduce((sum, line) => sum + lineSubtotal(line), 0) : (request.estimatedTotal ?? 0);
+
+    // Every line needs a product, a positive quantity and a cost: a movement
+    // cannot be written against a name, its quantity is what enters the stock,
+    // and the ledger records the cost that comes with it.
     const readyToApprove =
-        settled.length > 0 && settled.length === (request.lines?.length ?? 0) && settled.every((l) => l.product_id !== '' && l.unit_cost !== '');
+        settled.length > 0 &&
+        settled.length === (request.lines?.length ?? 0) &&
+        settled.every((l) => l.product_id !== '' && l.unit_cost !== '' && Number(l.qty) > 0);
 
     const branchProducts = products.filter((p) => p.branchId === request.branchId);
 
@@ -127,7 +152,7 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                         </div>
                         <div>
                             <dt className="text-muted-foreground">تاريخ الطلب</dt>
-                            <dd dir="ltr" className="font-medium">
+                            <dd dir="rtl" className="font-medium">
                                 {request.createdAt ?? '—'}
                             </dd>
                         </div>
@@ -140,7 +165,7 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                         {request.decidedAt && (
                             <div>
                                 <dt className="text-muted-foreground">تاريخ القرار</dt>
-                                <dd dir="ltr" className="font-medium">
+                                <dd dir="rtl" className="font-medium">
                                     {request.decidedAt}
                                 </dd>
                             </div>
@@ -176,8 +201,8 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                             <div>
                                 <p className="font-medium">الاعتماد يغذّي المخزون مباشرة</p>
                                 <p className="text-xs">
-                                    اربط كل صنف بمنتج في المخزون واضبط تكلفة وحدته، فتُسجَّل بها حركة إدخال لا تُعدَّل ولا تُحذف بعد كتابتها. ولن
-                                    يُحوَّل الطلب بعدها إلى أمر شراء حتى لا تُحتسب الكمية مرّتين.
+                                    اربط كل صنف بمنتج في المخزون واضبط الكمية المعتمدة وتكلفة وحدتها، فتُسجَّل بها حركة إدخال لا تُعدَّل ولا تُحذف بعد
+                                    كتابتها. ولن يُحوَّل الطلب بعدها إلى أمر شراء حتى لا تُحتسب الكمية مرّتين.
                                 </p>
                             </div>
                         </div>
@@ -239,8 +264,28 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                                         </td>
                                         <td dir="ltr" className="p-2 text-right tabular-nums">
                                             {/* تاسك 67: the approver has to see what they are approving —
-                                                2 pieces and 7.10 m² are not the same request. */}
-                                            {formatQty(line.qty)} <span className="text-muted-foreground text-xs">{unitLabel(line.isSqm)}</span>
+                                                2 pieces and 7.10 m² are not the same request. And what was
+                                                asked for is not always what is bought, so it is theirs to fix. */}
+                                            {editable ? (
+                                                <div className="flex items-center justify-end gap-1">
+                                                    <Input
+                                                        type="number"
+                                                        min="0.01"
+                                                        step="0.01"
+                                                        dir="ltr"
+                                                        className="h-8 w-24 text-right"
+                                                        placeholder="الكمية"
+                                                        value={settled.find((l) => l.id === line.id)?.qty ?? ''}
+                                                        onChange={(e) => setSettled(line.id, 'qty', e.target.value)}
+                                                    />
+                                                    <span className="text-muted-foreground text-xs">{unitLabel(line.isSqm)}</span>
+                                                </div>
+                                            ) : (
+                                                <>
+                                                    {formatQty(line.qty)}{' '}
+                                                    <span className="text-muted-foreground text-xs">{unitLabel(line.isSqm)}</span>
+                                                </>
+                                            )}
                                         </td>
                                         <td dir="ltr" className="p-2 text-right tabular-nums">
                                             {editable ? (
@@ -261,7 +306,7 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                                             )}
                                         </td>
                                         <td dir="ltr" className="p-2 text-right tabular-nums">
-                                            {formatCurrency(line.estimatedSubtotal)}
+                                            {formatCurrency(lineSubtotal(line))}
                                         </td>
                                     </tr>
                                 ))}
@@ -272,7 +317,7 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                                         الإجمالي التقديري
                                     </td>
                                     <td dir="ltr" className="p-2 text-right tabular-nums">
-                                        {formatCurrency(request.estimatedTotal ?? 0)}
+                                        {formatCurrency(total)}
                                     </td>
                                 </tr>
                             </tfoot>

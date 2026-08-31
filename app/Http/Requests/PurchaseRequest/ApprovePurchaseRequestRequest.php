@@ -8,11 +8,12 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
- * تاسك 68: approving now feeds the branch's stock, so the approver settles two
- * things the requester could leave open — which inventory product each line
- * really is, and what it actually costs. Both are required: a stock movement
- * needs a product to be written against, and its unit cost is what the
- * immutable ledger records.
+ * تاسك 68: approving now feeds the branch's stock, so the approver settles what
+ * the requester could only propose — which inventory product each line really
+ * is, how much of it is actually approved, and what it costs. All three are
+ * required: a stock movement needs a product to be written against, its
+ * quantity is what enters the stock, and its unit cost is what the immutable
+ * ledger records.
  */
 class ApprovePurchaseRequestRequest extends FormRequest
 {
@@ -52,6 +53,10 @@ class ApprovePurchaseRequestRequest extends FormRequest
                     ->whereNull('deleted_at'),
             ],
             'lines.*.unit_cost' => ['required', 'numeric', 'min:0'],
+            // The approver settles the quantity too: what was asked for is not
+            // always what is bought. Decimal, like the requester's own field,
+            // and never zero — every line has to feed the stock.
+            'lines.*.qty' => ['required', 'numeric', 'min:0.01'],
         ];
     }
 
@@ -63,6 +68,8 @@ class ApprovePurchaseRequestRequest extends FormRequest
             'lines.*.product_id.required' => 'اربط كل صنف بمنتج في المخزون قبل الاعتماد.',
             'lines.*.product_id.exists' => 'المنتج المختار غير موجود في فرع الطلب.',
             'lines.*.unit_cost.required' => 'اكتب تكلفة الوحدة لكل صنف قبل الاعتماد.',
+            'lines.*.qty.required' => 'اكتب الكمية المعتمدة لكل صنف.',
+            'lines.*.qty.min' => 'الكمية المعتمدة يجب أن تكون أكبر من صفر.',
         ];
     }
 
@@ -73,6 +80,7 @@ class ApprovePurchaseRequestRequest extends FormRequest
             'lines' => 'الأصناف',
             'lines.*.product_id' => 'المنتج',
             'lines.*.unit_cost' => 'تكلفة الوحدة',
+            'lines.*.qty' => 'الكمية',
         ];
     }
 
@@ -80,7 +88,7 @@ class ApprovePurchaseRequestRequest extends FormRequest
      * The validated lines keyed by line id, so the action can settle each line
      * without re-searching the payload.
      *
-     * @return array<int, array{product_id: int, unit_cost: float}>
+     * @return array<int, array{product_id: int, unit_cost: float, qty: float}>
      */
     public function linesById(): array
     {
@@ -90,6 +98,7 @@ class ApprovePurchaseRequestRequest extends FormRequest
             $lines[(int) $line['id']] = [
                 'product_id' => (int) $line['product_id'],
                 'unit_cost' => (float) $line['unit_cost'],
+                'qty' => (float) $line['qty'],
             ];
         }
 
