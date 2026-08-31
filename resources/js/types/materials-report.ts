@@ -1,4 +1,4 @@
-/** تقرير استهلاك خامات الخدمات — الكميات صافية (الصرف ناقص الإرجاع). */
+/** تقرير استهلاك الخامات — الكميات صافية (الصرف ناقص الإرجاع). */
 
 export interface MaterialsReportTotals {
     netQty: number;
@@ -16,7 +16,9 @@ export interface MaterialsReportProductRow {
 }
 
 export interface MaterialsReportServiceRow {
-    /** null لحركات كُتبت قبل نسبة الحركة إلى سطر الخدمة */
+    /** مفتاح العرض: خدمةٌ بعينها، أو صفُّ البيع المباشر المجمَّع */
+    sourceKey: string;
+    /** null للبيع المباشر ولحركاتٍ كُتبت قبل نسبة الحركة إلى سطر الخدمة */
     branchServiceId: number | null;
     name: string;
     netQty: number;

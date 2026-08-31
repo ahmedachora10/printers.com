@@ -4,13 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Actions\Report\BuildReportDayRange;
 use App\Actions\Report\ResolveReportScope;
+use App\Enums\InvoiceStatusEnum;
 use App\Enums\StockMovementTypeEnum;
 use App\Exports\MaterialsReportExport;
 use App\Http\Requests\Report\MaterialsReportFilterRequest;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\Product;
+use App\Models\ProductInvoice;
+use App\Models\Refund;
 use App\Models\ServiceInvoice;
+use Closure;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Carbon;
@@ -22,8 +26,13 @@ use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
- * تقرير استهلاك خامات الخدمات: ما سحبته الخدمات المعتمَدة من المخزون، وما أعادته
- * المرتجعاتُ والاسترجاعات إليه، وبكم.
+ * تقرير استهلاك الخامات: ما خرج من المخزون فعلاً وما أعادته المرتجعات إليه، وبكم.
+ *
+ * وله مصدران، لأن الخامة تخرج من الرفّ بطريقتين:
+ *   1. **خدمةٌ استهلكتها** — وصفة الخدمة تُخصم عند اعتماد فاتورتها.
+ *   2. **بيعٌ مباشر** — فاتورة منتجات يبيع فيها المركزُ الخامةَ نفسها للعميل.
+ * كل ما في المخزون خامة، فالمصدران يقرآن الشيء نفسه: كمّاً غادر الرفّ. ولا شأن
+ * للتقرير بربح البيع — هو تقرير استهلاك لا تقرير تكلفة بضاعة مباعة.
  *
  * المصدر هو سجلّ المخزون نفسه لا وصفاتُ الخدمات: الحركة المكتوبة هي ما وقع فعلاً،
  * فوصفةٌ عُدّلت بعد البيع لا تعيد كتابة تاريخ الاستهلاك. ولهذا **الصافي هو مجموع
@@ -89,10 +98,11 @@ class MaterialsReportController extends Controller
     }
 
     /**
-     * حركاتُ خامات فواتير الخدمات داخل النطاق — صرفاً وإرجاعاً.
+     * حركاتُ الاستهلاك داخل النطاق — صرفاً وإرجاعاً، من المصدرين معاً.
      *
      * الوصلُ بسطر الخدمة يساري (LEFT): حركاتُ ما قبل إضافة العمود لا سطر لها،
-     * وإسقاطُها كان سيُنقص التقرير صامتاً.
+     * وحركاتُ البيع المباشر لا سطر خدمة لها أصلاً، وإسقاطُ أيّهما كان سيُنقص
+     * التقرير صامتاً.
      *
      * @param  array<string, mixed>  $scope
      */
@@ -100,16 +110,61 @@ class MaterialsReportController extends Controller
     {
         return DB::table('stock_movements')
             ->leftJoin('service_invoice_lines', 'service_invoice_lines.id', '=', 'stock_movements.service_invoice_line_id')
-            ->where('stock_movements.reference_type', ServiceInvoice::class)
-            ->whereIn('stock_movements.type', [
-                StockMovementTypeEnum::SALE_OUT->value,
-                StockMovementTypeEnum::RETURN_IN->value,
-            ])
+            ->where(fn (Builder $q) => $q
+                // خامات الخدمات: لا قيد حالةٍ عليها، فالحركة نفسها لا تُكتب إلا
+                // لحظة الاعتماد، والإرجاع يكتب حركةً مقابلة تحت الفاتورة ذاتها.
+                ->where(fn (Builder $s) => $s
+                    ->where('stock_movements.reference_type', ServiceInvoice::class)
+                    ->whereIn('stock_movements.type', [
+                        StockMovementTypeEnum::SALE_OUT->value,
+                        StockMovementTypeEnum::RETURN_IN->value,
+                    ]))
+                // البيع المباشر: فاتورة المنتجات تخصم المخزون فور إنشائها ولو
+                // كانت آجلة، فيُقيَّد التقرير هنا بالمسدَّدة وحدها ليقرأ ما تقرؤه
+                // الخدمات — الاستهلاك لا يُعدّ إلا بعد اعتماد الفاتورة.
+                ->orWhere(fn (Builder $p) => $p
+                    ->where('stock_movements.reference_type', ProductInvoice::class)
+                    ->where('stock_movements.type', StockMovementTypeEnum::SALE_OUT->value)
+                    ->whereIn('stock_movements.reference_id', $this->settledProductInvoices()))
+                // ومرتجعاتها — وهي مكتوبة تحت Refund لا تحت الفاتورة — مقيَّدةً
+                // بنفس مجموعة الفواتير: لولا ذلك لظهر إرجاعٌ يتيم بلا صرفٍ يقابله
+                // فطُرح مرتين، وهو الخطأ نفسه الذي وقع في التقرير اليومي سابقاً.
+                ->orWhere(fn (Builder $r) => $r
+                    ->where('stock_movements.reference_type', Refund::class)
+                    ->where('stock_movements.type', StockMovementTypeEnum::RETURN_IN->value)
+                    ->whereIn('stock_movements.reference_id', $this->settledProductRefunds()))
+            )
             ->when($scope['branchId'], fn ($q) => $q->where('stock_movements.branch_id', $scope['branchId']))
             ->when($scope['productId'], fn ($q) => $q->where('stock_movements.product_id', $scope['productId']))
+            // مرشِّح الخدمة يقصر التقرير على استهلاك الخدمات وحدها — والبيع المباشر
+            // لا خدمة له، فيسقط من تلقاء نفسه.
             ->when($scope['serviceId'], fn ($q) => $q->where('service_invoice_lines.branch_service_id', $scope['serviceId']))
             ->when($scope['from'], fn ($q) => $q->where('stock_movements.created_at', '>=', $scope['from']))
             ->when($scope['to'], fn ($q) => $q->where('stock_movements.created_at', '<=', $scope['to']));
+    }
+
+    /**
+     * فواتير المنتجات المسدَّدة بالكامل — نظيرةُ «الفاتورة المعتمَدة» في الخدمات:
+     * الخامات تُستهلك هناك لحظةَ صيرورة الحالة PAID، والمدفوعةُ جزئياً لا تستهلك.
+     */
+    private function settledProductInvoices(): Closure
+    {
+        return fn (Builder $q) => $q
+            ->select('id')
+            ->from('product_invoices')
+            ->where('status', InvoiceStatusEnum::PAID->value)
+            ->whereNull('deleted_at');
+    }
+
+    /** مرتجعاتُ تلك الفواتير وحدها، فيتقابل كل إرجاعٍ مع صرفه. */
+    private function settledProductRefunds(): Closure
+    {
+        return fn (Builder $q) => $q
+            ->select('id')
+            ->from('refunds')
+            ->where('invoice_type', ProductInvoice::class)
+            ->whereNull('deleted_at')
+            ->whereIn('invoice_id', $this->settledProductInvoices());
     }
 
     /**
@@ -120,12 +175,20 @@ class MaterialsReportController extends Controller
      */
     private function totals(array $scope): array
     {
-        $row = $this->baseQuery($scope)->first([
-            DB::raw('COALESCE(SUM(-stock_movements.qty), 0) as net_qty'),
-            DB::raw('COALESCE(SUM(-stock_movements.qty * COALESCE(stock_movements.unit_cost, 0)), 0) as net_cost'),
-            DB::raw('COUNT(DISTINCT stock_movements.product_id) as products'),
-            DB::raw('COUNT(DISTINCT stock_movements.reference_id) as invoices'),
-        ]);
+        // عدّ الفواتير يفصل النوعين: `reference_id` معرِّفٌ داخل جدوله لا عبره،
+        // فالفاتورة رقم ٧ من الخدمات غير رقم ٧ من المنتجات، وجمعُهما في COUNT
+        // DISTINCT واحد كان سيَعدّهما فاتورةً واحدة. وصفوفُ المرتجع لا تُعدّ فاتورةً
+        // ثالثة — فاتورتها معدودةٌ أصلاً في صرفها.
+        $row = $this->baseQuery($scope)
+            ->selectRaw('COALESCE(SUM(-stock_movements.qty), 0) as net_qty')
+            ->selectRaw('COALESCE(SUM(-stock_movements.qty * COALESCE(stock_movements.unit_cost, 0)), 0) as net_cost')
+            ->selectRaw('COUNT(DISTINCT stock_movements.product_id) as products')
+            ->selectRaw(
+                'COUNT(DISTINCT CASE WHEN stock_movements.reference_type = ? THEN stock_movements.reference_id END)'
+                .' + COUNT(DISTINCT CASE WHEN stock_movements.reference_type = ? THEN stock_movements.reference_id END) as invoices',
+                [ServiceInvoice::class, ProductInvoice::class],
+            )
+            ->first();
 
         return [
             'netQty' => round((float) $row->net_qty, 2),
@@ -168,33 +231,77 @@ class MaterialsReportController extends Controller
     }
 
     /**
-     * الاستهلاك لكل خدمة. حركاتُ ما قبل إضافة عمود السطر لا خدمة لها، فتُجمع في
-     * صفٍّ واحد صريح بدل أن تختفي من التقرير.
+     * الاستهلاك لكل مصدر: صفٌّ لكل خدمة، وصفٌّ واحد يجمع البيع المباشر كلَّه.
+     *
+     * البيع المباشر لا يُفصَّل هنا بأسماء المنتجات عمداً — جدولُ «حسب الخامة» أعلاه
+     * يقولها كلها، فتكرارُها هنا ضجيجٌ لا معلومة. وهذا الجدول يجيب عن سؤالٍ آخر:
+     * أين ذهبت الخامة، لا أيّ خامةٍ ذهبت.
+     *
+     * وحركاتُ ما قبل إضافة عمود سطر الخدمة لا خدمة لها، فتبقى في صفِّها الصريح
+     * بدل أن تختفي من التقرير أو تختلط بالبيع المباشر.
      *
      * @param  array<string, mixed>  $scope
      * @return array<int, array<string, mixed>>
      */
     private function byService(array $scope): array
     {
-        return $this->baseQuery($scope)
-            ->groupBy('service_invoice_lines.branch_service_id', 'service_invoice_lines.service_name')
-            ->orderByDesc(DB::raw('SUM(-stock_movements.qty * COALESCE(stock_movements.unit_cost, 0))'))
+        $rows = $this->baseQuery($scope)
+            ->groupBy(
+                'stock_movements.reference_type',
+                'service_invoice_lines.branch_service_id',
+                'service_invoice_lines.service_name',
+            )
             ->get([
+                'stock_movements.reference_type as reference_type',
                 'service_invoice_lines.branch_service_id as branch_service_id',
                 'service_invoice_lines.service_name as service_name',
                 DB::raw('COALESCE(SUM(-stock_movements.qty), 0) as net_qty'),
                 DB::raw('COALESCE(SUM(-stock_movements.qty * COALESCE(stock_movements.unit_cost, 0)), 0) as net_cost'),
                 DB::raw('COUNT(DISTINCT stock_movements.reference_id) as invoices'),
-            ])
-            ->map(fn ($row) => [
-                'branchServiceId' => $row->branch_service_id !== null ? (int) $row->branch_service_id : null,
-                'name' => $row->service_name ?? 'غير منسوبة لخدمة',
-                'netQty' => round((float) $row->net_qty, 2),
-                'netCost' => round((float) $row->net_cost, 2),
-                'invoiceCount' => (int) $row->invoices,
-            ])
-            ->values()
-            ->all();
+            ]);
+
+        $services = [];
+        $direct = ['netQty' => 0.0, 'netCost' => 0.0, 'invoiceCount' => 0, 'seen' => false];
+
+        foreach ($rows as $row) {
+            if ($row->reference_type === ServiceInvoice::class) {
+                $services[] = [
+                    'sourceKey' => 'service-'.($row->branch_service_id ?? 'none'),
+                    'branchServiceId' => $row->branch_service_id !== null ? (int) $row->branch_service_id : null,
+                    'name' => $row->service_name ?? 'غير منسوبة لخدمة',
+                    'netQty' => round((float) $row->net_qty, 2),
+                    'netCost' => round((float) $row->net_cost, 2),
+                    'invoiceCount' => (int) $row->invoices,
+                ];
+
+                continue;
+            }
+
+            $direct['seen'] = true;
+            $direct['netQty'] += (float) $row->net_qty;
+            $direct['netCost'] += (float) $row->net_cost;
+
+            // عدد الفواتير من صفّ الصرف وحده: صفُّ المرتجع معرِّفاته معرِّفاتُ
+            // مرتجعات لا فواتير، فجمعُ العدَّين كان سيضاعف فاتورةً استُرجعت.
+            if ($row->reference_type === ProductInvoice::class) {
+                $direct['invoiceCount'] += (int) $row->invoices;
+            }
+        }
+
+        if ($direct['seen']) {
+            $services[] = [
+                'sourceKey' => 'direct',
+                'branchServiceId' => null,
+                'name' => 'بيع مباشر',
+                'netQty' => round($direct['netQty'], 2),
+                'netCost' => round($direct['netCost'], 2),
+                'invoiceCount' => $direct['invoiceCount'],
+            ];
+        }
+
+        usort($services, fn (array $a, array $b) => $b['netCost'] <=> $a['netCost']);
+
+        return $services;
     }
 
     /**
@@ -245,7 +352,20 @@ class MaterialsReportController extends Controller
         return $this->baseQuery($scope)
             ->leftJoin('products', 'products.id', '=', 'stock_movements.product_id')
             ->leftJoin('product_units', 'product_units.id', '=', 'products.unit_id')
-            ->leftJoin('service_invoices', 'service_invoices.id', '=', 'stock_movements.reference_id')
+            // كل وصلٍ مشروطٌ بنوع المرجع: `reference_id` معرِّفٌ داخل جدوله لا عبره،
+            // فوصلٌ غير مشروط كان سينسب حركةَ فاتورة منتجات رقم ٧ إلى فاتورة خدمة
+            // رقم ٧ ويطبع رقمها الخطأ.
+            ->leftJoin('service_invoices', fn ($join) => $join
+                ->on('service_invoices.id', '=', 'stock_movements.reference_id')
+                ->where('stock_movements.reference_type', '=', ServiceInvoice::class))
+            ->leftJoin('product_invoices', fn ($join) => $join
+                ->on('product_invoices.id', '=', 'stock_movements.reference_id')
+                ->where('stock_movements.reference_type', '=', ProductInvoice::class))
+            // حركةُ المرتجع مرجعُها المرتجعُ نفسه، وفاتورتها خلفه بوصلةٍ ثانية.
+            ->leftJoin('refunds', fn ($join) => $join
+                ->on('refunds.id', '=', 'stock_movements.reference_id')
+                ->where('stock_movements.reference_type', '=', Refund::class))
+            ->leftJoin('product_invoices as refunded_invoices', 'refunded_invoices.id', '=', 'refunds.invoice_id')
             ->leftJoin('branches', 'branches.id', '=', 'stock_movements.branch_id')
             ->leftJoin('users', 'users.id', '=', 'stock_movements.created_by')
             ->orderByDesc('stock_movements.created_at')
@@ -256,12 +376,13 @@ class MaterialsReportController extends Controller
                 'stock_movements.type as type',
                 'stock_movements.qty as qty',
                 'stock_movements.unit_cost as unit_cost',
+                'stock_movements.reference_type as reference_type',
                 'products.name as product_name',
                 'products.is_sqm as is_sqm',
                 'product_units.name as unit_name',
                 'service_invoice_lines.service_name as service_name',
-                'service_invoices.invoice_number as invoice_number',
-                'service_invoices.id as invoice_id',
+                DB::raw('COALESCE(service_invoices.invoice_number, product_invoices.invoice_number, refunded_invoices.invoice_number) as invoice_number'),
+                DB::raw('COALESCE(service_invoices.id, product_invoices.id, refunded_invoices.id) as invoice_id'),
                 'branches.name as branch_name',
                 'users.name as user_name',
             ])
@@ -282,7 +403,11 @@ class MaterialsReportController extends Controller
                     'qty' => round(abs($qty), 2),
                     'unitCost' => round($unitCost, 2),
                     'cost' => round(-$qty * $unitCost, 2),
-                    'serviceName' => $row->service_name,
+                    // مصدرُ السطر: اسمُ الخدمة التي سحبته، أو «بيع مباشر» لما خرج
+                    // بفاتورة منتجات — واسمُ المنتج في عموده المجاور فلا يُكرَّر.
+                    'serviceName' => $row->reference_type === ServiceInvoice::class
+                        ? $row->service_name
+                        : 'بيع مباشر',
                     'invoiceId' => $row->invoice_id !== null ? (int) $row->invoice_id : null,
                     'invoiceNumber' => $row->invoice_number,
                     'branchName' => $row->branch_name,
@@ -293,7 +418,8 @@ class MaterialsReportController extends Controller
     }
 
     /**
-     * الخامات المعرَّفة على خدمات الفرع — قائمةُ المرشِّح، لا كلُّ منتجات المخزون.
+     * الخامات التي لها استهلاكٌ يُرشَّح عليه: ما عُرِّف على خدمةٍ أو بيع مباشرةً
+     * بفاتورة مسدَّدة — لا كلُّ منتجات المخزون، فمنتجٌ لم يتحرك قطُّ صفٌّ فارغ.
      *
      * @param  array<string, mixed>  $scope
      * @return array<int, array<string, mixed>>
@@ -301,7 +427,12 @@ class MaterialsReportController extends Controller
     private function productOptions(array $scope): array
     {
         return Product::query()
-            ->whereIn('id', DB::table('branch_service_materials')->select('product_id'))
+            ->where(fn ($q) => $q
+                ->whereIn('id', DB::table('branch_service_materials')->select('product_id'))
+                ->orWhereIn('id', DB::table('product_invoice_lines')
+                    ->select('product_id')
+                    ->whereNotNull('product_id')
+                    ->whereIn('invoice_id', $this->settledProductInvoices())))
             ->when($scope['branchId'], fn ($q) => $q->where('branch_id', $scope['branchId']))
             ->orderBy('name')
             ->get(['id', 'name'])

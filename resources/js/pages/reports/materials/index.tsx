@@ -45,7 +45,7 @@ const productColumns: ColumnDef<MaterialsReportProductRow>[] = [
 ];
 
 const serviceColumns: ColumnDef<MaterialsReportServiceRow>[] = [
-    { key: 'name', header: 'الخدمة', className: 'font-medium', cell: (row) => row.name },
+    { key: 'name', header: 'المصدر', className: 'font-medium', cell: (row) => row.name },
     { key: 'invoiceCount', header: 'عدد الفواتير', cell: (row) => row.invoiceCount },
     {
         key: 'netQty',
@@ -89,7 +89,8 @@ interface Props {
 }
 
 /**
- * ما سحبته الخدمات المعتمَدة من المخزون وما أعادته المرتجعات إليه.
+ * ما خرج من المخزون وما أعادته المرتجعات إليه — من الخدمات المعتمَدة ومن البيع
+ * المباشر بفواتير المنتجات المسدَّدة معاً.
  *
  * كل الأرقام **صافية**: حركة الإرجاع تُطرح من حركة الصرف، فيوم فيه فاتورة اعتُمدت
  * ثم استُرجعت يقرأ صفراً لا ضِعفاً. والتكلفة من سعر التكلفة المخزَّن على الحركة،
@@ -137,7 +138,7 @@ export default function MaterialsReportIndex({
             },
             { key: 'productName', header: 'الخامة', className: 'font-medium', cell: (row) => row.productName },
             { key: 'qty', header: 'الكمية', cell: (row) => qtyWithUnit(row.qty, row.unitName) },
-            { key: 'serviceName', header: 'الخدمة', cell: (row) => row.serviceName ?? dash },
+            { key: 'serviceName', header: 'المصدر', cell: (row) => row.serviceName ?? dash },
             { key: 'invoiceNumber', header: 'الفاتورة', cell: (row) => row.invoiceNumber ?? dash },
             ...(isSuperAdmin ? [{ key: 'branchName', header: 'الفرع', cell: (row: MaterialsReportRow) => row.branchName ?? dash }] : []),
             { key: 'unitCost', header: 'تكلفة الوحدة', cell: (row) => formatCurrency(row.unitCost) },
@@ -243,14 +244,14 @@ export default function MaterialsReportIndex({
 
                 <Card className="mb-6">
                     <CardHeader>
-                        <CardTitle>الاستهلاك حسب الخدمة</CardTitle>
+                        <CardTitle>الاستهلاك حسب المصدر</CardTitle>
                     </CardHeader>
                     <CardContent className="p-0">
                         <DataTable
                             className="rounded-none bg-transparent shadow-none"
                             columns={serviceColumns}
                             data={byService}
-                            keyExtractor={(row) => row.branchServiceId ?? 0}
+                            keyExtractor={(row) => row.sourceKey}
                             emptyState={EMPTY_STATE}
                         />
                     </CardContent>

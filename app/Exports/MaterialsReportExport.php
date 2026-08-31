@@ -18,7 +18,7 @@ class MaterialsReportExport implements FromCollection, ShouldAutoSize, WithHeadi
     /** @return array<int, string> */
     public function headings(): array
     {
-        return ['التاريخ', 'الحركة', 'الخامة', 'الوحدة', 'الكمية', 'الخدمة', 'الفاتورة', 'الفرع', 'تكلفة الوحدة', 'التكلفة', 'المستخدم'];
+        return ['التاريخ', 'الحركة', 'الخامة', 'الوحدة', 'الكمية', 'المصدر', 'الفاتورة', 'الفرع', 'تكلفة الوحدة', 'التكلفة', 'المستخدم'];
     }
 
     /** @return Collection<int, mixed> */

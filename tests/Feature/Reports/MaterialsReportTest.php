@@ -7,6 +7,7 @@ use App\Models\BranchService;
 use App\Models\BranchServiceMaterial;
 use App\Models\Product;
 use App\Models\ProductCategory;
+use App\Models\ProductInvoice;
 use App\Models\ProductUnit;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceTemplate;
@@ -94,6 +95,25 @@ function reportInvoice(BranchService $service, int $qty = 3): ServiceInvoice
     return $invoice->refresh();
 }
 
+/** بيع مباشر: المحاسب يبيع الخامة نفسها بفاتورة منتجات. */
+function reportProductInvoice(Product $product, float $qty = 5, string $status = 'paid'): ProductInvoice
+{
+    test()->actingAs(test()->accountant)
+        ->post(route('pos.product.store'), [
+            'payment_method_id' => paymentMethodId(test()->branch->id),
+            'status' => $status,
+            'lines' => [[
+                'product_id' => $product->id,
+                'qty' => $qty,
+                'unit_price' => 10,
+                'discount_pct' => 0,
+            ]],
+        ])
+        ->assertRedirect();
+
+    return ProductInvoice::latest('id')->firstOrFail();
+}
+
 describe('تقرير استهلاك الخامات', function () {
     beforeEach(function () {
         $this->withoutVite();
@@ -107,6 +127,9 @@ describe('تقرير استهلاك الخامات', function () {
         $this->branchAdmin = User::factory()->create();
         $this->branchAdmin->addRole(Roles::BRANCH_ADMIN->value);
         $this->branch->update(['owner_id' => $this->branchAdmin->id]);
+
+        $this->accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $this->accountant->addRole(Roles::ACCOUNTANT->value);
 
         $this->category = ProductCategory::factory()->create();
         $this->unit = ProductUnit::factory()->create();
@@ -223,6 +246,112 @@ describe('تقرير استهلاك الخامات', function () {
             ->get(route('reports.materials'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page->where('totals.netQty', 0));
+    });
+
+    it('counts a settled product invoice as direct consumption', function () {
+        $product = reportProduct(100, 4.00);
+
+        reportProductInvoice($product, 5);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.materials'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                // 5 وحدات بسعر تكلفة 4.00
+                ->where('totals.netQty', 5)
+                ->where('totals.netCost', 20)
+                ->where('totals.invoiceCount', 1)
+                ->where('byProduct.0.productId', $product->id)
+            );
+    });
+
+    it('leaves a due product invoice out until it is settled', function () {
+        $product = reportProduct(100, 4.00);
+
+        $invoice = reportProductInvoice($product, 5, 'due');
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.materials'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('totals.netQty', 0));
+
+        $invoice->update(['status' => 'paid', 'paid_at' => now()]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.materials'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('totals.netQty', 5));
+    });
+
+    it('nets a product refund out of the direct consumption', function () {
+        $product = reportProduct(100, 4.00);
+        $invoice = reportProductInvoice($product, 5);
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('refunds.store'), [
+                'source_type' => 'product',
+                'invoice_id' => $invoice->id,
+                'amount' => $invoice->total_amount,
+                'reason' => 'اختبار',
+                'reverse_stock' => true,
+            ])
+            ->assertRedirect();
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.materials'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.netQty', 0)
+                ->where('totals.netCost', 0)
+            );
+    });
+
+    it('collapses every direct sale into one row instead of repeating product names', function () {
+        $first = reportProduct(100, 4.00);
+        $second = reportProduct(100, 6.00);
+
+        reportProductInvoice($first, 5);
+        reportProductInvoice($second, 2);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.materials'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                // خامتان في جدول الخامات، وصفٌّ واحد في جدول المصادر.
+                ->has('byProduct', 2)
+                ->has('byService', 1)
+                ->where('byService.0.name', 'بيع مباشر')
+                ->where('byService.0.netQty', 7)
+                ->where('byService.0.netCost', 32)
+                ->where('byService.0.invoiceCount', 2)
+            );
+    });
+
+    it('shows a direct sale under its own invoice number, not a service invoice with the same id', function () {
+        $service = reportService();
+        $material = reportProduct(100);
+        BranchServiceMaterial::create([
+            'branch_service_id' => $service->id,
+            'product_id' => $material->id,
+            'qty_per_unit' => 2,
+        ]);
+
+        // فاتورة خدمة أولاً، فتحمل الرقم 1 في جدولها — ثم فاتورة منتجات تحمل
+        // الرقم 1 في جدولها هي. الوصلُ غير المشروط بالنوع كان يخلط بينهما.
+        reportInvoice($service, 2);
+        $sold = reportProduct(100, 4.00);
+        $productInvoice = reportProductInvoice($sold, 3);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.materials'))
+            ->assertOk()
+            ->assertInertia(function ($page) use ($productInvoice, $sold) {
+                $rows = collect($page->toArray()['props']['movements']);
+                $row = $rows->firstWhere('productName', $sold->name);
+
+                expect($row['invoiceNumber'])->toBe($productInvoice->invoice_number)
+                    ->and($row['serviceName'])->toBe('بيع مباشر');
+            });
     });
 
     it('forbids an employee from opening the report', function () {
