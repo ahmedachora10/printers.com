@@ -411,7 +411,9 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
 
             {/* سقف سعر البيع — يمنع الموظف من تجاوزه، وفارغه يترك السعر مفتوحاً */}
             <div className="space-y-1">
-                <Label className="text-xs">{data.pricing_type === 'sqm' ? 'أعلى سعر للمتر المربع (ر.س)' : 'أعلى سعر للبيع (ر.س)'}</Label>
+                <Label className="text-xs">
+                    {data.pricing_type === 'sqm' ? 'أعلى سعر للمتر المربع (ر.س)' : 'أعلى سعر للبيع (ر.س)'} — شامل الضريبة
+                </Label>
                 <Input
                     type="number"
                     step="0.01"
@@ -427,7 +429,7 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
 
             {/* أرضية سعر البيع (تاسك 64) — مرآة السقف أعلاه */}
             <div className="space-y-1">
-                <Label className="text-xs">{data.pricing_type === 'sqm' ? 'أقل سعر للمتر المربع (ر.س)' : 'أقل سعر للبيع (ر.س)'}</Label>
+                <Label className="text-xs">{data.pricing_type === 'sqm' ? 'أقل سعر للمتر المربع (ر.س)' : 'أقل سعر للبيع (ر.س)'} — شامل الضريبة</Label>
                 <Input
                     type="number"
                     step="0.01"
@@ -455,7 +457,7 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                 <div className="space-y-1">
                     {/* وحدة المبلغ تتبع نوع التسعير (تاسك 63). */}
                     <Label className="text-xs">
-                        {data.pricing_type === 'sqm' ? 'تكلفة الخامات للمتر المربع (ر.س)' : 'تكلفة الخامات للوحدة (ر.س)'}
+                        {data.pricing_type === 'sqm' ? 'تكلفة الخامات للمتر المربع (ر.س)' : 'تكلفة الخامات للوحدة (ر.س)'} — بلا ضريبة
                     </Label>
                     <Input
                         type="number"

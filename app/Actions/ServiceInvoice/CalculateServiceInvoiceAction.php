@@ -458,9 +458,19 @@ class CalculateServiceInvoiceAction
      * تحمي **المركز** من خسارة فتقيس ما يدخل الصندوق فعلاً — أي بعد خصم السطر،
      * وإلا مرّ سعرٌ فوق التكلفة ثم أنزله خصمُ 50% تحتها.
      *
-     * **والمقارنة صافيةٌ من الضريبة:** الأسعار المُدخلة شاملة لها منذ التاسك 37
-     * بينما التكلفة مبلغُ تكلفة بلا ضريبة، فبيع متر بـ10 ر.س شاملة ضدّ خامة بـ10
-     * هو قبضُ 8.70 مقابل 10 — خسارةٌ يمرّرها الفحص الساذج.
+     * **والمقارنة كلها شاملة الضريبة**، لأن الرقم الذي يكتبه الكاشير شاملٌ لها
+     * منذ التاسك 37 فلا يُقارَن برقمٍ بلغةٍ أخرى. ولكلٍّ من الحدَّين طبيعته:
+     *
+     * - `min_selling_price` **سعرٌ** يكتبه المدير، والأسعار في هذا النظام شاملة
+     *   الضريبة، فيُقارَن كما هو بلا قسمة ولا ضرب.
+     * - **تكلفة الخامة** مبلغُ **تكلفة** صافٍ (وتبقى صافيةً في كل مكان آخر —
+     *   خصمُها من أساس العمولة لم يتغيّر)، فتُرفع بالضريبة هنا وحدها لتُقاس
+     *   بلغة السعر: خامةٌ بـ20 تعني «اكتب 23.00 فأكثر»، وهو رقمٌ يراه الموظف
+     *   في الرسالة فيعرف ما يكتب بدل أن يجرّب.
+     *
+     * والنتيجة الحسابية لطرف الخامات هي نفسها قبل التعديل (السعر ÷ 1.15 مقابل
+     * التكلفة = السعر مقابل التكلفة × 1.15)؛ المتغيّر لغةُ العرض وقراءةُ
+     * `min_selling_price` وحدها.
      */
     private function assertPriceAboveFloor(
         BranchService $branchService,
@@ -470,14 +480,16 @@ class CalculateServiceInvoiceAction
         float $vatPct,
     ): void {
         $configured = $branchService->min_selling_price !== null ? (float) $branchService->min_selling_price : 0.0;
+        // التكلفة الصافية تُرفع بالضريبة لتُقاس بلغة السعر المكتوب.
+        $materialsGross = round($materialsCost * (1 + $vatPct / 100), 2);
 
-        $floor = max($configured, $materialsCost);
+        $floor = max($configured, $materialsGross);
 
         if ($floor <= 0) {
             return;
         }
 
-        $effective = round($unitPrice * (1 - $discountPct / 100) / (1 + $vatPct / 100), 2);
+        $effective = round($unitPrice * (1 - $discountPct / 100), 2);
 
         if ($effective >= round($floor, 2)) {
             return;
@@ -487,12 +499,17 @@ class CalculateServiceInvoiceAction
         $isSqm = $branchService->pricing_type === ServicePricingTypeEnum::Sqm;
         $unit = $isSqm ? ' للمتر' : '';
         // يُسمّى الحدّ الذي لُمس، وإلا بحث الموظف عن رقمٍ لا يراه في أي شاشة.
-        $reason = $materialsCost > $configured ? 'تكلفة الخامات' : 'أقل سعر للبيع';
+        // وطرف الخامات يذكر أصله الصافي أيضاً، وإلا بحث عن الـ23 في شاشة كُتب
+        // فيها 20.
+        $reason = $materialsGross > $configured
+            ? 'تكلفة الخامات شاملةً الضريبة ('.number_format($materialsGross, 2).' ر.س'.$unit
+                .' = '.number_format($materialsCost, 2).' + ضريبة)'
+            : 'أقل سعر للبيع ('.number_format($configured, 2).' ر.س'.$unit.')';
 
         throw ValidationException::withMessages([
             'lines' => ($isSqm ? "سعر المتر على \"{$name}\"" : "سعر \"{$name}\"")
-                .' بعد الخصم وبلا ضريبة ('.number_format($effective, 2).' ر.س'.$unit.')'
-                ." يقلّ عن {$reason} (".number_format($floor, 2).' ر.س'.$unit.').',
+                .' بعد الخصم ('.number_format($effective, 2).' ر.س'.$unit.' شاملة الضريبة)'
+                ." يقلّ عن {$reason}.",
         ]);
     }
 

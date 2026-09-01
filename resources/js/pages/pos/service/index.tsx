@@ -110,30 +110,39 @@ const lineMaterialsTotal = (line: ServiceCartLine) =>
     line.hasMaterials ? round2(round2(Math.max(0, line.materialsCost)) * lineUnits(line)) : 0;
 
 /**
- * تكلفة خامات **الوحدة الواحدة** في السطر — الطرف الذي يُقارَن به السعر في
- * أرضية التاسك 65. صفر حين لا خامات على السطر.
+ * تكلفة خامات **الوحدة الواحدة** في السطر، صافيةً كما عُرّفت. صفر حين لا خامات
+ * على السطر. هذا هو الرقم الذي يُخصم من أساس العمولة، ولم يتغيّر.
  */
 const lineMaterialsUnitCost = (line: ServiceCartLine) => (line.hasMaterials ? round2(Math.max(0, line.materialsCost)) : 0);
 
 /**
- * أرضية سعر السطر (تاسك 65) — أعلى الحدَّين: أقل سعر معرَّف على الخدمة (تاسك 64)
- * وتكلفة خامات الوحدة. صفر يعني بلا أرضية.
+ * تكلفة الخامة **شاملةً الضريبة** — الطرف الذي يُقارَن به السعر في أرضية التاسك
+ * 65، لأن السعر المكتوب شاملٌ لها منذ التاسك 37. خامةٌ بـ20 = «اكتب 23.00 فأكثر».
  */
-const linePriceFloor = (line: ServiceCartLine) => Math.max(line.minSellingPrice ?? 0, lineMaterialsUnitCost(line));
+const lineMaterialsUnitCostGross = (line: ServiceCartLine, vatPct: number) =>
+    round2(lineMaterialsUnitCost(line) * (1 + vatPct / 100));
 
 /**
- * السعر المقبوض فعلاً على الوحدة: بعد خصم السطر وصافياً من الضريبة — نفس ما
- * يقيسه الخادم، خلافاً للسقف الذي يقيس المكتوب. الأسعار المُدخلة شاملة للضريبة
- * منذ التاسك 37 والتكلفة صافية، فبلا القسمة تمرّ خسارةٌ بنسبة الضريبة كاملة.
+ * أرضية سعر السطر (تاسك 65) — أعلى الحدَّين، وكلاهما **شامل الضريبة**: أقل سعر
+ * معرَّف على الخدمة (تاسك 64، وهو سعرٌ فيُقرأ شاملاً كما كُتب) وتكلفة خامات
+ * الوحدة مرفوعةً بالضريبة. صفر يعني بلا أرضية.
  */
-const lineNetUnitPrice = (line: ServiceCartLine, vatPct: number) =>
-    round2((line.unitPrice * (1 - line.discountPct / 100)) / (1 + vatPct / 100));
+const linePriceFloor = (line: ServiceCartLine, vatPct: number) =>
+    Math.max(line.minSellingPrice ?? 0, lineMaterialsUnitCostGross(line, vatPct));
+
+/**
+ * السعر المقبوض فعلاً على الوحدة: بعد خصم السطر وشاملاً الضريبة — نفس ما يقيسه
+ * الخادم. يخالف السقف في الخصم لا في الضريبة: السقف يقيس المكتوب قبل الخصم
+ * ليحمي العميل، والأرضية تقيس ما بعد الخصم لتحمي المركز من خصمٍ ينزل بالسعر
+ * تحت التكلفة.
+ */
+const lineEffectiveUnitPrice = (line: ServiceCartLine) => round2(line.unitPrice * (1 - line.discountPct / 100));
 
 /** هل نزل السطر تحت أرضيته؟ */
 const isLineUnderPriceFloor = (line: ServiceCartLine, vatPct: number): boolean => {
-    const floor = linePriceFloor(line);
+    const floor = linePriceFloor(line, vatPct);
 
-    return floor > 0 && lineNetUnitPrice(line, vatPct) < round2(floor);
+    return floor > 0 && lineEffectiveUnitPrice(line) < round2(floor);
 };
 
 /**
@@ -190,11 +199,19 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         }
 
         if (isLineUnderPriceFloor(line, vatPct)) {
-            const floor = linePriceFloor(line);
-            const reason = lineMaterialsUnitCost(line) > (line.minSellingPrice ?? 0) ? 'تكلفة الخامات' : 'أقل سعر';
+            const floor = linePriceFloor(line, vatPct);
+            const gross = lineMaterialsUnitCostGross(line, vatPct);
+            // طرف الخامات يذكر أصله الصافي أيضاً، وإلا بحث الموظف عن الـ23.00
+            // في شاشةٍ كُتب فيها 20.00.
+            const reason =
+                gross > (line.minSellingPrice ?? 0)
+                    ? `تكلفة الخامات ${formatCurrency(lineMaterialsUnitCost(line))} + ضريبة`
+                    : 'أقل سعر';
             const unit = line.pricingType === 'sqm' ? ' للمتر' : '';
 
-            return `${reason} ${formatCurrency(floor)}${unit} — والمقبوض ${formatCurrency(lineNetUnitPrice(line, vatPct))}${unit} بلا ضريبة`;
+            return `${reason} — اكتب ${formatCurrency(floor)}${unit} فأكثر شاملة الضريبة، والمكتوب ${formatCurrency(
+                lineEffectiveUnitPrice(line),
+            )}${unit}`;
         }
 
         return null;
@@ -693,11 +710,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         // الأرضية (تاسك 65) — أعلى الحدَّين: تكلفة الخامات وأقل سعر معرَّف.
         const underFloor = isEmployee ? cart.find((l) => isLineUnderPriceFloor(l, vatPct)) : undefined;
         if (underFloor) {
-            const reason = lineMaterialsUnitCost(underFloor) > (underFloor.minSellingPrice ?? 0) ? 'تكلفة الخامات' : 'أقل سعر للبيع';
+            const reason =
+                lineMaterialsUnitCostGross(underFloor, vatPct) > (underFloor.minSellingPrice ?? 0) ? 'تكلفة الخامات' : 'أقل سعر للبيع';
             toast.error(
-                `سعر "${underFloor.name}" بعد الخصم وبلا ضريبة يقلّ عن ${reason} (${formatCurrency(linePriceFloor(underFloor))}${
+                `سعر "${underFloor.name}" بعد الخصم يقلّ عن ${reason} (${formatCurrency(linePriceFloor(underFloor, vatPct))}${
                     underFloor.pricingType === 'sqm' ? ' للمتر' : ''
-                })`,
+                } شاملة الضريبة)`,
             );
             return;
         }
@@ -1334,11 +1352,21 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
 
                                     if (line.pricingType === 'sqm') parts.push('بالمتر المربع');
 
-                                    // الموظف وحده مقيَّد بالسقف، فلا يُعرض على غيره حدٌّ لا يلزمه.
-                                    if (isEmployee && line.maxSellingPrice !== null && line.maxSellingPrice > 0) {
-                                        parts.push(
-                                            `الحد الأعلى ${formatCurrency(line.maxSellingPrice)}${line.pricingType === 'sqm' ? ' للمتر' : ''}`,
-                                        );
+                                    // الموظف وحده مقيَّد بالحدَّين، فلا يُعرضان على غيره.
+                                    if (isEmployee) {
+                                        const unit = line.pricingType === 'sqm' ? ' للمتر' : '';
+
+                                        if (line.maxSellingPrice !== null && line.maxSellingPrice > 0) {
+                                            parts.push(`الحد الأعلى ${formatCurrency(line.maxSellingPrice)}${unit}`);
+                                        }
+
+                                        // والأرضية تُعرض قبل أن يُخطئ لا بعده — وهي
+                                        // شاملة الضريبة، بلغة الحقل الذي سيكتب فيه.
+                                        const floor = linePriceFloor(line, vatPct);
+
+                                        if (floor > 0) {
+                                            parts.push(`الحد الأدنى ${formatCurrency(floor)}${unit}`);
+                                        }
                                     }
 
                                     return parts.join(' • ');

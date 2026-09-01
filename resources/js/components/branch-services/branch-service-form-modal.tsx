@@ -328,7 +328,10 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
 
                     {/* سقف سعر البيع — يُلزِم الموظف وحده، وفارغه يترك السعر مفتوحاً */}
                     <div className="space-y-1">
-                        <Label htmlFor="bs-max-price">{data.pricing_type === 'sqm' ? 'أعلى سعر للمتر المربع (ر.س)' : 'أعلى سعر للبيع (ر.س)'}</Label>
+                        <Label htmlFor="bs-max-price">
+                            {data.pricing_type === 'sqm' ? 'أعلى سعر للمتر المربع (ر.س)' : 'أعلى سعر للبيع (ر.س)'}
+                            <span className="text-muted-foreground me-1 text-xs font-normal">شامل الضريبة</span>
+                        </Label>
                         <Input
                             id="bs-max-price"
                             type="number"
@@ -352,7 +355,10 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                     {/* أرضية السعر (تاسك 64) — مرآة السقف أعلاه. والأرضية الفعلية في
                         نقطة البيع أعلى هذا الرقم وتكلفةِ خامات السطر (تاسك 65). */}
                     <div className="space-y-1">
-                        <Label htmlFor="bs-min-price">{data.pricing_type === 'sqm' ? 'أقل سعر للمتر المربع (ر.س)' : 'أقل سعر للبيع (ر.س)'}</Label>
+                        <Label htmlFor="bs-min-price">
+                            {data.pricing_type === 'sqm' ? 'أقل سعر للمتر المربع (ر.س)' : 'أقل سعر للبيع (ر.س)'}
+                            <span className="text-muted-foreground me-1 text-xs font-normal">شامل الضريبة</span>
+                        </Label>
                         <Input
                             id="bs-min-price"
                             type="number"
@@ -367,8 +373,8 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                         />
                         <p className="text-muted-foreground text-xs">
                             {data.pricing_type === 'sqm'
-                                ? 'لا يستطيع الموظف بيع المتر بأقل من هذا السعر. فارغة = لا حدّ أدنى.'
-                                : 'لا يستطيع الموظف البيع بأقل من هذا السعر. فارغة = لا حدّ أدنى.'}
+                                ? 'لا يستطيع الموظف بيع المتر بأقل من هذا السعر — يُقارَن بالسعر المكتوب في نقطة البيع كما هو (شاملاً الضريبة) بعد الخصم. فارغة = لا حدّ أدنى.'
+                                : 'لا يستطيع الموظف البيع بأقل من هذا السعر — يُقارَن بالسعر المكتوب في نقطة البيع كما هو (شاملاً الضريبة) بعد الخصم. فارغة = لا حدّ أدنى.'}
                         </p>
                         <InputError message={errors.min_selling_price} />
                     </div>
@@ -400,6 +406,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                     المربع تكلفة خامتها للمتر وتُضرب في مساحة السطر. */}
                                 <Label htmlFor="bs-materials-cost">
                                     {data.pricing_type === 'sqm' ? 'تكلفة الخامات للمتر المربع (ر.س)' : 'تكلفة الخامات للوحدة (ر.س)'}
+                                    <span className="text-muted-foreground me-1 text-xs font-normal">بلا ضريبة</span>
                                 </Label>
                                 <Input
                                     id="bs-materials-cost"
@@ -411,7 +418,8 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                 />
                                 <InputError message={errors.materials_cost} />
                                 <p className="text-muted-foreground text-xs">
-                                    قيمة مقترحة فقط — الموظف يعدّلها لكل فاتورة. لا تظهر للعميل ولا تدخل في الإجمالي.
+                                    قيمة مقترحة فقط — الموظف يعدّلها لكل فاتورة. لا تظهر للعميل ولا تدخل في الإجمالي. وهي تكلفة صافية: تُخصم من أساس
+                                    عمولة الموظف صافيةً، وتُرفع بالضريبة وحدها عند منع البيع بأقل منها (تكلفة 20 = لا تُباع بأقل من 23.00 شاملة).
                                     {data.pricing_type === 'sqm' && ' تُضرب في مساحة السطر: خامة 10 ر.س على مقاس 100×70 سم = 7 ر.س.'}
                                 </p>
                             </div>

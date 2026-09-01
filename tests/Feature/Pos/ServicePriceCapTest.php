@@ -6,6 +6,7 @@ use App\Models\BranchService;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceTemplate;
 use App\Models\User;
+use App\Models\UserService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -308,7 +309,9 @@ describe('Max selling price cap', function () {
 
 /**
  * تاسك 65: أرضية السعر — أعلى الحدَّين، أقل سعر معرَّف على الخدمة وتكلفة خامات
- * السطر. تُقاس على المقبوض: بعد خصم السطر وصافياً من الضريبة (15% في هذا الفرع).
+ * السطر. تُقاس على المقبوض: بعد خصم السطر، **وشاملةً الضريبة** (15% في هذا
+ * الفرع) لأن السعر المكتوب شاملٌ لها. فـ`min_selling_price` سعرٌ يُقارَن كما هو،
+ * وتكلفة الخامة مبلغٌ صافٍ يُرفع بالضريبة قبل المقارنة وحدها.
  */
 describe('Minimum selling price floor', function () {
     beforeEach(function () {
@@ -332,18 +335,18 @@ describe('Minimum selling price floor', function () {
     it('blocks an employee selling below the configured floor', function () {
         $service = cappedService(['max_selling_price' => null, 'min_selling_price' => 50]);
 
-        // 50 شاملة الضريبة = 43.48 مقبوضة — تحت الأرضية.
-        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 50]))
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 49.99]))
             ->assertSessionHasErrors('lines');
 
         expect(ServiceInvoice::count())->toBe(0);
     });
 
-    it('allows the price that nets exactly the floor', function () {
+    it('reads the configured floor as a VAT-inclusive price, like every other price', function () {
         $service = cappedService(['max_selling_price' => null, 'min_selling_price' => 50]);
 
-        // 57.50 ÷ 1.15 = 50.00 بالضبط.
-        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 57.50]))
+        // أقل سعر 50 يعني «اكتب 50» — لا 57.50. الرقم سعرٌ يكتبه المدير،
+        // والأسعار شاملة الضريبة منذ التاسك 37، فلا يُقسم عليها مرّتين.
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 50]))
             ->assertSessionHasNoErrors();
 
         expect(ServiceInvoice::count())->toBe(1);
@@ -377,14 +380,14 @@ describe('Minimum selling price floor', function () {
             'materials_cost' => 60,
         ]);
 
-        // 57.50 شاملة = 50.00 مقبوضة، والخامة 60 — بيعٌ بخسارة.
+        // خامة 60 صافية = أرضية 69.00 شاملة، و57.50 دونها — بيعٌ بخسارة.
         $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 57.50]))
             ->assertSessionHasErrors('lines');
 
         expect(ServiceInvoice::count())->toBe(0);
     });
 
-    it('rejects a price that only covers the cost before VAT is stripped', function () {
+    it('rejects a price that only covers the cost before VAT is added', function () {
         $service = cappedService([
             'max_selling_price' => null,
             'has_materials' => true,
@@ -396,6 +399,51 @@ describe('Minimum selling price floor', function () {
             ->assertSessionHasErrors('lines');
     });
 
+    it('names the materials floor with its VAT-inclusive figure and its net origin', function () {
+        // حالة العميل نفسها: خامة 20 صافية، فالأرضية 23.00 شاملة والـ22 دونها.
+        $service = cappedService([
+            'max_selling_price' => null,
+            'has_materials' => true,
+            'materials_cost' => 20,
+        ]);
+
+        $response = $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 22]));
+
+        $response->assertSessionHasErrors('lines');
+        // الرسالة تحمل الرقم الذي يكتبه وأصلَه الذي يراه في شاشة الخدمة.
+        expect(session('errors')->first('lines'))
+            ->toContain('23.00')
+            ->toContain('20.00');
+
+        // و23.00 بالضبط تمرّ — هي «اكتب هذا فأكثر».
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 23]))
+            ->assertSessionHasNoErrors();
+
+        expect(ServiceInvoice::count())->toBe(1);
+    });
+
+    it('leaves the commission base untouched — the gross-up is the floor check alone', function () {
+        $service = cappedService([
+            'max_selling_price' => null,
+            'has_materials' => true,
+            'materials_cost' => 20,
+        ]);
+
+        // نسبة الموظف تأتي من user_services وحدها (الافتراضي صفر).
+        UserService::create([
+            'user_id' => $this->employee->id,
+            'branch_service_id' => $service->id,
+            'commission_override_pct' => 10,
+        ]);
+
+        $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 115]))
+            ->assertSessionHasNoErrors();
+
+        // 115 شاملة = 100 صافية، ناقص التكلفة الصافية 20 = 80 × 10% = 8.00.
+        // لو قُسمت التكلفة بالضريبة لصارت 8.17 — والعمولات لا تتحرّك بهذا التاسك.
+        expect((float) ServiceInvoice::firstOrFail()->employee_commission)->toBe(8.00);
+    });
+
     it('measures the floor after the line discount, unlike the cap', function () {
         $service = cappedService([
             'max_selling_price' => null,
@@ -404,8 +452,8 @@ describe('Minimum selling price floor', function () {
             'materials_cost' => 50,
         ]);
 
-        // 115 مكتوبةً = 100 مقبوضة، فوق التكلفة بمريح. وخصم 50% ينزل بها إلى
-        // 57.50 شاملة = 50.00 مقبوضة — عند التكلفة تماماً فتمرّ.
+        // 115 مكتوبةً فوق أرضية الخامة (57.50 شاملة) بمريح، وخصم 50% ينزل بها
+        // إلى 57.50 — عند الأرضية تماماً فتمرّ.
         $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 115, 'discount_pct' => 50]))
             ->assertSessionHasNoErrors();
 
@@ -424,7 +472,7 @@ describe('Minimum selling price floor', function () {
             'materials_cost' => 10,
         ]);
 
-        // 11.50 للمتر شاملة = 10.00 مقبوضة للمتر — عند تكلفة المتر تماماً،
+        // خامة المتر 10 صافية = أرضية 11.50 شاملة للمتر — تمرّ عندها تماماً
         // مهما كبر المقاس: الطرفان كلاهما «للمتر» بعد التاسك 63.
         $this->post(route('pos.service.store'), capPayload($service, [
             'payment_method_id' => paymentMethodId(),
@@ -461,7 +509,8 @@ describe('Minimum selling price floor', function () {
             'materials_cost' => 80,
         ]);
 
-        // فوق أقل سعر (20) لكن تحت تكلفة الخامة (80) — تُرفض، والرسالة تسمّيها.
+        // فوق أقل سعر (20) لكن تحت أرضية الخامة (80 صافية = 92.00 شاملة) —
+        // تُرفض، والرسالة تسمّيها.
         $response = $this->post(route('pos.service.store'), capPayload($service, ['unit_price' => 57.50]));
 
         $response->assertSessionHasErrors('lines');
