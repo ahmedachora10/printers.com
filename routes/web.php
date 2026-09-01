@@ -20,6 +20,7 @@ use App\Http\Controllers\CustomerActivityController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DeployController;
 use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
@@ -49,7 +50,7 @@ use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StockReconciliationController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -57,10 +58,12 @@ Route::get('/', function () {
     return Inertia::render('welcome');
 })->name('home');
 
-Route::get('deploy', function () {
-    echo 'deploying...';
-    return Artisan::command('app:deploy', []);
-});
+// النشر من الويب — مغلقٌ ما لم يُضبط DEPLOY_TOKEN، ويُستثنى من فحص CSRF
+// لأنّ من يُطلقه خطُّ GitHub Actions لا جلسةَ له.
+Route::match(['get', 'post'], 'deploy', DeployController::class)
+    ->withoutMiddleware([ValidateCsrfToken::class])
+    ->middleware('throttle:5,1')
+    ->name('deploy');
 
 // M19 — Public service catalogue (no auth).
 Route::get('catalogue', [CatalogueController::class, 'index'])->name('catalogue.index');

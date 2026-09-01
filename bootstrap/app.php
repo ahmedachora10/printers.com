@@ -17,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+        // مسار النشر يعمل والموقع مغلق، وإلا لو تعثّر نشرٌ وترك الموقع في
+        // الصيانة لأغلق على نفسه باب الإصلاح.
+        $middleware->preventRequestsDuringMaintenance(except: ['deploy']);
+
         $middleware->web(append: [
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,

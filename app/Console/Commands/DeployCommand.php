@@ -58,18 +58,24 @@ class DeployCommand extends Command
 
         $problems = $this->preflight();
 
+        // في العرض المجرّد نُبلّغ بالعوائق ولا نتوقف عندها، فالمقصود أن يرى
+        // المُشغِّل الصورة كاملة: ما سيجري وما يعترضه.
+        if ($this->option('dry-run')) {
+            foreach ($problems as $problem) {
+                $this->components->warn($problem);
+            }
+
+            $this->plan();
+
+            return $problems === [] ? self::SUCCESS : self::FAILURE;
+        }
+
         if ($problems !== []) {
             foreach ($problems as $problem) {
                 $this->components->error($problem);
             }
 
             return self::FAILURE;
-        }
-
-        if ($this->option('dry-run')) {
-            $this->plan();
-
-            return self::SUCCESS;
         }
 
         if (! $this->confirmToProceed('سيجري النشر على بيئة الإنتاج')) {
