@@ -49,12 +49,18 @@ use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StockReconciliationController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
 Route::get('/', function () {
     return Inertia::render('welcome');
 })->name('home');
+
+Route::get('deploy', function () {
+    echo 'deploying...';
+    return Artisan::command('app:deploy', []);
+});
 
 // M19 — Public service catalogue (no auth).
 Route::get('catalogue', [CatalogueController::class, 'index'])->name('catalogue.index');
