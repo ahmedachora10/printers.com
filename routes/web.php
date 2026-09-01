@@ -21,6 +21,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
+use App\Http\Controllers\DeploymentController;
 use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
@@ -50,6 +51,7 @@ use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StockReconciliationController;
 use App\Http\Controllers\SupplierController;
 use App\Http\Controllers\UserController;
+use App\Http\Middleware\EnsureDeployUiEnabled;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -62,6 +64,19 @@ Route::match(['get', 'post'], 'deploy', DeployController::class)
     ->withoutMiddleware([ValidateCsrfToken::class])
     ->middleware('throttle:5,1')
     ->name('deploy');
+
+// شاشة النشر — خارج بوابة الدخول عمداً: يفتحها السوبر أدمن بدوره، أو حاملُ
+// DEPLOY_TOKEN بمفتاحه ولو لم يكن له حسابٌ أصلاً (DeployAccess). وتبقى 404
+// للجميع ما لم يُرفع DEPLOY_UI_ENABLED.
+Route::middleware(EnsureDeployUiEnabled::class)->group(function () {
+    Route::get('deployment', [DeploymentController::class, 'index'])->name('deployment.index');
+    Route::post('deployment/unlock', [DeploymentController::class, 'unlock'])
+        ->middleware('throttle:5,1')
+        ->name('deployment.unlock');
+    Route::delete('deployment/unlock', [DeploymentController::class, 'lock'])->name('deployment.lock');
+    // يُدفق مخرجاته، فيُستدعى بـ fetch من الشاشة لا بزيارة Inertia.
+    Route::post('deployment/run', [DeploymentController::class, 'run'])->name('deployment.run');
+});
 
 // M19 — Public service catalogue (no auth).
 Route::get('catalogue', [CatalogueController::class, 'index'])->name('catalogue.index');
@@ -505,5 +520,5 @@ Route::middleware(['auth'])->group(function () {
 
 });
 
-require __DIR__ . '/settings.php';
-require __DIR__ . '/auth.php';
+require __DIR__.'/settings.php';
+require __DIR__.'/auth.php';

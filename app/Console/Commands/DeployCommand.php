@@ -3,8 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Actions\System\BackupDatabaseAction;
+use App\Support\DeploySeeders;
 use App\Support\Shell;
-use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
 use Illuminate\Support\Facades\DB;
@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
+use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
 use ZipArchive;
@@ -38,7 +39,9 @@ class DeployCommand extends Command
         {--skip-composer : تخطّي تحديث حزم composer}
         {--skip-backup : تخطّي النسخة الاحتياطية — لا يُنصح به}
         {--skip-migrations : تخطّي هجرات قاعدة البيانات}
-        {--skip-seed : تخطّي زرع الأدوار والصلاحيات}
+        {--seeders= : الزارعات المطلوبة مفصولةً بفاصلة (افتراضاً الأدوار والصلاحيات)}
+        {--allow-demo-seeders : السماح بزارعات البيانات التجريبية — تخلق عملاء وفواتير وهمية}
+        {--skip-seed : عدم تشغيل أي زارع}
         {--skip-health : تخطّي فحص الموقع بعد الفتح}
         {--no-rollback : عدم التراجع عن الكود والأصول إن سقطت خطوة}
         {--skip-maintenance : عدم إغلاق الموقع أثناء النشر}
@@ -117,7 +120,7 @@ class DeployCommand extends Command
             $this->publishAssets();
             $this->backupDatabase($backup);
             $this->runMigrations();
-            $this->seedPermissions();
+            $this->runSeeders();
             $this->rebuildCaches();
             $this->restartWorkers();
         } catch (Throwable $e) {
@@ -299,26 +302,60 @@ class DeployCommand extends Command
     }
 
     /**
-     * زرعُ الأدوار والصلاحيات بعد الهجرات: الإصدار الجديد قد يأتي بصلاحيةٍ
-     * لم تُخلق بعد، فتبقى شاشتها مقفلةً في وجه من يملكها. والزارع يستعمل
-     * firstOrCreate فلا يمسّ ما هو قائم ولا يُعيد ضبط ما عدّله المدير.
+     * الزارعات المطلوبة بعد الهجرات. الافتراض زارع الأدوار والصلاحيات وحده:
+     * الإصدار الجديد قد يأتي بصلاحيةٍ لم تُخلق بعد، فتبقى شاشتها مقفلةً في
+     * وجه من يملكها، وهو firstOrCreate فلا يمسّ ما عدّله المدير.
+     *
+     * وما سواه يُطلب صراحةً بـ ‎--seeders=‎، وكلٌّ يُعدّ خطوةً على حدة ليُقرأ
+     * في الجدول أيُّها جرى وأيُّها سقط.
      */
-    private function seedPermissions(): void
+    private function runSeeders(): void
     {
         if ($this->option('skip-seed')) {
-            $this->skipped('الأدوار والصلاحيات', 'بطلبٍ من المُشغِّل');
+            $this->skipped('الزارعات', 'بطلبٍ من المُشغِّل');
 
             return;
         }
 
-        $this->step('الأدوار والصلاحيات', function (): string {
-            $this->callSilent('db:seed', [
-                '--class' => RolesAndPermissionsSeeder::class,
-                '--force' => true,
-            ]);
+        foreach (DeploySeeders::resolve($this->seederNames()) as $seeder) {
+            $this->step('زرع: '.$seeder['label'], function () use ($seeder): string {
+                $this->callSilent('db:seed', [
+                    '--class' => $seeder['class'],
+                    '--force' => true,
+                ]);
 
-            return 'RolesAndPermissionsSeeder';
-        });
+                return $seeder['name'].($seeder['demo'] ? ' — بيانات تجريبية' : '');
+            });
+        }
+    }
+
+    private function plannedSeeders(): string
+    {
+        if ($this->option('skip-seed')) {
+            return 'لا شيء';
+        }
+
+        try {
+            return collect(DeploySeeders::resolve($this->seederNames()))
+                ->map(fn (array $seeder): string => $seeder['label'].($seeder['demo'] ? ' ⚠' : ''))
+                ->implode('، ');
+        } catch (InvalidArgumentException) {
+            return 'غير معروفة';
+        }
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function seederNames(): array
+    {
+        $requested = trim((string) ($this->option('seeders') ?? ''));
+
+        if ($requested === '') {
+            return DeploySeeders::DEFAULT;
+        }
+
+        return array_values(array_filter(array_map('trim', explode(',', $requested))));
     }
 
     private function rebuildCaches(): void
@@ -486,6 +523,23 @@ class DeployCommand extends Command
             $problems[] = 'لا توجد أصول مبنية في public/build — مرّر ‎--assets=‎ لملف build.zip من GitHub Actions.';
         }
 
+        // زارعُ بياناتٍ تجريبية على فرعٍ عامل يخلق عملاء وفواتير وهمية بين
+        // الحقيقية، ولا يُميَّز بعدها. فلا يمرّ إلا بطلبٍ صريح، ويُقال في
+        // العرض المجرّد قبل أن يُنفَّذ.
+        if (! $this->option('skip-seed')) {
+            try {
+                $demo = collect(DeploySeeders::resolve($this->seederNames()))
+                    ->where('demo', true)
+                    ->pluck('label');
+
+                if ($demo->isNotEmpty() && ! $this->option('allow-demo-seeders')) {
+                    $problems[] = 'زارعات بياناتٍ تجريبية مطلوبة ('.$demo->implode('، ').') — أضف ‎--allow-demo-seeders‎ إن كنت تقصدها فعلاً.';
+                }
+            } catch (InvalidArgumentException $e) {
+                $problems[] = $e->getMessage();
+            }
+        }
+
         if (! extension_loaded('zip') && $assets !== '') {
             $problems[] = 'امتداد zip غير مُفعَّل في PHP، فلا يمكن فكّ ملف الأصول.';
         }
@@ -519,7 +573,7 @@ class DeployCommand extends Command
             'نشر أصول الواجهة المرفوعة' => $assets !== '',
             'نسخة احتياطية لقاعدة البيانات' => ! $this->option('skip-backup'),
             'migrate --force' => ! $this->option('skip-migrations'),
-            'زرع الأدوار والصلاحيات' => ! $this->option('skip-seed'),
+            'الزارعات: '.$this->plannedSeeders() => ! $this->option('skip-seed'),
             'إعادة بناء الذاكرة المؤقتة' => true,
             'queue:restart' => true,
             'فتح الموقع (up)' => ! $this->option('skip-maintenance'),
