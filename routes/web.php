@@ -58,8 +58,6 @@ Route::get('/', function () {
     return Inertia::render('welcome');
 })->name('home');
 
-// النشر من الويب — مغلقٌ ما لم يُضبط DEPLOY_TOKEN، ويُستثنى من فحص CSRF
-// لأنّ من يُطلقه خطُّ GitHub Actions لا جلسةَ له.
 Route::match(['get', 'post'], 'deploy', DeployController::class)
     ->withoutMiddleware([ValidateCsrfToken::class])
     ->middleware('throttle:5,1')

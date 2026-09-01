@@ -4,11 +4,13 @@ namespace App\Console\Commands;
 
 use App\Actions\System\BackupDatabaseAction;
 use App\Support\Shell;
+use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -34,8 +36,12 @@ class DeployCommand extends Command
         {--assets= : مسار أو رابط ملف build.zip الذي بنته GitHub Actions}
         {--skip-pull : تخطّي سحب الكود من المستودع}
         {--skip-composer : تخطّي تحديث حزم composer}
+        {--skip-build : تخطّي بناء أصول الواجهة على الخادم}
         {--skip-backup : تخطّي النسخة الاحتياطية — لا يُنصح به}
         {--skip-migrations : تخطّي هجرات قاعدة البيانات}
+        {--skip-seed : تخطّي زرع الأدوار والصلاحيات}
+        {--skip-health : تخطّي فحص الموقع بعد الفتح}
+        {--no-rollback : عدم التراجع عن الكود والأصول إن سقطت خطوة}
         {--skip-maintenance : عدم إغلاق الموقع أثناء النشر}
         {--keep-backups=10 : عدد النسخ الاحتياطية المحتفظ بها}
         {--secret= : كلمة تجاوز وضع الصيانة (تُولَّد عشوائياً إن أُهملت)}
@@ -49,6 +55,23 @@ class DeployCommand extends Command
 
     /** @var list<string> */
     private array $notes = [];
+
+    /**
+     * ما يُتراجع عنه إن سقطت خطوة، مرتّباً كما وقع؛ ويُنفَّذ معكوساً.
+     *
+     * @var list<array{label: string, undo: callable(): void}>
+     */
+    private array $rollbacks = [];
+
+    private ?string $backupPath = null;
+
+    private ?string $composerBinary = null;
+
+    private ?string $npm = null;
+
+    private bool $npmLookedUp = false;
+
+    private bool $codeReverted = false;
 
     public function handle(BackupDatabaseAction $backup): int
     {
@@ -96,22 +119,28 @@ class DeployCommand extends Command
 
             $this->pullCode();
             $this->installDependencies();
+            $this->buildAssets();
             $this->publishAssets();
             $this->backupDatabase($backup);
             $this->runMigrations();
+            $this->seedPermissions();
             $this->rebuildCaches();
             $this->restartWorkers();
         } catch (Throwable $e) {
             $failure = $e;
+
+            $this->rollback();
         } finally {
             if ($down) {
                 $this->callSilent('up');
             }
         }
 
-        $this->report($started, $failure);
+        $healthy = $this->healthCheck();
 
-        return $failure === null ? self::SUCCESS : self::FAILURE;
+        $this->report($started, $failure, $healthy);
+
+        return $failure === null && $healthy ? self::SUCCESS : self::FAILURE;
     }
 
     // ── الخطوات ──────────────────────────────────────────────────────────
@@ -140,11 +169,24 @@ class DeployCommand extends Command
 
         $this->step('سحب الكود', function () use ($git): string {
             $branch = (string) ($this->option('branch') ?: $this->git($git, ['rev-parse', '--abbrev-ref', 'HEAD']));
+            $before = $this->git($git, ['rev-parse', 'HEAD']);
 
             $this->git($git, ['fetch', '--prune', 'origin', $branch]);
             $this->git($git, ['pull', '--ff-only', 'origin', $branch]);
 
-            return $branch.' @ '.$this->git($git, ['rev-parse', '--short', 'HEAD']);
+            $after = $this->git($git, ['rev-parse', 'HEAD']);
+
+            if ($after !== $before) {
+                $this->rollbacks[] = [
+                    'label' => 'الكود',
+                    'undo' => function () use ($git, $before): void {
+                        $this->git($git, ['reset', '--hard', $before]);
+                        $this->codeReverted = true;
+                    },
+                ];
+            }
+
+            return $branch.' @ '.substr($after, 0, 7).($after === $before ? ' (لا جديد)' : '');
         });
     }
 
@@ -170,33 +212,55 @@ class DeployCommand extends Command
         }
 
         $this->step('حزم composer', function () use ($composer): string {
-            $home = storage_path('app/composer');
-            File::ensureDirectoryExists($home);
-
-            $command = str_ends_with($composer, '.phar') ? [PHP_BINARY, $composer] : [$composer];
-
-            $result = Process::path(base_path())
-                ->timeout(1200)
-                ->env([
-                    'COMPOSER_HOME' => $home,
-                    'COMPOSER_MEMORY_LIMIT' => '-1',
-                    'COMPOSER_NO_INTERACTION' => '1',
-                ])
-                ->run([
-                    ...$command,
-                    'install',
-                    '--no-dev',
-                    '--prefer-dist',
-                    '--no-progress',
-                    '--no-interaction',
-                    '--optimize-autoloader',
-                ]);
-
-            if ($result->failed()) {
-                throw new RuntimeException('فشل composer install: '.trim($result->errorOutput() ?: $result->output()));
-            }
+            $this->composerInstall($composer);
+            $this->composerBinary = $composer;
 
             return '--no-dev، مع تحسين المُحمِّل التلقائي';
+        });
+    }
+
+    /**
+     * بناء أصول الواجهة على الخادم نفسه. الأرجحية لملفٍ مرفوعٍ إن وُجد، فمن
+     * مرّر ‎--assets‎ قصد بناءً بعينه، ولا معنى لأن نبني فوقه ثم نطمسه.
+     *
+     * وvite يكتب في public/build مباشرة، فنُنحّي القائم قبل أن يبدأ: يبقى
+     * للتراجع إن سقط البناء، ولا يختلط الجديد بالقديم إن نجح.
+     */
+    private function buildAssets(): void
+    {
+        if ($this->option('skip-build')) {
+            $this->skipped('بناء الأصول', 'بطلبٍ من المُشغِّل');
+
+            return;
+        }
+
+        if ((string) ($this->option('assets') ?? '') !== '') {
+            $this->skipped('بناء الأصول', 'سيُنشر ملف الأصول المرفوع بدلاً منه');
+
+            return;
+        }
+
+        $npm = $this->npmBinary();
+
+        if ($npm === null) {
+            $this->skipped('بناء الأصول', 'npm غير متاح على الخادم — مرّر ‎--assets=‎ لملف build.zip');
+
+            return;
+        }
+
+        $this->step('بناء الأصول', function () use ($npm): string {
+            $this->stashBuild();
+
+            // لا NODE_ENV=production هنا: vite أداة تطوير في package.json،
+            // ولو أسقطنا حزم التطوير لما بقي ما يبني.
+            $this->npm($npm, ['ci', '--no-audit', '--no-fund'], 1800);
+            $this->npm($npm, ['run', 'build'], 1800);
+
+            if ($this->manifestIn(public_path('build')) === null) {
+                throw new RuntimeException('انتهى البناء دون manifest.json في public/build.');
+            }
+
+            return 'npm ci ثم npm run build';
         });
     }
 
@@ -240,16 +304,9 @@ class DeployCommand extends Command
                 throw new RuntimeException('لم يُعثر على manifest.json داخل ملف الأصول.');
             }
 
-            $target = public_path('build');
-            $previous = public_path('build.previous');
+            $this->stashBuild();
 
-            File::deleteDirectory($previous);
-
-            if (is_dir($target)) {
-                rename($target, $previous);
-            }
-
-            rename($root, $target);
+            rename($root, public_path('build'));
             File::deleteDirectory($extracted);
 
             if ($archive !== $source) {
@@ -270,6 +327,7 @@ class DeployCommand extends Command
 
         $this->step('نسخة احتياطية', function () use ($action): string {
             $path = $action->handle(keep: max(1, (int) $this->option('keep-backups')));
+            $this->backupPath = $path;
 
             return str_replace(base_path().DIRECTORY_SEPARATOR, '', $path)
                 .' ('.$this->humanSize((int) filesize($path)).')';
@@ -288,6 +346,29 @@ class DeployCommand extends Command
             $this->callSilent('migrate', ['--force' => true]);
 
             return 'migrate --force';
+        });
+    }
+
+    /**
+     * زرعُ الأدوار والصلاحيات بعد الهجرات: الإصدار الجديد قد يأتي بصلاحيةٍ
+     * لم تُخلق بعد، فتبقى شاشتها مقفلةً في وجه من يملكها. والزارع يستعمل
+     * firstOrCreate فلا يمسّ ما هو قائم ولا يُعيد ضبط ما عدّله المدير.
+     */
+    private function seedPermissions(): void
+    {
+        if ($this->option('skip-seed')) {
+            $this->skipped('الأدوار والصلاحيات', 'بطلبٍ من المُشغِّل');
+
+            return;
+        }
+
+        $this->step('الأدوار والصلاحيات', function (): string {
+            $this->callSilent('db:seed', [
+                '--class' => RolesAndPermissionsSeeder::class,
+                '--force' => true,
+            ]);
+
+            return 'RolesAndPermissionsSeeder';
         });
     }
 
@@ -319,6 +400,112 @@ class DeployCommand extends Command
         });
     }
 
+    // ── التراجع والفحص ───────────────────────────────────────────────────
+
+    /**
+     * إعادة ما يمكن ردّه: الأصول ثم الكود، معكوساً كما وقع. وما لا يُردّ —
+     * الهجرات — يُقال فيه الحق: هنا نسختك، وهذا أمر استعادتها، والقرار لك.
+     * استعادةٌ تلقائية لقاعدةٍ عاشت دقائق تحت الإصدار الجديد قد تمحو بيعاً
+     * جرى فيها، وذاك أفدح من عطلٍ يُصلَح بيد.
+     */
+    private function rollback(): void
+    {
+        if ($this->option('no-rollback')) {
+            $this->notes[] = 'التراجع موقوفٌ بطلب المُشغِّل — الشجرة على حالها بعد السقوط.';
+
+            return;
+        }
+
+        if ($this->rollbacks === []) {
+            $this->notes[] = 'لا شيء يُتراجع عنه — لم يتغيّر كودٌ ولا أصول قبل السقوط.';
+
+            return;
+        }
+
+        $this->newLine();
+        $this->components->warn('التراجع عمّا تغيّر…');
+
+        foreach (array_reverse($this->rollbacks) as $entry) {
+            try {
+                ($entry['undo'])();
+                $this->components->twoColumnDetail('استرجاع '.$entry['label'], '<fg=green>تم</>');
+            } catch (Throwable $e) {
+                $this->components->twoColumnDetail('استرجاع '.$entry['label'], '<fg=red>تعذّر</>');
+                $this->notes[] = 'تعذّر استرجاع '.$entry['label'].': '.$e->getMessage();
+            }
+        }
+
+        // رجع الكود إلى إصداره السابق، وvendor ما زال على قفل الإصدار الجديد.
+        if ($this->codeReverted && $this->composerBinary !== null) {
+            try {
+                $this->composerInstall($this->composerBinary);
+                $this->components->twoColumnDetail('استرجاع حزم composer', '<fg=green>تم</>');
+            } catch (Throwable $e) {
+                $this->components->twoColumnDetail('استرجاع حزم composer', '<fg=red>تعذّر</>');
+                $this->notes[] = 'vendor لا يطابق الكود المُسترجَع: '.$e->getMessage();
+            }
+        }
+
+        // الذاكرة المؤقتة بُنيت — أو لم تُبنَ — على كودٍ غير الذي على القرص الآن.
+        try {
+            $this->callSilent('optimize:clear');
+            $this->callSilent('optimize');
+        } catch (Throwable) {
+            $this->notes[] = 'تعذّرت إعادة بناء الذاكرة المؤقتة بعد التراجع — نفّذ php artisan optimize يدوياً.';
+        }
+
+        if (! $this->option('skip-migrations') && $this->backupPath !== null) {
+            $this->notes[] = 'الهجرات لا تُردّ تلقائياً. النسخة: '.$this->backupPath;
+            $this->notes[] = 'للاستعادة عند الحاجة: mysql -u USER -p DB < '.$this->backupPath.' (فُكّ الضغط أولاً إن كانت مضغوطة)';
+        }
+    }
+
+    /**
+     * فحصٌ بعد الفتح: قاعدةٌ تُجيب وصفحةٌ تردّ 200. تعذُّر الوصول من الخادم
+     * إلى عنوانه العام شائعٌ على الاستضافات المشتركة، فذاك تنبيهٌ لا حكم.
+     */
+    private function healthCheck(): bool
+    {
+        if ($this->option('skip-health')) {
+            $this->skipped('فحص الموقع', 'بطلبٍ من المُشغِّل');
+
+            return true;
+        }
+
+        $healthy = true;
+
+        try {
+            DB::connection()->select('select 1');
+            $this->components->twoColumnDetail('فحص قاعدة البيانات', '<fg=green>تُجيب</>');
+        } catch (Throwable $e) {
+            $this->components->twoColumnDetail('فحص قاعدة البيانات', '<fg=red>لا تُجيب</>');
+            $this->notes[] = 'قاعدة البيانات لا تُجيب بعد النشر: '.$e->getMessage();
+            $healthy = false;
+        }
+
+        $url = rtrim((string) config('app.url'), '/').'/up';
+
+        try {
+            $status = Http::timeout(30)->withoutVerifying()->get($url)->status();
+        } catch (Throwable $e) {
+            $this->components->twoColumnDetail('فحص '.$url, '<fg=yellow>تعذّر الوصول</>');
+            $this->notes[] = 'لم يبلغ الخادمُ عنوانَه العام — افحص الموقع من متصفّحك: '.$e->getMessage();
+
+            return $healthy;
+        }
+
+        if ($status >= 200 && $status < 300) {
+            $this->components->twoColumnDetail('فحص '.$url, '<fg=green>'.$status.'</>');
+
+            return $healthy;
+        }
+
+        $this->components->twoColumnDetail('فحص '.$url, '<fg=red>'.$status.'</>');
+        $this->notes[] = 'الموقع مفتوحٌ لكنه يردّ '.$status.' — راجع storage/logs فوراً.';
+
+        return false;
+    }
+
     // ── التحقق قبل البدء ─────────────────────────────────────────────────
 
     /**
@@ -346,8 +533,16 @@ class DeployCommand extends Command
 
         $assets = (string) ($this->option('assets') ?? '');
 
-        if ($assets === '' && $this->manifestIn(public_path('build')) === null) {
-            $problems[] = 'لا توجد أصول مبنية في public/build — مرّر ‎--assets=‎ لملف build.zip من GitHub Actions.';
+        // أصول الواجهة تأتي من أحد ثلاثة: ملفٍّ مرفوع، أو بناءٍ على الخادم،
+        // أو بناءٍ سابقٍ قائم. فإن انقطعت الثلاثة فالموقع بلا واجهة.
+        $canBuild = ! $this->option('skip-build') && $this->npmBinary() !== null;
+
+        if ($assets === '' && ! $canBuild && $this->manifestIn(public_path('build')) === null) {
+            $problems[] = 'لا أصول مبنية في public/build، ولا npm على الخادم — مرّر ‎--assets=‎ لملف build.zip من GitHub Actions.';
+        }
+
+        if (! is_file(base_path('package-lock.json')) && $canBuild && $assets === '') {
+            $problems[] = 'package-lock.json مفقود، وnpm ci لا يعمل بدونه.';
         }
 
         if (! extension_loaded('zip') && $assets !== '') {
@@ -374,16 +569,22 @@ class DeployCommand extends Command
     {
         $this->components->warn('عرضٌ فقط — لن يُنفَّذ شيء.');
 
+        $assets = (string) ($this->option('assets') ?? '');
+
         $steps = [
             'إغلاق الموقع (down)' => ! $this->option('skip-maintenance'),
             'سحب الكود من origin' => ! $this->option('skip-pull'),
             'composer install --no-dev' => ! $this->option('skip-composer'),
-            'نشر أصول الواجهة' => (string) ($this->option('assets') ?? '') !== '',
+            'بناء الأصول (npm ci && npm run build)' => $assets === '' && ! $this->option('skip-build') && $this->npmBinary() !== null,
+            'نشر أصول الواجهة المرفوعة' => $assets !== '',
             'نسخة احتياطية لقاعدة البيانات' => ! $this->option('skip-backup'),
             'migrate --force' => ! $this->option('skip-migrations'),
+            'زرع الأدوار والصلاحيات' => ! $this->option('skip-seed'),
             'إعادة بناء الذاكرة المؤقتة' => true,
             'queue:restart' => true,
             'فتح الموقع (up)' => ! $this->option('skip-maintenance'),
+            'فحص الموقع بعد الفتح' => ! $this->option('skip-health'),
+            'التراجع إن سقطت خطوة' => ! $this->option('no-rollback'),
         ];
 
         foreach ($steps as $label => $enabled) {
@@ -414,6 +615,101 @@ class DeployCommand extends Command
     {
         $this->summary[] = [$title, '<fg=yellow>متخطّى</>', '—'];
         $this->components->twoColumnDetail($title, '<fg=yellow>متخطّى</> <fg=gray>'.$reason.'</>');
+    }
+
+    /**
+     * البحث عن npm مرةً واحدة: يسأله التحقّق المسبق ثم خطوة البناء، وسؤال
+     * الصدفة على استضافةٍ مشتركة أبطأ من أن يُكرَّر بلا داعٍ.
+     */
+    private function npmBinary(): ?string
+    {
+        if ($this->npmLookedUp) {
+            return $this->npm;
+        }
+
+        $this->npmLookedUp = true;
+
+        return $this->npm = Shell::locate('npm', [
+            '/usr/bin/npm',
+            '/usr/local/bin/npm',
+            '/opt/cpanel/ea-nodejs22/bin/npm',
+            '/opt/cpanel/ea-nodejs20/bin/npm',
+            '/opt/cpanel/ea-nodejs18/bin/npm',
+        ]);
+    }
+
+    /**
+     * تنحية public/build القائم إلى build.previous، وتسجيل ردّه إن سقط النشر.
+     * ننحّيه ولا نحذفه، فهو النسخة العاملة الوحيدة حتى تنجح التي بعدها.
+     */
+    private function stashBuild(): void
+    {
+        $target = public_path('build');
+        $previous = public_path('build.previous');
+
+        File::deleteDirectory($previous);
+
+        if (! is_dir($target)) {
+            return;
+        }
+
+        rename($target, $previous);
+
+        $this->rollbacks[] = [
+            'label' => 'أصول الواجهة',
+            'undo' => function () use ($target, $previous): void {
+                File::deleteDirectory($target);
+                rename($previous, $target);
+            },
+        ];
+    }
+
+    /**
+     * @param  list<string>  $arguments
+     */
+    private function npm(string $binary, array $arguments, int $timeout): void
+    {
+        $result = Process::path(base_path())
+            ->timeout($timeout)
+            ->env([
+                'CI' => '1',
+                'NPM_CONFIG_UPDATE_NOTIFIER' => 'false',
+                'HOME' => storage_path('app'),
+            ])
+            ->run([$binary, ...$arguments]);
+
+        if ($result->failed()) {
+            throw new RuntimeException('فشل npm '.$arguments[0].': '.trim($result->errorOutput() ?: $result->output()));
+        }
+    }
+
+    private function composerInstall(string $composer): void
+    {
+        $home = storage_path('app/composer');
+        File::ensureDirectoryExists($home);
+
+        $command = str_ends_with($composer, '.phar') ? [PHP_BINARY, $composer] : [$composer];
+
+        $result = Process::path(base_path())
+            ->timeout(1200)
+            ->env([
+                'COMPOSER_HOME' => $home,
+                'COMPOSER_MEMORY_LIMIT' => '-1',
+                'COMPOSER_NO_INTERACTION' => '1',
+            ])
+            ->run([
+                ...$command,
+                'install',
+                '--no-dev',
+                '--prefer-dist',
+                '--no-progress',
+                '--no-interaction',
+                '--optimize-autoloader',
+            ]);
+
+        if ($result->failed()) {
+            throw new RuntimeException('فشل composer install: '.trim($result->errorOutput() ?: $result->output()));
+        }
     }
 
     /**
@@ -450,7 +746,7 @@ class DeployCommand extends Command
         return $found ? $directory : null;
     }
 
-    private function report(float $started, ?Throwable $failure): void
+    private function report(float $started, ?Throwable $failure, bool $healthy): void
     {
         $this->newLine();
 
@@ -460,12 +756,47 @@ class DeployCommand extends Command
 
         if ($failure !== null) {
             $this->components->error('توقّف النشر: '.$failure->getMessage());
-            $this->components->warn('الموقع أُعيد فتحه، والحالة كما قبل الخطوة الساقطة.');
+            $this->components->warn($this->option('no-rollback')
+                ? 'الموقع أُعيد فتحه، والشجرة كما تركتها الخطوة الساقطة — التراجع موقوف.'
+                : 'الموقع أُعيد فتحه، وأُرجع الكود والأصول إلى ما كانا عليه.');
+        } elseif (! $healthy) {
+            $this->components->error('اكتملت الخطوات لكنّ فحص الموقع لم يمرّ — راجع التنبيهات أعلاه.');
         } else {
             $this->components->info('اكتمل النشر في '.$this->elapsed($started).'.');
         }
 
         $this->table(['الخطوة', 'الحالة', 'المدة'], $this->summary);
+
+        $this->log($started, $failure, $healthy);
+    }
+
+    /**
+     * أثرٌ باقٍ في storage/logs: المخرجات تُطبع لمن أطلق النشر ثم تذهب، وأول
+     * ما يُسأل عنه بعد عطلٍ هو متى نُشر وما الذي جرى فيه.
+     */
+    private function log(float $started, ?Throwable $failure, bool $healthy): void
+    {
+        $context = [
+            'env' => config('app.env'),
+            'duration' => $this->elapsed($started),
+            'healthy' => $healthy,
+            'steps' => array_map(
+                fn (array $row): string => $row[0].': '.strip_tags($row[1]).' ('.$row[2].')',
+                $this->summary
+            ),
+            'notes' => $this->notes,
+        ];
+
+        if ($failure === null) {
+            Log::info($healthy ? 'اكتمل النشر' : 'اكتمل النشر مع فشل الفحص', $context);
+
+            return;
+        }
+
+        Log::error('فشل النشر: '.$failure->getMessage(), $context + [
+            'exception' => $failure::class,
+            'file' => $failure->getFile().':'.$failure->getLine(),
+        ]);
     }
 
     private function elapsed(float $from): string
