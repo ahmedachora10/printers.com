@@ -36,7 +36,6 @@ class DeployCommand extends Command
         {--assets= : مسار أو رابط ملف build.zip الذي بنته GitHub Actions}
         {--skip-pull : تخطّي سحب الكود من المستودع}
         {--skip-composer : تخطّي تحديث حزم composer}
-        {--skip-build : تخطّي بناء أصول الواجهة على الخادم}
         {--skip-backup : تخطّي النسخة الاحتياطية — لا يُنصح به}
         {--skip-migrations : تخطّي هجرات قاعدة البيانات}
         {--skip-seed : تخطّي زرع الأدوار والصلاحيات}
@@ -66,10 +65,6 @@ class DeployCommand extends Command
     private ?string $backupPath = null;
 
     private ?string $composerBinary = null;
-
-    private ?string $npm = null;
-
-    private bool $npmLookedUp = false;
 
     private bool $codeReverted = false;
 
@@ -119,7 +114,6 @@ class DeployCommand extends Command
 
             $this->pullCode();
             $this->installDependencies();
-            $this->buildAssets();
             $this->publishAssets();
             $this->backupDatabase($backup);
             $this->runMigrations();
@@ -216,51 +210,6 @@ class DeployCommand extends Command
             $this->composerBinary = $composer;
 
             return '--no-dev، مع تحسين المُحمِّل التلقائي';
-        });
-    }
-
-    /**
-     * بناء أصول الواجهة على الخادم نفسه. الأرجحية لملفٍ مرفوعٍ إن وُجد، فمن
-     * مرّر ‎--assets‎ قصد بناءً بعينه، ولا معنى لأن نبني فوقه ثم نطمسه.
-     *
-     * وvite يكتب في public/build مباشرة، فنُنحّي القائم قبل أن يبدأ: يبقى
-     * للتراجع إن سقط البناء، ولا يختلط الجديد بالقديم إن نجح.
-     */
-    private function buildAssets(): void
-    {
-        if ($this->option('skip-build')) {
-            $this->skipped('بناء الأصول', 'بطلبٍ من المُشغِّل');
-
-            return;
-        }
-
-        if ((string) ($this->option('assets') ?? '') !== '') {
-            $this->skipped('بناء الأصول', 'سيُنشر ملف الأصول المرفوع بدلاً منه');
-
-            return;
-        }
-
-        $npm = $this->npmBinary();
-
-        if ($npm === null) {
-            $this->skipped('بناء الأصول', 'npm غير متاح على الخادم — مرّر ‎--assets=‎ لملف build.zip');
-
-            return;
-        }
-
-        $this->step('بناء الأصول', function () use ($npm): string {
-            $this->stashBuild();
-
-            // لا NODE_ENV=production هنا: vite أداة تطوير في package.json،
-            // ولو أسقطنا حزم التطوير لما بقي ما يبني.
-            $this->npm($npm, ['ci', '--no-audit', '--no-fund'], 1800);
-            $this->npm($npm, ['run', 'build'], 1800);
-
-            if ($this->manifestIn(public_path('build')) === null) {
-                throw new RuntimeException('انتهى البناء دون manifest.json في public/build.');
-            }
-
-            return 'npm ci ثم npm run build';
         });
     }
 
@@ -533,16 +482,8 @@ class DeployCommand extends Command
 
         $assets = (string) ($this->option('assets') ?? '');
 
-        // أصول الواجهة تأتي من أحد ثلاثة: ملفٍّ مرفوع، أو بناءٍ على الخادم،
-        // أو بناءٍ سابقٍ قائم. فإن انقطعت الثلاثة فالموقع بلا واجهة.
-        $canBuild = ! $this->option('skip-build') && $this->npmBinary() !== null;
-
-        if ($assets === '' && ! $canBuild && $this->manifestIn(public_path('build')) === null) {
-            $problems[] = 'لا أصول مبنية في public/build، ولا npm على الخادم — مرّر ‎--assets=‎ لملف build.zip من GitHub Actions.';
-        }
-
-        if (! is_file(base_path('package-lock.json')) && $canBuild && $assets === '') {
-            $problems[] = 'package-lock.json مفقود، وnpm ci لا يعمل بدونه.';
+        if ($assets === '' && $this->manifestIn(public_path('build')) === null) {
+            $problems[] = 'لا توجد أصول مبنية في public/build — مرّر ‎--assets=‎ لملف build.zip من GitHub Actions.';
         }
 
         if (! extension_loaded('zip') && $assets !== '') {
@@ -575,7 +516,6 @@ class DeployCommand extends Command
             'إغلاق الموقع (down)' => ! $this->option('skip-maintenance'),
             'سحب الكود من origin' => ! $this->option('skip-pull'),
             'composer install --no-dev' => ! $this->option('skip-composer'),
-            'بناء الأصول (npm ci && npm run build)' => $assets === '' && ! $this->option('skip-build') && $this->npmBinary() !== null,
             'نشر أصول الواجهة المرفوعة' => $assets !== '',
             'نسخة احتياطية لقاعدة البيانات' => ! $this->option('skip-backup'),
             'migrate --force' => ! $this->option('skip-migrations'),
@@ -618,27 +558,6 @@ class DeployCommand extends Command
     }
 
     /**
-     * البحث عن npm مرةً واحدة: يسأله التحقّق المسبق ثم خطوة البناء، وسؤال
-     * الصدفة على استضافةٍ مشتركة أبطأ من أن يُكرَّر بلا داعٍ.
-     */
-    private function npmBinary(): ?string
-    {
-        if ($this->npmLookedUp) {
-            return $this->npm;
-        }
-
-        $this->npmLookedUp = true;
-
-        return $this->npm = Shell::locate('npm', [
-            '/usr/bin/npm',
-            '/usr/local/bin/npm',
-            '/opt/cpanel/ea-nodejs22/bin/npm',
-            '/opt/cpanel/ea-nodejs20/bin/npm',
-            '/opt/cpanel/ea-nodejs18/bin/npm',
-        ]);
-    }
-
-    /**
      * تنحية public/build القائم إلى build.previous، وتسجيل ردّه إن سقط النشر.
      * ننحّيه ولا نحذفه، فهو النسخة العاملة الوحيدة حتى تنجح التي بعدها.
      */
@@ -662,25 +581,6 @@ class DeployCommand extends Command
                 rename($previous, $target);
             },
         ];
-    }
-
-    /**
-     * @param  list<string>  $arguments
-     */
-    private function npm(string $binary, array $arguments, int $timeout): void
-    {
-        $result = Process::path(base_path())
-            ->timeout($timeout)
-            ->env([
-                'CI' => '1',
-                'NPM_CONFIG_UPDATE_NOTIFIER' => 'false',
-                'HOME' => storage_path('app'),
-            ])
-            ->run([$binary, ...$arguments]);
-
-        if ($result->failed()) {
-            throw new RuntimeException('فشل npm '.$arguments[0].': '.trim($result->errorOutput() ?: $result->output()));
-        }
     }
 
     private function composerInstall(string $composer): void

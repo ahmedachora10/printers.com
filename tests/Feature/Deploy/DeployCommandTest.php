@@ -2,7 +2,6 @@
 
 it('يذكر الخطوات المستحدثة في العرض المجرّد', function () {
     $this->artisan('app:deploy', ['--dry-run' => true])
-        ->expectsOutputToContain('بناء الأصول')
         ->expectsOutputToContain('زرع الأدوار والصلاحيات')
         ->expectsOutputToContain('فحص الموقع بعد الفتح')
         ->expectsOutputToContain('التراجع إن سقطت خطوة')
