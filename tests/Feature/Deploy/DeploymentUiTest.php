@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Support\DeployAccess;
 use App\Support\DeployPreferences;
+use App\Support\PhpBinary;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -25,6 +26,9 @@ beforeEach(function () {
 
 afterEach(function () {
     File::delete(storage_path('app/deploy-options.json'));
+
+    // المُفسِّر يُحفظ في ذاكرة الصنف، فيتسرّب بين الاختبارات إن لم يُنسَ.
+    PhpBinary::forget();
 });
 
 it('يُخفي الشاشة ما لم تُرفع رايتها ولو كان الداخل سوبر أدمن', function () {
@@ -114,6 +118,30 @@ it('يبقى معدوماً لحامل المفتاح ما دامت الراية
 
     $this->post(route('deployment.unlock'), ['token' => 'secret-token'])->assertNotFound();
     $this->get(route('deployment.index'))->assertNotFound();
+});
+
+it('يعرض مُفسِّر العمليات الفرعية وحاله', function () {
+    $this->actingAs($this->superAdmin)
+        ->get(route('deployment.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('environment.phpBinary', PHP_BINARY)
+            ->where('environment.phpBinaryOk', true)
+            ->where('environment.phpBinaryNote', null)
+            ->etc()
+        );
+});
+
+it('يُنبّه في الشاشة إلى مسار مُفسِّرٍ مضبوطٍ لا وجود له', function () {
+    config()->set('deploy.php_binary', '/opt/cpanel/ea-php83/root/usr/bin/php-missing');
+    PhpBinary::forget();
+
+    $this->actingAs($this->superAdmin)
+        ->get(route('deployment.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('environment.phpBinaryOk', false)
+            ->where('environment.phpBinaryNote', fn ($note) => str_contains((string) $note, 'غير موجود'))
+            ->etc()
+        );
 });
 
 it('يرى السوبر أدمن الشاشة داخل التطبيق لا وحدها', function () {

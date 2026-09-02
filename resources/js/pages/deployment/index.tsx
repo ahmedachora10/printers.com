@@ -25,6 +25,11 @@ interface Props {
         env: string;
         url: string;
         php: string;
+        phpBinary: string;
+        phpBinaryVersion: string | null;
+        phpBinarySource: string;
+        phpBinaryOk: boolean;
+        phpBinaryNote: string | null;
         database: string;
         branch: string | null;
         commit: string | null;
@@ -210,6 +215,24 @@ export default function DeploymentIndex({ environment, seeders, preferences, his
                         <Detail label="الفرع الحالي" value={environment.branch ?? '—'} />
                         <Detail label="آخر إصدار" value={environment.commit ? environment.commit + ' · ' + (environment.committedAt ?? '') : '—'} />
                         <Detail label="PHP / قاعدة البيانات" value={environment.php + ' · ' + environment.database} />
+                    </CardContent>
+
+                    <CardContent className="pt-0">
+                        {/* المُفسِّر الذي تُشغَّل به العمليات الفرعية — على cPanel قد يخالف الذي يخدم الصفحة. */}
+                        <div
+                            className={
+                                environment.phpBinaryOk
+                                    ? 'text-muted-foreground flex flex-wrap items-center gap-2 text-xs'
+                                    : 'border-destructive/50 bg-destructive/10 text-destructive flex flex-wrap items-start gap-2 rounded-md border p-3 text-xs'
+                            }
+                        >
+                            {!environment.phpBinaryOk && <AlertTriangle className="mt-0.5 size-4 shrink-0" />}
+                            <span>
+                                مُفسِّر العمليات الفرعية: <code dir="ltr">{environment.phpBinary}</code>
+                                {environment.phpBinaryVersion && ' (' + environment.phpBinaryVersion + ')'} — {environment.phpBinarySource}
+                            </span>
+                            {environment.phpBinaryNote && <span>{environment.phpBinaryNote}</span>}
+                        </div>
                     </CardContent>
                 </Card>
 

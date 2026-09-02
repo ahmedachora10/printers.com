@@ -7,6 +7,7 @@ use App\Http\Requests\Deployment\RunDeploymentRequest;
 use App\Support\DeployAccess;
 use App\Support\DeployPreferences;
 use App\Support\DeploySeeders;
+use App\Support\PhpBinary;
 use App\Support\Shell;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -155,15 +156,25 @@ class DeploymentController extends Controller
     }
 
     /**
-     * @return array<string, string|null>
+     * @return array<string, mixed>
      */
     private function environment(): array
     {
+        $php = PhpBinary::describe();
+        $problem = PhpBinary::misconfigured();
+
         return [
             'name' => (string) config('app.name'),
             'env' => (string) config('app.env'),
             'url' => (string) config('app.url'),
             'php' => PHP_VERSION,
+            // المُفسِّر الذي تُشغَّل به العمليات الفرعية — قد يخالف الذي يخدم
+            // الطلب نفسه، وهو موضع الخلل المعتاد على cPanel.
+            'phpBinary' => $php['path'],
+            'phpBinaryVersion' => $php['version'],
+            'phpBinarySource' => $php['source'],
+            'phpBinaryOk' => $problem === null && ($php['versionId'] === null || $php['versionId'] >= PhpBinary::MINIMUM),
+            'phpBinaryNote' => $problem,
             'database' => (string) config('database.default'),
             'branch' => $this->git(['rev-parse', '--abbrev-ref', 'HEAD']),
             'commit' => $this->git(['rev-parse', '--short', 'HEAD']),

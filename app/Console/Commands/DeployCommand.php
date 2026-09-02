@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Actions\System\BackupDatabaseAction;
 use App\Support\DeploySeeders;
+use App\Support\PhpBinary;
 use App\Support\Shell;
 use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
@@ -18,16 +19,6 @@ use RuntimeException;
 use Throwable;
 use ZipArchive;
 
-/**
- * نشر التطبيق على خادم الإنتاج — يُنفَّذ على الخادم نفسه.
- *
- * الترتيب مقصود: لا تُلمس قاعدة البيانات قبل أن يُغلق الموقع وتُؤخذ نسخة،
- * ولا يُفتح الموقع إلا بعد بناء الذاكرة المؤقتة. وإن سقطت خطوةٌ في الطريق
- * رُفع وضع الصيانة على كل حال، فلا يبقى الموقع مغلقاً بسبب عطلٍ عابر.
- *
- * الاستضافة مشتركة (cPanel)، فكل أداةٍ خارجية — git وcomposer وmysqldump —
- * تُلتمس قبل استعمالها، وإن غابت مضى النشر وأبلغ عنها.
- */
 class DeployCommand extends Command
 {
     use ConfirmableTrait;
@@ -329,6 +320,27 @@ class DeployCommand extends Command
         }
     }
 
+    /**
+     * إعادة تركيب الأمر بخياراته كما كُتبت، ليُنسخ السطر كما هو بدل أن
+     * يُعاد تذكّر ما مُرِّر. الخيارات العامة تُطرح، فهي ليست من الطلب.
+     */
+    private function reinvocation(): string
+    {
+        $global = ['help', 'quiet', 'verbose', 'version', 'ansi', 'no-ansi', 'no-interaction', 'env', 'silent'];
+
+        $parts = ['app:deploy'];
+
+        foreach ($this->options() as $name => $value) {
+            if (in_array($name, $global, true) || $value === false || $value === null || $value === '') {
+                continue;
+            }
+
+            $parts[] = $value === true ? "--{$name}" : "--{$name}=".escapeshellarg((string) $value);
+        }
+
+        return implode(' ', $parts);
+    }
+
     private function plannedSeeders(): string
     {
         if ($this->option('skip-seed')) {
@@ -544,8 +556,13 @@ class DeployCommand extends Command
             $problems[] = 'امتداد zip غير مُفعَّل في PHP، فلا يمكن فكّ ملف الأصول.';
         }
 
-        if (PHP_VERSION_ID < 80300) {
-            $problems[] = 'نسخة PHP المستعملة '.PHP_VERSION.' والتطبيق يتطلب 8.3 فأعلى — راجع مسار مُفسِّر cron.';
+        if (PHP_VERSION_ID < PhpBinary::MINIMUM) {
+            $problems[] = 'نسخة PHP المستعملة '.PHP_VERSION.' والتطبيق يتطلب 8.3 فأعلى.';
+            $problems[] = 'أعِد التشغيل بالمُفسِّر الصحيح: '.PhpBinary::artisanCommand($this->reinvocation());
+        }
+
+        if (($misconfigured = PhpBinary::misconfigured()) !== null) {
+            $problems[] = $misconfigured;
         }
 
         return $problems;
@@ -556,6 +573,17 @@ class DeployCommand extends Command
         $this->components->twoColumnDetail('البيئة', (string) config('app.env'));
         $this->components->twoColumnDetail('العنوان', (string) config('app.url'));
         $this->components->twoColumnDetail('مُفسِّر PHP', PHP_BINARY.' ('.PHP_VERSION.')');
+
+        $php = PhpBinary::describe();
+
+        // نُظهر المُفسِّر المختار حين يخالف الذي يعمل الآن، فذاك موضع اللبس:
+        // أمرٌ يعمل على نسخة ويُشغِّل composer بأخرى.
+        if ($php['path'] !== PHP_BINARY) {
+            $this->components->twoColumnDetail(
+                'مُفسِّر العمليات الفرعية',
+                $php['path'].($php['version'] !== null ? ' ('.$php['version'].')' : '').' — '.$php['source']
+            );
+        }
         $this->components->twoColumnDetail('قاعدة البيانات', (string) config('database.default'));
         $this->newLine();
     }
@@ -642,7 +670,9 @@ class DeployCommand extends Command
         $home = storage_path('app/composer');
         File::ensureDirectoryExists($home);
 
-        $command = str_ends_with($composer, '.phar') ? [PHP_BINARY, $composer] : [$composer];
+        // composer.phar يُشغَّل بمُفسِّرٍ صريح: `php` في المسار على cPanel قد
+        // يكون نسخةً لا تُقلع بها حزم المشروع أصلاً.
+        $command = str_ends_with($composer, '.phar') ? [PhpBinary::path(), $composer] : [$composer];
 
         $result = Process::path(base_path())
             ->timeout(1200)
