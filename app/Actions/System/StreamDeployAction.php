@@ -7,21 +7,14 @@ use Illuminate\Support\Facades\Cache;
 use Symfony\Component\Console\Output\StreamOutput;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * تشغيل أمر النشر ودفعُ مخرجاته كما تُكتب. يشترك فيه بابان: مسار المفتاح
- * الذي يُطلقه خطُّ التكامل، وشاشةُ السوبر أدمن داخل التطبيق. الفارق بينهما
- * في من يُؤذن له لا في ما يجري، فجُمع ما يجري هنا مرةً واحدة.
- */
 class StreamDeployAction
 {
     /**
-     * @param  array<string, mixed>  $options  خيارات أمر app:deploy
-     * @param  array<string, mixed>  $context  ما يُضاف إلى سجلّ النشاط
+     * @param  array<string, mixed>  $options  app:deploy
+     * @param  array<string, mixed>  $context
      */
     public function handle(array $options, array $context = []): StreamedResponse
     {
-        // قفلٌ واحد للنشر كله: طلبٌ ثانٍ أثناء الأول يُردّ ولا يُصطفّ، فتداخل
-        // نشرين على المستودع نفسه يترك الشجرة في حالٍ لا يصفها أحد.
         $lock = Cache::lock('deploy:running', max(60, (int) config('deploy.lock_seconds')));
 
         abort_if(! $lock->get(), 409, 'هناك نشرٌ قيد التنفيذ الآن.');

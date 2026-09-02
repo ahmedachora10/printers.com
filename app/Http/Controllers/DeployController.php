@@ -7,14 +7,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
-/**
- * تشغيل أمر النشر من الويب — ليَقدر خطُّ GitHub Actions أن يُطلقه بعد بناء
- * الأصول، وليُغني عن سطر الأوامر على استضافةٍ لا تُتيحه دائماً.
- *
- * الباب مغلقٌ ما لم يوجد مفتاحٌ في البيئة، ولا يفتحه إلا مفتاحٌ مطابق. ومخرجات
- * الأمر تُدفَق كما تُكتب، فمن يُطلقه يرى أين وصل بدل أن ينتظر صفحةً بيضاء
- * قد تنقطع قبل أن تعود.
- */
 class DeployController extends Controller
 {
     public function __invoke(Request $request, StreamDeployAction $deploy): StreamedResponse
@@ -67,9 +59,6 @@ class DeployController extends Controller
         return $options;
     }
 
-    /**
-     * رابطٌ للأصول أو ملفٌّ داخل مجلّد التطبيق — لا مسارات مطلقة من الخارج.
-     */
     private function assets(string $assets): string
     {
         if (Str::startsWith($assets, ['http://', 'https://'])) {
