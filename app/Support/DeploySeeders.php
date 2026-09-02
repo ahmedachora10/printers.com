@@ -74,18 +74,32 @@ class DeploySeeders
 
     public static function unavailableReason(): string
     {
-        return 'حزم التطوير غير مثبّتة هنا (composer install --no-dev)، وزارعات البيانات التجريبية تحتاج fakerphp/faker.';
+        return 'حزم التطوير غير مثبّتة هنا (composer install --no-dev)، وزارعات البيانات التجريبية تحتاج fakerphp/faker، ولا composer على الخادم ليُثبّتها.';
+    }
+
+    /**
+     * هل يحتاج المطلوبُ تثبيتَ حزم التطوير قبل الزرع؟
+     *
+     * @param  list<string>  $names
+     */
+    public static function needsDevInstall(array $names): bool
+    {
+        return ! self::fakerAvailable() && self::anyDemo($names);
     }
 
     /**
      * ما لا يمكن تشغيله من المطلوب — يُسأل قبل أن يُلمس شيء.
      *
+     * غياب faker وحده ليس مانعاً ما دام composer قادراً على جلبه؛ المانع أن
+     * يغيب ولا سبيل إلى جلبه.
+     *
      * @param  list<string>  $names
+     * @param  bool  $canInstall  هل ستُثبَّت حزم التطوير في هذه النشرة؟
      * @return list<string> أسماء الزارعات المتعذّرة
      */
-    public static function blocked(array $names): array
+    public static function blocked(array $names, bool $canInstall = true): array
     {
-        if (self::fakerAvailable()) {
+        if (self::fakerAvailable() || ($canInstall && ComposerBinary::available())) {
             return [];
         }
 
@@ -128,7 +142,8 @@ class DeploySeeders
                 'class' => $class,
                 'label' => self::LABELS[$name] ?? Str::headline(Str::before($name, 'Seeder')),
                 'demo' => $demo,
-                'runnable' => ! $demo || self::fakerAvailable(),
+                // متاحٌ إن كان faker موجوداً، أو كان composer قادراً على جلبه.
+                'runnable' => ! $demo || self::fakerAvailable() || ComposerBinary::available(),
             ];
         }
 

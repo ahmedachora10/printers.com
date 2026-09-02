@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Deployment;
 
+use App\Support\ComposerBinary;
 use App\Support\DeployAccess;
 use App\Support\DeploySeeders;
 use Illuminate\Contracts\Validation\Validator as ValidatorContract;
@@ -95,9 +96,11 @@ class RunDeploymentRequest extends FormRequest
 
                 $seeders = $this->input('seeders', []);
 
-                // المتعذّر لا يُنقذه تأكيد: بلا faker يقع المصنع في خطأٍ
-                // قاتل بعد الهجرات، فيُردّ الطلب قبل أن يبدأ شيء.
-                if (($blocked = DeploySeeders::blocked($seeders)) !== []) {
+                // غياب faker يُعالجه تثبيت حزم التطوير في خطوة composer؛
+                // فالمانع أن تُطفأ تلك الخطوة أو يغيب composer عن الخادم.
+                $canInstall = $this->boolean('options.composer', true) && ComposerBinary::available();
+
+                if (($blocked = DeploySeeders::blocked($seeders, $canInstall)) !== []) {
                     $validator->errors()->add(
                         'seeders',
                         'زارعات متعذّرة هنا ('.implode('، ', $blocked).'): '.DeploySeeders::unavailableReason()

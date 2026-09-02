@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Actions\System\BackupDatabaseAction;
+use App\Support\ComposerBinary;
 use App\Support\DeploySeeders;
 use App\Support\PhpBinary;
 use App\Support\Shell;
@@ -61,6 +62,12 @@ class DeployCommand extends Command
     private ?string $composerBinary = null;
 
     private bool $codeReverted = false;
+
+    /**
+     * هل ثُبّتت حزم التطوير في هذه النشرة؟ إن كان، فالزارع يُشغَّل في عملية
+     * جديدة: هذه العملية أقلعت وfaker غائبة، ولا تُعرَّف fake() بعد الإقلاع.
+     */
+    private bool $devDependenciesInstalled = false;
 
     public function handle(BackupDatabaseAction $backup): int
     {
@@ -186,12 +193,7 @@ class DeployCommand extends Command
             return;
         }
 
-        $composer = Shell::locate('composer', [
-            base_path('composer.phar'),
-            '/opt/cpanel/composer/bin/composer',
-            '/usr/local/bin/composer',
-            '/usr/bin/composer',
-        ]);
+        $composer = ComposerBinary::path();
 
         if ($composer === null) {
             $this->skipped('حزم composer', 'composer غير متاح — حدّث vendor يدوياً إن تغيّرت الحزم');
@@ -199,11 +201,18 @@ class DeployCommand extends Command
             return;
         }
 
-        $this->step('حزم composer', function () use ($composer): string {
-            $this->composerInstall($composer);
-            $this->composerBinary = $composer;
+        // زارعُ البيانات التجريبية يحتاج faker، وهي حزمة تطوير. فإن طُلب
+        // زارعٌ منها ثُبّتت حزم التطوير في هذه النشرة وحدها.
+        $withDev = ! $this->option('skip-seed') && DeploySeeders::needsDevInstall($this->seederNames());
 
-            return '--no-dev، مع تحسين المُحمِّل التلقائي';
+        $this->step('حزم composer', function () use ($composer, $withDev): string {
+            $this->composerInstall($composer, $withDev);
+            $this->composerBinary = $composer;
+            $this->devDependenciesInstalled = $withDev;
+
+            return $withDev
+                ? 'مع حزم التطوير — لأن زارعاً تجريبياً مطلوب'
+                : '--no-dev، مع تحسين المُحمِّل التلقائي';
         });
     }
 
@@ -318,14 +327,41 @@ class DeployCommand extends Command
             }
 
             $this->step('زرع: '.$seeder['label'], function () use ($seeder): string {
-                $this->callSilent('db:seed', [
-                    '--class' => $seeder['class'],
-                    '--force' => true,
-                ]);
+                $fresh = $this->seedInFreshProcess($seeder['class']);
 
-                return $seeder['name'].($seeder['demo'] ? ' — بيانات تجريبية' : '');
+                return $seeder['name']
+                    .($seeder['demo'] ? ' — بيانات تجريبية' : '')
+                    .($fresh ? ' (عملية جديدة)' : '');
             });
         }
+    }
+
+    /**
+     * تشغيل الزارع. الأصل أن يُنادى في هذه العملية، إلا أن تكون حزم التطوير
+     * قد ثُبّتت قبل قليل: هذه العملية أقلعت وfaker غائبة، ودالّة fake() لا
+     * تُعرَّف إلا عند الإقلاع وبشرط وجود ‎\Faker\Factory‎ — فلا يُصلحها
+     * تثبيتٌ بعده، ولا يرى مُحمِّلُها الملفات الجديدة. فيُفتح لها مُفسِّرٌ
+     * جديد يقرأ vendor كما صار.
+     *
+     * @return bool هل جرى في عمليةٍ جديدة؟
+     */
+    private function seedInFreshProcess(string $class): bool
+    {
+        if (! $this->devDependenciesInstalled || ! Shell::available()) {
+            $this->callSilent('db:seed', ['--class' => $class, '--force' => true]);
+
+            return false;
+        }
+
+        $result = Process::path(base_path())
+            ->timeout(1800)
+            ->run([PhpBinary::path(), base_path('artisan'), 'db:seed', '--class='.$class, '--force']);
+
+        if ($result->failed()) {
+            throw new RuntimeException('فشل الزارع '.class_basename($class).': '.trim($result->errorOutput() ?: $result->output()));
+        }
+
+        return true;
     }
 
     /**
@@ -347,6 +383,19 @@ class DeployCommand extends Command
         }
 
         return implode(' ', $parts);
+    }
+
+    private function devInstallPlanned(): bool
+    {
+        if ($this->option('skip-seed')) {
+            return false;
+        }
+
+        try {
+            return DeploySeeders::needsDevInstall($this->seederNames());
+        } catch (InvalidArgumentException) {
+            return false;
+        }
     }
 
     private function plannedSeeders(): string
@@ -556,12 +605,18 @@ class DeployCommand extends Command
                     $problems[] = 'زارعات بياناتٍ تجريبية مطلوبة ('.$demo->implode('، ').') — أضف ‎--allow-demo-seeders‎ إن كنت تقصدها فعلاً.';
                 }
 
-                // ولو أذِن بها: لا مصانع بلا faker، والفشل بعد الهجرات أسوأ
-                // من الوقوف قبل أن يُغلق الموقع.
-                $blocked = DeploySeeders::blocked($this->seederNames());
+                // ولو أذِن بها: لا مصانع بلا faker. وغيابها يُعالَج بتثبيت
+                // حزم التطوير، فالمانع أن يتعذّر التثبيت نفسه — تخطّي خطوة
+                // composer أو غيابه عن الخادم. والوقوف هنا قبل أن يُغلق
+                // الموقع أرحم من الفشل بعد الهجرات.
+                $canInstall = ! $this->option('skip-composer') && ComposerBinary::available();
+                $blocked = DeploySeeders::blocked($this->seederNames(), $canInstall);
 
                 if ($blocked !== []) {
-                    $problems[] = 'زارعات متعذّرة على هذا الخادم ('.implode('، ', $blocked).'): '.DeploySeeders::unavailableReason();
+                    $problems[] = 'زارعات متعذّرة على هذا الخادم ('.implode('، ', $blocked).'): '
+                        .($this->option('skip-composer')
+                            ? 'حزم التطوير غير مثبّتة، وخطوة composer متخطّاة فلا تُثبَّت.'
+                            : DeploySeeders::unavailableReason());
                 }
             } catch (InvalidArgumentException $e) {
                 $problems[] = $e->getMessage();
@@ -613,7 +668,8 @@ class DeployCommand extends Command
         $steps = [
             'إغلاق الموقع (down)' => ! $this->option('skip-maintenance'),
             'سحب الكود من origin' => ! $this->option('skip-pull'),
-            'composer install --no-dev' => ! $this->option('skip-composer'),
+            'composer install --no-dev' => ! $this->option('skip-composer') && ! $this->devInstallPlanned(),
+            'composer install مع حزم التطوير (لأجل زارعٍ تجريبي)' => ! $this->option('skip-composer') && $this->devInstallPlanned(),
             'نشر أصول الواجهة المرفوعة' => $assets !== '',
             'نسخة احتياطية لقاعدة البيانات' => ! $this->option('skip-backup'),
             'migrate --force' => ! $this->option('skip-migrations'),
@@ -681,7 +737,7 @@ class DeployCommand extends Command
         ];
     }
 
-    private function composerInstall(string $composer): void
+    private function composerInstall(string $composer, bool $withDev = false): void
     {
         $home = storage_path('app/composer');
         File::ensureDirectoryExists($home);
@@ -700,7 +756,7 @@ class DeployCommand extends Command
             ->run([
                 ...$command,
                 'install',
-                '--no-dev',
+                ...($withDev ? [] : ['--no-dev']),
                 '--prefer-dist',
                 '--no-progress',
                 '--no-interaction',

@@ -32,6 +32,9 @@ interface Props {
         phpBinarySource: string;
         phpBinaryOk: boolean;
         phpBinaryNote: string | null;
+        /** faker حزمة تطوير: بدونها لا يعمل زارعُ المصانع ما لم يُثبّتها composer. */
+        fakerInstalled: boolean;
+        composerAvailable: boolean;
         database: string;
         branch: string | null;
         commit: string | null;
@@ -316,8 +319,17 @@ export default function DeploymentIndex({ environment, seeders, preferences, his
 
                             {seeders.some((seeder) => !seeder.runnable) && (
                                 <p className="text-muted-foreground text-xs">
-                                    زارعات البيانات التجريبية مُعطَّلة هنا: حزم التطوير غير مثبّتة على الخادم (
-                                    <code dir="ltr">composer install --no-dev</code>)، ودالّة <code dir="ltr">fake()</code> لا توجد بدونها.
+                                    زارعات البيانات التجريبية مُعطَّلة هنا: حزم التطوير غير مثبّتة على الخادم، ولا <code dir="ltr">composer</code>{' '}
+                                    ليُثبّتها. ودالّة <code dir="ltr">fake()</code> لا توجد بدونها.
+                                </p>
+                            )}
+
+                            {/* faker غائبة لكنها قابلة للجلب: يُقال ما سيجري قبل أن يجري. */}
+                            {demoSelected.length > 0 && !environment.fakerInstalled && environment.composerAvailable && (
+                                <p className="text-muted-foreground text-xs">
+                                    ستُثبَّت حزم التطوير أولاً (<code dir="ltr">composer install</code> بدون <code dir="ltr">--no-dev</code>) لأن
+                                    <code dir="ltr"> fake()</code> غير متاحة هنا، ثم يُشغَّل الزارع في عمليةٍ جديدة. يتطلّب إبقاء خطوة composer
+                                    مُفعَّلة، ويطيل النشر.
                                 </p>
                             )}
 

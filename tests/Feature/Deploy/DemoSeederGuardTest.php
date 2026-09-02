@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Support\ComposerBinary;
 use App\Support\DeploySeeders;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -8,18 +9,34 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /**
- * faker حزمةُ تطوير، ودالّة fake() لا تُعرَّف إلا إن وُجد ‎\Faker\Factory‎.
- * فزارعُ المصانع على خادمٍ ثُبّت بـ ‎--no-dev‎ يقع في «Call to undefined
- * function fake()» بعد الهجرات — وهو ما وقع في نشرة 2 سبتمبر 2026.
+ * faker حزمةُ تطوير، ودالّة fake() لا تُعرَّف إلا إن وُجد ‎\Faker\Factory‎ عند
+ * الإقلاع. فزارعُ المصانع على خادمٍ ثُبّت بـ ‎--no-dev‎ يقع في «Call to
+ * undefined function fake()» بعد الهجرات — وهو ما وقع في نشرة 2 سبتمبر 2026.
  *
- * لا سبيل إلى نزع faker من جهاز التطوير، فتُحاكى غيبته.
+ * والعلاج تثبيتُ حزم التطوير قبل الزرع؛ فالمنع لم يعد لغياب faker، بل لتعذّر
+ * جلبها. ولا سبيل إلى نزع faker من جهاز التطوير، فتُحاكى غيبتها؛ وحضور
+ * composer يُثبَّت بدل أن يُترك لصدفة الجهاز.
  */
 afterEach(function () {
     DeploySeeders::assumeFakerAvailable(null);
+    ComposerBinary::forget();
 });
 
-it('يُعلّم زارع المصانع غير قابلٍ للتشغيل حين يغيب faker', function () {
+function admin(): User
+{
+    test()->withoutVite();
+    test()->seed(RolesAndPermissionsSeeder::class);
+    config()->set('deploy.ui.enabled', true);
+
+    $admin = User::factory()->create();
+    $admin->addRole('super-admin');
+
+    return $admin;
+}
+
+it('يُعلّم زارع المصانع غير قابلٍ للتشغيل حين تغيب faker ويغيب composer', function () {
     DeploySeeders::assumeFakerAvailable(false);
+    ComposerBinary::assume(null);
 
     $seeders = collect(DeploySeeders::all())->keyBy('name');
 
@@ -30,16 +47,31 @@ it('يُعلّم زارع المصانع غير قابلٍ للتشغيل حين
         ->and($seeders['CitySeeder']['runnable'])->toBeTrue();
 });
 
-it('يعدّها كلها قابلةً للتشغيل حين يكون faker مثبّتاً', function () {
-    expect(DeploySeeders::fakerAvailable())->toBeTrue()
-        ->and(DeploySeeders::blocked(['UserSeeder', 'DatabaseSeeder']))->toBe([]);
+it('يُبقيه متاحاً حين تغيب faker ويحضر composer ليجلبها', function () {
+    DeploySeeders::assumeFakerAvailable(false);
+    ComposerBinary::assume('/usr/local/bin/composer');
+
+    $seeders = collect(DeploySeeders::all())->keyBy('name');
+
+    expect($seeders['UserSeeder']['runnable'])->toBeTrue()
+        ->and(DeploySeeders::blocked(['UserSeeder']))->toBe([])
+        ->and(DeploySeeders::needsDevInstall(['UserSeeder']))->toBeTrue()
+        // المرجعيّ لا يستدعي تثبيتاً.
+        ->and(DeploySeeders::needsDevInstall(['CitySeeder']))->toBeFalse();
 });
 
-it('يجمع المتعذّر بأسمائه المقروءة', function () {
+it('يمنعه حين يحضر composer لكنّ خطوته متخطّاة', function () {
     DeploySeeders::assumeFakerAvailable(false);
+    ComposerBinary::assume('/usr/local/bin/composer');
 
-    expect(DeploySeeders::blocked(['RolesAndPermissionsSeeder', 'UserSeeder']))
+    expect(DeploySeeders::blocked(['UserSeeder'], canInstall: false))
         ->toBe(['مستخدمون تجريبيون']);
+});
+
+it('لا يحتاج تثبيتاً حين تكون faker مثبّتة', function () {
+    expect(DeploySeeders::fakerAvailable())->toBeTrue()
+        ->and(DeploySeeders::needsDevInstall(['UserSeeder', 'DatabaseSeeder']))->toBeFalse()
+        ->and(DeploySeeders::blocked(['UserSeeder', 'DatabaseSeeder']))->toBe([]);
 });
 
 it('يُبلّغ عن السبب بلغةٍ تُفهم', function () {
@@ -48,8 +80,20 @@ it('يُبلّغ عن السبب بلغةٍ تُفهم', function () {
         ->toContain('fakerphp/faker');
 });
 
-it('يقف قبل أن يُغلق الموقع بدل أن يسقط بعد الهجرات', function () {
+it('يعلن في الخطة أنّ حزم التطوير ستُثبَّت', function () {
     DeploySeeders::assumeFakerAvailable(false);
+    ComposerBinary::assume('/usr/local/bin/composer');
+
+    $this->artisan('app:deploy', [
+        '--dry-run' => true,
+        '--seeders' => 'UserSeeder',
+        '--allow-demo-seeders' => true,
+    ])->expectsOutputToContain('مع حزم التطوير');
+});
+
+it('يقف قبل أن يُغلق الموقع حين لا سبيل إلى التثبيت', function () {
+    DeploySeeders::assumeFakerAvailable(false);
+    ComposerBinary::assume(null);
 
     $this->artisan('app:deploy', [
         '--dry-run' => true,
@@ -60,20 +104,46 @@ it('يقف قبل أن يُغلق الموقع بدل أن يسقط بعد ال�
         ->assertFailed();
 });
 
-it('يردّ طلب الشاشة ولو أُكِّد صراحةً', function () {
-    $this->withoutVite();
-    $this->seed(RolesAndPermissionsSeeder::class);
-    config()->set('deploy.ui.enabled', true);
+it('يقف أيضاً حين تُتخطّى خطوة composer', function () {
+    DeploySeeders::assumeFakerAvailable(false);
+    ComposerBinary::assume('/usr/local/bin/composer');
+
+    $this->artisan('app:deploy', [
+        '--dry-run' => true,
+        '--skip-composer' => true,
+        '--seeders' => 'DatabaseSeeder',
+        '--allow-demo-seeders' => true,
+    ])
+        ->expectsOutputToContain('خطوة composer متخطّاة')
+        ->assertFailed();
+});
+
+it('يقبل طلب الشاشة حين يمكن جلب faker', function () {
+    $admin = admin();
 
     DeploySeeders::assumeFakerAvailable(false);
+    ComposerBinary::assume('/usr/local/bin/composer');
 
-    $admin = User::factory()->create();
-    $admin->addRole('super-admin');
+    $this->actingAs($admin)
+        ->post(route('deployment.run'), [
+            'dryRun' => true,
+            'options' => ['seed' => true, 'composer' => true],
+            'seeders' => ['DatabaseSeeder'],
+            'demoConfirmed' => true,
+        ])
+        ->assertOk();
+});
+
+it('يردّ طلب الشاشة حين تُطفأ خطوة composer', function () {
+    $admin = admin();
+
+    DeploySeeders::assumeFakerAvailable(false);
+    ComposerBinary::assume('/usr/local/bin/composer');
 
     $this->actingAs($admin)
         ->postJson(route('deployment.run'), [
             'dryRun' => true,
-            'options' => ['seed' => true],
+            'options' => ['seed' => true, 'composer' => false],
             'seeders' => ['DatabaseSeeder'],
             'demoConfirmed' => true,
         ])
@@ -82,14 +152,10 @@ it('يردّ طلب الشاشة ولو أُكِّد صراحةً', function () 
 });
 
 it('يردّ الخطأ JSON لا صفحةً كاملة، مهما كانت ترويسة Accept', function () {
-    $this->withoutVite();
-    $this->seed(RolesAndPermissionsSeeder::class);
-    config()->set('deploy.ui.enabled', true);
+    $admin = admin();
 
     DeploySeeders::assumeFakerAvailable(false);
-
-    $admin = User::factory()->create();
-    $admin->addRole('super-admin');
+    ComposerBinary::assume(null);
 
     // الشاشة تطلب النصّ لأن النشر الناجح يُدفَق نصّاً؛ فلا يجوز أن يتحوّل
     // خطأ التحقّق إلى إعادة توجيهٍ تُدفع إلى صندوق المخرجات صفحةً كاملة.
@@ -119,20 +185,17 @@ it('يردّ منعَ الإذن JSON أيضاً', function () {
         ->assertJson(['message' => 'لا إذن لك بتشغيل النشر.']);
 });
 
-it('يعرض في الشاشة أنّ الزارع غير متاح', function () {
-    $this->withoutVite();
-    $this->seed(RolesAndPermissionsSeeder::class);
-    config()->set('deploy.ui.enabled', true);
+it('يعرض في الشاشة حال faker وcomposer', function () {
+    $admin = admin();
 
     DeploySeeders::assumeFakerAvailable(false);
+    ComposerBinary::assume('/usr/local/bin/composer');
 
-    $admin = User::factory()->create();
-    $admin->addRole('super-admin');
-
-    $response = $this->actingAs($admin)->get(route('deployment.index'));
-
-    $seeders = collect($response->viewData('page')['props']['seeders'])->keyBy('name');
-
-    expect($seeders['UserSeeder']['runnable'])->toBeFalse()
-        ->and($seeders['SettingSeeder']['runnable'])->toBeTrue();
+    $this->actingAs($admin)
+        ->get(route('deployment.index'))
+        ->assertInertia(fn ($page) => $page
+            ->where('environment.fakerInstalled', false)
+            ->where('environment.composerAvailable', true)
+            ->etc()
+        );
 });

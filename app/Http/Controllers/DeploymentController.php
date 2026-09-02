@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\System\StreamDeployAction;
 use App\Http\Requests\Deployment\RunDeploymentRequest;
+use App\Support\ComposerBinary;
 use App\Support\DeployAccess;
 use App\Support\DeployPreferences;
 use App\Support\DeploySeeders;
@@ -175,6 +176,10 @@ class DeploymentController extends Controller
             'phpBinarySource' => $php['source'],
             'phpBinaryOk' => $problem === null && ($php['versionId'] === null || $php['versionId'] >= PhpBinary::MINIMUM),
             'phpBinaryNote' => $problem,
+            // ما يقرّر مصير الزارع التجريبي: faker موجودة أصلاً، أو composer
+            // قادرٌ على جلبها في هذه النشرة.
+            'fakerInstalled' => DeploySeeders::fakerAvailable(),
+            'composerAvailable' => ComposerBinary::available(),
             'database' => (string) config('database.default'),
             'branch' => $this->git(['rev-parse', '--abbrev-ref', 'HEAD']),
             'commit' => $this->git(['rev-parse', '--short', 'HEAD']),
