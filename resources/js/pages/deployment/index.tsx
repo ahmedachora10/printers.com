@@ -126,7 +126,9 @@ export default function DeploymentIndex({ environment, seeders, preferences, his
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    Accept: 'text/plain, application/json',
+                    // الأخطاء أولاً: expectsJson() في لارافل يقرأ أوّل نوعٍ هنا،
+                    // ولو بدأت بـ text/plain عاد خطأ التحقّق صفحةً كاملة.
+                    Accept: 'application/json, text/plain',
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-XSRF-TOKEN': readCookie('XSRF-TOKEN'),
                 },
@@ -139,12 +141,19 @@ export default function DeploymentIndex({ environment, seeders, preferences, his
                 }),
             });
 
-            if (!response.ok || !response.body) {
+            // إعادة توجيهٍ يتبعها fetch تعود 200 ونوعها HTML؛ ولو دُفعت إلى
+            // صندوق المخرجات لظهرت الصفحة كلها نصّاً. فما ليس نصّاً صريحاً
+            // ليس مخرجات نشر.
+            const streaming = response.headers.get('content-type')?.includes('text/plain') ?? false;
+
+            if (!response.ok || !response.body || !streaming) {
                 const payload = await response.json().catch(() => null);
 
                 setErrors(
                     payload?.errors
-                        ? Object.values(payload.errors as Record<string, string[]>).flat()
+                        ? Object.values(payload.errors as Record<string, string[] | string>)
+                              .flat()
+                              .map(String)
                         : [payload?.message ?? 'تعذّر بدء النشر (' + response.status + ').'],
                 );
                 setResult('failure');

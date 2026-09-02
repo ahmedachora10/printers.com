@@ -81,6 +81,44 @@ it('يردّ طلب الشاشة ولو أُكِّد صراحةً', function () 
         ->assertJsonValidationErrors('seeders');
 });
 
+it('يردّ الخطأ JSON لا صفحةً كاملة، مهما كانت ترويسة Accept', function () {
+    $this->withoutVite();
+    $this->seed(RolesAndPermissionsSeeder::class);
+    config()->set('deploy.ui.enabled', true);
+
+    DeploySeeders::assumeFakerAvailable(false);
+
+    $admin = User::factory()->create();
+    $admin->addRole('super-admin');
+
+    // الشاشة تطلب النصّ لأن النشر الناجح يُدفَق نصّاً؛ فلا يجوز أن يتحوّل
+    // خطأ التحقّق إلى إعادة توجيهٍ تُدفع إلى صندوق المخرجات صفحةً كاملة.
+    $response = $this->actingAs($admin)->post(
+        route('deployment.run'),
+        [
+            'dryRun' => true,
+            'options' => ['seed' => true],
+            'seeders' => ['DatabaseSeeder'],
+            'demoConfirmed' => true,
+        ],
+        ['Accept' => 'text/plain, application/json']
+    );
+
+    $response->assertStatus(422)
+        ->assertHeader('content-type', 'application/json')
+        ->assertJsonValidationErrors('seeders');
+
+    expect($response->getContent())->not->toContain('<!DOCTYPE html>');
+});
+
+it('يردّ منعَ الإذن JSON أيضاً', function () {
+    config()->set('deploy.ui.enabled', true);
+
+    $this->post(route('deployment.run'), ['dryRun' => true], ['Accept' => 'text/plain'])
+        ->assertForbidden()
+        ->assertJson(['message' => 'لا إذن لك بتشغيل النشر.']);
+});
+
 it('يعرض في الشاشة أنّ الزارع غير متاح', function () {
     $this->withoutVite();
     $this->seed(RolesAndPermissionsSeeder::class);

@@ -4,7 +4,9 @@ namespace App\Http\Requests\Deployment;
 
 use App\Support\DeployAccess;
 use App\Support\DeploySeeders;
+use Illuminate\Contracts\Validation\Validator as ValidatorContract;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -17,6 +19,29 @@ class RunDeploymentRequest extends FormRequest
     public function authorize(): bool
     {
         return DeployAccess::granted($this);
+    }
+
+    /**
+     * هذا المسار يُستدعى بـ fetch لا بزيارة Inertia، فالردّ الافتراضي على
+     * خطأ التحقّق — إعادة توجيهٍ تُعيد الصفحة كاملة — كان يصل إلى الواجهة
+     * ردّاً ناجحاً (200) فتُدفَع صفحة HTML كلها إلى صندوق المخرجات.
+     *
+     * ولا يُعوَّل على ترويسة Accept: expectsJson() يقرأ أوّل نوعٍ فيها، وهي
+     * هنا text/plain لأن النشر الناجح يُدفَق نصّاً. فيُفرض الشكل هنا.
+     */
+    protected function failedValidation(ValidatorContract $validator): void
+    {
+        throw new HttpResponseException(response()->json([
+            'message' => 'تعذّر بدء النشر.',
+            'errors' => $validator->errors()->toArray(),
+        ], 422));
+    }
+
+    protected function failedAuthorization(): void
+    {
+        throw new HttpResponseException(response()->json([
+            'message' => 'لا إذن لك بتشغيل النشر.',
+        ], 403));
     }
 
     /**
