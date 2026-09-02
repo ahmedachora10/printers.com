@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Faker\Factory;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 
@@ -47,8 +48,56 @@ class DeploySeeders
      */
     public const DEFAULT = ['RolesAndPermissionsSeeder'];
 
+    private static ?bool $fakerAvailable = null;
+
     /**
-     * @return list<array{name: string, class: class-string, label: string, demo: bool}>
+     * زارعُ البيانات التجريبية يستحيل على خادم الإنتاج، لا يُكره عليه.
+     *
+     * fakerphp/faker حزمةُ تطوير، و‎composer install --no-dev‎ لا يُثبّتها؛
+     * ودالّة fake() نفسها لا تُعرَّف إلا إن وُجد ‎\Faker\Factory‎ — انظر
+     * helpers.php في إطار لارافل. فالمصنع على الإنتاج يقع في
+     * «Call to undefined function fake()» في منتصف النشر، بعد الهجرات.
+     */
+    public static function fakerAvailable(): bool
+    {
+        return self::$fakerAvailable ??= class_exists(Factory::class);
+    }
+
+    /**
+     * محاكاة خادمٍ بلا حزم تطوير — لا سبيل إلى نزع faker من هذا الجهاز،
+     * والحارس يستحقّ اختباراً. null يُعيده إلى الكشف التلقائي.
+     */
+    public static function assumeFakerAvailable(?bool $available): void
+    {
+        self::$fakerAvailable = $available;
+    }
+
+    public static function unavailableReason(): string
+    {
+        return 'حزم التطوير غير مثبّتة هنا (composer install --no-dev)، وزارعات البيانات التجريبية تحتاج fakerphp/faker.';
+    }
+
+    /**
+     * ما لا يمكن تشغيله من المطلوب — يُسأل قبل أن يُلمس شيء.
+     *
+     * @param  list<string>  $names
+     * @return list<string> أسماء الزارعات المتعذّرة
+     */
+    public static function blocked(array $names): array
+    {
+        if (self::fakerAvailable()) {
+            return [];
+        }
+
+        return collect(self::resolve($names))
+            ->where('demo', true)
+            ->pluck('label')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return list<array{name: string, class: class-string, label: string, demo: bool, runnable: bool}>
      */
     public static function all(): array
     {
@@ -72,11 +121,14 @@ class DeploySeeders
                 continue;
             }
 
+            $demo = self::looksLikeDemoData((string) File::get($file->getPathname()));
+
             $seeders[] = [
                 'name' => $name,
                 'class' => $class,
                 'label' => self::LABELS[$name] ?? Str::headline(Str::before($name, 'Seeder')),
-                'demo' => self::looksLikeDemoData((string) File::get($file->getPathname())),
+                'demo' => $demo,
+                'runnable' => ! $demo || self::fakerAvailable(),
             ];
         }
 
@@ -90,7 +142,7 @@ class DeploySeeders
      * فلا يمرّ صنفٌ اخترعه الطلب — الزارع يُنفَّذ بصلاحية الخادم كاملةً.
      *
      * @param  list<string>  $names
-     * @return list<array{name: string, class: class-string, label: string, demo: bool}>
+     * @return list<array{name: string, class: class-string, label: string, demo: bool, runnable: bool}>
      */
     public static function resolve(array $names): array
     {

@@ -17,6 +17,8 @@ interface Seeder {
     name: string;
     label: string;
     demo: boolean;
+    /** زارعُ مصانعَ على خادمٍ بلا حزم تطوير: لا fake() هناك أصلاً. */
+    runnable: boolean;
 }
 
 interface Props {
@@ -281,11 +283,15 @@ export default function DeploymentIndex({ environment, seeders, preferences, his
                             {!options.seed && <p className="text-muted-foreground text-xs">خطوة الزارعات موقوفة أعلاه.</p>}
 
                             {seeders.map((seeder) => (
-                                <label key={seeder.name} className="flex cursor-pointer items-center gap-3">
+                                <label
+                                    key={seeder.name}
+                                    className={seeder.runnable ? 'flex cursor-pointer items-center gap-3' : 'flex items-center gap-3 opacity-50'}
+                                    title={seeder.runnable ? undefined : 'غير متاح على هذا الخادم'}
+                                >
                                     <Checkbox
                                         checked={selectedSeeders.includes(seeder.name)}
                                         onCheckedChange={(checked) => toggleSeeder(seeder.name, checked === true)}
-                                        disabled={running || !options.seed}
+                                        disabled={running || !options.seed || !seeder.runnable}
                                     />
                                     <span className="flex flex-1 items-center justify-between gap-2">
                                         <span className="text-sm">{seeder.label}</span>
@@ -298,6 +304,13 @@ export default function DeploymentIndex({ environment, seeders, preferences, his
                                     </span>
                                 </label>
                             ))}
+
+                            {seeders.some((seeder) => !seeder.runnable) && (
+                                <p className="text-muted-foreground text-xs">
+                                    زارعات البيانات التجريبية مُعطَّلة هنا: حزم التطوير غير مثبّتة على الخادم (
+                                    <code dir="ltr">composer install --no-dev</code>)، ودالّة <code dir="ltr">fake()</code> لا توجد بدونها.
+                                </p>
+                            )}
 
                             {demoSelected.length > 0 && (
                                 <div className="border-destructive/50 bg-destructive/10 text-destructive flex items-start gap-2 rounded-md border p-3 text-xs">

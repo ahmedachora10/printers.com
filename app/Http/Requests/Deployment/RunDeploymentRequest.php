@@ -62,20 +62,29 @@ class RunDeploymentRequest extends FormRequest
     {
         return [
             function (Validator $validator): void {
+                // أسماء الزارعات تُطابَق بقاعدة in أولاً؛ فإن سقط منها اسمٌ
+                // فلا معنى لسؤال المجهول أتجريبيٌّ هو.
+                if ($validator->errors()->isNotEmpty() || ! $this->boolean('options.seed', true)) {
+                    return;
+                }
+
+                $seeders = $this->input('seeders', []);
+
+                // المتعذّر لا يُنقذه تأكيد: بلا faker يقع المصنع في خطأٍ
+                // قاتل بعد الهجرات، فيُردّ الطلب قبل أن يبدأ شيء.
+                if (($blocked = DeploySeeders::blocked($seeders)) !== []) {
+                    $validator->errors()->add(
+                        'seeders',
+                        'زارعات متعذّرة هنا ('.implode('، ', $blocked).'): '.DeploySeeders::unavailableReason()
+                    );
+
+                    return;
+                }
+
                 // التأكيد الثاني يُطلب من الخادم لا من الشاشة وحدها: زرُّ
                 // «تأكيد» في المتصفّح يُتجاوَز بطلبٍ مصنوع، وزارعُ بياناتٍ
                 // تجريبية على فرعٍ عامل لا يُنقض بعد وقوعه.
-                // أسماء الزارعات تُطابَق بقاعدة in أولاً؛ فإن سقط منها اسمٌ
-                // فلا معنى لسؤال المجهول أتجريبيٌّ هو.
-                if ($validator->errors()->isNotEmpty()) {
-                    return;
-                }
-
-                if (! $this->boolean('options.seed', true) || $this->boolean('demoConfirmed')) {
-                    return;
-                }
-
-                if (DeploySeeders::anyDemo($this->input('seeders', []))) {
+                if (! $this->boolean('demoConfirmed') && DeploySeeders::anyDemo($seeders)) {
                     $validator->errors()->add('seeders', 'اخترتَ زارعَ بياناتٍ تجريبية — يلزم تأكيدٌ صريح قبل تشغيله.');
                 }
             },

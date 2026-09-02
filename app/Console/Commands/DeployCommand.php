@@ -309,6 +309,14 @@ class DeployCommand extends Command
         }
 
         foreach (DeploySeeders::resolve($this->seederNames()) as $seeder) {
+            // التحقّق المسبق يمنع هذا أصلاً؛ وهذا سياجٌ ثانٍ، فالسقوط هنا
+            // يقع بعد الهجرات حيث لا تراجع.
+            if (! $seeder['runnable']) {
+                $this->skipped('زرع: '.$seeder['label'], DeploySeeders::unavailableReason());
+
+                continue;
+            }
+
             $this->step('زرع: '.$seeder['label'], function () use ($seeder): string {
                 $this->callSilent('db:seed', [
                     '--class' => $seeder['class'],
@@ -546,6 +554,14 @@ class DeployCommand extends Command
 
                 if ($demo->isNotEmpty() && ! $this->option('allow-demo-seeders')) {
                     $problems[] = 'زارعات بياناتٍ تجريبية مطلوبة ('.$demo->implode('، ').') — أضف ‎--allow-demo-seeders‎ إن كنت تقصدها فعلاً.';
+                }
+
+                // ولو أذِن بها: لا مصانع بلا faker، والفشل بعد الهجرات أسوأ
+                // من الوقوف قبل أن يُغلق الموقع.
+                $blocked = DeploySeeders::blocked($this->seederNames());
+
+                if ($blocked !== []) {
+                    $problems[] = 'زارعات متعذّرة على هذا الخادم ('.implode('، ', $blocked).'): '.DeploySeeders::unavailableReason();
                 }
             } catch (InvalidArgumentException $e) {
                 $problems[] = $e->getMessage();
