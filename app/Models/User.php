@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Casts\SanitizedHtml;
 use App\Enums\Roles;
 use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
@@ -53,6 +54,7 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         'base_commission_pct',
         'referral_commission_pct',
         'joined_date',
+        'notes',
         'is_active',
     ];
 
@@ -83,6 +85,7 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
             'joined_date' => 'date',
             'password' => 'hashed',
             'is_active' => 'boolean',
+            'notes' => SanitizedHtml::class,
         ];
     }
 

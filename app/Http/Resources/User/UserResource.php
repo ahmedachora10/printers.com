@@ -4,8 +4,10 @@ namespace App\Http\Resources\User;
 
 use App\Enums\Roles;
 use App\Models\User;
+use App\Support\HtmlSanitizer;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Str;
 
 /**
  * @mixin User
@@ -31,6 +33,8 @@ class UserResource extends JsonResource
             'baseCommissionPct' => (float) $this->base_commission_pct,
             'referralCommissionPct' => (float) $this->referral_commission_pct,
             'joinedDate' => $this->joined_date?->toDateString(),
+            'notes' => $this->notes,
+            'notesExcerpt' => Str::limit(HtmlSanitizer::toPlainText($this->notes) ?? '', 160) ?: null,
             'isActive' => $this->is_active,
             'createdAt' => $this->created_at?->toISOString(),
         ];

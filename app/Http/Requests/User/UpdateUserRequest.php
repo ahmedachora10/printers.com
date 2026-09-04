@@ -38,6 +38,7 @@ class UpdateUserRequest extends FormRequest
             'base_commission_pct' => ['nullable', 'numeric', 'between:0,100'],
             'referral_commission_pct' => ['nullable', 'numeric', 'between:0,100'],
             'joined_date' => ['nullable', 'date'],
+            'notes' => ['nullable', 'string', 'max:20000'],
             'is_active' => ['boolean'],
         ];
     }
