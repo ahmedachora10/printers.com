@@ -60,13 +60,21 @@ class ServiceInvoicePolicy
     }
 
     /**
-     * Who may re-edit an invoice, and only while it is still DUE: its owning
-     * employee, or a reviewer in its branch (branch admin, accountant, super
-     * admin) correcting it before approval — تاسك 70. The materials cost is the
-     * case that needs it: it comes off the employee's own commission base, so
-     * تاسك 54 bars the employee from typing it, leaving the reviewer as the
-     * only one who can. The status condition is shared, not repeated: approval
-     * writes the immutable commission_ledger, and nothing may move under it.
+     * Who may re-edit an invoice — its services, quantities, prices and the
+     * materials cost — and only while it is still DUE: its owning employee, or
+     * a branch admin (or super admin) in its branch correcting it before
+     * approval — تاسك 70. The materials cost is the case that needs it: it comes
+     * off the employee's own commission base, so تاسك 54 bars the employee from
+     * typing it, leaving the branch admin as the only one who can.
+     *
+     * **The accountant is deliberately out.** He reviews the money, not the
+     * work: on the employee's invoice he may correct the customer details and
+     * name the payment method — updateCustomer() and updateStatus() below — but
+     * a service, a price or a materials cost is not his to move. Letting him
+     * edit here would let him rewrite the base of a commission he then approves.
+     *
+     * The status condition is shared, not repeated: approval writes the
+     * immutable commission_ledger, and nothing may move under it.
      */
     public function update(User $user, ServiceInvoice $invoice): bool
     {
@@ -76,7 +84,8 @@ class ServiceInvoicePolicy
 
         $isOwnerEmployee = $user->roleName->isEmployee() && $user->id === $invoice->user_id;
 
-        return $isOwnerEmployee || $this->updateStatus($user, $invoice);
+        return $isOwnerEmployee
+            || ($this->updateStatus($user, $invoice) && ! $user->roleName->isAccountant());
     }
 
     /**

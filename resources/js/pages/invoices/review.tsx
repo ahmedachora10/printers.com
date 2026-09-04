@@ -56,6 +56,8 @@ interface ReviewInvoice {
     totalAmount: number;
     /** سقف الدفعة الأولى — يساوي الإجمالي، فالطابور لا يضم إلا ما لم يُقبض منه شيء. */
     remainingAmount: number;
+    /** فتح شاشة التعديل الكاملة — لمدير الفرع لا للمحاسب */
+    canEdit: boolean;
     lines: ReviewLine[];
 }
 
@@ -364,20 +366,24 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                                                     <Wallet className="size-4" />
                                                 </Button>
                                                 {/* تاسك 70: تصحيح الفاتورة — وتكلفة الخامات خاصّةً —
-                                                    قبل الاعتماد؛ فبعده يُقفل التحرير. */}
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    aria-label="تعديل الفاتورة"
-                                                    title="تعديل الفاتورة قبل الاعتماد"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        router.get(posService.edit(invoice.id).url);
-                                                    }}
-                                                >
-                                                    <Pencil className="size-4" />
-                                                </Button>
+                                                    قبل الاعتماد؛ فبعده يُقفل التحرير. والمحاسب لا يراه:
+                                                    الخدمات والأسعار ليست له، وبيانات العميل وطريقة الدفع
+                                                    في متناوله هنا على أي حال. */}
+                                                {invoice.canEdit && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        aria-label="تعديل الفاتورة"
+                                                        title="تعديل الفاتورة قبل الاعتماد"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            router.get(posService.edit(invoice.id).url);
+                                                        }}
+                                                    >
+                                                        <Pencil className="size-4" />
+                                                    </Button>
+                                                )}
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
