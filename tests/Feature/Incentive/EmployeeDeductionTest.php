@@ -153,4 +153,79 @@ describe('Employee deductions', function () {
                 ->where('deductionsTotal', 80)
             );
     });
+
+    /** ملاحظات العميل: «إمكانية حذف الخصومات» — حسمٌ سُجّل خطأً يُلغى بحذفه. */
+    describe('deleting a deduction', function () {
+        it('lets a branch admin delete a deduction, softly, and drops it from the screen', function () {
+            $deduction = EmployeeDeduction::factory()->create([
+                'user_id' => $this->employee->id,
+                'branch_id' => $this->branch->id,
+                'amount' => 120,
+                'deducted_by' => $this->branchAdmin->id,
+            ]);
+
+            $this->delete(route('employee-deductions.destroy', $deduction))->assertRedirect();
+
+            expect(EmployeeDeduction::count())->toBe(0)
+                ->and(EmployeeDeduction::withTrashed()->count())->toBe(1);
+
+            $this->get(route('incentives.index'))
+                ->assertInertia(fn ($page) => $page
+                    ->has('deductions.data', 0)
+                    ->where('deductionsTotal', 0)
+                );
+        });
+
+        it('forbids deleting a deduction of another branch', function () {
+            $otherBranch = Branch::factory()->create();
+            $deduction = EmployeeDeduction::factory()->create([
+                'branch_id' => $otherBranch->id,
+                'amount' => 999,
+                'deducted_by' => $this->branchAdmin->id,
+            ]);
+
+            $this->delete(route('employee-deductions.destroy', $deduction))->assertForbidden();
+
+            expect(EmployeeDeduction::count())->toBe(1);
+        });
+
+        it('keeps the accountant and the employee from deleting', function (string $role) {
+            $deduction = EmployeeDeduction::factory()->create([
+                'user_id' => $this->employee->id,
+                'branch_id' => $this->branch->id,
+                'deducted_by' => $this->branchAdmin->id,
+            ]);
+
+            $user = User::factory()->create(['branch_id' => $this->branch->id]);
+            $user->addRole($role);
+
+            $this->actingAs($user)
+                ->delete(route('employee-deductions.destroy', $deduction))
+                ->assertForbidden();
+
+            expect(EmployeeDeduction::count())->toBe(1);
+        })->with([Roles::ACCOUNTANT->value, Roles::EMPLOYEE->value]);
+
+        it('hides the deleted deduction from the employee statement and the report', function () {
+            $deduction = EmployeeDeduction::factory()->create([
+                'user_id' => $this->employee->id,
+                'branch_id' => $this->branch->id,
+                'amount' => 300,
+                'deducted_by' => $this->branchAdmin->id,
+            ]);
+
+            $this->delete(route('employee-deductions.destroy', $deduction))->assertRedirect();
+
+            $this->actingAs($this->employee)
+                ->get(route('my-incentives.index'))
+                ->assertInertia(fn ($page) => $page
+                    ->has('deductions.data', 0)
+                    ->where('totals.deductions', 0)
+                );
+
+            $this->actingAs($this->branchAdmin)
+                ->get(route('reports.incentives'))
+                ->assertInertia(fn ($page) => $page->has('deductions', 0));
+        });
+    });
 });

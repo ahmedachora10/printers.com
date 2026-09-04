@@ -8,8 +8,8 @@ use Illuminate\Auth\Access\HandlesAuthorization;
 
 /**
  * تاسك 74: «للإدارة صلاحية تطبيق الخصم» — أي السوبر أدمن ومدير الفرع وحدهما،
- * ومدير الفرع داخل فرعه فقط. ولا `update` ولا `delete` هنا: الجدول غير قابل
- * للتعديل بعد الإدراج، والإلغاء بقيدٍ معاكس لا بحذف.
+ * ومدير الفرع داخل فرعه فقط. ولا `update` هنا: القيد لا يُعاد كتابته بعد الإدراج.
+ * أمّا `delete` فمتاحٌ لمن يملك التطبيق نفسه — الحذف soft، فيبقى الأثر.
  */
 class EmployeeDeductionPolicy
 {
@@ -43,5 +43,14 @@ class EmployeeDeductionPolicy
     {
         return $user->roleName->isSuperAdmin()
             || ($user->roleName->isBranchAdmin() && $deduction->branch_id === $user->branchId);
+    }
+
+    /**
+     * ملاحظات العميل: «إمكانية حذف الخصومات». من يملك تطبيق الحسم يملك إلغاءه،
+     * وفي فرعه وحده — تماماً كشرط `applyTo`.
+     */
+    public function delete(User $user, EmployeeDeduction $deduction): bool
+    {
+        return $this->view($user, $deduction);
     }
 }

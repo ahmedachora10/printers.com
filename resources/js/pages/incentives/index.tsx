@@ -1,4 +1,5 @@
 import { destroy, index, recalculate } from '@/actions/App/Http/Controllers/IncentiveController';
+import { destroy as destroyDeduction } from '@/actions/App/Http/Controllers/EmployeeDeductionController';
 import DeductionFormModal from '@/components/incentives/deduction-form-modal';
 import PayBonusModal from '@/components/incentives/pay-bonus-modal';
 import PlanFormModal from '@/components/incentives/plan-form-modal';
@@ -80,6 +81,7 @@ export default function IncentivesIndex({
     const [deleting, setDeleting] = useState<IncentivePlan | null>(null);
     const [paying, setPaying] = useState<IncentivePlan | null>(null);
     const [deductionOpen, setDeductionOpen] = useState(false);
+    const [deletingDeduction, setDeletingDeduction] = useState<EmployeeDeduction | null>(null);
 
     function openCreate() {
         setEditing(null);
@@ -96,6 +98,14 @@ export default function IncentivesIndex({
         router.delete(destroy.url(deleting), {
             preserveScroll: true,
             onFinish: () => setDeleting(null),
+        });
+    }
+
+    function handleDeleteDeduction() {
+        if (!deletingDeduction) return;
+        router.delete(destroyDeduction.url(deletingDeduction), {
+            preserveScroll: true,
+            onFinish: () => setDeletingDeduction(null),
         });
     }
 
@@ -219,6 +229,23 @@ export default function IncentivesIndex({
                 header: 'بواسطة',
                 cell: (d) => d.deductedBy ?? '—',
             },
+            {
+                key: 'actions',
+                header: '',
+                headerClassName: 'w-16',
+                cell: (d) => (
+                    <div className="flex items-center justify-end">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeletingDeduction(d)}
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                    </div>
+                ),
+            },
         ],
         [isSuperAdmin],
     );
@@ -322,7 +349,7 @@ export default function IncentivesIndex({
                     <div>
                         <h2 className="text-xl font-bold">الخصومات</h2>
                         <p className="text-muted-foreground text-sm">
-                            حسمٌ تطبّقه الإدارة بسببه وقيمته. القيد نهائي لا يُعدَّل، وتصحيحه بقيدٍ معاكس.
+                            حسمٌ تطبّقه الإدارة بسببه وقيمته. القيد لا يُعدَّل بعد تسجيله، وما سُجّل خطأً يُحذف.
                         </p>
                     </div>
                     <Button size="sm" variant="outline" onClick={() => setDeductionOpen(true)}>
@@ -340,6 +367,7 @@ export default function IncentivesIndex({
                             <TableCell />
                             {isSuperAdmin && <TableCell />}
                             <TableCell className="font-bold tabular-nums">{formatCurrency(deductionsTotal)}</TableCell>
+                            <TableCell />
                             <TableCell />
                             <TableCell />
                         </TableRow>
@@ -367,6 +395,27 @@ export default function IncentivesIndex({
                             إلغاء
                         </Button>
                         <Button variant="destructive" onClick={handleDelete}>
+                            حذف
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!deletingDeduction} onOpenChange={(open) => !open && setDeletingDeduction(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>تأكيد حذف الحسم</DialogTitle>
+                        <DialogDescription>
+                            هل أنت متأكد من حذف حسم «{deletingDeduction?.userName}» بمبلغ{' '}
+                            {deletingDeduction ? formatCurrency(deletingDeduction.amount) : ''} بتاريخ{' '}
+                            {deletingDeduction?.deductedAt}؟ لن يظهر بعدها في الكشوف ولا في الإجمالي.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeletingDeduction(null)}>
+                            إلغاء
+                        </Button>
+                        <Button variant="destructive" onClick={handleDeleteDeduction}>
                             حذف
                         </Button>
                     </DialogFooter>

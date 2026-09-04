@@ -473,6 +473,8 @@ Route::middleware(['auth'])->group(function () {
         // «للإدارة صلاحية تطبيق الخصم» يحقّقها role:branch-admin|super-admin.
         Route::post('employee-deductions', [EmployeeDeductionController::class, 'store'])
             ->name('employee-deductions.store');
+        Route::delete('employee-deductions/{employee_deduction}', [EmployeeDeductionController::class, 'destroy'])
+            ->name('employee-deductions.destroy');
 
         // تقرير الحوافز والخصومات: القراءة المجمَّعة للبندين معاً. جمهوره جمهور
         // الشاشة نفسها — الإدارة وحدها — لا جمهور بقية التقارير: أرقام الرواتب

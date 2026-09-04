@@ -9,17 +9,22 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * تاسك 74: حسمٌ مطبَّق على موظف بسببه وقيمته.
  *
- * IMMUTABLE after insert — لا تُحدَّث ولا تُحذف؛ الإلغاء يكون بقيدٍ معاكس، كما في
- * `bonus_payments` و`commission_ledger`.
+ * لا يُحدَّث بعد الإدراج — لا تُعاد كتابة قيمةٍ أو سببٍ رآهما الموظف في إشعاره.
+ * لكنه يُحذف: الحسم بندٌ مستقلّ لا تُبنى عليه فاتورةٌ ولا صفُّ عمولة، فإلغاؤه
+ * بقيدٍ معاكس كان يُضاعف السطور في كشفٍ يقرؤه الموظف نفسه. والحذف `SoftDeletes`،
+ * فيختفي من كل عرضٍ ومجموع ويبقى أثره للمراجعة.
  */
 class EmployeeDeduction extends Model
 {
     /** @use HasFactory<EmployeeDeductionFactory> */
     use HasFactory;
+
+    use SoftDeletes;
 
     protected $fillable = [
         'user_id',
