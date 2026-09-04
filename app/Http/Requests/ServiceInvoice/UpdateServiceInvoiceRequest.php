@@ -3,6 +3,7 @@
 namespace App\Http\Requests\ServiceInvoice;
 
 use App\Enums\LineAgentCommissionTypeEnum;
+use App\Http\Requests\Concerns\RequiresOpenMaterialsCost;
 use App\Models\Branch;
 use App\Models\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
@@ -15,6 +16,8 @@ use Illuminate\Validation\Rule;
  */
 class UpdateServiceInvoiceRequest extends FormRequest
 {
+    use RequiresOpenMaterialsCost;
+
     public function authorize(): bool
     {
         return true;
@@ -66,6 +69,8 @@ class UpdateServiceInvoiceRequest extends FormRequest
             'lines.*.agent_id' => ['nullable', 'integer', 'exists:users,id'],
             'lines.*.agent_commission_type' => ['nullable', 'required_with:lines.*.agent_id', Rule::enum(LineAgentCommissionTypeEnum::class)],
             'lines.*.agent_commission_value' => ['nullable', 'required_with:lines.*.agent_id', 'numeric', 'min:0'],
+            // تاسك 77: تُشدَّد لكل سطرٍ خدمتُه «مفتوحة التكلفة» — required وموجبة.
+            ...$this->openMaterialsCostRules(),
         ];
     }
 
@@ -106,6 +111,7 @@ class UpdateServiceInvoiceRequest extends FormRequest
     public function messages(): array
     {
         return [
+            ...$this->openMaterialsCostMessages(),
             'walkin_tax_number.digits' => 'الرقم الضريبي يجب أن يكون 15 رقماً.',
             'payment_method_id.required' => 'طريقة الدفع مطلوبة — اخترها قبل حفظ الفاتورة.',
             'payment_method_id.in' => 'طريقة الدفع غير متاحة لهذا الفرع.',

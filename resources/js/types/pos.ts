@@ -35,6 +35,8 @@ export interface PosService {
     /** هل للخدمة خامات، وتكلفتها الافتراضية للوحدة الواحدة */
     hasMaterials: boolean;
     materialsCost: number;
+    /** تكلفة خامات صفرٌ على خدمةٍ لها خامات = يكتبها الموظف لكل فاتورة (تاسك 77) */
+    materialsCostIsOpen: boolean;
     /** خامات المخزون التي تستهلكها الخدمة، ومتاحُ كلٍّ منها لحظةَ فتح الشاشة */
     materials: ServiceMaterialOption[];
 }
@@ -73,6 +75,8 @@ export interface ServiceCartLine {
     hasMaterials: boolean;
     /** المبلغ للوحدة الواحدة؛ يُضرب في الكمية */
     materialsCost: number;
+    /** خدمة تكلفتها تُحدَّد وقت البيع، فتُفتح الخانة للموظف على هذا السطر (تاسك 77) */
+    materialsCostIsOpen: boolean;
     /** خامات المخزون التي سيستهلكها السطر — للتحذير وحده، لا تُرسَل للخادم */
     materials: ServiceMaterialOption[];
     isManual: boolean;
@@ -151,6 +155,8 @@ export interface EditServiceInvoiceLine {
     /** لقطة الخامات المحفوظة على السطر — لا القيمة الافتراضية للخدمة */
     hasMaterials: boolean;
     materialsCost: number;
+    /** خدمة السطر تكلفتها تُحدَّد وقت البيع (تاسك 77) */
+    materialsCostIsOpen: boolean;
     pricingType: ServicePricingType;
     pricePerSqm: number;
     agentCommissionPerSqm: number;

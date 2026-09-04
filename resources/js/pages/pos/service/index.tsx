@@ -226,9 +226,13 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // Employees may only raise DUE (معلق) invoices for an accountant to review;
     // the paid/due toggle is hidden for them and the status is locked to 'due'.
     const isEmployee = props.auth.role === 'employee';
-    // تاسك 54: تكلفة الخامات تُخصم من عمولة الموظف، فيقرأها ولا يكتبها. القيمة
-    // تأتي من تعريف الخدمة، والقيد الحقيقي على الخادم (CalculateServiceInvoiceAction).
-    const canEditMaterials = !isEmployee;
+    // تاسك 54: تكلفة الخامات تُخصم من عمولة الموظف، فيقرأها ولا يكتبها — وله
+    // وحده يُخفى مفتاح «لها خامات»: إطفاؤه يرفع عمولته كما يرفعها تصفير المبلغ.
+    const canToggleMaterials = !isEmployee;
+    // تاسك 77: والاستثناء الوحيد قرارٌ لكل سطر لا للمستخدم كلّه — خدمةٌ عُرّفت
+    // «لها خامات» وتكلفتها صفر معناها «تُحدَّد وقت البيع»، فيكتبها الموظف هنا.
+    // والقيد الحقيقي على الخادم (CalculateServiceInvoiceAction) كما كان.
+    const canEditMaterialsCost = (line: ServiceCartLine) => !isEmployee || line.materialsCostIsOpen;
     /**
      * حدّا سعر البيع يلزمان الموظف وحده — المحاسب ومدير الفرع يبيعان بما يريان،
      * تماماً كما يقرّر الخادم. الرسالة تظهر تحت حقل السعر ويمنع الحفظ معها.
@@ -287,6 +291,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 isTahazir: l.isTahazir,
                 hasMaterials: l.hasMaterials ?? false,
                 materialsCost: l.materialsCost ?? 0,
+                materialsCostIsOpen: l.materialsCostIsOpen ?? false,
                 // خامات المخزون تُقرأ من الخدمة لا من لقطة السطر: لم تُحفظ عليه،
                 // والتحذير عن الرصيد شأنُ اليوم لا شأنُ يوم الفوترة.
                 materials: services.find((s) => s.id === l.branchServiceId)?.materials ?? [],
@@ -538,6 +543,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     isTahazir: s.isTahazir,
                     hasMaterials: s.hasMaterials,
                     materialsCost: s.materialsCost,
+                    materialsCostIsOpen: s.materialsCostIsOpen,
                     materials: s.materials ?? [],
                     isManual: false,
                     pricingType: s.pricingType,
@@ -615,6 +621,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 isTahazir: false,
                 hasMaterials: false,
                 materialsCost: 0,
+                materialsCostIsOpen: false,
                 materials: [],
                 isManual: true,
                 pricingType: 'unit',
@@ -649,6 +656,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             // الخامات تُعاد تعبئتها من الخدمة الجديدة — الخدمة تغيّرت فتغيّرت موادها.
             hasMaterials: s.hasMaterials,
             materialsCost: s.materialsCost,
+            materialsCostIsOpen: s.materialsCostIsOpen,
             materials: s.materials ?? [],
             discountPct: Math.min(cap, line.discountPct),
             pricingType: s.pricingType,
@@ -1696,7 +1704,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                 تعريف الخدمة للقراءة، والخادم يتجاهل ما يرسله. */}
                                             <LineSection
                                                 title={
-                                                    canEditMaterials ? (
+                                                    canToggleMaterials ? (
                                                         <label className="flex cursor-pointer items-center gap-2" htmlFor={`materials-${line.key}`}>
                                                             <Checkbox
                                                                 id={`materials-${line.key}`}
@@ -1710,9 +1718,11 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                     )
                                                 }
                                                 aside={
-                                                    canEditMaterials
+                                                    canToggleMaterials
                                                         ? 'داخلية — تُخصم من عمولة الموظف ولا تظهر للعميل'
-                                                        : 'تُحدَّد من إدارة الخدمة — للاطّلاع فقط'
+                                                        : line.materialsCostIsOpen
+                                                          ? 'تُحدَّد لكل فاتورة — أدخل تكلفة الخامات الفعلية'
+                                                          : 'تُحدَّد من إدارة الخدمة — للاطّلاع فقط'
                                                 }
                                             >
                                                 {line.hasMaterials ? (
@@ -1721,7 +1731,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                             label={isSqm ? 'التكلفة للمتر المربع (ر.س)' : 'التكلفة للوحدة (ر.س)'}
                                                             htmlFor={`materials-cost-${line.key}`}
                                                         >
-                                                            {canEditMaterials ? (
+                                                            {canEditMaterialsCost(line) ? (
                                                                 <Input
                                                                     id={`materials-cost-${line.key}`}
                                                                     type="number"
@@ -1752,9 +1762,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                         </LineField>
                                                     </div>
                                                 ) : (
-                                                    !canEditMaterials && (
-                                                        <LineHint>لا خامات معرَّفة على هذه الخدمة.</LineHint>
-                                                    )
+                                                    !canToggleMaterials && <LineHint>لا خامات معرَّفة على هذه الخدمة.</LineHint>
                                                 )}
                                             </LineSection>
 

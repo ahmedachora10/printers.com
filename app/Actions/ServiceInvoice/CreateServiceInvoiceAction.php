@@ -4,6 +4,7 @@ namespace App\Actions\ServiceInvoice;
 
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
+use App\Actions\ServiceInvoice\Concerns\LogsAuthoredMaterialsCost;
 use App\Actions\ServiceInvoice\Concerns\SyncsServiceInvoiceAgents;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\InvoiceStatusEnum;
@@ -14,7 +15,7 @@ use Illuminate\Support\Facades\DB;
 
 class CreateServiceInvoiceAction
 {
-    use SyncsServiceInvoiceAgents, WritesServiceInvoiceLines;
+    use LogsAuthoredMaterialsCost, SyncsServiceInvoiceAgents, WritesServiceInvoiceLines;
 
     public function __construct(
         private readonly CalculateServiceInvoiceAction $calculator,
@@ -50,6 +51,7 @@ class CreateServiceInvoiceAction
             }
 
             $this->writeLines($invoice, $calc['lines']);
+            $this->logAuthoredMaterialsCost($invoice, $calc['lines']);
 
             // Commission is earned only once the invoice is approved (paid). A due
             // invoice — every employee-raised one — writes no ledger row yet; it is

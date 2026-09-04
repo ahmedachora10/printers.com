@@ -528,6 +528,8 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                         dir="ltr"
                     />
                     <InputError message={errors.materials_cost} />
+                    {/* تاسك 77: الصفر معناه «تُحدَّد وقت البيع» لا «بلا خامات». */}
+                    <p className="text-muted-foreground text-xs">اتركها صفراً ليُدخلها الموظف مع كل فاتورة.</p>
                 </div>
             )}
 

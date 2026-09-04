@@ -6,6 +6,7 @@ use App\Actions\Agent\ListBranchAgentsAction;
 use App\Actions\Customer\UpdateCustomerAction;
 use App\Actions\Loyalty\ResolveAvailablePointsAction;
 use App\Actions\ServiceInvoice\AttachServiceInvoiceCustomerAction;
+use App\Actions\ServiceInvoice\CalculateServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoiceDeliveredAction;
@@ -135,6 +136,7 @@ class ServiceInvoiceController extends Controller
                         // الحقيقة عند التعديل، فقد عُدّل المبلغ وقت الفوترة.
                         'hasMaterials' => (float) $line->materials_cost > 0,
                         'materialsCost' => (float) $line->materials_cost,
+                        'materialsCostIsOpen' => (bool) ($service['materialsCostIsOpen'] ?? false),
                         'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
                         'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
                         'agentId' => $line->agent_id,
@@ -698,6 +700,9 @@ class ServiceInvoiceController extends Controller
                 // تكلفة الخامات الافتراضية — تُعبّئ خانة السطر وتبقى قابلة للتعديل.
                 'hasMaterials' => $service->has_materials,
                 'materialsCost' => (float) $service->materials_cost,
+                // تاسك 77: صفرٌ في التعريف = «تُحدَّد وقت البيع»، فتُفتح الخانة
+                // للموظف على هذا السطر وحده.
+                'materialsCostIsOpen' => CalculateServiceInvoiceAction::materialsCostIsOpen($service),
                 // خامات المخزون التي ستُخصم عند اعتماد الفاتورة، ومتاحُ كلٍّ منها
                 // لحظةَ فتح الشاشة. إرشاديّ لا مانع: الموظف يُنشئ فاتورة آجلة،
                 // والخصم والفحص الحقيقي يقعان عند الاعتماد على الخادم.

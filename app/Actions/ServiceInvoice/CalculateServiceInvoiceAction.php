@@ -177,6 +177,9 @@ class CalculateServiceInvoiceAction
                 'commission_amount' => $commissionAmount,
                 'materials_cost' => $materialsCost,
                 'materials_total' => $materialsTotal,
+                // تاسك 77: تكلفةٌ كتبها الموظف بنفسه على خدمة «مفتوحة التكلفة».
+                // مفتاحٌ للسجلّ لا للجدول — `writeLines()` يكتب مفاتيح مسمّاة.
+                'materials_cost_authored' => ! $mayEditMaterials && self::materialsCostIsOpen($branchService),
                 'is_tahazir' => $branchService->is_tahazir,
                 'agent_id' => $lineAgentId,
                 'agent_commission_type' => $agentCommissionType,
@@ -539,11 +542,20 @@ class CalculateServiceInvoiceAction
     private function lineMaterials(array $line, BranchService $branchService, float $units, bool $mayEdit): array
     {
         if (! $mayEdit) {
+            // الخدمة بلا خامات تبقى مغلقة تماماً: الموظف لا يفعّل خامات لخدمة
+            // لم تُعرَّف بها (تاسك 54، ولم يوسَّعه تاسك 77).
             if (! $branchService->has_materials) {
                 return [0.0, 0.0];
             }
 
-            $cost = round(max(0.0, (float) $branchService->materials_cost), 2);
+            // تاسك 77: صفرٌ في تعريف الخدمة معناه «تُحدَّد وقت البيع» — ثغرة
+            // مضبوطة في منع تاسك 54، ولها وحدها يُقرأ ما أرسله الموظف. وما عدا
+            // ذلك يبقى الرقم من تعريف الخدمة والمرسَل مُهمَل حرفياً.
+            $cost = self::materialsCostIsOpen($branchService)
+                ? (float) ($line['materials_cost'] ?? 0)
+                : (float) $branchService->materials_cost;
+
+            $cost = round(max(0.0, $cost), 2);
 
             return [$cost, round($cost * $units, 2)];
         }
@@ -563,6 +575,16 @@ class CalculateServiceInvoiceAction
         $cost = round(max(0.0, $cost), 2);
 
         return [$cost, round($cost * $units, 2)];
+    }
+
+    /**
+     * تاسك 77: خدمةٌ «لها خامات» وتكلفتها صفر معناها أن التكلفة تُحدَّد لكل
+     * فاتورة، فيكتبها الموظف في السطر. الشرط مقروءٌ من مكانٍ واحد: الحساب
+     * والتحقّق والواجهة كلها تسأل السؤال نفسه.
+     */
+    public static function materialsCostIsOpen(BranchService $branchService): bool
+    {
+        return (bool) $branchService->has_materials && (float) $branchService->materials_cost === 0.0;
     }
 
     /**
