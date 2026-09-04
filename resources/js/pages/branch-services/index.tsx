@@ -1,4 +1,4 @@
-import { destroy } from '@/actions/App/Http/Controllers/BranchServiceController';
+import branchServiceRoutes, { destroy } from '@/actions/App/Http/Controllers/BranchServiceController';
 import BranchServiceEmployeesModal, {
     type BranchEmployee,
     type EmployeeCommission,
@@ -7,6 +7,7 @@ import BranchServiceFormModal from '@/components/branch-services/branch-service-
 import BranchServiceMaterialsModal from '@/components/branch-services/branch-service-materials-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
+import ImportDialog from '@/components/import/import-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -16,7 +17,7 @@ import branchServicesRoute from '@/routes/branch-services';
 import { type BreadcrumbItem } from '@/types';
 import { type BranchProductOption, type BranchService } from '@/types/branch-service';
 import { router } from '@inertiajs/react';
-import { Package, Pencil, Plus, Trash2, Users } from 'lucide-react';
+import { Download, Package, Pencil, Plus, Trash2, Upload, Users } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'خدمات الفرع', href: '/branch-services' }];
@@ -60,6 +61,7 @@ export default function BranchServicesIndex({
     filters,
 }: Props) {
     const [formOpen, setFormOpen] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);
     const [editingServiceId, setEditingServiceId] = useState<number | null>(null);
     const editingService = editingServiceId ? (branchServices.data.find((s) => s.id === editingServiceId) ?? null) : null;
 
@@ -271,9 +273,19 @@ export default function BranchServicesIndex({
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
                         actions={
-                            <Button size="sm" onClick={openCreate}>
-                                <Plus className="size-4" /> إضافة خدمة
-                            </Button>
+                            <>
+                                <Button size="sm" onClick={openCreate}>
+                                    <Plus className="size-4" /> إضافة خدمة
+                                </Button>
+                                <Button size="sm" variant="outline" asChild>
+                                    <a href={branchServiceRoutes.export.url()}>
+                                        <Download className="size-4" /> تصدير
+                                    </a>
+                                </Button>
+                                <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                                    <Upload className="size-4" /> استيراد
+                                </Button>
+                            </>
                         }
                     />
                 </div>
@@ -289,6 +301,24 @@ export default function BranchServicesIndex({
                     }}
                 />
             </div>
+
+            <ImportDialog
+                open={importOpen}
+                onOpenChange={setImportOpen}
+                title="استيراد خدمات الفرع"
+                description="ملف Excel بورقتين: «خدمات الفرع» و«عمولات الموظفين». المطابقة باسم الخدمة — الموجودة تُحدّث، والاسم الجديد يُنشئ خدمةً مملوكة لفرعك، ولا يُحذف شيء. وعمودٌ غائب عن الملف يُترك كما هو."
+                previewUrl={branchServiceRoutes.importPreview.url()}
+                commitUrl={branchServiceRoutes.import.url()}
+                templateUrl={branchServiceRoutes.importTemplate.url()}
+                scope={{
+                    options: null,
+                    value: '',
+                    onChange: () => {},
+                    pinnedLabel: userBranch?.name ?? 'فرعك',
+                    hint: 'كل صفوف الملف ستُنسب إلى فرعك — لا عمود «فرع» في هذه الورقة.',
+                }}
+                onImported={() => router.reload()}
+            />
 
             {/* Delete confirmation */}
             <Dialog open={!!deletingServiceId} onOpenChange={(open) => !open && setDeletingServiceId(null)}>

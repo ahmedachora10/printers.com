@@ -419,6 +419,15 @@ Route::middleware(['auth'])->group(function () {
         // تاسك 50: خامات المخزون التي تستهلكها الخدمة — تُخصم عند اعتماد الفاتورة.
         Route::put('branch-services/{branchService}/materials', [BranchServiceController::class, 'updateMaterials'])
             ->name('branch-services.materials.update');
+        // تصدير/استيراد خدمات الفرع (ورقتان: الخدمات وعمولات الموظفين). تُسجَّل
+        // قبل الـresource على سنّة تاسك 72، فلا يبتلع مسارُ موردٍ لاحقٌ مساراتِها.
+        Route::controller(BranchServiceController::class)->group(function () {
+            Route::get('branch-services/export', 'export')->name('branch-services.export');
+            Route::get('branch-services/import/template', 'importTemplate')->name('branch-services.import.template');
+            Route::post('branch-services/import/preview', 'importPreview')->name('branch-services.import.preview');
+            Route::post('branch-services/import', 'import')->name('branch-services.import');
+        });
+
         Route::resource('branch-services', BranchServiceController::class)
             ->only(['index', 'store', 'update', 'destroy']);
 

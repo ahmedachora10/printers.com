@@ -44,6 +44,26 @@ trait ReadsArabicHeadings
         return null;
     }
 
+    /**
+     * Whether the sheet carries this column at all — a different question from
+     * whether the cell is filled. A column left out of a trimmed sheet must be
+     * left alone on update; one that is present but emptied is an instruction
+     * to clear the value.
+     *
+     * @param  Collection<string, mixed>  $row
+     * @param  array<int, string>  $labels
+     */
+    protected function hasColumn(Collection $row, array $labels): bool
+    {
+        foreach ($labels as $label) {
+            if ($row->has(self::headingKey($label))) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     protected static function headingKey(string $label): string
     {
         return self::$headingKeyCache[$label] ??= (string) HeadingRowFormatter::format([$label])[0];

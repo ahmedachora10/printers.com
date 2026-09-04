@@ -8,32 +8,40 @@ use App\Actions\BranchService\SyncBranchServiceMaterialsAction;
 use App\Actions\BranchService\UpdateBranchServiceAction;
 use App\Actions\UserService\SyncUserServiceCommissionsAction;
 use App\Enums\Roles;
+use App\Exports\BranchServicesExport;
+use App\Exports\BranchServicesTemplateExport;
+use App\Http\Controllers\Concerns\RunsExcelImports;
 use App\Http\Requests\BranchService\StoreBranchServiceRequest;
 use App\Http\Requests\BranchService\UpdateBranchServiceMaterialsRequest;
 use App\Http\Requests\BranchService\UpdateBranchServiceRequest;
 use App\Http\Requests\BranchService\UpdateEmployeeCommissionsRequest;
 use App\Http\Resources\BranchService\BranchServiceResource;
+use App\Imports\BranchServicesImport;
+use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\Product;
 use App\Models\ServiceTemplate;
 use App\Models\User;
 use App\Models\UserService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use Maatwebsite\Excel\Facades\Excel;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class BranchServiceController extends Controller
 {
+    use RunsExcelImports;
+
     public function index(Request $request): Response
     {
         Gate::authorize('viewAny', BranchService::class);
 
-        $userBranch = Auth::user()->branchManager;
-
-        abort_unless($userBranch !== null, 403, 'No owned branch found.');
+        $userBranch = $this->ownedBranch();
 
         $branchId = $userBranch->id;
 
@@ -184,6 +192,55 @@ class BranchServiceController extends Controller
         $action->handle($pairs);
 
         return back()->with('success', 'تم تحديث عمولات الموظفين بنجاح');
+    }
+
+    /** ورقتا الخدمات وعمولات الموظفين لهذا الفرع — انظر BranchServicesExport. */
+    public function export(): BinaryFileResponse
+    {
+        Gate::authorize('viewAny', BranchService::class);
+
+        return Excel::download(
+            new BranchServicesExport($this->ownedBranch()->id),
+            'branch-services-'.now()->format('Y-m-d').'.xlsx',
+        );
+    }
+
+    public function importPreview(Request $request): JsonResponse
+    {
+        Gate::authorize('create', BranchService::class);
+
+        $branchId = $this->ownedBranch()->id;
+
+        return $this->previewImport($request, fn (bool $dryRun) => new BranchServicesImport($branchId, $dryRun));
+    }
+
+    public function import(Request $request): JsonResponse
+    {
+        Gate::authorize('create', BranchService::class);
+
+        $branchId = $this->ownedBranch()->id;
+
+        return $this->commitImport($request, fn (bool $dryRun) => new BranchServicesImport($branchId, $dryRun));
+    }
+
+    public function importTemplate(): BinaryFileResponse
+    {
+        Gate::authorize('create', BranchService::class);
+
+        return Excel::download(new BranchServicesTemplateExport, 'branch-services-template.xlsx');
+    }
+
+    /**
+     * الفرع الذي تعمل عليه الشاشة كلّها: فرعُ مديرِها. ومن لا فرع يملكه لا شيء
+     * له هنا يراه أو يستورد إليه — والسوبر أدمن يصل الخدمات من شاشة القوالب.
+     */
+    private function ownedBranch(): Branch
+    {
+        $branch = Auth::user()->branchManager;
+
+        abort_unless($branch !== null, 403, 'No owned branch found.');
+
+        return $branch;
     }
 
     private function redirectRoute(): string
