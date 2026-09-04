@@ -38,6 +38,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -357,6 +358,7 @@ class ServiceInvoiceController extends Controller
         }
 
         $this->assertPaymentMethodChosen($invoice);
+        $this->assertReceiptAttached($invoice);
 
         // العجز في خامات المخزون يوقف الاعتماد مرةً واحدة ويعرض الناقص؛ فإن أقرّه
         // المعتمِد أعاد الإرسال بهذا المفتاح فيمرّ، ويُسجَّل إقراره في سجلّ النشاط.
@@ -393,6 +395,24 @@ class ServiceInvoiceController extends Controller
         if (! $allowed->contains('id', $invoice->payment_method_id)) {
             throw ValidationException::withMessages([
                 'payment_method_id' => 'طريقة الدفع المحددة غير متاحة لهذا الفرع — اختر طريقة أخرى قبل الاعتماد.',
+            ]);
+        }
+    }
+
+    /**
+     * لا تُعتمد فاتورةُ تحويلٍ بلا إثبات تحويلها.
+     *
+     * الشبكة الأمانية الأخيرة: نموذجُ تعديل الطريقة يفرض الإيصال ساعةَ اختيارها،
+     * لكن تبقى فواتيرُ أُنشئت قبل تفعيل العَلَم على الطريقة، وتبقى الطلباتُ التي
+     * تتخطّى الواجهة. والمعتمِد يُرفق الإيصال من نفس الشاشة ثم يعتمد.
+     */
+    private function assertReceiptAttached(ServiceInvoice $invoice): void
+    {
+        $method = $invoice->paymentMethod;
+
+        if ($method?->requires_attachment && ! $invoice->hasReceipt()) {
+            throw ValidationException::withMessages([
+                'receipt' => "طريقة الدفع «{$method->name}» تستلزم إيصال التحويل — أرفقه قبل اعتماد الفاتورة.",
             ]);
         }
     }
@@ -461,7 +481,16 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('updateStatus', $invoice);
 
-        $invoice->update(['payment_method_id' => $request->validated('payment_method_id')]);
+        // الطريقة وإيصالها يُحفظان معاً أو لا يُحفظ أيّهما: طريقةٌ تشترط مرفقاً
+        // حُفظت بلا مرفقه تترك الفاتورة في الحال الذي مُنع أصلاً.
+        DB::transaction(function () use ($request, $invoice) {
+            $invoice->update(['payment_method_id' => $request->validated('payment_method_id')]);
+
+            if ($request->hasFile('receipt')) {
+                $invoice->addMedia($request->file('receipt'))
+                    ->toMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);
+            }
+        });
 
         return redirect()->back(fallback: route('invoices.service.review'))
             ->with('success', "تم تحديث طريقة الدفع للفاتورة {$invoice->invoice_number}");

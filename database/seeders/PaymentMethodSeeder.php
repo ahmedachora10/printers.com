@@ -12,9 +12,9 @@ class PaymentMethodSeeder extends Seeder
         $defaults = ['نقد', 'بطاقة بنكية', 'تحويل بنكي', 'مدى'];
 
         foreach ($defaults as $name) {
-            PaymentMethod::firstOrCreate(
+            PaymentMethod::updateOrCreate(
                 ['name' => $name],
-                ['is_active' => true]
+                ['is_active' => true, 'requires_attachment' => $name === 'تحويل بنكي']
             );
         }
     }

@@ -148,4 +148,121 @@ describe('Invoice payment receipt', function () {
 
         expect($invoice->refresh()->hasReceipt())->toBeTrue();
     });
+
+    /**
+     * تبديل طريقة الدفع كان بابَ التفاف على قاعدة الإيصال: يُختار «تحويل بنكي»
+     * من شاشة المراجعة بلا مرفق، ثم تُعتمد الفاتورة. الطلب يفرضه الآن، والاعتماد
+     * يبقى شبكة أمان لما سبقه من فواتير.
+     */
+    it('refuses to switch to an attachment method without a receipt', function () {
+        $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
+            'payment_method_id' => $this->cashMethod->id,
+        ]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+
+        $this->actingAs($this->branchAdmin)
+            ->patch(route('invoices.service.update-payment-method', $invoice), [
+                'payment_method_id' => $this->transferMethod->id,
+            ])
+            ->assertSessionHasErrors('receipt');
+
+        expect($invoice->refresh()->payment_method_id)->toBe($this->cashMethod->id);
+    });
+
+    it('switches the method and stores the receipt in one request', function () {
+        $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
+            'payment_method_id' => $this->cashMethod->id,
+        ]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+
+        $this->actingAs($this->branchAdmin)
+            ->patch(route('invoices.service.update-payment-method', $invoice), [
+                'payment_method_id' => $this->transferMethod->id,
+                'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $invoice->refresh();
+
+        expect($invoice->payment_method_id)->toBe($this->transferMethod->id)
+            ->and($invoice->hasReceipt())->toBeTrue();
+    });
+
+    /**
+     * صيغة الواجهة نفسها: رفع ملف عبر PATCH لا يمرّ في multipart، فالنافذة تُرسل
+     * POST مع `_method`. الاختبار يحرس هذا السلك لا المنطق وحده.
+     */
+    it('accepts the browser method-spoofed multipart request', function () {
+        $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
+            'payment_method_id' => $this->cashMethod->id,
+        ]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('invoices.service.update-payment-method', $invoice), [
+                '_method' => 'patch',
+                'payment_method_id' => $this->transferMethod->id,
+                'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+            ])
+            ->assertRedirect()
+            ->assertSessionHas('success');
+
+        $invoice->refresh();
+
+        expect($invoice->payment_method_id)->toBe($this->transferMethod->id)
+            ->and($invoice->hasReceipt())->toBeTrue();
+    });
+
+    it('does not ask again for a receipt the invoice already carries', function () {
+        $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
+            'payment_method_id' => $this->transferMethod->id,
+            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+        ]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+        $other = PaymentMethod::factory()->requiresAttachment()->create();
+
+        $this->actingAs($this->branchAdmin)
+            ->patch(route('invoices.service.update-payment-method', $invoice), [
+                'payment_method_id' => $other->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        expect($invoice->refresh()->payment_method_id)->toBe($other->id);
+    });
+
+    it('blocks approval of a transfer invoice that carries no receipt', function () {
+        $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
+            'payment_method_id' => $this->cashMethod->id,
+        ]));
+
+        // فاتورة سبقت تفعيل العَلَم: طريقتها صارت تشترط مرفقاً بأثر رجعي.
+        $invoice = ServiceInvoice::firstOrFail();
+        $this->cashMethod->update(['requires_attachment' => true]);
+
+        $this->actingAs($this->branchAdmin)
+            ->patch(route('invoices.service.pay', $invoice))
+            ->assertSessionHasErrors('receipt');
+
+        expect($invoice->refresh()->status->value)->toBe('due');
+    });
+
+    it('approves once the receipt is attached', function () {
+        $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
+            'payment_method_id' => $this->transferMethod->id,
+            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+        ]));
+
+        $invoice = ServiceInvoice::firstOrFail();
+
+        $this->actingAs($this->branchAdmin)
+            ->patch(route('invoices.service.pay', $invoice))
+            ->assertSessionHasNoErrors();
+
+        expect($invoice->refresh()->status->value)->toBe('paid');
+    });
 });
