@@ -26,6 +26,7 @@ use App\Http\Controllers\DeploymentTaskController;
 use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
+use App\Http\Controllers\FavoriteServiceController;
 use App\Http\Controllers\ExpenseReportController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\IncentiveController;
@@ -218,6 +219,11 @@ Route::middleware(['auth'])->group(function () {
             // Return (DUE or PAID) is the owning employee's alone — an accountant
             // cancels or refunds instead — and ServiceInvoicePolicy says so per invoice.
             Route::post('service/{invoice}/return', [ServiceInvoiceController::class, 'returnInvoice'])->name('service.return');
+
+            // تاسك 76: تبديل تفضيل خدمة — للمستخدم الحالي وحده، والفرع يُفحص
+            // في المتحكّم لا في المسار.
+            Route::post('service/favorites/{branchService}', [FavoriteServiceController::class, 'toggle'])
+                ->name('service.favorites.toggle');
         });
     });
 

@@ -30,7 +30,7 @@ import {
     type ServiceCartLine,
 } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { AlertTriangle, Award, BadgePercent, CalendarClock, Info, Package, Printer, Ruler, Save, Search, StickyNote, Tag, X } from 'lucide-react';
+import { AlertTriangle, Award, BadgePercent, CalendarClock, Info, Package, Printer, Ruler, Save, Search, Star, StickyNote, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -175,6 +175,52 @@ function lineAgentCommission(line: ServiceCartLine, vatPct: number, agents: PosA
     }
 }
 
+/**
+ * بطاقة خدمة في شبكة «الخدمات المتاحة»، ومعها زرّ النجمة (تاسك 76). النجمة
+ * زرٌّ مستقلّ لا زرٌّ داخل زرّ، ويُوقف انتشار الضغطة كي لا يُضيف الخدمة للسلة
+ * من ضغط على النجمة.
+ */
+function ServiceTile({
+    service: s,
+    isFavorite,
+    onPick,
+    onToggleFavorite,
+}: {
+    service: PosService;
+    isFavorite: boolean;
+    onPick: () => void;
+    onToggleFavorite: () => void;
+}) {
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                onClick={onPick}
+                className="hover:bg-accent flex w-full flex-col items-start gap-1 rounded-lg border p-3 pe-9 text-right text-sm transition"
+            >
+                <span className="line-clamp-2 font-medium">{s.name}</span>
+                <span className="flex w-full items-center justify-between gap-1">
+                    <span className="text-muted-foreground text-xs">عمولة {s.baseCommissionPct}%</span>
+                    {s.isTahazir && <Badge variant="secondary">تحضير</Badge>}
+                </span>
+            </button>
+            <button
+                type="button"
+                title={isFavorite ? 'إزالة من المفضّلة' : 'إضافة إلى المفضّلة'}
+                aria-label={isFavorite ? 'إزالة من المفضّلة' : 'إضافة إلى المفضّلة'}
+                aria-pressed={isFavorite}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFavorite();
+                }}
+                className="text-muted-foreground hover:text-amber-500 absolute top-1.5 end-1.5 rounded-md p-1.5 transition"
+            >
+                <Star className={cn('size-3.5', isFavorite && 'fill-amber-400 text-amber-400')} />
+            </button>
+        </div>
+    );
+}
+
 export default function ServicePos({ services, agents, paymentMethods, vatPct, loyalty, invoice }: Props) {
     const { props } = usePage<SharedData>();
     // Employees may only raise DUE (معلق) invoices for an accountant to review;
@@ -316,11 +362,28 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
 
     const fetchCustomers = useCallback(fetchCustomerOptions, []);
 
+    // تاسك 76: مفضّلات هذا الموظف. تُحفظ على الخادم وتُحدَّث محلياً في اللحظة
+    // نفسها، فلا تقفز الشبكة تحت إصبع البائع في منتصف فاتورة.
+    const [favoriteIds, setFavoriteIds] = useState<number[]>(() => services.filter((s) => s.isFavorite).map((s) => s.id));
+
+    const toggleFavorite = useCallback((id: number) => {
+        setFavoriteIds((current) => (current.includes(id) ? current.filter((f) => f !== id) : [...current, id]));
+        router.post(service.favorites.toggle.url(id), {}, { preserveScroll: true, preserveState: true });
+    }, []);
+
+    // المفضّلة أولاً، ثم ترتيب الخادم (sort_order ثم الاسم — تاسك 82).
+    const favoriteServices = useMemo(() => services.filter((s) => favoriteIds.includes(s.id)), [services, favoriteIds]);
+    const otherServices = useMemo(() => services.filter((s) => !favoriteIds.includes(s.id)), [services, favoriteIds]);
+
     const filteredServices = useMemo(() => {
         const term = search.trim().toLowerCase();
         if (!term) return [];
-        return services.filter((s) => s.name.toLowerCase().includes(term)).slice(0, 8);
-    }, [services, search]);
+        return services
+            .filter((s) => s.name.toLowerCase().includes(term))
+            // والمفضّل يتقدّم داخل نتائج البحث كذلك، لا في الشبكة وحدها.
+            .sort((a, b) => Number(favoriteIds.includes(b.id)) - Number(favoriteIds.includes(a.id)))
+            .slice(0, 8);
+    }, [services, search, favoriteIds]);
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
     // إجمالي تكلفة الخامات — داخلي، لا يمسّ ما يدفعه العميل.
@@ -1295,23 +1358,44 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">الخدمات المتاحة</CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
-                                    {services.map((s) => (
-                                        <button
-                                            key={s.id}
-                                            type="button"
-                                            onClick={() => addService(s)}
-                                            className="hover:bg-accent flex flex-col items-start gap-1 rounded-lg border p-3 text-right text-sm transition"
-                                        >
-                                            <span className="line-clamp-2 font-medium">{s.name}</span>
-                                            <span className="flex w-full items-center justify-between gap-1">
-                                                <span className="text-muted-foreground text-xs">عمولة {s.baseCommissionPct}%</span>
-                                                {s.isTahazir && <Badge variant="secondary">تحضير</Badge>}
-                                            </span>
-                                        </button>
-                                    ))}
-                                </div>
+                            <CardContent className="space-y-3">
+                                {/* تاسك 76: المفضّلة أعلى القائمة — والخدمة لا تتكرّر في القسمين. */}
+                                {favoriteServices.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+                                            <Star className="size-3.5 fill-amber-400 text-amber-400" />
+                                            المفضّلة
+                                        </p>
+                                        <div className="grid max-h-40 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+                                            {favoriteServices.map((s) => (
+                                                <ServiceTile
+                                                    key={s.id}
+                                                    service={s}
+                                                    isFavorite
+                                                    onPick={() => addService(s)}
+                                                    onToggleFavorite={() => toggleFavorite(s.id)}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {otherServices.length > 0 && (
+                                    <div className="space-y-2">
+                                        {favoriteServices.length > 0 && <p className="text-muted-foreground text-xs font-medium">كل الخدمات</p>}
+                                        <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+                                            {otherServices.map((s) => (
+                                                <ServiceTile
+                                                    key={s.id}
+                                                    service={s}
+                                                    isFavorite={false}
+                                                    onPick={() => addService(s)}
+                                                    onToggleFavorite={() => toggleFavorite(s.id)}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     )}

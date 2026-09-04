@@ -30,6 +30,8 @@ export interface PosService {
     /** ready-made detail phrases set by the branch admin for this service */
     noteExamples: string[];
     isTahazir: boolean;
+    /** خدمة رفعها هذا الموظف أعلى قائمته (تاسك 76) */
+    isFavorite: boolean;
     /** هل للخدمة خامات، وتكلفتها الافتراضية للوحدة الواحدة */
     hasMaterials: boolean;
     materialsCost: number;

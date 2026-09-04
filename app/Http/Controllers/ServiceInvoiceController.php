@@ -30,6 +30,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\User;
+use App\Models\UserFavoriteService;
 use App\Models\UserService;
 use App\Notifications\DueInvoiceNotification;
 use App\Notifications\ServiceInvoiceReviewedNotification;
@@ -75,7 +76,7 @@ class ServiceInvoiceController extends Controller
         // العمولات تُقرأ بـ**موظف الفاتورة** لا بمن يعدّلها: المراجع لا يملك
         // صفوف user_services أصلاً، فلو قُرئت به لظهرت كل النسب صفراً على الشاشة
         // بينما يحسب الخادم عمولة الموظف الحقيقية عند الحفظ.
-        $servicesById = $this->branchServiceOptions($branchId, (int) $invoice->user_id)->keyBy('id');
+        $servicesById = $this->branchServiceOptions($branchId, (int) $invoice->user_id, $user->id)->keyBy('id');
 
         $coupon = $invoice->coupon_id ? Coupon::find($invoice->coupon_id) : null;
 
@@ -627,7 +628,9 @@ class ServiceInvoiceController extends Controller
             : collect();
 
         return [
-            'services' => $this->branchServiceOptions($branchId, $commissionUserId),
+            // العمولات بموظف الفاتورة، والمفضّلة بمن يفتح الشاشة: تفضيلٌ شخصيّ
+            // لمن يبيع الآن لا لصاحب الفاتورة (تاسك 76).
+            'services' => $this->branchServiceOptions($branchId, $commissionUserId, $user->id),
             'agents' => $listBranchAgents->handle($branchId),
             'paymentMethods' => $paymentMethods,
             'vatPct' => (float) ($branch->vat_rate_override ?? 15),
@@ -645,11 +648,19 @@ class ServiceInvoiceController extends Controller
      *
      * @return Collection<int, array<string, mixed>>
      */
-    private function branchServiceOptions(?int $branchId, int $userId): Collection
+    private function branchServiceOptions(?int $branchId, int $userId, ?int $favoriteUserId = null): Collection
     {
         $commissionRates = UserService::query()
             ->where('user_id', $userId)
             ->pluck('commission_override_pct', 'branch_service_id');
+
+        // تاسك 76: مفضّلات من يفتح الشاشة — استعلامٌ واحد لا واحدٌ لكل خدمة.
+        $favorites = $favoriteUserId === null
+            ? collect()
+            : UserFavoriteService::query()
+                ->where('user_id', $favoriteUserId)
+                ->pluck('branch_service_id')
+                ->flip();
 
         return BranchService::query()
             ->where('branch_services.branch_id', $branchId)
@@ -682,6 +693,8 @@ class ServiceInvoiceController extends Controller
                 // placeholder of the line's free-text detail box.
                 'noteExamples' => array_values($service->note_examples ?? []),
                 'isTahazir' => $service->is_tahazir,
+                // خدمة رفعها هذا الموظف أعلى قائمته (تاسك 76).
+                'isFavorite' => $favorites->has($service->id),
                 // تكلفة الخامات الافتراضية — تُعبّئ خانة السطر وتبقى قابلة للتعديل.
                 'hasMaterials' => $service->has_materials,
                 'materialsCost' => (float) $service->materials_cost,
