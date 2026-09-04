@@ -274,9 +274,6 @@ export default function BranchServicesIndex({
                         onClearAll={handleClearAll}
                         actions={
                             <>
-                                <Button size="sm" onClick={openCreate}>
-                                    <Plus className="size-4" /> إضافة خدمة
-                                </Button>
                                 <Button size="sm" variant="outline" asChild>
                                     <a href={branchServiceRoutes.export.url()}>
                                         <Download className="size-4" /> تصدير
@@ -284,6 +281,9 @@ export default function BranchServicesIndex({
                                 </Button>
                                 <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
                                     <Upload className="size-4" /> استيراد
+                                </Button>
+                                <Button size="sm" onClick={openCreate}>
+                                    <Plus className="size-4" /> إضافة خدمة
                                 </Button>
                             </>
                         }
