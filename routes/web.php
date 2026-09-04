@@ -22,6 +22,7 @@ use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\DeploymentController;
+use App\Http\Controllers\DeploymentTaskController;
 use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
@@ -74,6 +75,11 @@ Route::middleware(EnsureDeployUiEnabled::class)->group(function () {
         ->middleware('throttle:5,1')
         ->name('deployment.unlock');
     Route::delete('deployment/unlock', [DeploymentController::class, 'lock'])->name('deployment.lock');
+
+    // الأوامر المفردة — قائمةٌ مغلقة في DeployTasks، تشترك مع النشر في القفل.
+    Route::get('deployment/commands', [DeploymentTaskController::class, 'index'])->name('deployment.commands');
+    Route::post('deployment/commands/run', [DeploymentTaskController::class, 'run'])->name('deployment.commands.run');
+
     // يُدفق مخرجاته، فيُستدعى بـ fetch من الشاشة لا بزيارة Inertia.
     Route::post('deployment/run', [DeploymentController::class, 'run'])->name('deployment.run');
 });

@@ -7,9 +7,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, router } from '@inertiajs/react';
-import { AlertTriangle, CheckCircle2, GitBranch, Loader2, LockKeyhole, Play, ScanEye, ServerIcon, XCircle } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Head, Link, router } from '@inertiajs/react';
+import { AlertTriangle, CheckCircle2, GitBranch, Loader2, LockKeyhole, Play, ScanEye, ServerIcon, Terminal, XCircle } from 'lucide-react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { useConsoleStream } from './use-console-stream';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'النشر', href: '/deployment' }];
 
@@ -73,121 +74,31 @@ const STEPS: { key: string; title: string; hint: string }[] = [
 
 const DANGEROUS_WORD = 'تأكيد';
 
-function readCookie(name: string): string {
-    const match = document.cookie.split('; ').find((row) => row.startsWith(name + '='));
-
-    return match ? decodeURIComponent(match.split('=').slice(1).join('=')) : '';
-}
-
 export default function DeploymentIndex({ environment, seeders, preferences, history, standalone, unlockedByToken }: Props) {
     const [options, setOptions] = useState<Record<string, boolean>>(() =>
         Object.fromEntries(STEPS.map((step) => [step.key, preferences.options[step.key] ?? true])),
     );
     const [selectedSeeders, setSelectedSeeders] = useState<string[]>(preferences.seeders);
     const [branch, setBranch] = useState(preferences.branch ?? '');
-    const [output, setOutput] = useState('');
-    const [running, setRunning] = useState(false);
-    const [result, setResult] = useState<'success' | 'failure' | null>(null);
-    const [errors, setErrors] = useState<string[]>([]);
+    const { output, running, result, errors, consoleRef, start: stream } = useConsoleStream();
     const [confirming, setConfirming] = useState(false);
     const [typed, setTyped] = useState('');
 
-    const consoleRef = useRef<HTMLPreElement>(null);
-
     const demoSelected = useMemo(() => seeders.filter((seeder) => seeder.demo && selectedSeeders.includes(seeder.name)), [seeders, selectedSeeders]);
-
-    // المخرجات تُلاحَق إلى آخرها ما دامت تُكتب.
-    useEffect(() => {
-        consoleRef.current?.scrollTo({ top: consoleRef.current.scrollHeight });
-    }, [output]);
-
-    // إغلاق التبويب أثناء النشر لا يُوقفه على الخادم، لكنه يُعمي صاحبه عنه.
-    useEffect(() => {
-        if (!running) {
-            return;
-        }
-
-        const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-        window.addEventListener('beforeunload', warn);
-
-        return () => window.removeEventListener('beforeunload', warn);
-    }, [running]);
 
     const toggleStep = (key: string, checked: boolean) => setOptions((current) => ({ ...current, [key]: checked }));
 
     const toggleSeeder = (name: string, checked: boolean) =>
         setSelectedSeeders((current) => (checked ? [...current, name] : current.filter((item) => item !== name)));
 
-    const start = async (dryRun: boolean) => {
-        setRunning(true);
-        setResult(null);
-        setErrors([]);
-        setOutput('');
-
-        try {
-            const response = await fetch('/deployment/run', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    // الأخطاء أولاً: expectsJson() في لارافل يقرأ أوّل نوعٍ هنا،
-                    // ولو بدأت بـ text/plain عاد خطأ التحقّق صفحةً كاملة.
-                    Accept: 'application/json, text/plain',
-                    'X-Requested-With': 'XMLHttpRequest',
-                    'X-XSRF-TOKEN': readCookie('XSRF-TOKEN'),
-                },
-                body: JSON.stringify({
-                    dryRun,
-                    branch: branch.trim() || null,
-                    options,
-                    seeders: options.seed ? selectedSeeders : [],
-                    demoConfirmed: demoSelected.length > 0,
-                }),
-            });
-
-            // إعادة توجيهٍ يتبعها fetch تعود 200 ونوعها HTML؛ ولو دُفعت إلى
-            // صندوق المخرجات لظهرت الصفحة كلها نصّاً. فما ليس نصّاً صريحاً
-            // ليس مخرجات نشر.
-            const streaming = response.headers.get('content-type')?.includes('text/plain') ?? false;
-
-            if (!response.ok || !response.body || !streaming) {
-                const payload = await response.json().catch(() => null);
-
-                setErrors(
-                    payload?.errors
-                        ? Object.values(payload.errors as Record<string, string[] | string>)
-                              .flat()
-                              .map(String)
-                        : [payload?.message ?? 'تعذّر بدء النشر (' + response.status + ').'],
-                );
-                setResult('failure');
-
-                return;
-            }
-
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let text = '';
-
-            for (;;) {
-                const { done, value } = await reader.read();
-
-                if (done) {
-                    break;
-                }
-
-                text += decoder.decode(value, { stream: true });
-                setOutput(text);
-            }
-
-            // ترويسة الردّ سبقت النشر كلَّه، فالحكم من السطر الختامي وحده.
-            setResult(text.includes('== اكتمل النشر ==') ? 'success' : 'failure');
-        } catch (error) {
-            setErrors([error instanceof Error ? error.message : 'انقطع الاتصال بالخادم.']);
-            setResult('failure');
-        } finally {
-            setRunning(false);
-        }
-    };
+    const start = (dryRun: boolean) =>
+        stream('/deployment/run', {
+            dryRun,
+            branch: branch.trim() || null,
+            options,
+            seeders: options.seed ? selectedSeeders : [],
+            demoConfirmed: demoSelected.length > 0,
+        });
 
     const confirmAndStart = () => {
         setConfirming(false);
@@ -210,6 +121,12 @@ export default function DeploymentIndex({ environment, seeders, preferences, his
                         </CardTitle>
                         <div className="flex items-center gap-2">
                             <Badge variant={environment.env === 'production' ? 'destructive' : 'secondary'}>{environment.env}</Badge>
+                            <Button variant="outline" size="sm" asChild>
+                                <Link href="/deployment/commands">
+                                    <Terminal className="size-4" />
+                                    أوامر مفردة
+                                </Link>
+                            </Button>
                             {unlockedByToken && (
                                 <Button
                                     variant="outline"
