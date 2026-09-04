@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { RichTextView } from '@/components/ui/rich-text-view';
 import UserFormModal from '@/components/users/user-form-modal';
 import UserServiceCommissionsCard from '@/components/users/user-service-commissions-card';
 import AppLayout from '@/layouts/app-layout';
@@ -20,7 +21,7 @@ import {
     type UserServiceCommission,
 } from '@/types/user';
 import { router } from '@inertiajs/react';
-import { Briefcase, CreditCard, Pencil, Phone, Receipt, Trash2, TrendingUp, User } from 'lucide-react';
+import { Briefcase, CreditCard, Pencil, Phone, Receipt, StickyNote, Trash2, TrendingUp, User } from 'lucide-react';
 import { useState } from 'react';
 
 const STATUS_COLORS: Record<string, string> = {
@@ -202,6 +203,23 @@ export default function UserShow({
                                         </p>
                                     </div>
                                 </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* Administrative notes */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <StickyNote className="size-5" />
+                                    ملاحظات
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {user.notes ? (
+                                    <RichTextView html={user.notes} />
+                                ) : (
+                                    <p className="text-muted-foreground py-4 text-center text-sm">لا توجد ملاحظات</p>
+                                )}
                             </CardContent>
                         </Card>
 

@@ -287,3 +287,55 @@
         @apply bg-background text-foreground;
     }
 }
+
+/*
+ * Rich-text field (Tiptap) and its read-only rendering. Kept here because the
+ * markup is generated at runtime, so utility classes cannot reach it.
+ */
+.rich-text-content :is(p, ul, ol, blockquote, h3) {
+    margin-block: 0.35rem;
+}
+
+.rich-text-content :is(p, ul, ol, blockquote, h3):first-child {
+    margin-block-start: 0;
+}
+
+.rich-text-content :is(p, ul, ol, blockquote, h3):last-child {
+    margin-block-end: 0;
+}
+
+.rich-text-content h3 {
+    @apply text-base font-semibold;
+}
+
+.rich-text-content ul {
+    @apply list-disc;
+    padding-inline-start: 1.25rem;
+}
+
+.rich-text-content ol {
+    @apply list-decimal;
+    padding-inline-start: 1.25rem;
+}
+
+.rich-text-content li > p {
+    margin-block: 0;
+}
+
+.rich-text-content blockquote {
+    @apply border-border text-muted-foreground;
+    border-inline-start-width: 3px;
+    padding-inline-start: 0.75rem;
+}
+
+.rich-text-content a {
+    @apply text-primary underline underline-offset-2;
+}
+
+.rich-text-content code {
+    @apply bg-muted rounded px-1 py-0.5 font-mono text-xs;
+}
+
+.rich-text-content .ProseMirror {
+    outline: none;
+}

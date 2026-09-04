@@ -12,11 +12,12 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type BranchOption, type ManagedUser, type PaginatedUser, type RoleOption } from '@/types/user';
 import { Link, router, usePage } from '@inertiajs/react';
-import { Eye, LogIn, Pencil, Percent, Plus, Trash2 } from 'lucide-react';
+import { Eye, LogIn, Pencil, Percent, Plus, StickyNote, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import users from '@/routes/users';
 import { formatCurrency } from '@/lib/utils';
@@ -135,6 +136,28 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                 cell: (item) => (
                     <span dir="ltr" className="tabular-nums">{formatCurrency(item.salary)}</span>
                 ),
+            },
+            {
+                key: 'notesExcerpt',
+                header: 'ملاحظات',
+                cell: (item) =>
+                    item.notesExcerpt ? (
+                        <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="text-muted-foreground flex max-w-56 items-center gap-1.5 text-sm">
+                                        <StickyNote className="size-3.5 shrink-0" />
+                                        <span className="truncate">{item.notesExcerpt}</span>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs whitespace-pre-wrap">
+                                    {item.notesExcerpt}
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    ) : (
+                        <span className="text-muted-foreground">—</span>
+                    ),
             },
             {
                 key: 'isActive',

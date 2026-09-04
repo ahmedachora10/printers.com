@@ -12,6 +12,8 @@ export interface ManagedUser {
     baseCommissionPct: number;
     referralCommissionPct: number;
     joinedDate: string | null;
+    notes: string | null;
+    notesExcerpt: string | null;
     isActive: boolean;
     createdAt: string;
 }

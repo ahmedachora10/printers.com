@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
+import { RichTextField } from '@/components/ui/rich-text-field';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type BranchOption, type ManagedUser, type RoleOption } from '@/types/user';
 import { useForm } from '@inertiajs/react';
@@ -42,6 +43,7 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
         base_commission_pct:      user?.baseCommissionPct?.toString() ?? '0',
         referral_commission_pct:  user?.referralCommissionPct?.toString() ?? '0',
         joined_date:              user?.joinedDate ?? '',
+        notes:                    user?.notes ?? '',
         is_active:                user?.isActive ?? true,
     });
 
@@ -60,6 +62,7 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
                 base_commission_pct: user.baseCommissionPct?.toString() ?? '0',
                 referral_commission_pct: user.referralCommissionPct?.toString() ?? '0',
                 joined_date: user.joinedDate ?? '',
+                notes: user.notes ?? '',
                 is_active: user.isActive ?? true,
             });
         } else {
@@ -281,6 +284,18 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
                             dir="ltr"
                         />
                         <InputError message={errors.joined_date} />
+                    </div>
+
+                    <div className="space-y-1">
+                        <Label htmlFor="user-notes">ملاحظات</Label>
+                        <RichTextField
+                            id="user-notes"
+                            value={data.notes}
+                            onChange={(html) => setData('notes', html)}
+                            placeholder="ملاحظات إدارية عن المستخدم..."
+                            disabled={processing}
+                        />
+                        <InputError message={errors.notes} />
                     </div>
 
                     <div className="flex items-center gap-2">
