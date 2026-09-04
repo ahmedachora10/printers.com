@@ -59,6 +59,11 @@ class InvoiceListResource extends JsonResource
 
         $canEditCustomer = $isReviewer;
 
+        // من يفتح شاشة التعديل الكاملة: المراجع ما لم يكن محاسباً. الخدمات
+        // والأسعار وتكلفة الخامات ليست للمحاسب — بيانات العميل وطريقة الدفع
+        // وحدهما، ولكلٍّ منهما زرّه. مرآةً لـServiceInvoicePolicy::update.
+        $isFullEditor = $isReviewer && ! $user->roleName->isAccountant();
+
         // Who may stamp "تم تسليم العمل" from the list, mirroring
         // ServiceInvoicePolicy::deliver — the owning employee or a reviewer, on a
         // service invoice that is still live and not delivered yet. The list row
@@ -112,9 +117,10 @@ class InvoiceListResource extends JsonResource
             // شروط ServiceInvoicePolicy::deliver هنا؛ الخادم يبقى صاحب القرار
             // النهائي عند الضغط.
             'canDeliver' => $canDeliver,
-            // تاسك 70: يعدّل الفاتورة المعلّقة صاحبُها الموظف أو مراجعٌ في فرعها —
-            // وهم أنفسهم من يعدّلون بيانات العميل هنا — مرآةً لـServiceInvoicePolicy::update.
-            'canEdit' => ($isOwnerEmployee || $isReviewer) && $status === InvoiceStatusEnum::DUE,
+            // تاسك 70: يعدّل الفاتورة المعلّقة صاحبُها الموظف أو مدير الفرع —
+            // مرآةً لـServiceInvoicePolicy::update. والمحاسب يبقى له تعديل بيانات
+            // العميل هنا (canEditCustomer) لا الفاتورة نفسها.
+            'canEdit' => ($isOwnerEmployee || $isFullEditor) && $status === InvoiceStatusEnum::DUE,
             'canReturn' => $isOwnerEmployee
                 && $status !== InvoiceStatusEnum::CANCELLED
                 && $status !== InvoiceStatusEnum::RETURNED,

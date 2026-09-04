@@ -88,6 +88,15 @@ class InvoiceResource extends JsonResource
         $canDeliver = $user !== null && $isServiceInvoice && $user->can('deliver', $this->resource);
 
         $canEdit = $user !== null && $isServiceInvoice && $user->can('update', $this->resource);
+
+        // ما بقي للمحاسب على فاتورة الموظف بعد إغلاق شاشة التعديل في وجهه:
+        // بيانات العميل وطريقة الدفع. الزرّان يظهران هنا لمن تسمح له الصلاحية —
+        // فالموظف صاحبُها يراهما كذلك، وهما ما يحتاجه المحاسب قبل الاعتماد.
+        $canEditCustomer = $user !== null && $isServiceInvoice && $user->can('updateCustomer', $this->resource);
+        $canEditPaymentMethod = $user !== null
+            && $isServiceInvoice
+            && $this->status === InvoiceStatusEnum::DUE
+            && $user->can('updateStatus', $this->resource);
         $canReturn = $user !== null
             && $isServiceInvoice
             && $user->can('returnInvoice', $this->resource)
@@ -133,6 +142,8 @@ class InvoiceResource extends JsonResource
             'customerPhone' => $this->customer?->phone,
             'customerTaxNumber' => $this->customer?->tax_number ?? null,
             'paymentMethod' => $this->paymentMethod?->name,
+            // يسبق اختيارَ نافذة «طريقة الدفع» في شاشة الفاتورة.
+            'paymentMethodId' => $this->payment_method_id,
             // Invoice-level remark for the customer — distinct from the
             // per-line detail carried on InvoiceLineResource::notes.
             'notes' => $this->notes,
@@ -158,6 +169,8 @@ class InvoiceResource extends JsonResource
             'canRefund' => $canRefund,
             'canApprovePayment' => $canApprovePayment,
             'canEdit' => $canEdit,
+            'canEditCustomer' => $canEditCustomer,
+            'canEditPaymentMethod' => $canEditPaymentMethod,
             'canReturn' => $canReturn,
             'refunds' => $this->whenLoaded('refunds', fn () => $this->refunds
                 ->map(fn (Refund $refund) => [

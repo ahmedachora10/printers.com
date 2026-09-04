@@ -192,13 +192,27 @@ describe('Service invoice edit/return', function () {
             ->and(CommissionLedger::where('user_id', $this->branchAdmin->id)->count())->toBe(0);
     });
 
-    it('lets an accountant in the branch edit a due invoice', function () {
+    it('refuses an accountant the edit screen of an employee invoice', function () {
+        // المحاسب يراجع المال لا العمل: بيانات العميل وطريقة الدفع من مساريهما،
+        // أما خدمةٌ أو سعرٌ أو تكلفة خامة فليست له.
         $invoice = makeOwnedDueInvoice();
 
         $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
         $accountant->addRole(Roles::ACCOUNTANT->value);
 
-        $this->actingAs($accountant)
+        $this->actingAs($accountant)->get(route('pos.service.edit', $invoice))->assertForbidden();
+        $this->actingAs($accountant)->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => paymentMethodId(),
+            'lines' => [['branch_service_id' => $this->service->id, 'qty' => 9, 'unit_price' => 999]],
+        ])->assertForbidden();
+
+        expect((float) $invoice->refresh()->total_amount)->toBe(30.00);
+    });
+
+    it('lets a branch admin in the branch edit a due invoice', function () {
+        $invoice = makeOwnedDueInvoice();
+
+        $this->actingAs($this->branchAdmin)
             ->get(route('pos.service.edit', $invoice))
             ->assertOk()
             ->assertInertia(fn ($page) => $page

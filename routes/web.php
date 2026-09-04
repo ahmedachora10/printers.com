@@ -210,10 +210,11 @@ Route::middleware(['auth'])->group(function () {
         });
     });
 
-    // تاسك 70: تعديل فاتورة خدمة معلّقة — صاحبُها الموظف، أو مراجعٌ في فرعها
-    // (مدير الفرع أو المحاسب) يصحّح تكلفة الخامات قبل الاعتماد. الميدلوير يفتح الباب
-    // للأدوار الأربعة، والصلاحية النهائية تبقى لـServiceInvoicePolicy::update لا له.
-    Route::middleware('role:branch-admin|super-admin|employee|accountant')->group(function () {
+    // تاسك 70: تعديل فاتورة خدمة معلّقة — صاحبُها الموظف، أو مدير الفرع يصحّح
+    // تكلفة الخامات قبل الاعتماد. والمحاسب خارج الباب: يصحّح بيانات العميل
+    // ويحدّد طريقة الدفع من مساريهما وحدهما، لا خدمةً ولا سعراً. الصلاحية
+    // النهائية تبقى لـServiceInvoicePolicy::update لا للميدلوير.
+    Route::middleware('role:branch-admin|super-admin|employee')->group(function () {
         Route::prefix('pos')->name('pos.')->group(function () {
             Route::get('service/{invoice}/edit', [ServiceInvoiceController::class, 'edit'])->name('service.edit');
             Route::put('service/{invoice}', [ServiceInvoiceController::class, 'update'])->name('service.update');

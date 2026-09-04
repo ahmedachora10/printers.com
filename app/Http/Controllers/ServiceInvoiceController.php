@@ -301,6 +301,9 @@ class ServiceInvoiceController extends Controller
                     // لم يُقبض منها شيء، فالمتبقي هو الإجمالي — ويُرسل صراحةً لأن
                     // نافذة تسجيل الدفعة تحدّ به المبلغ.
                     'remainingAmount' => $invoice->remainingAmount(),
+                    // زرّ تعديل الفاتورة في الطابور: لمدير الفرع لا للمحاسب —
+                    // الصلاحية هي الفيصل، فلا يُكرَّر الدور في الواجهة.
+                    'canEdit' => Gate::allows('update', $invoice),
                     'lines' => $invoice->lines->map(fn ($line) => [
                         'name' => $line->service_name,
                         'notes' => $line->notes,
@@ -448,8 +451,11 @@ class ServiceInvoiceController extends Controller
     }
 
     /**
-     * Correct the payment method (transfer, card, mada, …) of a due invoice from
-     * the review queue. Restricted to the branch's enabled methods by the request.
+     * Correct the payment method (transfer, card, mada, …) of a due invoice —
+     * from the review queue or from the invoice itself, which is the accountant's
+     * only way to name it now that the POS edit screen is closed to him. Hence
+     * back() rather than a fixed redirect: whoever asked stays where they were.
+     * Restricted to the branch's enabled methods by the request.
      */
     public function updatePaymentMethod(UpdateInvoicePaymentMethodRequest $request, ServiceInvoice $invoice): RedirectResponse
     {
@@ -457,7 +463,7 @@ class ServiceInvoiceController extends Controller
 
         $invoice->update(['payment_method_id' => $request->validated('payment_method_id')]);
 
-        return to_route('invoices.service.review')
+        return redirect()->back(fallback: route('invoices.service.review'))
             ->with('success', "تم تحديث طريقة الدفع للفاتورة {$invoice->invoice_number}");
     }
 

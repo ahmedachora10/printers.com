@@ -98,6 +98,7 @@ export interface Invoice {
     customerPhone: string | null;
     customerTaxNumber: string | null;
     paymentMethod: string | null;
+    paymentMethodId: number | null;
     /** ملاحظات على مستوى الفاتورة كاملة — تختلف عن ملاحظات السطر */
     notes: string | null;
     receiptUrl: string | null;
@@ -114,6 +115,9 @@ export interface Invoice {
     canRefund: boolean;
     canApprovePayment: boolean;
     canEdit: boolean;
+    /** المحاسب لا يعدّل الخدمات ولا الأسعار — يبقى له هذان على فاتورة الموظف */
+    canEditCustomer: boolean;
+    canEditPaymentMethod: boolean;
     canReturn: boolean;
     refunds?: InvoiceRefund[];
     branch: InvoiceBranch;
