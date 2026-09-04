@@ -605,18 +605,22 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                                     }
                                 />
                             )}
+                            {/* وسمٌ عارٍ لا Link: الوجهة ملفٌ يُبَثّ من القرص الخاص لا
+                                صفحةَ Inertia، وLink يعترض النقرة ويطلبها طلبَ Inertia
+                                (ولا يحترم target) فلا يُفتح شيء — كرابط إيصال الدفعة
+                                في جدول الدفعات أعلاه. */}
                             {invoice.receiptUrl && (
                                 <MetaRow
                                     label="إيصال التحويل"
                                     value={
-                                        <Link
+                                        <a
                                             href={invoice.receiptUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="text-primary inline-flex items-center gap-1 hover:underline"
                                         >
                                             <Paperclip className="size-3.5" /> عرض الإيصال
-                                        </Link>
+                                        </a>
                                     }
                                 />
                             )}
