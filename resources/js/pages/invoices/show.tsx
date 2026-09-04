@@ -17,7 +17,7 @@ import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice } from '@/types/invoice';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Ban, CheckCircle2, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -247,9 +247,9 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                         )}
                         {invoice.canEdit && (
                             <Button variant="outline" asChild>
-                                <a href={posService.edit(invoice.id).url}>
+                                <Link href={posService.edit(invoice.id).url}>
                                     <Pencil className="size-4" /> تعديل
-                                </a>
+                                </Link>
                             </Button>
                         )}
                         {invoice.canReturn && (
@@ -513,14 +513,14 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                                 <MetaRow
                                     label="إيصال التحويل"
                                     value={
-                                        <a
+                                        <Link
                                             href={invoice.receiptUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="text-primary inline-flex items-center gap-1 hover:underline"
                                         >
                                             <Paperclip className="size-3.5" /> عرض الإيصال
-                                        </a>
+                                        </Link>
                                     }
                                 />
                             )}
