@@ -719,7 +719,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             );
             return;
         }
-        if (!paymentMethodId) {
+        // الموظف يحفظ فاتورته المعلّقة بلا طريقة دفع؛ من يعتمدها هو من يلزمه ذلك.
+        if (!isEmployee && !paymentMethodId) {
             toast.error('اختر طريقة الدفع قبل حفظ الفاتورة');
             return;
         }
@@ -1106,13 +1107,20 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base">
-                                طريقة الدفع <span className="text-destructive">*</span>
+                                طريقة الدفع{' '}
+                                {isEmployee ? (
+                                    <span className="text-muted-foreground text-sm font-normal">(اختياري)</span>
+                                ) : (
+                                    <span className="text-destructive">*</span>
+                                )}
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             {paymentMethods.length === 0 ? (
-                                <p className="text-destructive text-sm">
-                                    لا توجد طرق دفع مفعّلة لهذا الفرع — أضف طريقة دفع من الإعدادات قبل إصدار الفواتير.
+                                <p className={isEmployee ? 'text-muted-foreground text-sm' : 'text-destructive text-sm'}>
+                                    {isEmployee
+                                        ? 'لا توجد طرق دفع مفعّلة لهذا الفرع — تُحفظ الفاتورة معلّقة ويحدّدها المحاسب عند الاعتماد.'
+                                        : 'لا توجد طرق دفع مفعّلة لهذا الفرع — أضف طريقة دفع من الإعدادات قبل إصدار الفواتير.'}
                                 </p>
                             ) : (
                                 <div className="space-y-3">

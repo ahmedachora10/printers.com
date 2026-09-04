@@ -23,6 +23,11 @@ class UpdateServiceInvoiceRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        // القاعدة تتبع من يعدّل الآن لا صاحب الفاتورة: الموظف يصحّح فاتورته
+        // المعلّقة بلا طريقة دفع، أما المراجع — المحاسب أو مدير الفرع — فلا
+        // يُحفظ تعديله إلا بطريقة، فهو من سيعتمدها بعد قليل.
+        $isEmployee = (bool) $this->user()?->roleName?->isEmployee();
+
         return [
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'agent_ids' => ['nullable', 'array'],
@@ -32,9 +37,12 @@ class UpdateServiceInvoiceRequest extends FormRequest
             'walkin_tax_number' => ['nullable', 'string', 'digits:15'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
-            // طريقة الدفع إلزامية في التعديل كما في الإنشاء — والفاتورة القديمة
-            // التي حُفظت بلا طريقة تُجبَر عليها عند أول تعديل.
-            'payment_method_id' => ['required', 'integer', Rule::in($this->allowedPaymentMethodIds())],
+            // الفاتورة القديمة التي حُفظت بلا طريقة يُجبَر عليها المراجع عند أول
+            // تعديل يحفظه.
+            'payment_method_id' => [
+                $isEmployee ? 'nullable' : 'required',
+                'integer', Rule::in($this->allowedPaymentMethodIds()),
+            ],
             'receipt' => [
                 $this->paymentMethodRequiresAttachment() ? 'required' : 'nullable',
                 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120',
