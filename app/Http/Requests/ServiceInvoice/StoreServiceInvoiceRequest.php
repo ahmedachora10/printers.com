@@ -22,7 +22,9 @@ class StoreServiceInvoiceRequest extends FormRequest
         // Employees may only raise DUE (معلق) invoices — an accountant or
         // branch admin reviews them before they are marked paid. Higher roles
         // can still settle invoices as PAID directly from the POS.
-        $allowedStatuses = $this->user()?->roleName?->isEmployee()
+        $isEmployee = (bool) $this->user()?->roleName?->isEmployee();
+
+        $allowedStatuses = $isEmployee
             ? [InvoiceStatusEnum::DUE->value]
             : [InvoiceStatusEnum::PAID->value, InvoiceStatusEnum::DUE->value];
 
@@ -35,10 +37,14 @@ class StoreServiceInvoiceRequest extends FormRequest
             'walkin_tax_number' => ['nullable', 'string', 'digits:15'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
-            // طريقة الدفع إلزامية على كل فاتورة، مدفوعةً كانت أو آجلة: فاتورةٌ
-            // بلا طريقة تسقط من تفصيل طرق الدفع في التقارير، ويتعثّر اعتمادها
-            // لاحقاً عند المحاسب. ولا تُقبل إلا طريقةٌ يراها فرع الفاتورة.
-            'payment_method_id' => ['required', 'integer', Rule::in($this->enabledPaymentMethodIds())],
+            // طريقة الدفع إلزامية على من يُغلق الفاتورة بنفسه — المحاسب ومدير
+            // الفرع — واختيارية على الموظف: فاتورته تُحفظ معلّقة، والمحاسب هو من
+            // يحدّد كيف حُصِّلت عند الاعتماد، والاعتماد نفسه لا يمرّ بلا طريقة.
+            // وما يختاره الموظف مع ذلك لا يُقبل إلا أن يكون طريقةً يراها فرعه.
+            'payment_method_id' => [
+                $isEmployee ? 'nullable' : 'required',
+                'integer', Rule::in($this->enabledPaymentMethodIds()),
+            ],
             // A bank-transfer (requires-attachment) method must carry its proof.
             'receipt' => [
                 $this->paymentMethodRequiresAttachment() ? 'required' : 'nullable',
