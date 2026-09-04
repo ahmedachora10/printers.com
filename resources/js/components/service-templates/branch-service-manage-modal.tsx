@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { type BranchService, type BranchServiceFormData, type BranchServiceUpdateData } from '@/types/branch-service';
 import { type ServiceTemplate } from '@/types/service-template';
 import { router, useForm } from '@inertiajs/react';
-import { Pencil, Plus, Trash2, Users, X } from 'lucide-react';
+import { Copy, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '../input-error';
 
@@ -40,6 +40,10 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
     const [activeAction, setActiveAction] = useState<ActiveAction>(null);
     // The branch service whose per-employee rates are being edited.
     const [employeesService, setEmployeesService] = useState<BranchService | null>(null);
+    // تاسك 79: الرابط الذي نُسخت منه شروط الربط الجاري — 0 يعني «بلا نسخ».
+    const [copySourceId, setCopySourceId] = useState(0);
+
+    const attachedServices = template?.branches ?? [];
 
     const attachForm = useForm<BranchServiceFormData>({
         service_template_id: template?.id ?? 0,
@@ -82,24 +86,49 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         onOpenChange(nextOpen);
     }
 
+    /**
+     * تاسك 79: شروط رابطٍ قائم كقيمٍ أوّلية لربطٍ جديد — ثلاث عشرة خانة كان
+     * المستخدم يعيد كتابتها لكل فرع. عمولات الموظفين تُستثنى عمداً: هي مربوطة
+     * بموظفي فرعٍ بعينه فلا معنى لنقلها، وتُدار من زرّ «العمولات» وحده.
+     * و`is_active` تبدأ true دائماً مهما كانت حال المصدر.
+     */
+    function termsFrom(source: BranchService | undefined) {
+        return {
+            base_commission_pct: source?.baseCommissionPct ?? 0,
+            max_discount_pct: source?.maxDiscountPct ?? 0,
+            max_selling_price: source?.maxSellingPrice ?? null,
+            min_selling_price: source?.minSellingPrice ?? null,
+            pricing_type: source?.pricingType ?? 'unit',
+            price_per_sqm: source?.pricePerSqm ?? 0,
+            agent_commission_per_sqm: source?.agentCommissionPerSqm ?? 0,
+            note_examples: source?.noteExamples ?? [],
+            is_tahazir: source?.isTahazir ?? false,
+            has_materials: source?.hasMaterials ?? false,
+            materials_cost: source?.materialsCost ?? 0,
+            is_active: true,
+        } as const;
+    }
+
     function startAttach(branchId: number) {
+        // آخر فرعٍ رُبط هو المصدر الافتراضي — وهو المرجَّح أن يكون أحدث الشروط.
+        const source = attachedServices[attachedServices.length - 1];
+
         setActiveAction({ type: 'attach', branchId });
+        setCopySourceId(source?.id ?? 0);
         attachForm.setData({
             service_template_id: template?.id ?? 0,
             branch_id: branchId,
-            base_commission_pct: 0,
-            max_discount_pct: 0,
-            max_selling_price: null,
-            min_selling_price: null,
-            pricing_type: 'unit',
-            price_per_sqm: 0,
-            agent_commission_per_sqm: 0,
-            note_examples: [],
-            is_tahazir: false,
-            has_materials: false,
-            materials_cost: 0,
-            is_active: true,
+            ...termsFrom(source),
         });
+    }
+
+    /** تبديل الفرع المنسوخ منه، فتُعاد تعبئة الخانات من شروطه. */
+    function applyCopySource(serviceId: number) {
+        setCopySourceId(serviceId);
+        attachForm.setData((current) => ({
+            ...current,
+            ...termsFrom(attachedServices.find((bs) => bs.id === serviceId)),
+        }));
     }
 
     function startEdit(service: BranchService) {
@@ -122,6 +151,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
 
     function cancelAction() {
         setActiveAction(null);
+        setCopySourceId(0);
         attachForm.reset();
         editForm.reset();
     }
@@ -152,8 +182,6 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
     function handleDetach(service: BranchService) {
         router.delete(destroyBranchService.url(service), { preserveScroll: true });
     }
-
-    const attachedServices = template?.branches ?? [];
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -265,6 +293,37 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                                 {/* Inline attach form */}
                                 {isAttaching && (
                                     <form onSubmit={handleAttachSubmit} className="mt-3 space-y-3 border-t pt-3">
+                                        {/* تاسك 79: نسخ شروط فرعٍ مربوط بدل كتابة ثلاث عشرة خانة لكل فرع.
+                                            الفروع غير المربوطة لا تظهر في القائمة — لا شروط لها تُنسخ. */}
+                                        {attachedServices.length > 0 && (
+                                            <div className="bg-muted/40 space-y-1 rounded-md border p-2">
+                                                <Label className="flex items-center gap-1.5 text-xs">
+                                                    <Copy className="size-3" />
+                                                    نسخ الشروط من
+                                                </Label>
+                                                <select
+                                                    className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+                                                    value={copySourceId}
+                                                    onChange={(e) => applyCopySource(Number(e.target.value))}
+                                                >
+                                                    <option value={0}>— بلا نسخ (خانات فارغة) —</option>
+                                                    {attachedServices.map((bs) => (
+                                                        <option key={bs.id} value={bs.id}>
+                                                            {branches.find((b) => b.id === bs.branchId)?.name ?? `فرع #${bs.branchId}`}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {copySourceId > 0 && (
+                                                    <p className="text-muted-foreground text-xs">
+                                                        نُسخت الشروط من فرع{' '}
+                                                        {branches.find((b) => b.id === attachedServices.find((bs) => bs.id === copySourceId)?.branchId)
+                                                            ?.name ?? '—'}{' '}
+                                                        — راجعها قبل الحفظ. عمولات الموظفين لا تُنسخ.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
                                         <BranchServiceFields
                                             data={attachForm.data}
                                             errors={attachForm.errors}
