@@ -1,4 +1,4 @@
-import { destroy, index } from '@/actions/App/Http/Controllers/ServiceTemplateController';
+import { destroy, index, reorder } from '@/actions/App/Http/Controllers/ServiceTemplateController';
 import { type BranchEmployee, type EmployeeCommission } from '@/components/branch-services/branch-service-employees-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
@@ -11,7 +11,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type PaginatedServiceTemplate, type ServiceTemplate } from '@/types/service-template';
 import { router } from '@inertiajs/react';
-import { Network, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Network, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'قوالب الخدمات', href: '/service-templates' }];
@@ -53,6 +53,22 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
         setFormOpen(true);
     }
 
+    /**
+     * تاسك 82: تحريك صفٍّ خطوةً واحدة. الجدول مصفَّح بخمسة عشر صفّاً فيُرسل
+     * ترتيب الصفحة الظاهرة، والخادم يضعها في مواضعها من التسلسل العامّ —
+     * فالترتيب عامّ لا داخل الصفحة، وحدّاه أوّل الصفحة وآخرها لا أوّل الجدول.
+     */
+    function move(templateId: number, direction: -1 | 1) {
+        const ids = templates.data.map((t) => t.id);
+        const from = ids.indexOf(templateId);
+        const to = from + direction;
+        if (from < 0 || to < 0 || to >= ids.length) return;
+
+        [ids[from], ids[to]] = [ids[to], ids[from]];
+
+        router.post(reorder.url(), { ids }, { preserveScroll: true, preserveState: true });
+    }
+
     function handleDelete() {
         if (!deletingTemplateId) return;
         router.delete(destroy.url({ id: deletingTemplateId }), {
@@ -62,6 +78,37 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
 
     const columns = useMemo<ColumnDef<ServiceTemplate>[]>(
         () => [
+            {
+                key: 'order',
+                header: 'الترتيب',
+                headerClassName: 'w-24',
+                cell: (template) => {
+                    const position = templates.data.indexOf(template);
+
+                    return (
+                        <div className="flex items-center gap-1">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                title="تحريك لأعلى"
+                                disabled={position <= 0}
+                                onClick={() => move(template.id, -1)}
+                            >
+                                <ArrowUp className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                title="تحريك لأسفل"
+                                disabled={position < 0 || position >= templates.data.length - 1}
+                                onClick={() => move(template.id, 1)}
+                            >
+                                <ArrowDown className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    );
+                },
+            },
             {
                 key: 'name',
                 header: 'اسم الخدمة',
@@ -125,7 +172,7 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
                 ),
             },
         ],
-        [],
+        [templates.data],
     );
 
     const [search, setSearch] = useState(filters.search ?? '');
@@ -166,7 +213,13 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
                 <div className="mb-6 flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">إدارة قوالب الخدمات</h1>
+                    <div>
+                        <h1 className="text-2xl font-bold">إدارة قوالب الخدمات</h1>
+                        {/* تاسك 82: الترتيب عامّ عبر الصفحات، فالسهم في آخر صفّ ينقله إلى الصفحة التالية. */}
+                        <p className="text-muted-foreground mt-1 text-xs">
+                            الترتيب يسري على نقطة البيع وخدمات الفرع، وهو ترتيب عامّ عبر كل الصفحات لا داخل الصفحة وحدها.
+                        </p>
+                    </div>
                 </div>
 
                 <div className="mb-6">

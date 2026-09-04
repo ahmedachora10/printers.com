@@ -652,14 +652,20 @@ class ServiceInvoiceController extends Controller
             ->pluck('commission_override_pct', 'branch_service_id');
 
         return BranchService::query()
-            ->where('branch_id', $branchId)
-            ->where('is_active', true)
+            ->where('branch_services.branch_id', $branchId)
+            ->where('branch_services.is_active', true)
             ->with([
-                'serviceTemplate:id,name',
+                'serviceTemplate:id,name,sort_order',
                 // خامات المخزون ومتاحُها — استعلامان ثابتان لا واحدٌ لكل خدمة.
                 'materials.product:id,name,unit_id,is_sqm,current_stock',
                 'materials.product.unit:id,name',
             ])
+            // تاسك 82: ترتيب البائع هو ترتيب القالب — ضمٌّ صريح لأن الترتيب
+            // على جدول القوالب لا على خدمات الفرع. ترتيبٌ لا يراه البائع لا قيمة له.
+            ->join('service_templates', 'service_templates.id', '=', 'branch_services.service_template_id')
+            ->orderBy('service_templates.sort_order')
+            ->orderBy('service_templates.name')
+            ->select('branch_services.*')
             ->get()
             ->map(fn (BranchService $service) => [
                 'id' => $service->id,

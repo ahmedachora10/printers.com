@@ -115,6 +115,11 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('branches/{branch}/toggle-status', [BranchController::class, 'toggleStatus'])
             ->name('branches.toggle-status');
 
+        // تاسك 82: ترتيب العرض اليدوي — يُسجَّل قبل الـresource كي لا يبتلعه
+        // `service-templates/{serviceTemplate}`.
+        Route::post('service-templates/reorder', [ServiceTemplateController::class, 'reorder'])
+            ->name('service-templates.reorder');
+
         // `store` تعيش في مجموعة مدير الفرع أدناه: الإنشاء متاح للاثنين (تاسك 45).
         Route::resource('service-templates', ServiceTemplateController::class)
             ->except(['create', 'edit', 'store']);

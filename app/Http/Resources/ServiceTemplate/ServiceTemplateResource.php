@@ -19,6 +19,7 @@ class ServiceTemplateResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
+            'sortOrder' => (int) $this->sort_order,
             'isActive' => $this->is_active,
             // الفرع المالك للخدمة الخاصة، أو null للخدمة العامة (تاسك 45).
             'ownerBranchName' => $this->whenLoaded('branch', fn () => $this->branch?->name),
