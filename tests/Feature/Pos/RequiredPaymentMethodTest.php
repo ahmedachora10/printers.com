@@ -169,15 +169,16 @@ describe('Payment method: optional for the employee, required of whoever settles
     });
 
     it('refuses a reviewer edit that leaves the method unset', function () {
-        // القاعدة تتبع من يعدّل الآن: المحاسب يراجع تمهيداً للاعتماد، فيُلزم بها
-        // ولو كانت الفاتورة قد حُفظت بلا طريقة.
+        // القاعدة تتبع من يعدّل الآن: مدير الفرع يراجع تمهيداً للاعتماد، فيُلزم بها
+        // ولو كانت الفاتورة قد حُفظت بلا طريقة. (المحاسب لا يفتح هذه الشاشة أصلاً —
+        // AccountantInvoiceScopeTest.)
         $invoice = employeeDueInvoice();
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->put(route('pos.service.update', $invoice), ['lines' => $this->serviceLines])
             ->assertSessionHasErrors('payment_method_id');
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->put(route('pos.service.update', $invoice), [
                 'payment_method_id' => $this->cash->id,
                 'lines' => $this->serviceLines,
@@ -193,7 +194,7 @@ describe('Payment method: optional for the employee, required of whoever settles
         $card->update(['is_active' => false]);
 
         // التعديل لا يتعثّر بطريقةٍ عُطّلت بعد إصدار الفاتورة — تبقى مقبولةً لها وحدها.
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->put(route('pos.service.update', $invoice), [
                 'payment_method_id' => $card->id,
                 'lines' => [

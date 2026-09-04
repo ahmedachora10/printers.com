@@ -8,6 +8,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
@@ -18,7 +21,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice } from '@/types/invoice';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Ban, CheckCircle2, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, Wallet } from 'lucide-react';
+import { Ban, CheckCircle2, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -118,6 +121,15 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
     const [returning, setReturning] = useState(false);
     const [deliverOpen, setDeliverOpen] = useState(false);
     const [delivering, setDelivering] = useState(false);
+    // بيانات العميل وطريقة الدفع: ما يملك المحاسب تصحيحه على فاتورة الموظف —
+    // شاشة التعديل الكاملة ليست له، فالنافذتان هما بابه الوحيد إليهما.
+    const [customerOpen, setCustomerOpen] = useState(false);
+    const [customerForm, setCustomerForm] = useState({ full_name: '', phone: '', tax_number: '' });
+    const [customerErrors, setCustomerErrors] = useState<Record<string, string | undefined>>({});
+    const [savingCustomer, setSavingCustomer] = useState(false);
+    const [methodOpen, setMethodOpen] = useState(false);
+    const [methodId, setMethodId] = useState<number | null>(invoice.paymentMethodId);
+    const [savingMethod, setSavingMethod] = useState(false);
 
     // الأسعار المُدخلة شاملة للضريبة، فالمجموع الفرعي والخصومات تُعرض صافيةً منها
     // ويبقى الإجمالي هو ما يدفعه العميل — نفس اشتقاق صفحة الطباعة.
@@ -162,6 +174,51 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                     setDelivering(false);
                     setDeliverOpen(false);
                 },
+            },
+        );
+    }
+
+    function openCustomerDialog() {
+        setCustomerForm({
+            full_name: invoice.customerName ?? '',
+            phone: invoice.customerPhone ?? '',
+            tax_number: invoice.customerTaxNumber ?? '',
+        });
+        setCustomerErrors({});
+        setCustomerOpen(true);
+    }
+
+    // فاتورةٌ بلا عميل يسجَّل لها واحد بالجوال، وفاتورةٌ لها عميل تُصحَّح بياناته
+    // في سجلّه المشترك — كلاهما على المسار نفسه، والخادم يفرّق بينهما.
+    function saveCustomer() {
+        setSavingCustomer(true);
+        router.patch(
+            serviceInvoice.updateCustomer(invoice.id).url,
+            {
+                full_name: customerForm.full_name.trim(),
+                phone: customerForm.phone.trim(),
+                tax_number: customerForm.tax_number.trim(),
+            },
+            {
+                preserveScroll: true,
+                onError: (e) => setCustomerErrors(e),
+                onSuccess: () => setCustomerOpen(false),
+                onFinish: () => setSavingCustomer(false),
+            },
+        );
+    }
+
+    function savePaymentMethod() {
+        if (!methodId) return;
+        setSavingMethod(true);
+        router.patch(
+            serviceInvoice.updatePaymentMethod(invoice.id).url,
+            { payment_method_id: methodId },
+            {
+                preserveScroll: true,
+                onError: (e) => toast.error(e.payment_method_id ?? 'تعذّر تحديث طريقة الدفع.'),
+                onSuccess: () => setMethodOpen(false),
+                onFinish: () => setSavingMethod(false),
             },
         );
     }
@@ -250,6 +307,16 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                                 <a href={posService.edit(invoice.id).url}>
                                     <Pencil className="size-4" /> تعديل
                                 </a>
+                            </Button>
+                        )}
+                        {invoice.canEditCustomer && (
+                            <Button variant="outline" onClick={openCustomerDialog}>
+                                <UserPen className="size-4" /> بيانات العميل
+                            </Button>
+                        )}
+                        {invoice.canEditPaymentMethod && (
+                            <Button variant="outline" onClick={() => setMethodOpen(true)}>
+                                <CreditCard className="size-4" /> طريقة الدفع
                             </Button>
                         )}
                         {invoice.canReturn && (
@@ -556,6 +623,95 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                     presetNumber={invoice.invoiceNumber}
                 />
             )}
+
+            {/* بيانات العميل — تصحيحٌ للسجلّ المرتبط، أو تسجيلٌ لعميل فاتورةٍ نقدية */}
+            <Dialog open={customerOpen} onOpenChange={(open) => !open && !savingCustomer && setCustomerOpen(false)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>بيانات عميل الفاتورة {invoice.invoiceNumber}</DialogTitle>
+                        <DialogDescription>
+                            {invoice.customerName
+                                ? 'تُحدَّث بيانات العميل في سجلّه، فتظهر أينما ورد لا في هذه الفاتورة وحدها.'
+                                : 'يُسجَّل عميل لهذه الفاتورة برقم جواله — وإن كان الرقم لعميل مسجَّل رُبط بها.'}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-3">
+                        <div className="space-y-1.5">
+                            <Label htmlFor="customer-name">اسم العميل</Label>
+                            <Input
+                                id="customer-name"
+                                value={customerForm.full_name}
+                                onChange={(e) => setCustomerForm((f) => ({ ...f, full_name: e.target.value }))}
+                            />
+                            {customerErrors.full_name && <p className="text-destructive text-xs">{customerErrors.full_name}</p>}
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="customer-phone">رقم الجوال</Label>
+                            <Input
+                                id="customer-phone"
+                                dir="ltr"
+                                value={customerForm.phone}
+                                onChange={(e) => setCustomerForm((f) => ({ ...f, phone: e.target.value }))}
+                            />
+                            {customerErrors.phone && <p className="text-destructive text-xs">{customerErrors.phone}</p>}
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label htmlFor="customer-tax">الرقم الضريبي (اختياري)</Label>
+                            <Input
+                                id="customer-tax"
+                                dir="ltr"
+                                inputMode="numeric"
+                                maxLength={15}
+                                value={customerForm.tax_number}
+                                onChange={(e) => setCustomerForm((f) => ({ ...f, tax_number: e.target.value }))}
+                            />
+                            {customerErrors.tax_number && <p className="text-destructive text-xs">{customerErrors.tax_number}</p>}
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setCustomerOpen(false)} disabled={savingCustomer}>
+                            تراجع
+                        </Button>
+                        <Button onClick={saveCustomer} disabled={savingCustomer}>
+                            <UserPen className="size-4" /> حفظ البيانات
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* طريقة الدفع — لا تُعتمد الفاتورة بلا واحدة، وهذا باب المحاسب إليها */}
+            <Dialog open={methodOpen} onOpenChange={(open) => !open && !savingMethod && setMethodOpen(false)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>طريقة دفع الفاتورة {invoice.invoiceNumber}</DialogTitle>
+                        <DialogDescription>كيف حُصِّل مبلغ هذه الفاتورة. لا تُعتمد الفاتورة قبل تحديدها.</DialogDescription>
+                    </DialogHeader>
+                    {paymentMethodOptions.length === 0 ? (
+                        <p className="text-destructive text-sm">لا توجد طرق دفع مفعّلة لهذا الفرع — أضفها من الإعدادات أولاً.</p>
+                    ) : (
+                        <Select value={methodId ? String(methodId) : undefined} onValueChange={(v) => setMethodId(Number(v))}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="اختر طريقة الدفع" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {paymentMethodOptions.map((m) => (
+                                    <SelectItem key={m.id} value={String(m.id)}>
+                                        {m.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setMethodOpen(false)} disabled={savingMethod}>
+                            تراجع
+                        </Button>
+                        <Button onClick={savePaymentMethod} disabled={savingMethod || !methodId || methodId === invoice.paymentMethodId}>
+                            <CreditCard className="size-4" /> حفظ طريقة الدفع
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Approve-payment confirmation */}
             <Dialog open={approveOpen} onOpenChange={(open) => !open && setApproveOpen(false)}>
