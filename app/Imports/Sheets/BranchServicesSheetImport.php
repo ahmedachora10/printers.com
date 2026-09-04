@@ -62,6 +62,11 @@ class BranchServicesSheetImport implements ToCollection, WithHeadingRow
         'بالمتر المربع' => 'sqm',
         'المتر المربع' => 'sqm',
         'متر مربع' => 'sqm',
+        // تاسك 80: وحدة القياس الثالثة — بُعدٌ واحد لا بُعدان.
+        'بالمتر الطولي' => 'linear',
+        'المتر الطولي' => 'linear',
+        'متر طولي' => 'linear',
+        'طولي' => 'linear',
     ];
 
     public function __construct(
@@ -189,8 +194,9 @@ class BranchServicesSheetImport implements ToCollection, WithHeadingRow
             'is_active' => $this->bool($row, self::ACTIVE, $service === null ? true : (bool) $service->is_active),
         ];
 
-        if ($data['pricing_type'] === ServicePricingTypeEnum::Sqm->value && $data['price_per_sqm'] <= 0) {
-            $this->report->skip($number, $name, 'أدخل سعر المتر المربع للخدمات المسعّرة بالمتر المربع');
+        // `price_per_sqm` هو سعر وحدة القياس أيّاً كانت، فيلزم في التسعيرين.
+        if (ServicePricingTypeEnum::from($data['pricing_type'])->isMeasured() && $data['price_per_sqm'] <= 0) {
+            $this->report->skip($number, $name, 'أدخل سعر وحدة القياس للخدمات المسعّرة بالمتر المربع أو الطولي');
 
             return;
         }

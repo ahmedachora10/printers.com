@@ -123,6 +123,23 @@ class CalculateServiceInvoiceAction
                 $unitPrice = $submitted > 0 ? $submitted : round((float) $branchService->price_per_sqm, 2);
                 // المساحة بلا تقريب — يُقرّب الإجمالي وحده، وتفعل الواجهة مثله.
                 $units = $qty * (($widthCm / 100) * ($heightCm / 100));
+            } elseif ($branchService->pricing_type === ServicePricingTypeEnum::Linear) {
+                // تاسك 80: الطولي بُعدٌ واحد لا بُعدان — يُخزَّن في width_cm ويبقى
+                // height_cm فارغاً، فيقرأ كلُّ ما بُني على المقاس (الخامات، عمولة
+                // وحدة القياس، أوراق الطباعة) البعد نفسه بلا فرعٍ ثالث.
+                if ($widthCm === null || $widthCm <= 0) {
+                    throw ValidationException::withMessages([
+                        'lines' => "أدخل الطول لخدمة \"{$branchService->serviceTemplate?->name}\" المسعّرة بالمتر الطولي.",
+                    ]);
+                }
+
+                $heightCm = null;
+
+                $submitted = round((float) ($line['unit_price'] ?? 0), 2);
+
+                // `price_per_sqm` يُقرأ «سعر وحدة القياس»: سعر المتر الطولي هنا.
+                $unitPrice = $submitted > 0 ? $submitted : round((float) $branchService->price_per_sqm, 2);
+                $units = $qty * ($widthCm / 100);
             } else {
                 $widthCm = null;
                 $heightCm = null;
@@ -155,7 +172,7 @@ class CalculateServiceInvoiceAction
             [$lineAgentId, $agentCommissionType, $agentCommissionValue, $agentCommissionAmount] =
                 $this->lineAgentCommission(
                     $line, $branchService, $lineAgents, $lineSubtotal, $qty,
-                    $widthCm, $heightCm, $vatPct, $branchId, $materialsTotal,
+                    $units, $vatPct, $branchId, $materialsTotal,
                 );
 
             $subtotal += $lineSubtotal;
@@ -438,11 +455,12 @@ class CalculateServiceInvoiceAction
         }
 
         $name = $branchService->serviceTemplate?->name;
-        $isSqm = $branchService->pricing_type === ServicePricingTypeEnum::Sqm;
+        // تاسك 80: الحدّ يقيس سعر وحدة القياس لكل تسعير مقاسيّ — المربع والطولي.
+        $isMeasured = $branchService->pricing_type?->isMeasured() === true;
 
         throw ValidationException::withMessages([
-            'lines' => ($isSqm ? "سعر المتر على \"{$name}\"" : "سعر \"{$name}\"")
-                .' يتجاوز الحد الأعلى المسموح ('.number_format($cap, 2).' ر.س'.($isSqm ? ' للمتر' : '').').',
+            'lines' => ($isMeasured ? "سعر المتر على \"{$name}\"" : "سعر \"{$name}\"")
+                .' يتجاوز الحد الأعلى المسموح ('.number_format($cap, 2).' ر.س'.($isMeasured ? ' للمتر' : '').').',
         ]);
     }
 
@@ -499,8 +517,8 @@ class CalculateServiceInvoiceAction
         }
 
         $name = $branchService->serviceTemplate?->name;
-        $isSqm = $branchService->pricing_type === ServicePricingTypeEnum::Sqm;
-        $unit = $isSqm ? ' للمتر' : '';
+        $isMeasured = $branchService->pricing_type?->isMeasured() === true;
+        $unit = $isMeasured ? ' للمتر' : '';
         // يُسمّى الحدّ الذي لُمس، وإلا بحث الموظف عن رقمٍ لا يراه في أي شاشة.
         // وطرف الخامات يذكر أصله الصافي أيضاً، وإلا بحث عن الـ23 في شاشة كُتب
         // فيها 20.
@@ -510,7 +528,7 @@ class CalculateServiceInvoiceAction
             : 'أقل سعر للبيع ('.number_format($configured, 2).' ر.س'.$unit.')';
 
         throw ValidationException::withMessages([
-            'lines' => ($isSqm ? "سعر المتر على \"{$name}\"" : "سعر \"{$name}\"")
+            'lines' => ($isMeasured ? "سعر المتر على \"{$name}\"" : "سعر \"{$name}\"")
                 .' بعد الخصم ('.number_format($effective, 2).' ر.س'.$unit.' شاملة الضريبة)'
                 ." يقلّ عن {$reason}.",
         ]);
@@ -613,8 +631,7 @@ class CalculateServiceInvoiceAction
         Collection $lineAgents,
         float $lineSubtotal,
         int $qty,
-        ?float $widthCm,
-        ?float $heightCm,
+        float $units,
         float $vatPct,
         int $branchId,
         float $materialsTotal,
@@ -651,10 +668,12 @@ class CalculateServiceInvoiceAction
             ]);
         }
 
+        // تاسك 80: عمولة وحدة القياس تسري على كل تسعير مقاسيّ — المربع والطولي
+        // معاً — فلا تبقى خدمة الطولي بلا عمولة متر. والخدمة بالوحدة لا تقيس شيئاً.
         if ($type === LineAgentCommissionTypeEnum::PerSqm
-            && $branchService->pricing_type !== ServicePricingTypeEnum::Sqm) {
+            && $branchService->pricing_type?->isMeasured() !== true) {
             throw ValidationException::withMessages([
-                'lines' => 'عمولة المتر المربع متاحة فقط للخدمات المسعّرة بالمتر المربع.',
+                'lines' => 'عمولة وحدة القياس متاحة فقط للخدمات المسعّرة بالمتر المربع أو الطولي.',
             ]);
         }
 
@@ -672,10 +691,9 @@ class CalculateServiceInvoiceAction
         $amount = match ($type) {
             LineAgentCommissionTypeEnum::Percentage => round($percentageBase * $value / 100, 2),
             LineAgentCommissionTypeEnum::Fixed => round($value * $qty, 2),
-            LineAgentCommissionTypeEnum::PerSqm => round(
-                $qty * (($widthCm ?? 0) / 100) * (($heightCm ?? 0) / 100) * $value,
-                2,
-            ),
+            // المضروب فيه هو نفس الوحدات المشتقّة أعلاه: أمتارٌ مربعة للمربع
+            // وأمتارٌ طولية للطولي، وكلتاهما تحمل الكمية بداخلها.
+            LineAgentCommissionTypeEnum::PerSqm => round($units * $value, 2),
         };
 
         return [$agentId, $type, $value, $amount];

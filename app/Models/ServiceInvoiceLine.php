@@ -59,13 +59,27 @@ class ServiceInvoiceLine extends Model
      */
     public function isPricedPerSqm(): bool
     {
-        return $this->unit_price_basis === ServicePricingTypeEnum::Sqm;
+        return $this->unit_price_basis?->isMeasured() === true;
     }
 
-    /** مساحة القطعة الواحدة بالمتر المربع من المقاس المحفوظ — صفر بلا مقاس. */
+    /**
+     * وحدات القطعة الواحدة من المقاس المحفوظ — صفر بلا مقاس.
+     *
+     * المربع يضرب مقاسين، والطولي يقيس مقاساً واحداً محفوظاً في `width_cm`
+     * و`height_cm` فارغ (تاسك 80). والسطر القديم بلا `unit_price_basis` يُقاس
+     * بمقاسيه كما كان: هو سطرٌ مربّع بحكم أنه حمل مقاسين.
+     */
     public function areaSqm(): float
     {
-        if ($this->width_cm === null || $this->height_cm === null) {
+        if ($this->width_cm === null) {
+            return 0.0;
+        }
+
+        if ($this->unit_price_basis === ServicePricingTypeEnum::Linear) {
+            return (float) $this->width_cm / 100;
+        }
+
+        if ($this->height_cm === null) {
             return 0.0;
         }
 

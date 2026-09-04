@@ -10,7 +10,10 @@ export interface PosProduct {
     isSqm: boolean;
 }
 
-export type ServicePricingType = 'unit' | 'sqm';
+// نوع التسعير مصدره ملفّ خدمات الفرع — تعريفٌ واحد لا نسختان تفترقان (تاسك 80).
+export type { ServicePricingType } from './branch-service';
+import { type ServicePricingType } from './branch-service';
+import { type LineUnitPriceBasis } from '@/lib/invoice';
 
 /** How a line's commission-owner (agent) share is computed. */
 export type LineAgentCommissionType = 'percentage' | 'fixed' | 'per_sqm';
@@ -215,6 +218,8 @@ export interface PosInvoiceLine {
     sku: string | null;
     qty: number;
     unitPrice: number;
+    /** ما يقيسه السعر أعلاه: سعر متر مربع أو طولي، و null سعر وحدة/قطعة */
+    unitPriceBasis?: LineUnitPriceBasis;
     widthCm?: number | null;
     heightCm?: number | null;
     /** عدد القطع لسطر المنتج المسعّر بالمتر — الكمية أعلاه مساحتها الإجمالية */

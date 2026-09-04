@@ -1,4 +1,5 @@
-export type ServicePricingType = 'unit' | 'sqm';
+/** تاسك 80: التسعير بالوحدة، أو بمقاسٍ — مترٌ مربع (بُعدان) أو طولي (بُعد). */
+export type ServicePricingType = 'unit' | 'sqm' | 'linear';
 
 /** خامة مخزون تستهلكها الخدمة — تُخصم عند اعتماد الفاتورة (تاسك 50). */
 export interface BranchServiceMaterial {

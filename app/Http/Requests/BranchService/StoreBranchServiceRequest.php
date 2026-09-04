@@ -49,7 +49,9 @@ class StoreBranchServiceRequest extends FormRequest
             'max_selling_price' => ['nullable', 'numeric', 'min:0'],
             'min_selling_price' => ['nullable', 'numeric', 'min:0', ...$this->sellingPriceFloorRules()],
             'pricing_type' => ['nullable', Rule::enum(ServicePricingTypeEnum::class)],
-            'price_per_sqm' => ['nullable', 'required_if:pricing_type,sqm', 'numeric', 'min:0'],
+            // تاسك 80: `price_per_sqm` يُقرأ «سعر وحدة القياس» — سعر المتر المربع
+            // للمربع وسعر المتر الطولي للطولي، فيلزم في التسعيرين معاً.
+            'price_per_sqm' => ['nullable', 'required_if:pricing_type,sqm', 'required_if:pricing_type,linear', 'numeric', 'min:0'],
             'agent_commission_per_sqm' => ['nullable', 'numeric', 'min:0'],
             'is_tahazir' => ['boolean'],
             // الخامات: مفتاح + تكلفة افتراضية للوحدة تُعبَّأ في نقطة البيع. صفر
@@ -67,7 +69,7 @@ class StoreBranchServiceRequest extends FormRequest
             ...$this->sellingPriceBoundMessages(),
             'branch_id.unique' => 'هذا الفرع مرتبط بالفعل بقالب الخدمة هذا.',
             'service_template_id.exists' => 'الخدمة غير متاحة لهذا الفرع.',
-            'price_per_sqm.required_if' => 'أدخل سعر المتر المربع للخدمات المسعّرة بالمتر المربع.',
+            'price_per_sqm.required_if' => 'أدخل سعر وحدة القياس للخدمات المسعّرة بالمتر المربع أو الطولي.',
         ];
     }
 }

@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
-import { formatLineSize, formatLineUnitPrice } from '@/lib/invoice';
+import { formatLineSize, formatLineUnitPrice, type LineUnitPriceBasis } from '@/lib/invoice';
 import { formatCurrency, formatQty } from '@/lib/utils';
 import posService from '@/routes/pos/service';
 import serviceInvoice from '@/routes/invoices/service';
@@ -29,8 +29,8 @@ interface ReviewLine {
     notes: string | null;
     qty: number;
     unitPrice: number;
-    /** ما يقيسه السعر: 'sqm' سعر متر مربع، و null سعر وحدة */
-    unitPriceBasis?: 'sqm' | null;
+    /** ما يقيسه السعر: 'sqm' سعر متر مربع، و'linear' سعر متر طولي، و null سعر وحدة */
+    unitPriceBasis?: LineUnitPriceBasis;
     widthCm: number | null;
     heightCm: number | null;
     discountPct: number;

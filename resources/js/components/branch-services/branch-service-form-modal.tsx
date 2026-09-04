@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { type BranchService, type BranchServiceFormData } from '@/types/branch-service';
+import { meterLabel } from '@/lib/service-pricing';
+import { type BranchService, type BranchServiceFormData, type ServicePricingType } from '@/types/branch-service';
 import { router, useForm } from '@inertiajs/react';
 import { Plus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -281,23 +282,26 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                     {/* Pricing type: per-unit or per-square-meter */}
                     <div className="space-y-1">
                         <Label htmlFor="bs-pricing-type">نوع التسعير</Label>
-                        <Select value={data.pricing_type} onValueChange={(val) => setData('pricing_type', val as 'unit' | 'sqm')}>
+                        <Select value={data.pricing_type} onValueChange={(val) => setData('pricing_type', val as ServicePricingType)}>
                             <SelectTrigger id="bs-pricing-type">
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="unit">بالوحدة</SelectItem>
                                 <SelectItem value="sqm">بالمتر المربع</SelectItem>
+                                {/* تاسك 80: بُعدٌ واحد — نقطة البيع تطلب الطول وحده. */}
+                                <SelectItem value="linear">بالمتر الطولي</SelectItem>
                             </SelectContent>
                         </Select>
                         <InputError message={errors.pricing_type} />
                     </div>
 
-                    {data.pricing_type === 'sqm' && (
+                    {data.pricing_type !== 'unit' && (
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-1">
                                 <Label htmlFor="bs-price-sqm">
-                                    سعر المتر المربع (ر.س) <span className="text-destructive">*</span>
+                                    {data.pricing_type === 'linear' ? 'سعر المتر الطولي (ر.س)' : 'سعر المتر المربع (ر.س)'}{' '}
+                                    <span className="text-destructive">*</span>
                                 </Label>
                                 <Input
                                     id="bs-price-sqm"
@@ -329,7 +333,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                     {/* سقف سعر البيع — يُلزِم الموظف وحده، وفارغه يترك السعر مفتوحاً */}
                     <div className="space-y-1">
                         <Label htmlFor="bs-max-price">
-                            {data.pricing_type === 'sqm' ? 'أعلى سعر للمتر المربع (ر.س)' : 'أعلى سعر للبيع (ر.س)'}
+                            {data.pricing_type === 'unit' ? 'أعلى سعر للبيع (ر.س)' : `أعلى سعر ${meterLabel(data.pricing_type)} (ر.س)`}
                             <span className="text-muted-foreground me-1 text-xs font-normal">شامل الضريبة</span>
                         </Label>
                         <Input
@@ -345,7 +349,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                             }
                         />
                         <p className="text-muted-foreground text-xs">
-                            {data.pricing_type === 'sqm'
+                            {data.pricing_type !== 'unit'
                                 ? 'لا يستطيع الموظف بيع المتر بأعلى من هذا السعر. فارغة = السعر مفتوح له.'
                                 : 'لا يستطيع الموظف البيع بأعلى من هذا السعر. فارغة = السعر مفتوح له.'}
                         </p>
@@ -356,7 +360,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                         نقطة البيع أعلى هذا الرقم وتكلفةِ خامات السطر (تاسك 65). */}
                     <div className="space-y-1">
                         <Label htmlFor="bs-min-price">
-                            {data.pricing_type === 'sqm' ? 'أقل سعر للمتر المربع (ر.س)' : 'أقل سعر للبيع (ر.س)'}
+                            {data.pricing_type === 'unit' ? 'أقل سعر للبيع (ر.س)' : `أقل سعر ${meterLabel(data.pricing_type)} (ر.س)`}
                             <span className="text-muted-foreground me-1 text-xs font-normal">شامل الضريبة</span>
                         </Label>
                         <Input
@@ -372,7 +376,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                             }
                         />
                         <p className="text-muted-foreground text-xs">
-                            {data.pricing_type === 'sqm'
+                            {data.pricing_type !== 'unit'
                                 ? 'لا يستطيع الموظف بيع المتر بأقل من هذا السعر — يُقارَن بالسعر المكتوب في نقطة البيع كما هو (شاملاً الضريبة) بعد الخصم. فارغة = لا حدّ أدنى.'
                                 : 'لا يستطيع الموظف البيع بأقل من هذا السعر — يُقارَن بالسعر المكتوب في نقطة البيع كما هو (شاملاً الضريبة) بعد الخصم. فارغة = لا حدّ أدنى.'}
                         </p>
@@ -405,7 +409,9 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                 {/* وحدة المبلغ تتبع نوع التسعير (تاسك 63): خدمةٌ بالمتر
                                     المربع تكلفة خامتها للمتر وتُضرب في مساحة السطر. */}
                                 <Label htmlFor="bs-materials-cost">
-                                    {data.pricing_type === 'sqm' ? 'تكلفة الخامات للمتر المربع (ر.س)' : 'تكلفة الخامات للوحدة (ر.س)'}
+                                    {data.pricing_type === 'unit'
+                                        ? 'تكلفة الخامات للوحدة (ر.س)'
+                                        : `تكلفة الخامات ${meterLabel(data.pricing_type)} (ر.س)`}
                                     <span className="text-muted-foreground me-1 text-xs font-normal">بلا ضريبة</span>
                                 </Label>
                                 <Input
@@ -421,6 +427,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                     لا تظهر للعميل ولا تدخل في الإجمالي. وهي تكلفة صافية: تُخصم من أساس عمولة الموظف صافيةً، وتُرفع بالضريبة وحدها
                                     عند منع البيع بأقل منها (تكلفة 20 = لا تُباع بأقل من 23.00 شاملة).
                                     {data.pricing_type === 'sqm' && ' تُضرب في مساحة السطر: خامة 10 ر.س على مقاس 100×70 سم = 7 ر.س.'}
+                                    {data.pricing_type === 'linear' && ' تُضرب في طول السطر: خامة 10 ر.س على طول 200 سم = 20 ر.س.'}
                                 </p>
                                 {/* تاسك 77: الصفر معناه «تُحدَّد وقت البيع» لا «بلا خامات». */}
                                 <p className="text-muted-foreground text-xs">اتركها صفراً ليُدخلها الموظف مع كل فاتورة.</p>

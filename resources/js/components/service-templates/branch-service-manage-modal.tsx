@@ -11,9 +11,15 @@ import NoteExamplesField from '@/components/branch-services/note-examples-field'
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { meterLabel } from '@/lib/service-pricing';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { type BranchService, type BranchServiceFormData, type BranchServiceUpdateData } from '@/types/branch-service';
+import {
+    type BranchService,
+    type BranchServiceFormData,
+    type BranchServiceUpdateData,
+    type ServicePricingType,
+} from '@/types/branch-service';
 import { type ServiceTemplate } from '@/types/service-template';
 import { router, useForm } from '@inertiajs/react';
 import { Copy, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
@@ -365,7 +371,7 @@ interface FieldsProps {
         max_discount_pct: number;
         max_selling_price: number | null;
         min_selling_price: number | null;
-        pricing_type: 'unit' | 'sqm';
+        pricing_type: ServicePricingType;
         price_per_sqm: number;
         agent_commission_per_sqm: number;
         note_examples: string[];
@@ -427,14 +433,17 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                     >
                         <option value="unit">بالوحدة</option>
                         <option value="sqm">بالمتر المربع</option>
+                        {/* تاسك 80: بُعدٌ واحد — نقطة البيع تطلب الطول وحده. */}
+                        <option value="linear">بالمتر الطولي</option>
                     </select>
                     <InputError message={errors.pricing_type} />
                 </div>
 
-                {data.pricing_type === 'sqm' && (
+                {data.pricing_type !== 'unit' && (
                     <div className="space-y-1">
                         <Label className="text-xs">
-                            سعر المتر المربع (ر.س) <span className="text-destructive">*</span>
+                            {data.pricing_type === 'linear' ? 'سعر المتر الطولي (ر.س)' : 'سعر المتر المربع (ر.س)'}{' '}
+                            <span className="text-destructive">*</span>
                         </Label>
                         <Input
                             type="number"
@@ -450,7 +459,7 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                 )}
             </div>
 
-            {data.pricing_type === 'sqm' && (
+            {data.pricing_type !== 'unit' && (
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                         <Label className="text-xs">عمولة المندوب للمتر (ر.س)</Label>
@@ -471,7 +480,7 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
             {/* سقف سعر البيع — يمنع الموظف من تجاوزه، وفارغه يترك السعر مفتوحاً */}
             <div className="space-y-1">
                 <Label className="text-xs">
-                    {data.pricing_type === 'sqm' ? 'أعلى سعر للمتر المربع (ر.س)' : 'أعلى سعر للبيع (ر.س)'} — شامل الضريبة
+                    {data.pricing_type === 'unit' ? 'أعلى سعر للبيع (ر.س)' : `أعلى سعر ${meterLabel(data.pricing_type)} (ر.س)`} — شامل الضريبة
                 </Label>
                 <Input
                     type="number"
@@ -488,7 +497,9 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
 
             {/* أرضية سعر البيع (تاسك 64) — مرآة السقف أعلاه */}
             <div className="space-y-1">
-                <Label className="text-xs">{data.pricing_type === 'sqm' ? 'أقل سعر للمتر المربع (ر.س)' : 'أقل سعر للبيع (ر.س)'} — شامل الضريبة</Label>
+                <Label className="text-xs">
+                    {data.pricing_type === 'unit' ? 'أقل سعر للبيع (ر.س)' : `أقل سعر ${meterLabel(data.pricing_type)} (ر.س)`} — شامل الضريبة
+                </Label>
                 <Input
                     type="number"
                     step="0.01"
@@ -516,7 +527,10 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                 <div className="space-y-1">
                     {/* وحدة المبلغ تتبع نوع التسعير (تاسك 63). */}
                     <Label className="text-xs">
-                        {data.pricing_type === 'sqm' ? 'تكلفة الخامات للمتر المربع (ر.س)' : 'تكلفة الخامات للوحدة (ر.س)'} — بلا ضريبة
+                        {data.pricing_type === 'unit'
+                            ? 'تكلفة الخامات للوحدة (ر.س)'
+                            : `تكلفة الخامات ${meterLabel(data.pricing_type)} (ر.س)`}{' '}
+                        — بلا ضريبة
                     </Label>
                     <Input
                         type="number"

@@ -285,7 +285,28 @@ describe('import', function () {
             'file' => branchServicesSheet([serviceRow('بنر', [5 => 'بالمتر المربع', 6 => '0.00'])]),
         ])->assertOk();
 
-        expect($response->json('skipped.0.reason'))->toContain('سعر المتر المربع');
+        expect($response->json('skipped.0.reason'))->toContain('سعر وحدة القياس');
+        expect(BranchService::where('branch_id', $this->branch->id)->count())->toBe(0);
+    });
+
+    // تاسك 80: وحدة القياس الثالثة تدخل بنفس الورقة وبنفس العمود — «سعر المتر»
+    // يُقرأ سعر وحدة القياس أيّاً كانت، فلا عمود جديد ولا ورقة جديدة.
+    it('reads a linear-metre service with its metre price', function () {
+        $this->post(route('branch-services.import'), [
+            'file' => branchServicesSheet([serviceRow('شريط', [5 => 'بالمتر الطولي', 6 => '5.00'])]),
+        ])->assertOk();
+
+        $service = BranchService::where('branch_id', $this->branch->id)->firstOrFail();
+        expect($service->pricing_type->value)->toBe('linear')
+            ->and((float) $service->price_per_sqm)->toBe(5.0);
+    });
+
+    it('refuses a linear-metre service with no metre price', function () {
+        $response = $this->post(route('branch-services.import'), [
+            'file' => branchServicesSheet([serviceRow('شريط', [5 => 'بالمتر الطولي', 6 => '0.00'])]),
+        ])->assertOk();
+
+        expect($response->json('skipped.0.reason'))->toContain('سعر وحدة القياس');
         expect(BranchService::where('branch_id', $this->branch->id)->count())->toBe(0);
     });
 

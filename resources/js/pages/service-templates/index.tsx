@@ -12,7 +12,7 @@ import { type BreadcrumbItem } from '@/types';
 import { type PaginatedServiceTemplate, type ServiceTemplate } from '@/types/service-template';
 import { router } from '@inertiajs/react';
 import { ArrowDown, ArrowUp, Network, Pencil, Plus, Trash2 } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'قوالب الخدمات', href: '/service-templates' }];
 
@@ -58,16 +58,19 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
      * ترتيب الصفحة الظاهرة، والخادم يضعها في مواضعها من التسلسل العامّ —
      * فالترتيب عامّ لا داخل الصفحة، وحدّاه أوّل الصفحة وآخرها لا أوّل الجدول.
      */
-    function move(templateId: number, direction: -1 | 1) {
-        const ids = templates.data.map((t) => t.id);
-        const from = ids.indexOf(templateId);
-        const to = from + direction;
-        if (from < 0 || to < 0 || to >= ids.length) return;
+    const move = useCallback(
+        (templateId: number, direction: -1 | 1) => {
+            const ids = templates.data.map((t) => t.id);
+            const from = ids.indexOf(templateId);
+            const to = from + direction;
+            if (from < 0 || to < 0 || to >= ids.length) return;
 
-        [ids[from], ids[to]] = [ids[to], ids[from]];
+            [ids[from], ids[to]] = [ids[to], ids[from]];
 
-        router.post(reorder.url(), { ids }, { preserveScroll: true, preserveState: true });
-    }
+            router.post(reorder.url(), { ids }, { preserveScroll: true, preserveState: true });
+        },
+        [templates.data],
+    );
 
     function handleDelete() {
         if (!deletingTemplateId) return;
@@ -172,7 +175,7 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
                 ),
             },
         ],
-        [templates.data],
+        [templates.data, move],
     );
 
     const [search, setSearch] = useState(filters.search ?? '');

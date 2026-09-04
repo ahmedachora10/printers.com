@@ -15,6 +15,7 @@ use App\Actions\ServiceInvoice\ReturnServiceInvoiceAction;
 use App\Actions\ServiceInvoice\UpdateServiceInvoiceAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
+use App\Enums\ServicePricingTypeEnum;
 use App\Enums\Roles;
 use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\ReturnServiceInvoiceRequest;
@@ -116,10 +117,11 @@ class ServiceInvoiceController extends Controller
                         'name' => $line->service_name,
                         'notes' => $line->notes,
                         'qty' => $line->qty,
-                        // سطر المتر يعود إلى نقطة البيع بسعر المتر — والسطر القديم
-                        // الذي حُفظ بسعر القطعة يُقسم على مساحته أولاً فلا يتغيّر
-                        // إجماليه لمجرد إعادة حفظه.
-                        'unitPrice' => ($service['pricingType'] ?? 'unit') === 'sqm'
+                        // السطر المسعّر بمقاس — مربعاً كان أم طولياً (تاسك 80) —
+                        // يعود إلى نقطة البيع بسعر وحدة قياسه، والسطر القديم الذي
+                        // حُفظ بسعر القطعة يُقسم على قياسه أولاً فلا يتغيّر إجماليه
+                        // لمجرد إعادة حفظه.
+                        'unitPrice' => ServicePricingTypeEnum::tryFrom($service['pricingType'] ?? 'unit')?->isMeasured()
                             ? $line->unitPricePerSqm()
                             : (float) $line->unit_price,
                         'discountPct' => (float) $line->discount_pct,
@@ -313,7 +315,7 @@ class ServiceInvoiceController extends Controller
                         'notes' => $line->notes,
                         'qty' => $line->qty,
                         'unitPrice' => (float) $line->unit_price,
-                        'unitPriceBasis' => $line->isPricedPerSqm() ? 'sqm' : null,
+                        'unitPriceBasis' => $line->isPricedPerSqm() ? $line->unit_price_basis?->value : null,
                         'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
                         'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
                         'discountPct' => (float) $line->discount_pct,
@@ -582,7 +584,7 @@ class ServiceInvoiceController extends Controller
                     'sku' => null,
                     'qty' => $line->qty,
                     'unitPrice' => (float) $line->unit_price,
-                    'unitPriceBasis' => $line->isPricedPerSqm() ? 'sqm' : null,
+                    'unitPriceBasis' => $line->isPricedPerSqm() ? $line->unit_price_basis?->value : null,
                     'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
                     'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
                     'discountPct' => (float) $line->discount_pct,
