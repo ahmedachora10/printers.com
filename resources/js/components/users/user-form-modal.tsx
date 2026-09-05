@@ -255,6 +255,9 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
                                 onChange={(e) => setData('base_commission_pct', e.target.value)}
                                 dir="ltr"
                             />
+                            <p className="text-muted-foreground text-[11px] leading-tight">
+                                تُسجَّل تلقائياً كنسبة هذا الموظف على أي خدمة تُضاف لفرعه لاحقاً، ويمكن تعديلها لكل خدمة على حدة.
+                            </p>
                             <InputError message={errors.base_commission_pct} />
                         </div>
 

@@ -2,12 +2,17 @@
 
 namespace App\Actions\BranchService;
 
+use App\Actions\UserService\SeedUserServiceCommissionsAction;
 use App\Models\BranchService;
 use App\Models\ServiceTemplate;
 use Illuminate\Support\Facades\DB;
 
 class AttachBranchServiceAction
 {
+    public function __construct(
+        private readonly SeedUserServiceCommissionsAction $seedCommissions,
+    ) {}
+
     /** @param array<string, mixed> $data */
     public function handle(array $data): BranchService
     {
@@ -34,9 +39,16 @@ class AttachBranchServiceAction
                 'is_active' => $data['is_active'] ?? true,
             ]);
 
-            return BranchService::where('service_template_id', $data['service_template_id'])
+            $branchService = BranchService::where('service_template_id', $data['service_template_id'])
                 ->where('branch_id', $data['branch_id'])
                 ->firstOrFail();
+
+            // تاسك 85: خدمةٌ جديدة تولد ومعها عمولة كل موظف في الفرع بقيمة
+            // عمولته الأساسية — وإلا وُلدت بصفٍّ غائب أي بصفر بالمئة للجميع،
+            // وهي شكوى العميل نفسها.
+            $this->seedCommissions->handle($branchService);
+
+            return $branchService;
         });
     }
 }
