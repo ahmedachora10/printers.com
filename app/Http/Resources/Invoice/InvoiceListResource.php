@@ -87,6 +87,10 @@ class InvoiceListResource extends JsonResource
             // صفوف دفعات، فالمحصَّل منها إجمالُها؛ والملغاة/المرتجعة لا مطالبة عليها.
             'paidAmount' => $this->collectedAmount($status),
             'remainingAmount' => $this->remainingAmount($status),
+            // ما استُرجع من الفاتورة. المرتجع الكامل يقلب الحالة إلى «مرتجع»،
+            // أما الجزئي فيترك الفاتورة قائمةً — وهذا الرقم هو ما يُظهر أنّ
+            // عليها مرتجعاً بدل أن يمرّ صامتاً.
+            'refundedAmount' => round((float) $this->refunded_amount, 2),
             'status' => $status->value,
             'statusLabel' => $status->label(),
             // Feeds the tooltip on the "ملغاة" badge so the employee sees why

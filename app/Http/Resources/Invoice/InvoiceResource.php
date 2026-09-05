@@ -26,11 +26,18 @@ class InvoiceResource extends JsonResource
             ? InvoiceTypeEnum::SERVICE
             : InvoiceTypeEnum::PRODUCT;
 
-        $total = (float) $this->total_amount;
         $refundedTotal = $this->relationLoaded('refunds')
             ? round((float) $this->refunds->sum('amount'), 2)
             : 0.0;
-        $refundableRemaining = round($total - $refundedTotal, 2);
+
+        // الدفعات (عربون + دفعات لاحقة): المحصَّل والمتبقي مصدرهما صفوف الدفعات،
+        // بينما total_amount يبقى السعر المتفق عليه.
+        $paidAmount = $this->resource->paidAmount();
+        $paymentRemaining = $this->resource->remainingAmount();
+
+        // القابل للإرجاع يُقاس على ما حُصِّل لا على الإجمالي — سقفُ
+        // CreateRefundAction نفسه، فلا يعرض الزرّ مبلغاً يرفضه الخادم.
+        $refundableRemaining = round(max($paidAmount - $refundedTotal, 0), 2);
 
         $user = $request->user();
         // الفاتورة تُمرَّر إلى الصلاحية: المحاسب يُمنع من مرتجع فاتورة معتمدة
@@ -39,6 +46,7 @@ class InvoiceResource extends JsonResource
             && $user->can('create', [Refund::class, $this->resource])
             && ($user->roleName->isSuperAdmin() || $user->branchId === $this->branch_id)
             && $this->status !== InvoiceStatusEnum::CANCELLED
+            && $this->status !== InvoiceStatusEnum::RETURNED
             && $refundableRemaining > 0;
 
         // Settling a due service invoice straight from the viewer, mirroring the
@@ -77,10 +85,6 @@ class InvoiceResource extends JsonResource
             ? $this->invoiceAgents->whereNotNull('agent_payment_id')->isNotEmpty()
             : $this->agent_payment_id !== null;
 
-        // الدفعات (عربون + دفعات لاحقة): المحصَّل والمتبقي مصدرهما صفوف الدفعات،
-        // بينما total_amount يبقى السعر المتفق عليه.
-        $paidAmount = $this->resource->paidAmount();
-        $paymentRemaining = $this->resource->remainingAmount();
         $canRecordPayment = $user !== null && $user->can('recordPayment', $this->resource);
 
         // «تم تسليم العمل» — الصلاحية وحدها تقرّر، وهي تُسقط المُسلَّمة والملغاة

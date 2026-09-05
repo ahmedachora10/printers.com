@@ -135,6 +135,8 @@ export interface InvoiceListItem {
     /** ما حُصِّل من الفاتورة، والمتبقي على العميل (صفر للملغاة والمرتجعة) */
     paidAmount: number;
     remainingAmount: number;
+    /** مجموع ما استُرجع من الفاتورة — أكبر من صفر مع حالة غير «مرتجع» يعني مرتجعاً جزئياً */
+    refundedAmount: number;
     status: InvoiceStatus;
     statusLabel: string;
     /** Why a reviewer rejected the invoice — service invoices only. */

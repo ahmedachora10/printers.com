@@ -71,7 +71,9 @@ class RefundController extends Controller
 
     /**
      * Resolve an invoice by its number for the refund form, returning a summary
-     * (total, already-refunded, remaining refundable) as JSON.
+     * (total, collected, already-refunded, remaining refundable) as JSON. An
+     * invoice with nothing left to refund is reported as not found, with the
+     * reason — so the form never offers an amount the action would reject.
      */
     public function lookup(Request $request): JsonResponse
     {
@@ -97,12 +99,30 @@ class RefundController extends Controller
                 return response()->json(['found' => false, 'message' => 'الفاتورة ملغاة ولا يمكن إرجاعها.']);
             }
 
+            if ($invoice->status === InvoiceStatusEnum::RETURNED) {
+                return response()->json(['found' => false, 'message' => 'الفاتورة مُرتجعة بالفعل.']);
+            }
+
             $alreadyRefunded = (float) Refund::query()
                 ->where('invoice_type', $type->modelClass())
                 ->where('invoice_id', $invoice->id)
                 ->sum('amount');
 
             $total = (float) $invoice->total_amount;
+
+            // القابل للإرجاع يُقاس على ما حُصِّل لا على الإجمالي — نفس سقف
+            // CreateRefundAction، حتى لا تعرض الشاشة مبلغاً يرفضه الخادم.
+            $collected = $invoice->paidAmount();
+
+            if (round($collected - $alreadyRefunded, 2) <= 0) {
+                return response()->json([
+                    'found' => false,
+                    'message' => $collected <= 0
+                        ? 'لم يُحصَّل من هذه الفاتورة شيء، فلا مبلغ يُردّ.'
+                        : 'تم إرجاع كامل ما حُصِّل من هذه الفاتورة.',
+                ]);
+            }
+
             $hasProducts = $type === InvoiceTypeEnum::PRODUCT
                 && $invoice->lines()->whereNotNull('product_id')->exists();
 
@@ -138,8 +158,9 @@ class RefundController extends Controller
                     'typeLabel' => $type->label(),
                     'status' => $invoice->status->value,
                     'totalAmount' => $total,
+                    'collectedAmount' => round($collected, 2),
                     'alreadyRefunded' => round($alreadyRefunded, 2),
-                    'refundable' => round($total - $alreadyRefunded, 2),
+                    'refundable' => round($collected - $alreadyRefunded, 2),
                     'customerName' => $invoice->customer?->full_name,
                     'hasProducts' => $hasProducts,
                     'hasMaterials' => $hasMaterials,

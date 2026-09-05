@@ -32,6 +32,8 @@ export interface InvoiceLookupResult {
     typeLabel: string;
     status: string;
     totalAmount: number;
+    /** ما حُصِّل فعلاً من الفاتورة — وهو سقف ما يُردّ، لا الإجمالي */
+    collectedAmount: number;
     alreadyRefunded: number;
     refundable: number;
     customerName: string | null;

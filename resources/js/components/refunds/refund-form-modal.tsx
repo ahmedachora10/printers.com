@@ -145,6 +145,20 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
                                     <span className="text-muted-foreground">إجمالي الفاتورة</span>
                                     <span className="font-medium" dir="ltr">{formatCurrency(invoice.totalAmount)}</span>
                                 </div>
+                                {/* الفاتورة المسدَّدة عند البيع محصَّلها إجماليُّها، فلا يُكرَّر السطر
+                                    إلا حين يفترقان — أي إذا كان عليها عربون ودفعات. */}
+                                {invoice.collectedAmount !== invoice.totalAmount && (
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-muted-foreground">المحصَّل من العميل</span>
+                                        <span className="font-medium" dir="ltr">{formatCurrency(invoice.collectedAmount)}</span>
+                                    </div>
+                                )}
+                                {invoice.alreadyRefunded > 0 && (
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-muted-foreground">سبق إرجاعه</span>
+                                        <span className="font-medium" dir="ltr">{formatCurrency(invoice.alreadyRefunded)}</span>
+                                    </div>
+                                )}
                                 <div className="flex items-center justify-between">
                                     <span className="text-muted-foreground">المبلغ القابل للإرجاع</span>
                                     <span className="font-semibold text-amber-600" dir="ltr">

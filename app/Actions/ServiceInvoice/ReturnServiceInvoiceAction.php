@@ -74,6 +74,10 @@ class ReturnServiceInvoiceAction
                     // ولا يُعرض إرجاعها ثانيةً على الفاتورة نفسها.
                     'reverse_stock' => true,
                 ], $actor);
+            } else {
+                // المرتجع الكامل يحرّر سعة الكوبون بنفسه، فلا تُردُّ مرتين. ولا
+                // مرتجع هنا، فالتحرير مسؤولية هذا المسار وحده.
+                $this->releaseCoupon($invoice);
             }
 
             if (! $wasSettled) {
@@ -84,7 +88,6 @@ class ReturnServiceInvoiceAction
 
             $this->restoreRedeemedPoints($invoice);
             $this->clawBackEarnedPoints($invoice);
-            $this->releaseCoupon($invoice);
 
             // خامات فاتورة لم تُعتمد لم تُخصم أصلاً، والدالة تكتشف ذلك بنفسها من
             // حركات الفاتورة فلا تحتاج إلى فحص الحالة هنا.

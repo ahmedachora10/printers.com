@@ -331,23 +331,39 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
 
                     // A rejected invoice carries its reason on the badge, so the
                     // employee sees why without opening the invoice.
-                    if (item.status !== 'cancelled' || !item.cancellationReason) {
-                        return badge;
+                    const primary =
+                        item.status === 'cancelled' && item.cancellationReason ? (
+                            <TooltipProvider delayDuration={100}>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span className="inline-flex cursor-help items-center gap-1">
+                                            {badge}
+                                            <Info className="text-muted-foreground h-3.5 w-3.5" aria-hidden />
+                                            <span className="sr-only">سبب الإلغاء: {item.cancellationReason}</span>
+                                        </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent className="max-w-xs whitespace-pre-line">سبب الإلغاء: {item.cancellationReason}</TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        ) : (
+                            badge
+                        );
+
+                    // المرتجع الجزئي لا يغيّر الحالة عمداً — الفاتورة تبقى قائمة
+                    // ومحتسبة في المبيعات، ويُطرح صفُّ مرتجعها وحده. فبغير هذا
+                    // الوسم يمرّ المرتجع صامتاً في القائمة. أما المرتجع الكامل
+                    // فيقلب الحالة نفسها إلى «مرتجع» فيغني عنه.
+                    if (item.refundedAmount <= 0 || item.status === 'returned') {
+                        return primary;
                     }
 
                     return (
-                        <TooltipProvider delayDuration={100}>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <span className="inline-flex cursor-help items-center gap-1">
-                                        {badge}
-                                        <Info className="text-muted-foreground h-3.5 w-3.5" aria-hidden />
-                                        <span className="sr-only">سبب الإلغاء: {item.cancellationReason}</span>
-                                    </span>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs whitespace-pre-line">سبب الإلغاء: {item.cancellationReason}</TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
+                        <div className="flex flex-col items-start gap-1">
+                            {primary}
+                            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300">
+                                مرتجع جزئي · {formatCurrency(item.refundedAmount)}
+                            </Badge>
+                        </div>
                     );
                 },
             },

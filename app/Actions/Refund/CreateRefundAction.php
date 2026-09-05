@@ -2,6 +2,7 @@
 
 namespace App\Actions\Refund;
 
+use App\Actions\Coupon\ReleaseCouponCapacity;
 use App\Actions\Loyalty\ReverseLoyaltyForRefundAction;
 use App\Actions\ServiceInvoice\ConsumeServiceMaterialsAction;
 use App\Actions\StockMovement\RecordStockMovementAction;
@@ -28,7 +29,16 @@ use Illuminate\Validation\ValidationException;
  *    by inserting negative offsetting rows in the immutable commission ledger;
  *  - both types unwind the invoice's loyalty effect by the same refunded
  *    fraction (earned points clawed back, redeemed points returned, cumulative
- *    spend rolled back).
+ *    spend rolled back);
+ *  - and when the refund exhausts everything that was collected on the invoice,
+ *    the invoice itself is sealed as RETURNED and its coupon capacity released.
+ *
+ * سقفُ المرتجع هو ما حُصِّل من الفاتورة لا إجماليُّها: لا يُردُّ نقداً مالٌ لم
+ * يُقبض. والحالة لا تنقلب إلا عند استنفاد ذلك السقف — المرتجع الجزئي يترك
+ * الفاتورة قائمةً محتسبةً في المبيعات، وصفُّ مرتجعه وحده هو ما يُطرح منها في
+ * التقارير. لو قلبناها بأوّل مرتجع جزئي لسقطت الفاتورة كلُّها من الإيراد
+ * (InvoiceStatusEnum::excludedFromRevenue) ولسقط معها صفُّ مرتجعها من الخصم
+ * (DailyReportController::refundsDaily) فيضيع الفرق بينهما.
  */
 class CreateRefundAction
 {
@@ -65,6 +75,12 @@ class CreateRefundAction
                 ]);
             }
 
+            if ($invoice->status === InvoiceStatusEnum::RETURNED) {
+                throw ValidationException::withMessages([
+                    'invoice_id' => 'الفاتورة مُرتجعة بالفعل.',
+                ]);
+            }
+
             $alreadyRefunded = (float) Refund::query()
                 ->where('invoice_type', $type->modelClass())
                 ->where('invoice_id', $invoice->id)
@@ -72,11 +88,23 @@ class CreateRefundAction
 
             $invoiceTotal = (float) $invoice->total_amount;
 
-            if (round($alreadyRefunded + $amount, 2) > $invoiceTotal) {
-                $remaining = round($invoiceTotal - $alreadyRefunded, 2);
+            // ما حُصِّل فعلاً هو سقف ما يُردّ — لا إجماليُّ الفاتورة. الفاتورة
+            // المسدَّدة عند البيع محصَّلها إجماليُّها، والمدفوعة جزئياً مجموعُ
+            // دفعاتها، والآجلة صفر: ردُّ نقدٍ لم يُقبض كان يُنقص المحصَّل في
+            // التقرير اليومي بمالٍ لم يدخل الصندوق أصلاً.
+            $collected = $invoice->paidAmount();
+
+            if ($collected <= 0) {
+                throw ValidationException::withMessages([
+                    'invoice_id' => 'لم يُحصَّل من هذه الفاتورة شيء، فلا مبلغ يُردّ. تُسترجع الفاتورة الآجلة من شاشة الفواتير.',
+                ]);
+            }
+
+            if (round($alreadyRefunded + $amount, 2) > round($collected, 2)) {
+                $remaining = round(max($collected - $alreadyRefunded, 0), 2);
 
                 throw ValidationException::withMessages([
-                    'amount' => "مبلغ المرتجع يتجاوز المبلغ القابل للإرجاع ({$remaining} ر.س).",
+                    'amount' => "مبلغ المرتجع يتجاوز ما حُصِّل من الفاتورة ({$remaining} ر.س قابلة للإرجاع).",
                 ]);
             }
 
@@ -128,6 +156,15 @@ class CreateRefundAction
             // النقاط والإنفاق التراكمي يُفكّان بعد كتابة صفّ المرتجع، لأن الحساب
             // يقوم على مجموع ما استُرجع على الفاتورة شاملاً هذه الدفعة.
             $this->reverseLoyalty->handle($invoice, $amount);
+
+            // استُرجع كل ما حُصِّل: الفاتورة مرتجعة. تسقط من الإيراد ومن العمولة
+            // المستحقة (ExcludeReturnedCommission)، ولا مطالبة على العميل
+            // بباقيها، وتُردّ سعة كوبونها. المرتجع الجزئي لا يبلغ هذا الحدّ
+            // فتبقى حالته كما هي.
+            if (round($alreadyRefunded + $amount, 2) >= round($collected, 2)) {
+                ReleaseCouponCapacity::apply($invoice);
+                $invoice->update(['status' => InvoiceStatusEnum::RETURNED]);
+            }
 
             return $refund;
         });

@@ -2,10 +2,10 @@
 
 namespace App\Actions\ServiceInvoice\Concerns;
 
+use App\Actions\Coupon\ReleaseCouponCapacity;
 use App\Enums\CommissionSourceTypeEnum;
 use App\Enums\LoyaltyTransactionTypeEnum;
 use App\Models\CommissionLedger;
-use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
@@ -151,18 +151,11 @@ trait ReversesServiceInvoiceAccruals
     }
 
     /**
-     * Give back a coupon's capacity when its invoice is unwound (guards against
-     * dropping below zero).
+     * Give back a coupon's capacity when its invoice is unwound. القاعدة نفسها
+     * يستدعيها مرتجع المحاسب، فتعيش في ReleaseCouponCapacity لا هنا.
      */
     protected function releaseCoupon(ServiceInvoice $invoice): void
     {
-        if ($invoice->coupon_id === null) {
-            return;
-        }
-
-        Coupon::query()
-            ->whereKey($invoice->coupon_id)
-            ->where('used_count', '>', 0)
-            ->decrement('used_count');
+        ReleaseCouponCapacity::apply($invoice);
     }
 }

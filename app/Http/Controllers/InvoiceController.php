@@ -41,7 +41,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as delivered_at, null as paid_amount');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as delivered_at, null as paid_amount, null as refunded_amount');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -224,6 +224,16 @@ class InvoiceController extends Controller
             ->where('invoice_payments.invoice_type', $type->modelClass())
             ->whereColumn('invoice_payments.invoice_id', "{$table}.id");
 
+        // ما استُرجع من الفاتورة. المرتجع الجزئي لا يغيّر الحالة — الفاتورة تبقى
+        // مدفوعة ومحتسبة في المبيعات — فهذا العمود هو ما يُظهر للمستخدم أنّ عليها
+        // مرتجعاً، ويقابله وسم «مرتجع جزئي» في القائمة. المرتجع الكامل يقلب الحالة
+        // إلى «مرتجع» فيغني عن الوسم.
+        $refundedSub = DB::table('refunds')
+            ->selectRaw('coalesce(sum(amount), 0)')
+            ->where('refunds.invoice_type', $type->modelClass())
+            ->whereColumn('refunds.invoice_id', "{$table}.id")
+            ->whereNull('refunds.deleted_at');
+
         $delivery = $request->input('delivery');
 
         return DB::table($table)
@@ -286,6 +296,7 @@ class InvoiceController extends Controller
                 $deliverySelect,
                 $deliveredSelect,
             ])
-            ->selectSub($paidSub, 'paid_amount');
+            ->selectSub($paidSub, 'paid_amount')
+            ->selectSub($refundedSub, 'refunded_amount');
     }
 }

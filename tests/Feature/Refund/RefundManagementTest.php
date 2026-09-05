@@ -4,6 +4,7 @@ use App\Enums\InvoiceStatusEnum;
 use App\Enums\Roles;
 use App\Models\Branch;
 use App\Models\CommissionLedger;
+use App\Models\Coupon;
 use App\Models\Product;
 use App\Models\ProductCategory;
 use App\Models\ProductInvoice;
@@ -420,5 +421,181 @@ describe('Refunds', function () {
                 ->where('invoice.isFullyRefunded', true)
                 ->where('invoice.refundableRemaining', 0)
                 ->where('invoice.canRefund', false));
+    });
+
+    // ── تاسك 22: المرتجع وحالة الفاتورة ────────────────────────────
+    //
+    // «مرتجع» حالةٌ تُبطل أثر الفاتورة كلَّه: تُسقطها من الإيراد، وتُسقط عمولتها
+    // المستحقة، وتُلغي المطالبة بباقيها. فلا تُكتب إلا حين يُستنفد كلُّ ما حُصِّل
+    // من الفاتورة. المرتجع الجزئي يترك الفاتورة قائمةً محتسبة، ويُطرح صفُّ
+    // مرتجعه وحده في التقارير.
+
+    it('marks the invoice returned once the refund exhausts what was collected', function () {
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin, qty: 5, unitPrice: 20); // total 115
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 115,
+            'reason' => 'مرتجع كامل',
+        ])->assertRedirect();
+
+        expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::RETURNED);
+    });
+
+    it('leaves the status untouched on a partial refund', function () {
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin, qty: 5, unitPrice: 20); // total 115
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 15,
+            'reason' => 'مرتجع جزئي',
+        ])->assertRedirect();
+
+        expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::PAID);
+    });
+
+    it('marks the invoice returned when partial refunds add up to the collected amount', function () {
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin, qty: 5, unitPrice: 20); // total 115
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 15,
+            'reason' => 'الدفعة الأولى',
+        ])->assertRedirect();
+
+        expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::PAID);
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 100,
+            'reason' => 'الباقي',
+        ])->assertRedirect();
+
+        expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::RETURNED);
+    });
+
+    it('refuses a further refund once the invoice is returned', function () {
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin, qty: 5, unitPrice: 20); // total 115
+        $invoice->update(['status' => InvoiceStatusEnum::RETURNED]);
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 10,
+            'reason' => 'مرتجع ثانٍ',
+        ])->assertSessionHasErrors('invoice_id');
+
+        expect(Refund::count())->toBe(0);
+    });
+
+    // ── الثغرة: لا يُردُّ مالٌ لم يُقبض ──────────────────────────────
+
+    it('refuses to refund an invoice that collected nothing', function () {
+        $invoice = refundableServiceInvoice($this->branch, $this->employee);
+        $invoice->update(['status' => InvoiceStatusEnum::DUE, 'paid_at' => null]);
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'amount' => 100,
+            'reason' => 'ردّ نقدي على فاتورة آجلة',
+        ])->assertSessionHasErrors('invoice_id');
+
+        expect(Refund::count())->toBe(0);
+    });
+
+    it('caps the refund at the deposit collected, not the invoice total', function () {
+        $invoice = refundableServiceInvoice($this->branch, $this->employee); // total 1150
+        $invoice->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID, 'paid_at' => null]);
+        $invoice->payments()->create([
+            'branch_id' => $this->branch->id,
+            'amount' => 300,
+            'paid_at' => now(),
+            'recorded_by' => $this->admin->id,
+        ]);
+
+        // فوق العربون مرفوض وإن كان دون الإجمالي.
+        $this->post(route('refunds.store'), [
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'amount' => 500,
+            'reason' => 'أكثر من المقبوض',
+        ])->assertSessionHasErrors('amount');
+
+        expect(Refund::count())->toBe(0);
+
+        // وردُّ العربون كاملاً يُنهي الفاتورة: لا مطالبة بباقيها.
+        $this->post(route('refunds.store'), [
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'amount' => 300,
+            'reason' => 'ردّ العربون',
+        ])->assertRedirect();
+
+        expect(Refund::count())->toBe(1)
+            ->and($invoice->refresh()->status)->toBe(InvoiceStatusEnum::RETURNED);
+    });
+
+    // ── الكوبون ────────────────────────────────────────────────────
+
+    it('releases the coupon capacity on a full refund', function () {
+        $coupon = Coupon::factory()->create(['branch_id' => $this->branch->id, 'used_count' => 3]);
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin, qty: 5, unitPrice: 20); // total 115
+        $invoice->update(['coupon_id' => $coupon->id]);
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 50,
+            'reason' => 'جزئي — لا يحرّر الكوبون',
+        ])->assertRedirect();
+
+        expect($coupon->refresh()->used_count)->toBe(3);
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 65,
+            'reason' => 'إتمام المرتجع',
+        ])->assertRedirect();
+
+        expect($coupon->refresh()->used_count)->toBe(2);
+    });
+
+    it('releases the coupon exactly once when the employee returns a paid invoice', function () {
+        // مسارا الاسترجاع صارا يتشاركان تحرير الكوبون، فلا يُخصم مرتين.
+        $coupon = Coupon::factory()->create(['branch_id' => $this->branch->id, 'used_count' => 3]);
+        $invoice = refundableServiceInvoice($this->branch, $this->employee);
+        $invoice->update(['coupon_id' => $coupon->id]);
+
+        $this->actingAs($this->employee)
+            ->post(route('pos.service.return', $invoice), ['reason' => 'العميل ألغى الطلب'])
+            ->assertRedirect();
+
+        expect($coupon->refresh()->used_count)->toBe(2)
+            ->and($invoice->refresh()->status)->toBe(InvoiceStatusEnum::RETURNED);
+    });
+
+    // ── الواجهة: المرتجع الجزئي لا يمرّ صامتاً ──────────────────────
+
+    it('surfaces the refunded amount on the invoice list', function () {
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin, qty: 5, unitPrice: 20); // total 115
+
+        $this->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 15,
+            'reason' => 'مرتجع جزئي',
+        ])->assertRedirect();
+
+        $this->get(route('invoices.index'))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('items.data.0.status', 'paid')
+                ->where('items.data.0.refundedAmount', 15));
     });
 });
