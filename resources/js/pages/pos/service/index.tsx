@@ -1,7 +1,16 @@
 import { noteExamplesPlaceholder } from '@/components/branch-services/note-examples-field';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
 import { ReceiptField } from '@/components/invoices/receipt-field';
-import { LINE_HINT_CLASS, LineChip, LineField, LineHint, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
+import {
+    LINE_HINT_CLASS,
+    LineChip,
+    LineField,
+    LineHint,
+    LineReadout,
+    LineSection,
+    PosCartTable,
+    type PosPriceError,
+} from '@/components/pos/cart-table';
 import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Badge } from '@/components/ui/badge';
@@ -245,32 +254,44 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
      * حدّا سعر البيع يلزمان الموظف وحده — المحاسب ومدير الفرع يبيعان بما يريان،
      * تماماً كما يقرّر الخادم. الرسالة تظهر تحت حقل السعر ويمنع الحفظ معها.
      *
-     * والأرضية (تاسك 65) تسمّي الحدّ الذي لُمس — تكلفة الخامات أو أقل سعر — وإلا
-     * بحث الموظف عن رقمٍ لا يراه في أي شاشة.
+     * تاسك 81: النصّ المرئي سطرٌ واحد يسمّي الحدّ ورقمه («أقل سعر للبيع 51.75»)،
+     * والتفصيل ينتقل إلى `detail` فيظهر عند المرور بالمؤشّر. ولا يسقط: أرضية
+     * الخامات (تاسك 65) رقمٌ **لا يظهر في أي شاشة** — مصدره التكلفة الصافية
+     * مضروبةً في الضريبة — فمن يحذف الجسر يترك الموظف يبحث عن رقمٍ لا يعرف
+     * من أين جاء.
      */
-    const priceBoundError = (line: ServiceCartLine): string | null => {
+    const priceBoundError = (line: ServiceCartLine): PosPriceError | null => {
         if (!isEmployee) return null;
+
+        const unit = isMeasured(line.pricingType) ? ' للمتر' : '';
 
         if (isLineOverPriceCap(line)) {
             const cap = formatCurrency(line.maxSellingPrice ?? 0);
 
-            return isMeasured(line.pricingType) ? `الحد الأعلى ${cap} للمتر` : `الحد الأعلى ${cap}`;
+            return {
+                text: `أعلى سعر للبيع ${cap}${unit}`,
+                // السقف يقيس المكتوب قبل الخصم (يحمي العميل) — تمييزٌ متعمَّد
+                // من التاسك 65 عن الأرضية، فلا تُوحّد صياغتهما.
+                detail: `أعلى سعر للبيع ${cap}${unit} ويُقاس على السعر المكتوب قبل الخصم، والمكتوب ${formatCurrency(line.unitPrice)}${unit}.`,
+            };
         }
 
         if (isLineUnderPriceFloor(line, vatPct)) {
             const floor = linePriceFloor(line, vatPct);
             const gross = lineMaterialsUnitCostGross(line, vatPct);
+            const written = formatCurrency(lineEffectiveUnitPrice(line));
             // طرف الخامات يذكر أصله الصافي أيضاً، وإلا بحث الموظف عن الـ23.00
             // في شاشةٍ كُتب فيها 20.00.
-            const reason =
+            const source =
                 gross > (line.minSellingPrice ?? 0)
-                    ? `تكلفة الخامات ${formatCurrency(lineMaterialsUnitCost(line))} + ضريبة`
-                    : 'أقل سعر';
-            const unit = isMeasured(line.pricingType) ? ' للمتر' : '';
+                    ? `مصدر الأرضية تكلفة الخامات ${formatCurrency(lineMaterialsUnitCost(line))}${unit} + ضريبة ${vatPct}%`
+                    : `أقل سعر للبيع معرَّف على الخدمة ${formatCurrency(floor)}${unit}`;
 
-            return `${reason} — اكتب ${formatCurrency(floor)}${unit} فأكثر شاملة الضريبة، والمكتوب ${formatCurrency(
-                lineEffectiveUnitPrice(line),
-            )}${unit}`;
+            return {
+                text: `أقل سعر للبيع ${formatCurrency(floor)}${unit}`,
+                // والأرضية تقيس المقبوض بعد الخصم (تحمي المركز).
+                detail: `${source} = ${formatCurrency(floor)}${unit} شاملة الضريبة، وتُقاس على المقبوض بعد الخصم — والمكتوب ${written}${unit}.`,
+            };
         }
 
         return null;
@@ -781,7 +802,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         const overCap = isEmployee ? cart.find(isLineOverPriceCap) : undefined;
         if (overCap) {
             toast.error(
-                `سعر "${overCap.name}" يتجاوز الحد الأعلى المسموح (${formatCurrency(overCap.maxSellingPrice ?? 0)}${
+                `سعر "${overCap.name}" يتجاوز أعلى سعر للبيع (${formatCurrency(overCap.maxSellingPrice ?? 0)}${
                     isMeasured(overCap.pricingType) ? ' للمتر' : ''
                 })`,
             );
@@ -1452,7 +1473,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                         const unit = isMeasured(line.pricingType) ? ' للمتر' : '';
 
                                         if (line.maxSellingPrice !== null && line.maxSellingPrice > 0) {
-                                            parts.push(`الحد الأعلى ${formatCurrency(line.maxSellingPrice)}${unit}`);
+                                            parts.push(`أعلى سعر للبيع ${formatCurrency(line.maxSellingPrice)}${unit}`);
                                         }
 
                                         // والأرضية تُعرض قبل أن يُخطئ لا بعده — وهي
@@ -1460,7 +1481,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                         const floor = linePriceFloor(line, vatPct);
 
                                         if (floor > 0) {
-                                            parts.push(`الحد الأدنى ${formatCurrency(floor)}${unit}`);
+                                            parts.push(`أقل سعر للبيع ${formatCurrency(floor)}${unit}`);
                                         }
                                     }
 
@@ -1605,12 +1626,16 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                         </LineField>
                                                     </div>
                                                     {/* الرسالة نفسها التي يعرضها عمود السعر — سقفاً كانت
-                                                        أم أرضية، فلا يبقى نصٌّ يسمّي «الحد الأعلى» وحده. */}
-                                                    {priceBoundError(line) && (
-                                                        <p className="text-destructive text-[11px]">
-                                                            سعر المتر {formatCurrency(line.unitPrice)} — {priceBoundError(line)}.
-                                                        </p>
-                                                    )}
+                                                        أم أرضية، فلا يتناقض نصّان في شاشةٍ واحدة. */}
+                                                    {(() => {
+                                                        const bound = priceBoundError(line);
+
+                                                        return bound ? (
+                                                            <p className="text-destructive text-[11px]" title={bound.detail}>
+                                                                {bound.text}
+                                                            </p>
+                                                        ) : null;
+                                                    })()}
                                                     {lineHasSize(line) ? (
                                                         <p className={cn(LINE_HINT_CLASS, 'text-[11px]')}>
                                                             {isLinear ? 'الطول' : 'المساحة'} {round2(lineAreaSqm(line))}{' '}
