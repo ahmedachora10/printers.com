@@ -1,3 +1,4 @@
+import { ReceiptField } from '@/components/invoices/receipt-field';
 import { LineChip, LineField, LineHint, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
 import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
@@ -16,7 +17,7 @@ import product from '@/routes/pos/product';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type CartLine, type PosAgent, type PosCustomer, type PosLoyalty, type PosPaymentMethod, type PosProduct } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Award, Paperclip, Printer, Ruler, Save, Search, Tag, X } from 'lucide-react';
+import { Award, Printer, Ruler, Save, Search, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -648,22 +649,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                         ))}
                                     </div>
 
-                                    {requiresReceipt && (
-                                        <div className="space-y-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
-                                            <Label htmlFor="receipt" className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400">
-                                                <Paperclip className="size-4" /> إيصال التحويل (مطلوب)
-                                            </Label>
-                                            <Input
-                                                id="receipt"
-                                                type="file"
-                                                accept="image/jpeg,image/png,image/webp,application/pdf"
-                                                onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
-                                                className="cursor-pointer"
-                                            />
-                                            <p className="text-muted-foreground text-xs">صورة (jpg, png, webp) أو ملف PDF — بحد أقصى 5 ميجابايت.</p>
-                                            {errors.receipt && <p className="text-destructive text-xs">{errors.receipt}</p>}
-                                        </div>
-                                    )}
+                                    {requiresReceipt && <ReceiptField id="receipt" onChange={setReceipt} error={errors.receipt} />}
                                 </div>
                             )}
                             {errors.payment_method_id && <p className="text-destructive mt-2 text-xs">{errors.payment_method_id}</p>}

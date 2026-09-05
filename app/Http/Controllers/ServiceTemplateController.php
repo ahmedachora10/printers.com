@@ -4,8 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Actions\ServiceTemplate\CreateServiceTemplateAction;
 use App\Actions\ServiceTemplate\DeleteServiceTemplateAction;
+use App\Actions\ServiceTemplate\DuplicateServiceTemplateAction;
+use App\Actions\ServiceTemplate\ReorderServiceTemplatesAction;
 use App\Actions\ServiceTemplate\UpdateServiceTemplateAction;
 use App\Enums\Roles;
+use App\Http\Requests\ServiceTemplate\ReorderServiceTemplatesRequest;
 use App\Http\Requests\ServiceTemplate\StoreServiceTemplateRequest;
 use App\Http\Requests\ServiceTemplate\UpdateServiceTemplateRequest;
 use App\Http\Resources\ServiceTemplate\ServiceTemplateResource;
@@ -35,7 +38,7 @@ class ServiceTemplateController extends Controller
                 $request->filled('status'),
                 fn ($q) => $q->where('is_active', $request->boolean('status'))
             )
-            ->latest()
+            ->ordered()
             ->paginate(15);
 
         $branches = Branch::query()
@@ -111,6 +114,38 @@ class ServiceTemplateController extends Controller
         $action->handle($serviceTemplate, $request->validated());
 
         return back(fallback: route('service-templates.index'));
+    }
+
+    /**
+     * تاسك 82: ترتيب العرض اليدوي. يصل ترتيب الصفحة الظاهرة وحدها، والفعل
+     * يضعها في مواضعها من التسلسل العامّ — فالترتيب عامّ لا داخل الصفحة.
+     */
+    public function reorder(ReorderServiceTemplatesRequest $request, ReorderServiceTemplatesAction $action): RedirectResponse
+    {
+        $ids = array_map('intval', $request->validated('ids'));
+
+        // كلّ صفٍّ يُعاد ترتيبه صفٌّ يُعدَّل: تُفحص السياسة على كلٍّ منها.
+        foreach (ServiceTemplate::query()->whereKey($ids)->get() as $template) {
+            Gate::authorize('update', $template);
+        }
+
+        $action->handle($ids);
+
+        return back(fallback: route('service-templates.index'));
+    }
+
+    /**
+     * تاسك 83: نسخةٌ من القالب بفروعه وشروطها. تُنشأ غير نشطة والواجهة تفتح
+     * تعديلها فوراً، فيسمّيها المستخدم قبل أن تصل نقطة البيع.
+     */
+    public function duplicate(ServiceTemplate $serviceTemplate, DuplicateServiceTemplateAction $action): RedirectResponse
+    {
+        Gate::authorize('duplicate', $serviceTemplate);
+
+        $copy = $action->handle($serviceTemplate);
+
+        return back(fallback: route('service-templates.index'))
+            ->with('success', "تم إنشاء نسخة «{$copy->name}» — عدّل اسمها ثم فعّلها");
     }
 
     public function destroy(ServiceTemplate $serviceTemplate, DeleteServiceTemplateAction $action): RedirectResponse

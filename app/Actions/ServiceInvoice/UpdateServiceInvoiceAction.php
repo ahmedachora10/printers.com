@@ -3,6 +3,7 @@
 namespace App\Actions\ServiceInvoice;
 
 use App\Actions\ServiceInvoice\Concerns\ReversesServiceInvoiceAccruals;
+use App\Actions\ServiceInvoice\Concerns\LogsAuthoredMaterialsCost;
 use App\Actions\ServiceInvoice\Concerns\SyncsServiceInvoiceAgents;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\InvoiceStatusEnum;
@@ -21,7 +22,7 @@ use Illuminate\Validation\ValidationException;
  */
 class UpdateServiceInvoiceAction
 {
-    use ReversesServiceInvoiceAccruals, SyncsServiceInvoiceAgents, WritesServiceInvoiceLines;
+    use LogsAuthoredMaterialsCost, ReversesServiceInvoiceAccruals, SyncsServiceInvoiceAgents, WritesServiceInvoiceLines;
 
     public function __construct(
         private readonly CalculateServiceInvoiceAction $calculator,
@@ -76,6 +77,7 @@ class UpdateServiceInvoiceAction
             // The invoice stays due here, so no commission ledger is written; it is
             // deferred until the accountant approves (pays) the invoice.
             $this->writeLines($invoice, $calc['lines']);
+            $this->logAuthoredMaterialsCost($invoice, $calc['lines']);
             $this->syncInvoiceAgents($invoice, $calc['agents']);
 
             if ($calc['coupon']) {

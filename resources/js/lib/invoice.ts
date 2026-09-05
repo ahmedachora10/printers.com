@@ -11,31 +11,57 @@ export interface InvoiceDocument {
     isQuotation: boolean;
 }
 
-/** مساحة القطعة الواحدة بالمتر المربع من مقاس السطر — صفر بلا مقاس. */
-export function lineAreaSqm(line: { widthCm: number | null; heightCm: number | null }): number {
-    if (line.widthCm == null || line.heightCm == null) return 0;
+/** ما يقيسه سعر السطر: مترٌ مربع، أو مترٌ طولي، أو قطعة (null). */
+export type LineUnitPriceBasis = 'sqm' | 'linear' | null;
 
-    return Math.round(((line.widthCm / 100) * (line.heightCm / 100) + Number.EPSILON) * 100) / 100;
+/** لاحقة وحدة القياس كما تُكتب بجانب رقم. */
+export function unitSuffix(basis: LineUnitPriceBasis | undefined): string {
+    return basis === 'linear' ? 'م' : 'م²';
 }
 
 /**
- * سعر السطر كما يُقرأ: سطر الخدمة المسعّر بالمتر يحمل سعر المتر المربع لا سعر
- * القطعة، فيُلحق به «/م²» كي لا يُقرأ ثمناً للقطعة والإجمالي أقل منه أو أكبر.
+ * وحدات القطعة الواحدة من مقاس السطر — صفر بلا مقاس.
+ *
+ * المربع يضرب مقاسين، والطولي يقيس مقاساً واحداً محفوظاً في widthCm وحده
+ * (تاسك 80). والسطر بلا basis يُقاس بمقاسيه كما كان — هو سطرٌ مربّع بحكم أنه
+ * حمل مقاسين.
+ */
+export function lineAreaSqm(line: { widthCm?: number | null; heightCm?: number | null; unitPriceBasis?: LineUnitPriceBasis }): number {
+    if (line.widthCm == null) return 0;
+
+    const raw = line.unitPriceBasis === 'linear' ? line.widthCm / 100 : line.heightCm == null ? 0 : (line.widthCm / 100) * (line.heightCm / 100);
+
+    return Math.round((raw + Number.EPSILON) * 100) / 100;
+}
+
+/**
+ * سعر السطر كما يُقرأ: سطر الخدمة المسعّر بمقاس يحمل سعر وحدة القياس لا سعر
+ * القطعة، فتُلحق به وحدته كي لا يُقرأ ثمناً للقطعة والإجمالي أقل منه أو أكبر.
  * الأسطر الأخرى — والأسطر المحفوظة قبل هذا التغيير — تُعرض كما كانت.
  */
-export function formatLineUnitPrice(line: { unitPrice: number; unitPriceBasis?: 'sqm' | null }): string {
-    return line.unitPriceBasis === 'sqm' ? `${formatCurrency(line.unitPrice)}/م²` : formatCurrency(line.unitPrice);
+export function formatLineUnitPrice(line: { unitPrice: number; unitPriceBasis?: LineUnitPriceBasis }): string {
+    return line.unitPriceBasis ? `${formatCurrency(line.unitPrice)}/${unitSuffix(line.unitPriceBasis)}` : formatCurrency(line.unitPrice);
 }
 
 /**
- * وصف مقاس السطر للطباعة والعرض: «100×50 سم (0.5 م²)»، ويُذكر عدد القطع لسطر
- * المنتج المسعّر بالمتر — إذ كميته مساحة مجمّعة. تُعاد null بلا مقاس.
+ * وصف مقاس السطر للطباعة والعرض: «100×50 سم (0.5 م²)» للمربع و«200 سم (2 م)»
+ * للطولي، ويُذكر عدد القطع لسطر المنتج المسعّر بالمتر — إذ كميته مساحة مجمّعة.
+ * تُعاد null بلا مقاس.
  */
-export function formatLineSize(line: { widthCm: number | null; heightCm: number | null; pieces?: number | null }): string | null {
-    if (line.widthCm == null || line.heightCm == null) return null;
+export function formatLineSize(line: {
+    widthCm?: number | null;
+    heightCm?: number | null;
+    pieces?: number | null;
+    unitPriceBasis?: LineUnitPriceBasis;
+}): string | null {
+    if (line.widthCm == null) return null;
+    if (line.unitPriceBasis !== 'linear' && line.heightCm == null) return null;
 
-    const area = lineAreaSqm(line);
-    const size = `${line.widthCm}×${line.heightCm} سم (${area} م²)`;
+    const measure = lineAreaSqm(line);
+    const size =
+        line.unitPriceBasis === 'linear'
+            ? `${line.widthCm} سم (${measure} م)`
+            : `${line.widthCm}×${line.heightCm} سم (${measure} م²)`;
 
     return line.pieces != null && line.pieces > 1 ? `${size} × ${line.pieces} قطعة` : size;
 }

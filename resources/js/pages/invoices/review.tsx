@@ -14,7 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
-import { formatLineSize, formatLineUnitPrice } from '@/lib/invoice';
+import { formatLineSize, formatLineUnitPrice, type LineUnitPriceBasis } from '@/lib/invoice';
 import { formatCurrency, formatQty } from '@/lib/utils';
 import posService from '@/routes/pos/service';
 import serviceInvoice from '@/routes/invoices/service';
@@ -29,8 +29,8 @@ interface ReviewLine {
     notes: string | null;
     qty: number;
     unitPrice: number;
-    /** ما يقيسه السعر: 'sqm' سعر متر مربع، و null سعر وحدة */
-    unitPriceBasis?: 'sqm' | null;
+    /** ما يقيسه السعر: 'sqm' سعر متر مربع، و'linear' سعر متر طولي، و null سعر وحدة */
+    unitPriceBasis?: LineUnitPriceBasis;
     widthCm: number | null;
     heightCm: number | null;
     discountPct: number;
@@ -64,7 +64,7 @@ interface ReviewInvoice {
 interface Props {
     /** الصفحة الحالية من الطابور فقط — عددها الكلّي في `meta.total`. */
     invoices: ReviewInvoice[];
-    meta: { currentPage: number; lastPage: number; perPage: number; total: number };
+    meta: { currentPage: number; lastPage: number; perPage: number; total: number; from: number | null; to: number | null };
     /** إجماليات **المدى المطبَّق** لا الصفحة المعروضة. */
     summary: { quotesCount: number; quotesTotal: number };
     filters: {
@@ -143,6 +143,8 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
     const [submitting, setSubmitting] = useState(false);
     const [uploadingId, setUploadingId] = useState<number | null>(null);
     const [savingPaymentId, setSavingPaymentId] = useState<number | null>(null);
+    // طريقة دفعٍ اختِيرت وتنتظر إيصالها قبل أن تُرسَل.
+    const [pendingMethod, setPendingMethod] = useState<{ invoiceId: number; methodId: number } | null>(null);
     const [expanded, setExpanded] = useState<Record<number, boolean>>({});
     const [editingId, setEditingId] = useState<number | null>(null);
     const [editData, setEditData] = useState<InvoiceCustomerFormData>({ full_name: '', phone: '', tax_number: '' });
@@ -192,15 +194,38 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
     }
 
     function changePaymentMethod(invoice: ReviewInvoice, value: string) {
-        if (Number(value) === invoice.paymentMethodId) return;
-        setSavingPaymentId(invoice.id);
-        router.patch(
-            serviceInvoice.updatePaymentMethod(invoice.id).url,
-            { payment_method_id: Number(value) },
+        const methodId = Number(value);
+        if (methodId === invoice.paymentMethodId) return;
+
+        // طريقةٌ تشترط إيصالاً ولمّا يُرفع: يُطلب الملف أولاً ثم يُرسل مع الطريقة
+        // في طلبٍ واحد — الخادم لا يقبل إحداهما دون الأخرى. وإن صرف المستخدم
+        // نافذة الملفات بقيت الطريقة على حالها.
+        const needsReceipt = invoice.paymentMethodOptions.find((m) => m.id === methodId)?.requiresAttachment === true && !invoice.receiptUrl;
+
+        if (needsReceipt) {
+            setPendingMethod({ invoiceId: invoice.id, methodId });
+            document.getElementById(`receipt-${invoice.id}`)?.click();
+
+            return;
+        }
+
+        savePaymentMethod(invoice.id, methodId);
+    }
+
+    function savePaymentMethod(invoiceId: number, methodId: number, receipt?: File) {
+        setSavingPaymentId(invoiceId);
+        // POST مع `_method` لأن رفع ملف عبر PATCH لا يمرّ في multipart.
+        router.post(
+            serviceInvoice.updatePaymentMethod(invoiceId).url,
+            { _method: 'patch', payment_method_id: methodId, ...(receipt ? { receipt } : {}) },
             {
+                forceFormData: true,
                 preserveScroll: true,
-                onError: (e) => toast.error(e.payment_method_id ?? 'تعذّر تحديث طريقة الدفع.'),
-                onFinish: () => setSavingPaymentId(null),
+                onError: (e) => toast.error(e.payment_method_id ?? e.receipt ?? 'تعذّر تحديث طريقة الدفع.'),
+                onFinish: () => {
+                    setSavingPaymentId(null);
+                    setPendingMethod(null);
+                },
             },
         );
     }
@@ -226,7 +251,20 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
     }
 
     function uploadReceipt(invoiceId: number, file: File | undefined) {
-        if (!file) return;
+        if (!file) {
+            setPendingMethod(null);
+
+            return;
+        }
+
+        // نفس الحقل يخدم الحالتين: إيصالٌ يُرفع وحده، أو إيصالٌ طُلب لأجل طريقة
+        // دفعٍ تنتظره.
+        if (pendingMethod?.invoiceId === invoiceId) {
+            savePaymentMethod(invoiceId, pendingMethod.methodId, file);
+
+            return;
+        }
+
         setUploadingId(invoiceId);
         router.post(
             serviceInvoice.receipt(invoiceId).url,
@@ -332,9 +370,18 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                             const isOpen = !!expanded[invoice.id];
                             const isEditing = editingId === invoice.id;
                             // تاسك 59: لا اعتماد بلا طريقة دفع — والخادم يرفضه
-                            // أيضاً، فالتعطيل هنا توضيحٌ لا حارس.
-                            const canApprove = invoice.paymentMethodId !== null;
-                            const approveHint = canApprove ? 'اعتماد الدفع' : 'حدّد طريقة الدفع أولاً';
+                            // أيضاً، فالتعطيل هنا توضيحٌ لا حارس. ومثله طريقةٌ
+                            // تشترط إيصالاً لم يُرفع بعد: الإرفاق من نفس البطاقة.
+                            const needsReceipt =
+                                invoice.paymentMethodOptions.find((m) => m.id === invoice.paymentMethodId)?.requiresAttachment === true &&
+                                !invoice.receiptUrl;
+                            const canApprove = invoice.paymentMethodId !== null && !needsReceipt;
+                            const approveHint =
+                                invoice.paymentMethodId === null
+                                    ? 'حدّد طريقة الدفع أولاً'
+                                    : needsReceipt
+                                      ? 'أرفق إيصال التحويل أولاً'
+                                      : 'اعتماد الدفع';
 
                             return (
                                 <Card key={invoice.id}>
@@ -568,9 +615,14 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                                                 />
                                             </div>
 
-                                            {!canApprove && (
+                                            {invoice.paymentMethodId === null && (
                                                 <p className="text-amber-600 text-xs dark:text-amber-400">
                                                     حدّد طريقة الدفع أعلاه قبل اعتماد الفاتورة — التقرير لا ينسب مبلغاً بلا طريقة.
+                                                </p>
+                                            )}
+                                            {needsReceipt && (
+                                                <p className="text-amber-600 text-xs dark:text-amber-400">
+                                                    طريقة الدفع المحددة تستلزم إيصال التحويل — أرفقه أعلاه قبل اعتماد الفاتورة.
                                                 </p>
                                             )}
 
@@ -608,7 +660,8 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                     currentPage={meta.currentPage}
                     totalPages={meta.lastPage}
                     totalItems={meta.total}
-                    pageSize={meta.perPage}
+                    from={meta.from}
+                    to={meta.to}
                     // router.reload يحتفظ بمعاملات الرابط الحالية، فالمدى والفرز
                     // والبحث لا تضيع عند تغيير الصفحة.
                     onPageChange={(page) => router.reload({ data: { page } })}

@@ -10,7 +10,10 @@ export interface PosProduct {
     isSqm: boolean;
 }
 
-export type ServicePricingType = 'unit' | 'sqm';
+// نوع التسعير مصدره ملفّ خدمات الفرع — تعريفٌ واحد لا نسختان تفترقان (تاسك 80).
+export type { ServicePricingType } from './branch-service';
+import { type ServicePricingType } from './branch-service';
+import { type LineUnitPriceBasis } from '@/lib/invoice';
 
 /** How a line's commission-owner (agent) share is computed. */
 export type LineAgentCommissionType = 'percentage' | 'fixed' | 'per_sqm';
@@ -30,9 +33,13 @@ export interface PosService {
     /** ready-made detail phrases set by the branch admin for this service */
     noteExamples: string[];
     isTahazir: boolean;
+    /** خدمة رفعها هذا الموظف أعلى قائمته (تاسك 76) */
+    isFavorite: boolean;
     /** هل للخدمة خامات، وتكلفتها الافتراضية للوحدة الواحدة */
     hasMaterials: boolean;
     materialsCost: number;
+    /** تكلفة خامات صفرٌ على خدمةٍ لها خامات = يكتبها الموظف لكل فاتورة (تاسك 77) */
+    materialsCostIsOpen: boolean;
     /** خامات المخزون التي تستهلكها الخدمة، ومتاحُ كلٍّ منها لحظةَ فتح الشاشة */
     materials: ServiceMaterialOption[];
 }
@@ -71,6 +78,8 @@ export interface ServiceCartLine {
     hasMaterials: boolean;
     /** المبلغ للوحدة الواحدة؛ يُضرب في الكمية */
     materialsCost: number;
+    /** خدمة تكلفتها تُحدَّد وقت البيع، فتُفتح الخانة للموظف على هذا السطر (تاسك 77) */
+    materialsCostIsOpen: boolean;
     /** خامات المخزون التي سيستهلكها السطر — للتحذير وحده، لا تُرسَل للخادم */
     materials: ServiceMaterialOption[];
     isManual: boolean;
@@ -149,6 +158,8 @@ export interface EditServiceInvoiceLine {
     /** لقطة الخامات المحفوظة على السطر — لا القيمة الافتراضية للخدمة */
     hasMaterials: boolean;
     materialsCost: number;
+    /** خدمة السطر تكلفتها تُحدَّد وقت البيع (تاسك 77) */
+    materialsCostIsOpen: boolean;
     pricingType: ServicePricingType;
     pricePerSqm: number;
     agentCommissionPerSqm: number;
@@ -207,6 +218,8 @@ export interface PosInvoiceLine {
     sku: string | null;
     qty: number;
     unitPrice: number;
+    /** ما يقيسه السعر أعلاه: سعر متر مربع أو طولي، و null سعر وحدة/قطعة */
+    unitPriceBasis?: LineUnitPriceBasis;
     widthCm?: number | null;
     heightCm?: number | null;
     /** عدد القطع لسطر المنتج المسعّر بالمتر — الكمية أعلاه مساحتها الإجمالية */

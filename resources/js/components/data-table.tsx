@@ -28,6 +28,15 @@ export interface TablePaginationProps {
     currentPage: number;
     totalPages: number;
     totalItems: number;
+    /**
+     * تاسك 78: مدى الصفحة كما حسبه الخادم (`meta.from` و`meta.to`). يُفضَّل على
+     * أي حساب هنا: الكنترولرات تصفّح بـ8 و12 و15 و20، فأي حجمٍ مفترض في الواجهة
+     * يكذب على كل شاشةٍ لا تصفّح به — وهو ما أنتج «عرض 11‑16 من أصل 16» في صفحةٍ
+     * تحمل صفّاً واحداً.
+     */
+    from?: number | null;
+    to?: number | null;
+    /** احتياطيٌّ لمن لا يمرّر from/to — ويبقى تخميناً ما لم يُمرَّر معه حجمُ الصفحة الفعلي. */
     pageSize?: number;
     onPageChange: (page: number) => void;
     className?: string;
@@ -79,7 +88,7 @@ function SortIcon({ colKey, sort }: { colKey: string; sort: SortState | null }) 
 
 // ─── TablePagination ─────────────────────────────────────────────────────────
 
-export function TablePagination({ currentPage, totalPages, totalItems, pageSize = 10, onPageChange, className }: TablePaginationProps) {
+export function TablePagination({ currentPage, totalPages, totalItems, from, to, pageSize = 10, onPageChange, className }: TablePaginationProps) {
     const pageNumbers = useMemo<(number | '...')[]>(() => {
         const pages = Array.from({ length: totalPages }, (_, i) => i + 1).filter(
             (p) => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 1,
@@ -91,6 +100,11 @@ export function TablePagination({ currentPage, totalPages, totalItems, pageSize 
         }, []);
     }, [totalPages, currentPage]);
 
+    // الأرقام المرسلة تُعرض كما هي؛ وحين لا تصل يُحسب المدى بالحجم الاحتياطي.
+    const firstItem = from ?? (currentPage - 1) * pageSize + 1;
+    const lastItem = to ?? Math.min(currentPage * pageSize, totalItems);
+    const rangeLabel = totalItems === 0 ? 'لا توجد نتائج' : `عرض ${firstItem}‑${lastItem} من أصل ${totalItems}`;
+
     return (
         <div
             className={cn(
@@ -98,9 +112,7 @@ export function TablePagination({ currentPage, totalPages, totalItems, pageSize 
                 className,
             )}
         >
-            <span className="text-muted-foreground text-[13px]">
-                عرض {(currentPage - 1) * pageSize + 1}&#x2011;{Math.min(currentPage * pageSize, totalItems)} من أصل {totalItems}
-            </span>
+            <span className="text-muted-foreground text-[13px]">{rangeLabel}</span>
 
             {totalPages > 1 && (
                 <div className="flex flex-wrap items-center gap-1">

@@ -11,12 +11,18 @@ import NoteExamplesField from '@/components/branch-services/note-examples-field'
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { meterLabel } from '@/lib/service-pricing';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { type BranchService, type BranchServiceFormData, type BranchServiceUpdateData } from '@/types/branch-service';
+import {
+    type BranchService,
+    type BranchServiceFormData,
+    type BranchServiceUpdateData,
+    type ServicePricingType,
+} from '@/types/branch-service';
 import { type ServiceTemplate } from '@/types/service-template';
 import { router, useForm } from '@inertiajs/react';
-import { Pencil, Plus, Trash2, Users, X } from 'lucide-react';
+import { Copy, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '../input-error';
 
@@ -40,6 +46,10 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
     const [activeAction, setActiveAction] = useState<ActiveAction>(null);
     // The branch service whose per-employee rates are being edited.
     const [employeesService, setEmployeesService] = useState<BranchService | null>(null);
+    // تاسك 79: الرابط الذي نُسخت منه شروط الربط الجاري — 0 يعني «بلا نسخ».
+    const [copySourceId, setCopySourceId] = useState(0);
+
+    const attachedServices = template?.branches ?? [];
 
     const attachForm = useForm<BranchServiceFormData>({
         service_template_id: template?.id ?? 0,
@@ -82,24 +92,49 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         onOpenChange(nextOpen);
     }
 
+    /**
+     * تاسك 79: شروط رابطٍ قائم كقيمٍ أوّلية لربطٍ جديد — ثلاث عشرة خانة كان
+     * المستخدم يعيد كتابتها لكل فرع. عمولات الموظفين تُستثنى عمداً: هي مربوطة
+     * بموظفي فرعٍ بعينه فلا معنى لنقلها، وتُدار من زرّ «العمولات» وحده.
+     * و`is_active` تبدأ true دائماً مهما كانت حال المصدر.
+     */
+    function termsFrom(source: BranchService | undefined) {
+        return {
+            base_commission_pct: source?.baseCommissionPct ?? 0,
+            max_discount_pct: source?.maxDiscountPct ?? 0,
+            max_selling_price: source?.maxSellingPrice ?? null,
+            min_selling_price: source?.minSellingPrice ?? null,
+            pricing_type: source?.pricingType ?? 'unit',
+            price_per_sqm: source?.pricePerSqm ?? 0,
+            agent_commission_per_sqm: source?.agentCommissionPerSqm ?? 0,
+            note_examples: source?.noteExamples ?? [],
+            is_tahazir: source?.isTahazir ?? false,
+            has_materials: source?.hasMaterials ?? false,
+            materials_cost: source?.materialsCost ?? 0,
+            is_active: true,
+        } as const;
+    }
+
     function startAttach(branchId: number) {
+        // آخر فرعٍ رُبط هو المصدر الافتراضي — وهو المرجَّح أن يكون أحدث الشروط.
+        const source = attachedServices[attachedServices.length - 1];
+
         setActiveAction({ type: 'attach', branchId });
+        setCopySourceId(source?.id ?? 0);
         attachForm.setData({
             service_template_id: template?.id ?? 0,
             branch_id: branchId,
-            base_commission_pct: 0,
-            max_discount_pct: 0,
-            max_selling_price: null,
-            min_selling_price: null,
-            pricing_type: 'unit',
-            price_per_sqm: 0,
-            agent_commission_per_sqm: 0,
-            note_examples: [],
-            is_tahazir: false,
-            has_materials: false,
-            materials_cost: 0,
-            is_active: true,
+            ...termsFrom(source),
         });
+    }
+
+    /** تبديل الفرع المنسوخ منه، فتُعاد تعبئة الخانات من شروطه. */
+    function applyCopySource(serviceId: number) {
+        setCopySourceId(serviceId);
+        attachForm.setData((current) => ({
+            ...current,
+            ...termsFrom(attachedServices.find((bs) => bs.id === serviceId)),
+        }));
     }
 
     function startEdit(service: BranchService) {
@@ -122,6 +157,7 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
 
     function cancelAction() {
         setActiveAction(null);
+        setCopySourceId(0);
         attachForm.reset();
         editForm.reset();
     }
@@ -152,8 +188,6 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
     function handleDetach(service: BranchService) {
         router.delete(destroyBranchService.url(service), { preserveScroll: true });
     }
-
-    const attachedServices = template?.branches ?? [];
 
     return (
         <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -265,6 +299,37 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                                 {/* Inline attach form */}
                                 {isAttaching && (
                                     <form onSubmit={handleAttachSubmit} className="mt-3 space-y-3 border-t pt-3">
+                                        {/* تاسك 79: نسخ شروط فرعٍ مربوط بدل كتابة ثلاث عشرة خانة لكل فرع.
+                                            الفروع غير المربوطة لا تظهر في القائمة — لا شروط لها تُنسخ. */}
+                                        {attachedServices.length > 0 && (
+                                            <div className="bg-muted/40 space-y-1 rounded-md border p-2">
+                                                <Label className="flex items-center gap-1.5 text-xs">
+                                                    <Copy className="size-3" />
+                                                    نسخ الشروط من
+                                                </Label>
+                                                <select
+                                                    className="border-input bg-background h-8 w-full rounded-md border px-2 text-sm"
+                                                    value={copySourceId}
+                                                    onChange={(e) => applyCopySource(Number(e.target.value))}
+                                                >
+                                                    <option value={0}>— بلا نسخ (خانات فارغة) —</option>
+                                                    {attachedServices.map((bs) => (
+                                                        <option key={bs.id} value={bs.id}>
+                                                            {branches.find((b) => b.id === bs.branchId)?.name ?? `فرع #${bs.branchId}`}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                {copySourceId > 0 && (
+                                                    <p className="text-muted-foreground text-xs">
+                                                        نُسخت الشروط من فرع{' '}
+                                                        {branches.find((b) => b.id === attachedServices.find((bs) => bs.id === copySourceId)?.branchId)
+                                                            ?.name ?? '—'}{' '}
+                                                        — راجعها قبل الحفظ. عمولات الموظفين لا تُنسخ.
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+
                                         <BranchServiceFields
                                             data={attachForm.data}
                                             errors={attachForm.errors}
@@ -306,7 +371,7 @@ interface FieldsProps {
         max_discount_pct: number;
         max_selling_price: number | null;
         min_selling_price: number | null;
-        pricing_type: 'unit' | 'sqm';
+        pricing_type: ServicePricingType;
         price_per_sqm: number;
         agent_commission_per_sqm: number;
         note_examples: string[];
@@ -368,14 +433,17 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                     >
                         <option value="unit">بالوحدة</option>
                         <option value="sqm">بالمتر المربع</option>
+                        {/* تاسك 80: بُعدٌ واحد — نقطة البيع تطلب الطول وحده. */}
+                        <option value="linear">بالمتر الطولي</option>
                     </select>
                     <InputError message={errors.pricing_type} />
                 </div>
 
-                {data.pricing_type === 'sqm' && (
+                {data.pricing_type !== 'unit' && (
                     <div className="space-y-1">
                         <Label className="text-xs">
-                            سعر المتر المربع (ر.س) <span className="text-destructive">*</span>
+                            {data.pricing_type === 'linear' ? 'سعر المتر الطولي (ر.س)' : 'سعر المتر المربع (ر.س)'}{' '}
+                            <span className="text-destructive">*</span>
                         </Label>
                         <Input
                             type="number"
@@ -391,7 +459,7 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                 )}
             </div>
 
-            {data.pricing_type === 'sqm' && (
+            {data.pricing_type !== 'unit' && (
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1">
                         <Label className="text-xs">عمولة المندوب للمتر (ر.س)</Label>
@@ -412,7 +480,7 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
             {/* سقف سعر البيع — يمنع الموظف من تجاوزه، وفارغه يترك السعر مفتوحاً */}
             <div className="space-y-1">
                 <Label className="text-xs">
-                    {data.pricing_type === 'sqm' ? 'أعلى سعر للمتر المربع (ر.س)' : 'أعلى سعر للبيع (ر.س)'} — شامل الضريبة
+                    {data.pricing_type === 'unit' ? 'أعلى سعر للبيع (ر.س)' : `أعلى سعر ${meterLabel(data.pricing_type)} (ر.س)`} — شامل الضريبة
                 </Label>
                 <Input
                     type="number"
@@ -429,7 +497,9 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
 
             {/* أرضية سعر البيع (تاسك 64) — مرآة السقف أعلاه */}
             <div className="space-y-1">
-                <Label className="text-xs">{data.pricing_type === 'sqm' ? 'أقل سعر للمتر المربع (ر.س)' : 'أقل سعر للبيع (ر.س)'} — شامل الضريبة</Label>
+                <Label className="text-xs">
+                    {data.pricing_type === 'unit' ? 'أقل سعر للبيع (ر.س)' : `أقل سعر ${meterLabel(data.pricing_type)} (ر.س)`} — شامل الضريبة
+                </Label>
                 <Input
                     type="number"
                     step="0.01"
@@ -457,7 +527,10 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                 <div className="space-y-1">
                     {/* وحدة المبلغ تتبع نوع التسعير (تاسك 63). */}
                     <Label className="text-xs">
-                        {data.pricing_type === 'sqm' ? 'تكلفة الخامات للمتر المربع (ر.س)' : 'تكلفة الخامات للوحدة (ر.س)'} — بلا ضريبة
+                        {data.pricing_type === 'unit'
+                            ? 'تكلفة الخامات للوحدة (ر.س)'
+                            : `تكلفة الخامات ${meterLabel(data.pricing_type)} (ر.س)`}{' '}
+                        — بلا ضريبة
                     </Label>
                     <Input
                         type="number"
@@ -469,6 +542,8 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
                         dir="ltr"
                     />
                     <InputError message={errors.materials_cost} />
+                    {/* تاسك 77: الصفر معناه «تُحدَّد وقت البيع» لا «بلا خامات». */}
+                    <p className="text-muted-foreground text-xs">اتركها صفراً ليُدخلها الموظف مع كل فاتورة.</p>
                 </div>
             )}
 

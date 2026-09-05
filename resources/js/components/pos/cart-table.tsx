@@ -14,6 +14,15 @@ export interface PosCartLineBase {
     isManual: boolean;
 }
 
+/**
+ * خطأ سعر السطر: `text` سطرٌ قصير يُقرأ تحت الحقل، و`detail` شرحه الكامل يظهر
+ * عند المرور بالمؤشّر (تاسك 81) — النصّ يُختصر ولا تُتلف معلومته.
+ */
+export interface PosPriceError {
+    text: string;
+    detail?: string;
+}
+
 interface PosCartTableProps<T extends PosCartLineBase> {
     lines: T[];
     /** header label for the first column, e.g. "الخدمة" / "المنتج" */
@@ -34,7 +43,7 @@ interface PosCartTableProps<T extends PosCartLineBase> {
      * رسالة خطأ على سعر السطر — تُلوّن الحقل وتُكتب تحته، ويمنعها المستدعي من
      * الحفظ. تُعاد null حين لا شيء عليه (وهو الشائع).
      */
-    getPriceError?: (line: T) => string | null;
+    getPriceError?: (line: T) => PosPriceError | null;
     /** تنويه صغير أسفل حقل السعر — وحدة القياس مثلاً: «ر.س/م²». */
     getPriceHint?: (line: T) => string | null;
     /** max allowed discount % for the line */
@@ -256,7 +265,11 @@ export function PosCartTable<T extends PosCartLineBase>({
                     className={cn(CONTROL_HEIGHT, 'text-center', priceError && 'border-destructive text-destructive focus-visible:ring-destructive')}
                 />
                 {priceHint && !priceError && <p className={cn(LINE_HINT_CLASS, 'mt-1 text-[10px] leading-tight')}>{priceHint}</p>}
-                {priceError && <p className="text-destructive mt-1 text-[11px] leading-tight">{priceError}</p>}
+                {priceError && (
+                    <p className="text-destructive mt-1 text-[11px] leading-tight" title={priceError.detail}>
+                        {priceError.text}
+                    </p>
+                )}
             </div>
         );
     };

@@ -25,6 +25,9 @@ class NotificationController extends Controller
                     'current_page' => $notifications->currentPage(),
                     'last_page' => $notifications->lastPage(),
                     'total' => $notifications->total(),
+                    // تاسك 78: مدى الصفحة من المُرقِّم نفسه، لا محسوباً في الواجهة.
+                    'from' => $notifications->firstItem(),
+                    'to' => $notifications->lastItem(),
                 ],
             ],
             'unreadCount' => $user->unreadNotifications()->count(),

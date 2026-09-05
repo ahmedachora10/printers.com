@@ -18,12 +18,26 @@ class ServiceTemplate extends Model
         'branch_id',
         'name',
         'description',
+        'sort_order',
         'is_active',
     ];
 
     protected $casts = [
+        'sort_order' => 'integer',
         'is_active' => 'boolean',
     ];
+
+    /**
+     * ترتيب العرض اليدوي ثم الاسم — نفس نطاق `CatalogCategory::scopeOrdered`
+     * حرفياً (تاسك 82). يسري حيث تُقرأ الخدمات كلها لا في شاشة الإدارة وحدها.
+     *
+     * @param  Builder<$this>  $query
+     * @return Builder<$this>
+     */
+    public function scopeOrdered(Builder $query): Builder
+    {
+        return $query->orderBy('sort_order')->orderBy('name');
+    }
 
     /**
      * الفرع المالك للخدمة، أو null للخدمة العامة المتاحة لكل الفروع (تاسك 45).
@@ -58,7 +72,7 @@ class ServiceTemplate extends Model
     {
         return $this->belongsToMany(Branch::class, 'branch_services')
             ->using(BranchService::class)
-            ->withPivot(['id', 'base_commission_pct', 'max_discount_pct', 'max_selling_price', 'pricing_type', 'price_per_sqm', 'agent_commission_per_sqm', 'note_examples', 'is_tahazir', 'has_materials', 'materials_cost', 'is_active'])
+            ->withPivot(['id', 'base_commission_pct', 'max_discount_pct', 'max_selling_price', 'min_selling_price', 'pricing_type', 'price_per_sqm', 'agent_commission_per_sqm', 'note_examples', 'is_tahazir', 'has_materials', 'materials_cost', 'is_active'])
             ->withTimestamps();
     }
 }

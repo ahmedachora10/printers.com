@@ -11,8 +11,8 @@ export interface InvoiceLine {
     /** الكمية المحاسَب عليها — مساحة بالمتر المربع لسطرٍ مسعّر بالمساحة */
     qty: number;
     unitPrice: number;
-    /** ما يقيسه السعر أعلاه: 'sqm' سعر متر مربع، و null سعر وحدة/قطعة */
-    unitPriceBasis?: 'sqm' | null;
+    /** ما يقيسه السعر أعلاه: 'sqm' سعر متر مربع، و'linear' سعر متر طولي، و null سعر وحدة/قطعة */
+    unitPriceBasis?: 'sqm' | 'linear' | null;
     widthCm: number | null;
     heightCm: number | null;
     /** عدد القطع لسطر المنتج المسعّر بالمتر — الكمية أعلاه مساحتها الإجمالية */

@@ -60,6 +60,21 @@ class UserPolicy
         return $user->roleName->isSuperAdmin() || $this->managesInBranch($user, $model);
     }
 
+    /**
+     * تاسك 86: مرفقات ملفّ الموظف — من يديره يراها، والموظف يرى ملفّه هو.
+     * والسيرة الذاتية بيانٌ شخصي، فلا يراها زميلٌ في الفرع ولا مديرُ فرعٍ آخر.
+     */
+    public function viewAttachments(User $user, User $model): bool
+    {
+        return $user->id === $model->id || $this->manageAttachments($user, $model);
+    }
+
+    /** الرفع والحذف للإدارة وحدها: الموظف يقرأ ملفّه ولا يعدّل فيه. */
+    public function manageAttachments(User $user, User $model): bool
+    {
+        return $user->roleName->isSuperAdmin() || $this->managesInBranch($user, $model);
+    }
+
     public function restore(User $user, User $model): bool
     {
         return $user->roleName->isSuperAdmin();

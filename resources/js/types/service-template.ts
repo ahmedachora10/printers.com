@@ -4,6 +4,8 @@ export interface ServiceTemplate {
     id: number;
     name: string;
     description: string | null;
+    /** ترتيب العرض اليدوي (تاسك 82) */
+    sortOrder: number;
     isActive: boolean;
     /** اسم الفرع المالك للخدمة الخاصة، أو null للخدمة العامة (تاسك 45) */
     ownerBranchName?: string | null;

@@ -150,7 +150,8 @@ export default function NotificationsIndex({ items, unreadCount }: Props) {
                             currentPage={items.meta.current_page}
                             totalPages={items.meta.last_page}
                             totalItems={items.meta.total}
-                            pageSize={15}
+                            from={items.meta.from}
+                            to={items.meta.to}
                             onPageChange={(page) =>
                                 router.reload({ data: { page } })
                             }

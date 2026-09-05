@@ -2,6 +2,7 @@ import { DataTable, type ColumnDef } from '@/components/data-table';
 import DeliveryBadge from '@/components/invoices/delivery-badge';
 import InvoiceNotes from '@/components/invoices/invoice-notes';
 import MaterialsShortageDialog from '@/components/invoices/materials-shortage-dialog';
+import { ReceiptField } from '@/components/invoices/receipt-field';
 import RecordPaymentModal, { type PaymentMethodOption } from '@/components/invoices/record-payment-modal';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { Badge } from '@/components/ui/badge';
@@ -130,6 +131,24 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
     const [methodOpen, setMethodOpen] = useState(false);
     const [methodId, setMethodId] = useState<number | null>(invoice.paymentMethodId);
     const [savingMethod, setSavingMethod] = useState(false);
+    const [methodReceipt, setMethodReceipt] = useState<File | null>(null);
+    const [methodErrors, setMethodErrors] = useState<Record<string, string | undefined>>({});
+
+    // طريقةُ تحويلٍ اختيرت ولمّا تحمل الفاتورة إيصالاً: النافذة تطلبه قبل الحفظ،
+    // والخادم يرفض بدونه — فلا تُعتمد فاتورة تحويل بلا إثبات.
+    const methodNeedsReceipt = paymentMethodOptions.find((m) => m.id === methodId)?.requiresAttachment === true;
+    const methodReceiptMissing = methodNeedsReceipt && !invoice.receiptUrl && !methodReceipt;
+
+    // نفس القاعدة عند الاعتماد، مقيسةً بطريقة الفاتورة المحفوظة لا بالمختارة في
+    // النافذة: الزرّ يُعطَّل والخادم يرفض.
+    const receiptMissingForApproval =
+        paymentMethodOptions.find((m) => m.id === invoice.paymentMethodId)?.requiresAttachment === true && !invoice.receiptUrl;
+    const canApprove = !!invoice.paymentMethod && !receiptMissingForApproval;
+    const approveHint = !invoice.paymentMethod
+        ? 'حدّد طريقة الدفع قبل اعتماد الفاتورة'
+        : receiptMissingForApproval
+          ? 'أرفق إيصال التحويل قبل اعتماد الفاتورة'
+          : 'اعتماد الفاتورة';
 
     // الأسعار المُدخلة شاملة للضريبة، فالمجموع الفرعي والخصومات تُعرض صافيةً منها
     // ويبقى الإجمالي هو ما يدفعه العميل — نفس اشتقاق صفحة الطباعة.
@@ -209,15 +228,24 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
     }
 
     function savePaymentMethod() {
-        if (!methodId) return;
+        if (!methodId || methodReceiptMissing) return;
         setSavingMethod(true);
-        router.patch(
+        setMethodErrors({});
+        // POST مع `_method` لأن رفع ملف عبر PATCH لا يمرّ في multipart.
+        router.post(
             serviceInvoice.updatePaymentMethod(invoice.id).url,
-            { payment_method_id: methodId },
+            { _method: 'patch', payment_method_id: methodId, ...(methodReceipt ? { receipt: methodReceipt } : {}) },
             {
+                forceFormData: true,
                 preserveScroll: true,
-                onError: (e) => toast.error(e.payment_method_id ?? 'تعذّر تحديث طريقة الدفع.'),
-                onSuccess: () => setMethodOpen(false),
+                onError: (e) => {
+                    setMethodErrors(e);
+                    toast.error(e.payment_method_id ?? e.receipt ?? 'تعذّر تحديث طريقة الدفع.');
+                },
+                onSuccess: () => {
+                    setMethodReceipt(null);
+                    setMethodOpen(false);
+                },
                 onFinish: () => setSavingMethod(false),
             },
         );
@@ -274,14 +302,15 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                     </div>
                     {/* Full-width pairs on a phone; a single inline row once there is room. */}
                     <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
-                        {/* تاسك 59: لا اعتماد بلا طريقة دفع. الخادم يرفضه أيضاً،
-                            فالتعطيل هنا توضيحٌ لا حارس — والطريقة تُحدَّد من طابور
-                            عروض الأسعار. */}
+                        {/* تاسك 59: لا اعتماد بلا طريقة دفع، ولا اعتماد لطريقة
+                            تشترط مرفقاً بلا إيصالها. الخادم يرفض الاثنين أيضاً،
+                            فالتعطيل هنا توضيحٌ لا حارس — وكلاهما يُستدرك من
+                            نافذة «طريقة الدفع». */}
                         {invoice.canApprovePayment && (
                             <Button
                                 className="bg-emerald-600 text-white hover:bg-emerald-700"
-                                disabled={!invoice.paymentMethod}
-                                title={invoice.paymentMethod ? 'اعتماد الفاتورة' : 'حدّد طريقة الدفع قبل اعتماد الفاتورة'}
+                                disabled={!canApprove}
+                                title={approveHint}
                                 onClick={() => setApproveOpen(true)}
                             >
                                 <CheckCircle2 className="size-4" /> اعتماد الفاتورة
@@ -576,18 +605,22 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                                     }
                                 />
                             )}
+                            {/* وسمٌ عارٍ لا Link: الوجهة ملفٌ يُبَثّ من القرص الخاص لا
+                                صفحةَ Inertia، وLink يعترض النقرة ويطلبها طلبَ Inertia
+                                (ولا يحترم target) فلا يُفتح شيء — كرابط إيصال الدفعة
+                                في جدول الدفعات أعلاه. */}
                             {invoice.receiptUrl && (
                                 <MetaRow
                                     label="إيصال التحويل"
                                     value={
-                                        <Link
+                                        <a
                                             href={invoice.receiptUrl}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="text-primary inline-flex items-center gap-1 hover:underline"
                                         >
                                             <Paperclip className="size-3.5" /> عرض الإيصال
-                                        </Link>
+                                        </a>
                                     }
                                 />
                             )}
@@ -689,24 +722,42 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                     {paymentMethodOptions.length === 0 ? (
                         <p className="text-destructive text-sm">لا توجد طرق دفع مفعّلة لهذا الفرع — أضفها من الإعدادات أولاً.</p>
                     ) : (
-                        <Select value={methodId ? String(methodId) : undefined} onValueChange={(v) => setMethodId(Number(v))}>
-                            <SelectTrigger>
-                                <SelectValue placeholder="اختر طريقة الدفع" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {paymentMethodOptions.map((m) => (
-                                    <SelectItem key={m.id} value={String(m.id)}>
-                                        {m.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+                        <div className="space-y-3">
+                            <Select value={methodId ? String(methodId) : undefined} onValueChange={(v) => setMethodId(Number(v))}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="اختر طريقة الدفع" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {paymentMethodOptions.map((m) => (
+                                        <SelectItem key={m.id} value={String(m.id)}>
+                                            {m.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {methodErrors.payment_method_id && <p className="text-destructive text-xs">{methodErrors.payment_method_id}</p>}
+                            {methodNeedsReceipt && (
+                                <ReceiptField
+                                    id="method-receipt"
+                                    onChange={setMethodReceipt}
+                                    error={methodErrors.receipt}
+                                    disabled={savingMethod}
+                                    existingUrl={invoice.receiptUrl}
+                                />
+                            )}
+                        </div>
                     )}
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setMethodOpen(false)} disabled={savingMethod}>
                             تراجع
                         </Button>
-                        <Button onClick={savePaymentMethod} disabled={savingMethod || !methodId || methodId === invoice.paymentMethodId}>
+                        <Button
+                            onClick={savePaymentMethod}
+                            disabled={
+                                savingMethod || !methodId || methodReceiptMissing || (methodId === invoice.paymentMethodId && !methodReceipt)
+                            }
+                            title={methodReceiptMissing ? 'أرفق إيصال التحويل أولاً' : undefined}
+                        >
                             <CreditCard className="size-4" /> حفظ طريقة الدفع
                         </Button>
                     </DialogFooter>

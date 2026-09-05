@@ -22,10 +22,12 @@ use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\DeploymentController;
+use App\Http\Controllers\DeploymentTaskController;
 use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
 use App\Http\Controllers\ExpenseReportController;
+use App\Http\Controllers\FavoriteServiceController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\IncentiveReportController;
@@ -50,6 +52,7 @@ use App\Http\Controllers\ServiceTemplateController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StockReconciliationController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\UserAttachmentController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\EnsureDeployUiEnabled;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -74,6 +77,11 @@ Route::middleware(EnsureDeployUiEnabled::class)->group(function () {
         ->middleware('throttle:5,1')
         ->name('deployment.unlock');
     Route::delete('deployment/unlock', [DeploymentController::class, 'lock'])->name('deployment.lock');
+
+    // الأوامر المفردة — قائمةٌ مغلقة في DeployTasks، تشترك مع النشر في القفل.
+    Route::get('deployment/commands', [DeploymentTaskController::class, 'index'])->name('deployment.commands');
+    Route::post('deployment/commands/run', [DeploymentTaskController::class, 'run'])->name('deployment.commands.run');
+
     // يُدفق مخرجاته، فيُستدعى بـ fetch من الشاشة لا بزيارة Inertia.
     Route::post('deployment/run', [DeploymentController::class, 'run'])->name('deployment.run');
 });
@@ -109,7 +117,12 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('branches/{branch}/toggle-status', [BranchController::class, 'toggleStatus'])
             ->name('branches.toggle-status');
 
-        // `store` تعيش في مجموعة مدير الفرع أدناه: الإنشاء متاح للاثنين (تاسك 45).
+        Route::post('service-templates/reorder', [ServiceTemplateController::class, 'reorder'])
+            ->name('service-templates.reorder');
+
+        Route::post('service-templates/{serviceTemplate}/duplicate', [ServiceTemplateController::class, 'duplicate'])
+            ->name('service-templates.duplicate');
+
         Route::resource('service-templates', ServiceTemplateController::class)
             ->except(['create', 'edit', 'store']);
     });
@@ -207,6 +220,11 @@ Route::middleware(['auth'])->group(function () {
             // Return (DUE or PAID) is the owning employee's alone — an accountant
             // cancels or refunds instead — and ServiceInvoicePolicy says so per invoice.
             Route::post('service/{invoice}/return', [ServiceInvoiceController::class, 'returnInvoice'])->name('service.return');
+
+            // تاسك 76: تبديل تفضيل خدمة — للمستخدم الحالي وحده، والفرع يُفحص
+            // في المتحكّم لا في المسار.
+            Route::post('service/favorites/{branchService}', [FavoriteServiceController::class, 'toggle'])
+                ->name('service.favorites.toggle');
         });
     });
 
@@ -383,6 +401,16 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
         Route::resource('agent-payments', AgentPaymentController::class)
             ->only(['index', 'store']);
+    });
+
+    // تاسك 86: مرفقات ملفّ الموظف. خارج بوّابة الأدوار عمداً — الموظف يقرأ
+    // مرفقات ملفّه هو — والصلاحية كلّها في UserPolicy: من يديره يرفع ويحذف،
+    // وهو يطّلع فقط.
+    Route::prefix('users/{user}/attachments')->name('users.attachments.')->group(function () {
+        Route::get('/', [UserAttachmentController::class, 'index'])->name('index');
+        Route::post('/', [UserAttachmentController::class, 'store'])->name('store');
+        Route::get('{media}/download', [UserAttachmentController::class, 'download'])->name('download');
+        Route::delete('{media}', [UserAttachmentController::class, 'destroy'])->name('destroy');
     });
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {

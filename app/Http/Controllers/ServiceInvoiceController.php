@@ -6,6 +6,7 @@ use App\Actions\Agent\ListBranchAgentsAction;
 use App\Actions\Customer\UpdateCustomerAction;
 use App\Actions\Loyalty\ResolveAvailablePointsAction;
 use App\Actions\ServiceInvoice\AttachServiceInvoiceCustomerAction;
+use App\Actions\ServiceInvoice\CalculateServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CancelServiceInvoiceAction;
 use App\Actions\ServiceInvoice\CreateServiceInvoiceAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoiceDeliveredAction;
@@ -15,6 +16,7 @@ use App\Actions\ServiceInvoice\UpdateServiceInvoiceAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Enums\Roles;
+use App\Enums\ServicePricingTypeEnum;
 use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\ReturnServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\ReviewQueueFilterRequest;
@@ -30,6 +32,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\User;
+use App\Models\UserFavoriteService;
 use App\Models\UserService;
 use App\Notifications\DueInvoiceNotification;
 use App\Notifications\ServiceInvoiceReviewedNotification;
@@ -38,6 +41,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -74,7 +78,7 @@ class ServiceInvoiceController extends Controller
         // العمولات تُقرأ بـ**موظف الفاتورة** لا بمن يعدّلها: المراجع لا يملك
         // صفوف user_services أصلاً، فلو قُرئت به لظهرت كل النسب صفراً على الشاشة
         // بينما يحسب الخادم عمولة الموظف الحقيقية عند الحفظ.
-        $servicesById = $this->branchServiceOptions($branchId, (int) $invoice->user_id)->keyBy('id');
+        $servicesById = $this->branchServiceOptions($branchId, (int) $invoice->user_id, $user->id)->keyBy('id');
 
         $coupon = $invoice->coupon_id ? Coupon::find($invoice->coupon_id) : null;
 
@@ -113,10 +117,11 @@ class ServiceInvoiceController extends Controller
                         'name' => $line->service_name,
                         'notes' => $line->notes,
                         'qty' => $line->qty,
-                        // سطر المتر يعود إلى نقطة البيع بسعر المتر — والسطر القديم
-                        // الذي حُفظ بسعر القطعة يُقسم على مساحته أولاً فلا يتغيّر
-                        // إجماليه لمجرد إعادة حفظه.
-                        'unitPrice' => ($service['pricingType'] ?? 'unit') === 'sqm'
+                        // السطر المسعّر بمقاس — مربعاً كان أم طولياً (تاسك 80) —
+                        // يعود إلى نقطة البيع بسعر وحدة قياسه، والسطر القديم الذي
+                        // حُفظ بسعر القطعة يُقسم على قياسه أولاً فلا يتغيّر إجماليه
+                        // لمجرد إعادة حفظه.
+                        'unitPrice' => ServicePricingTypeEnum::tryFrom($service['pricingType'] ?? 'unit')?->isMeasured()
                             ? $line->unitPricePerSqm()
                             : (float) $line->unit_price,
                         'discountPct' => (float) $line->discount_pct,
@@ -133,6 +138,7 @@ class ServiceInvoiceController extends Controller
                         // الحقيقة عند التعديل، فقد عُدّل المبلغ وقت الفوترة.
                         'hasMaterials' => (float) $line->materials_cost > 0,
                         'materialsCost' => (float) $line->materials_cost,
+                        'materialsCostIsOpen' => (bool) ($service['materialsCostIsOpen'] ?? false),
                         'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
                         'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
                         'agentId' => $line->agent_id,
@@ -309,7 +315,7 @@ class ServiceInvoiceController extends Controller
                         'notes' => $line->notes,
                         'qty' => $line->qty,
                         'unitPrice' => (float) $line->unit_price,
-                        'unitPriceBasis' => $line->isPricedPerSqm() ? 'sqm' : null,
+                        'unitPriceBasis' => $line->isPricedPerSqm() ? $line->unit_price_basis?->value : null,
                         'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
                         'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
                         'discountPct' => (float) $line->discount_pct,
@@ -327,6 +333,9 @@ class ServiceInvoiceController extends Controller
                 'lastPage' => $paginator->lastPage(),
                 'perPage' => $paginator->perPage(),
                 'total' => $paginator->total(),
+                // تاسك 78: مدى الصفحة من المُرقِّم نفسه، لا محسوباً في الواجهة.
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
             ],
             // شارة العدد تتبع المدى المطبَّق لا كل الطابور.
             'summary' => [
@@ -357,6 +366,7 @@ class ServiceInvoiceController extends Controller
         }
 
         $this->assertPaymentMethodChosen($invoice);
+        $this->assertReceiptAttached($invoice);
 
         // العجز في خامات المخزون يوقف الاعتماد مرةً واحدة ويعرض الناقص؛ فإن أقرّه
         // المعتمِد أعاد الإرسال بهذا المفتاح فيمرّ، ويُسجَّل إقراره في سجلّ النشاط.
@@ -393,6 +403,24 @@ class ServiceInvoiceController extends Controller
         if (! $allowed->contains('id', $invoice->payment_method_id)) {
             throw ValidationException::withMessages([
                 'payment_method_id' => 'طريقة الدفع المحددة غير متاحة لهذا الفرع — اختر طريقة أخرى قبل الاعتماد.',
+            ]);
+        }
+    }
+
+    /**
+     * لا تُعتمد فاتورةُ تحويلٍ بلا إثبات تحويلها.
+     *
+     * الشبكة الأمانية الأخيرة: نموذجُ تعديل الطريقة يفرض الإيصال ساعةَ اختيارها،
+     * لكن تبقى فواتيرُ أُنشئت قبل تفعيل العَلَم على الطريقة، وتبقى الطلباتُ التي
+     * تتخطّى الواجهة. والمعتمِد يُرفق الإيصال من نفس الشاشة ثم يعتمد.
+     */
+    private function assertReceiptAttached(ServiceInvoice $invoice): void
+    {
+        $method = $invoice->paymentMethod;
+
+        if ($method?->requires_attachment && ! $invoice->hasReceipt()) {
+            throw ValidationException::withMessages([
+                'receipt' => "طريقة الدفع «{$method->name}» تستلزم إيصال التحويل — أرفقه قبل اعتماد الفاتورة.",
             ]);
         }
     }
@@ -461,7 +489,16 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('updateStatus', $invoice);
 
-        $invoice->update(['payment_method_id' => $request->validated('payment_method_id')]);
+        // الطريقة وإيصالها يُحفظان معاً أو لا يُحفظ أيّهما: طريقةٌ تشترط مرفقاً
+        // حُفظت بلا مرفقه تترك الفاتورة في الحال الذي مُنع أصلاً.
+        DB::transaction(function () use ($request, $invoice) {
+            $invoice->update(['payment_method_id' => $request->validated('payment_method_id')]);
+
+            if ($request->hasFile('receipt')) {
+                $invoice->addMedia($request->file('receipt'))
+                    ->toMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);
+            }
+        });
 
         return redirect()->back(fallback: route('invoices.service.review'))
             ->with('success', "تم تحديث طريقة الدفع للفاتورة {$invoice->invoice_number}");
@@ -550,7 +587,7 @@ class ServiceInvoiceController extends Controller
                     'sku' => null,
                     'qty' => $line->qty,
                     'unitPrice' => (float) $line->unit_price,
-                    'unitPriceBasis' => $line->isPricedPerSqm() ? 'sqm' : null,
+                    'unitPriceBasis' => $line->isPricedPerSqm() ? $line->unit_price_basis?->value : null,
                     'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
                     'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
                     'discountPct' => (float) $line->discount_pct,
@@ -598,7 +635,9 @@ class ServiceInvoiceController extends Controller
             : collect();
 
         return [
-            'services' => $this->branchServiceOptions($branchId, $commissionUserId),
+            // العمولات بموظف الفاتورة، والمفضّلة بمن يفتح الشاشة: تفضيلٌ شخصيّ
+            // لمن يبيع الآن لا لصاحب الفاتورة (تاسك 76).
+            'services' => $this->branchServiceOptions($branchId, $commissionUserId, $user->id),
             'agents' => $listBranchAgents->handle($branchId),
             'paymentMethods' => $paymentMethods,
             'vatPct' => (float) ($branch->vat_rate_override ?? 15),
@@ -616,21 +655,35 @@ class ServiceInvoiceController extends Controller
      *
      * @return Collection<int, array<string, mixed>>
      */
-    private function branchServiceOptions(?int $branchId, int $userId): Collection
+    private function branchServiceOptions(?int $branchId, int $userId, ?int $favoriteUserId = null): Collection
     {
         $commissionRates = UserService::query()
             ->where('user_id', $userId)
             ->pluck('commission_override_pct', 'branch_service_id');
 
+        // تاسك 76: مفضّلات من يفتح الشاشة — استعلامٌ واحد لا واحدٌ لكل خدمة.
+        $favorites = $favoriteUserId === null
+            ? collect()
+            : UserFavoriteService::query()
+                ->where('user_id', $favoriteUserId)
+                ->pluck('branch_service_id')
+                ->flip();
+
         return BranchService::query()
-            ->where('branch_id', $branchId)
-            ->where('is_active', true)
+            ->where('branch_services.branch_id', $branchId)
+            ->where('branch_services.is_active', true)
             ->with([
-                'serviceTemplate:id,name',
+                'serviceTemplate:id,name,sort_order',
                 // خامات المخزون ومتاحُها — استعلامان ثابتان لا واحدٌ لكل خدمة.
                 'materials.product:id,name,unit_id,is_sqm,current_stock',
                 'materials.product.unit:id,name',
             ])
+            // تاسك 82: ترتيب البائع هو ترتيب القالب — ضمٌّ صريح لأن الترتيب
+            // على جدول القوالب لا على خدمات الفرع. ترتيبٌ لا يراه البائع لا قيمة له.
+            ->join('service_templates', 'service_templates.id', '=', 'branch_services.service_template_id')
+            ->orderBy('service_templates.sort_order')
+            ->orderBy('service_templates.name')
+            ->select('branch_services.*')
             ->get()
             ->map(fn (BranchService $service) => [
                 'id' => $service->id,
@@ -647,9 +700,14 @@ class ServiceInvoiceController extends Controller
                 // placeholder of the line's free-text detail box.
                 'noteExamples' => array_values($service->note_examples ?? []),
                 'isTahazir' => $service->is_tahazir,
+                // خدمة رفعها هذا الموظف أعلى قائمته (تاسك 76).
+                'isFavorite' => $favorites->has($service->id),
                 // تكلفة الخامات الافتراضية — تُعبّئ خانة السطر وتبقى قابلة للتعديل.
                 'hasMaterials' => $service->has_materials,
                 'materialsCost' => (float) $service->materials_cost,
+                // تاسك 77: صفرٌ في التعريف = «تُحدَّد وقت البيع»، فتُفتح الخانة
+                // للموظف على هذا السطر وحده.
+                'materialsCostIsOpen' => CalculateServiceInvoiceAction::materialsCostIsOpen($service),
                 // خامات المخزون التي ستُخصم عند اعتماد الفاتورة، ومتاحُ كلٍّ منها
                 // لحظةَ فتح الشاشة. إرشاديّ لا مانع: الموظف يُنشئ فاتورة آجلة،
                 // والخصم والفحص الحقيقي يقعان عند الاعتماد على الخادم.

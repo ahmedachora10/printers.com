@@ -41,7 +41,7 @@ export default function UserServiceCommissionsModal({ user, open, onOpenChange, 
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent>
+            <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
                 <DialogHeader>
                     <DialogTitle>{user?.name ?? 'عمولات الخدمات'}</DialogTitle>
                     <DialogDescription>تحديد نسبة العمولة الخاصة بالموظف لكل خدمة في فرعه.</DialogDescription>

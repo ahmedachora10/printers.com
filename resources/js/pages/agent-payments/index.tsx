@@ -227,6 +227,8 @@ export default function AgentPaymentsIndex({ agents, payments, paymentTotals, fi
                     currentPage={payments.meta.current_page as number}
                     totalPages={payments.meta.last_page as number}
                     totalItems={payments.meta.total as number}
+                    from={payments.meta.from as number}
+                    to={payments.meta.to as number}
                     // router.reload يحتفظ بمعاملات الرابط الحالية، فالمدى والفرز
                     // لا يضيعان عند تغيير الصفحة.
                     onPageChange={(page) => router.reload({ data: { page } })}

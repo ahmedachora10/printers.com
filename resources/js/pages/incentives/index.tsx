@@ -335,6 +335,8 @@ export default function IncentivesIndex({
                     currentPage={plans.meta.current_page as number}
                     totalPages={plans.meta.last_page as number}
                     totalItems={plans.meta.total as number}
+                    from={plans.meta.from as number}
+                    to={plans.meta.to as number}
                     onPageChange={(page) =>
                         router.reload({ data: { page } })
                     }
@@ -378,6 +380,8 @@ export default function IncentivesIndex({
                     currentPage={deductions.meta.current_page as number}
                     totalPages={deductions.meta.last_page as number}
                     totalItems={deductions.meta.total as number}
+                    from={deductions.meta.from as number}
+                    to={deductions.meta.to as number}
                     onPageChange={(page) => router.reload({ data: { deductionsPage: page } })}
                 />
             </div>

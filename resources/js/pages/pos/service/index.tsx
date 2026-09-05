@@ -1,6 +1,16 @@
 import { noteExamplesPlaceholder } from '@/components/branch-services/note-examples-field';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
-import { LINE_HINT_CLASS, LineChip, LineField, LineHint, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
+import { ReceiptField } from '@/components/invoices/receipt-field';
+import {
+    LINE_HINT_CLASS,
+    LineChip,
+    LineField,
+    LineHint,
+    LineReadout,
+    LineSection,
+    PosCartTable,
+    type PosPriceError,
+} from '@/components/pos/cart-table';
 import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +24,7 @@ import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
 import { invoiceTotals } from '@/lib/invoice';
+import { isMeasured, meterLabel, pricingTypeLabel, unitSuffix } from '@/lib/service-pricing';
 import { cn, formatCurrency, formatDateTimeNumeric, formatQty } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import service from '@/routes/pos/service';
@@ -29,7 +40,7 @@ import {
     type ServiceCartLine,
 } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { AlertTriangle, Award, BadgePercent, CalendarClock, Info, Package, Paperclip, Printer, Ruler, Save, Search, StickyNote, Tag, X } from 'lucide-react';
+import { AlertTriangle, Award, BadgePercent, CalendarClock, Info, Package, Printer, Ruler, Save, Search, Star, StickyNote, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -78,20 +89,27 @@ function splitDeliveryAt(value: string | null | undefined): { date: string; time
     return { date, time: time.slice(0, 5) };
 }
 
-/** Area of one piece in m² from the entered cm dimensions. */
-const lineAreaSqm = (line: ServiceCartLine) => ((line.widthCm ?? 0) / 100) * ((line.heightCm ?? 0) / 100);
+/**
+ * وحدات القياس في القطعة الواحدة: المتر المربع يضرب بُعدين، والمتر الطولي يقيس
+ * بُعداً واحداً محفوظاً في widthCm وحده (تاسك 80). صفرٌ لخدمة بالوحدة.
+ */
+const lineAreaSqm = (line: ServiceCartLine) =>
+    line.pricingType === 'linear' ? (line.widthCm ?? 0) / 100 : ((line.widthCm ?? 0) / 100) * ((line.heightCm ?? 0) / 100);
 
 /**
- * الوحدات المُفوترة في السطر: عدد القطع لخدمة بالوحدة، ومجموع الأمتار المربعة
- * (الكمية × مساحة القطعة) لخدمة بالمتر المربع — إذ سعرها سعرُ متر لا سعرَ قطعة.
+ * الوحدات المُفوترة في السطر: عدد القطع لخدمة بالوحدة، ومجموع وحدات القياس
+ * (الكمية × قياس القطعة) لخدمة مسعّرة بمقاس — إذ سعرها سعرُ وحدة قياس لا سعرَ قطعة.
  */
-const lineUnits = (line: ServiceCartLine) => (line.pricingType === 'sqm' ? line.qty * lineAreaSqm(line) : line.qty);
+const lineUnits = (line: ServiceCartLine) => (isMeasured(line.pricingType) ? line.qty * lineAreaSqm(line) : line.qty);
 
 /** إجمالي السطر — نفس صيغة الخادم: الوحدات × السعر، ويُقرَّب المجموع وحده. */
 const lineTotal = (line: ServiceCartLine) => round2(lineUnits(line) * line.unitPrice * (1 - line.discountPct / 100));
 
-/** سعر القطعة الواحدة لسطر بالمتر = مساحتها × سعر المتر — عرضٌ للاطلاع فقط. */
+/** سعر القطعة الواحدة لسطر مقاسيّ = قياسها × سعر وحدة القياس — عرضٌ للاطلاع فقط. */
 const linePiecePrice = (line: ServiceCartLine) => round2(lineAreaSqm(line) * line.unitPrice);
+
+/** هل للسطر مقاسٌ كامل؟ الطولي يكفيه بُعدٌ واحد والمربع يلزمه بُعدان. */
+const lineHasSize = (line: ServiceCartLine) => !!line.widthCm && (line.pricingType === 'linear' || !!line.heightCm);
 
 /**
  * هل تجاوز السطر سقف سعر الخدمة؟ السقف يقيس السعر المكتوب نفسه في الحالتين —
@@ -170,8 +188,54 @@ function lineAgentCommission(line: ServiceCartLine, vatPct: number, agents: PosA
         case 'fixed':
             return round2(line.agentCommissionValue * line.qty);
         case 'per_sqm':
-            return round2(line.qty * lineAreaSqm(line) * line.agentCommissionValue);
+            return round2(lineUnits(line) * line.agentCommissionValue);
     }
+}
+
+/**
+ * بطاقة خدمة في شبكة «الخدمات المتاحة»، ومعها زرّ النجمة (تاسك 76). النجمة
+ * زرٌّ مستقلّ لا زرٌّ داخل زرّ، ويُوقف انتشار الضغطة كي لا يُضيف الخدمة للسلة
+ * من ضغط على النجمة.
+ */
+function ServiceTile({
+    service: s,
+    isFavorite,
+    onPick,
+    onToggleFavorite,
+}: {
+    service: PosService;
+    isFavorite: boolean;
+    onPick: () => void;
+    onToggleFavorite: () => void;
+}) {
+    return (
+        <div className="relative">
+            <button
+                type="button"
+                onClick={onPick}
+                className="hover:bg-accent flex w-full flex-col items-start gap-1 rounded-lg border p-3 pe-9 text-right text-sm transition"
+            >
+                <span className="line-clamp-2 font-medium">{s.name}</span>
+                <span className="flex w-full items-center justify-between gap-1">
+                    <span className="text-muted-foreground text-xs">عمولة {s.baseCommissionPct}%</span>
+                    {s.isTahazir && <Badge variant="secondary">تحضير</Badge>}
+                </span>
+            </button>
+            <button
+                type="button"
+                title={isFavorite ? 'إزالة من المفضّلة' : 'إضافة إلى المفضّلة'}
+                aria-label={isFavorite ? 'إزالة من المفضّلة' : 'إضافة إلى المفضّلة'}
+                aria-pressed={isFavorite}
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleFavorite();
+                }}
+                className="text-muted-foreground hover:text-amber-500 absolute top-1.5 end-1.5 rounded-md p-1.5 transition"
+            >
+                <Star className={cn('size-3.5', isFavorite && 'fill-amber-400 text-amber-400')} />
+            </button>
+        </div>
+    );
 }
 
 export default function ServicePos({ services, agents, paymentMethods, vatPct, loyalty, invoice }: Props) {
@@ -179,39 +243,55 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // Employees may only raise DUE (معلق) invoices for an accountant to review;
     // the paid/due toggle is hidden for them and the status is locked to 'due'.
     const isEmployee = props.auth.role === 'employee';
-    // تاسك 54: تكلفة الخامات تُخصم من عمولة الموظف، فيقرأها ولا يكتبها. القيمة
-    // تأتي من تعريف الخدمة، والقيد الحقيقي على الخادم (CalculateServiceInvoiceAction).
-    const canEditMaterials = !isEmployee;
+    // تاسك 54: تكلفة الخامات تُخصم من عمولة الموظف، فيقرأها ولا يكتبها — وله
+    // وحده يُخفى مفتاح «لها خامات»: إطفاؤه يرفع عمولته كما يرفعها تصفير المبلغ.
+    const canToggleMaterials = !isEmployee;
+    // تاسك 77: والاستثناء الوحيد قرارٌ لكل سطر لا للمستخدم كلّه — خدمةٌ عُرّفت
+    // «لها خامات» وتكلفتها صفر معناها «تُحدَّد وقت البيع»، فيكتبها الموظف هنا.
+    // والقيد الحقيقي على الخادم (CalculateServiceInvoiceAction) كما كان.
+    const canEditMaterialsCost = (line: ServiceCartLine) => !isEmployee || line.materialsCostIsOpen;
     /**
      * حدّا سعر البيع يلزمان الموظف وحده — المحاسب ومدير الفرع يبيعان بما يريان،
      * تماماً كما يقرّر الخادم. الرسالة تظهر تحت حقل السعر ويمنع الحفظ معها.
      *
-     * والأرضية (تاسك 65) تسمّي الحدّ الذي لُمس — تكلفة الخامات أو أقل سعر — وإلا
-     * بحث الموظف عن رقمٍ لا يراه في أي شاشة.
+     * تاسك 81: النصّ المرئي سطرٌ واحد يسمّي الحدّ ورقمه («أقل سعر للبيع 51.75»)،
+     * والتفصيل ينتقل إلى `detail` فيظهر عند المرور بالمؤشّر. ولا يسقط: أرضية
+     * الخامات (تاسك 65) رقمٌ **لا يظهر في أي شاشة** — مصدره التكلفة الصافية
+     * مضروبةً في الضريبة — فمن يحذف الجسر يترك الموظف يبحث عن رقمٍ لا يعرف
+     * من أين جاء.
      */
-    const priceBoundError = (line: ServiceCartLine): string | null => {
+    const priceBoundError = (line: ServiceCartLine): PosPriceError | null => {
         if (!isEmployee) return null;
+
+        const unit = isMeasured(line.pricingType) ? ' للمتر' : '';
 
         if (isLineOverPriceCap(line)) {
             const cap = formatCurrency(line.maxSellingPrice ?? 0);
 
-            return line.pricingType === 'sqm' ? `الحد الأعلى ${cap} للمتر` : `الحد الأعلى ${cap}`;
+            return {
+                text: `أعلى سعر للبيع ${cap}${unit}`,
+                // السقف يقيس المكتوب قبل الخصم (يحمي العميل) — تمييزٌ متعمَّد
+                // من التاسك 65 عن الأرضية، فلا تُوحّد صياغتهما.
+                detail: `أعلى سعر للبيع ${cap}${unit} ويُقاس على السعر المكتوب قبل الخصم، والمكتوب ${formatCurrency(line.unitPrice)}${unit}.`,
+            };
         }
 
         if (isLineUnderPriceFloor(line, vatPct)) {
             const floor = linePriceFloor(line, vatPct);
             const gross = lineMaterialsUnitCostGross(line, vatPct);
+            const written = formatCurrency(lineEffectiveUnitPrice(line));
             // طرف الخامات يذكر أصله الصافي أيضاً، وإلا بحث الموظف عن الـ23.00
             // في شاشةٍ كُتب فيها 20.00.
-            const reason =
+            const source =
                 gross > (line.minSellingPrice ?? 0)
-                    ? `تكلفة الخامات ${formatCurrency(lineMaterialsUnitCost(line))} + ضريبة`
-                    : 'أقل سعر';
-            const unit = line.pricingType === 'sqm' ? ' للمتر' : '';
+                    ? `مصدر الأرضية تكلفة الخامات ${formatCurrency(lineMaterialsUnitCost(line))}${unit} + ضريبة ${vatPct}%`
+                    : `أقل سعر للبيع معرَّف على الخدمة ${formatCurrency(floor)}${unit}`;
 
-            return `${reason} — اكتب ${formatCurrency(floor)}${unit} فأكثر شاملة الضريبة، والمكتوب ${formatCurrency(
-                lineEffectiveUnitPrice(line),
-            )}${unit}`;
+            return {
+                text: `أقل سعر للبيع ${formatCurrency(floor)}${unit}`,
+                // والأرضية تقيس المقبوض بعد الخصم (تحمي المركز).
+                detail: `${source} = ${formatCurrency(floor)}${unit} شاملة الضريبة، وتُقاس على المقبوض بعد الخصم — والمكتوب ${written}${unit}.`,
+            };
         }
 
         return null;
@@ -240,6 +320,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 isTahazir: l.isTahazir,
                 hasMaterials: l.hasMaterials ?? false,
                 materialsCost: l.materialsCost ?? 0,
+                materialsCostIsOpen: l.materialsCostIsOpen ?? false,
                 // خامات المخزون تُقرأ من الخدمة لا من لقطة السطر: لم تُحفظ عليه،
                 // والتحذير عن الرصيد شأنُ اليوم لا شأنُ يوم الفوترة.
                 materials: services.find((s) => s.id === l.branchServiceId)?.materials ?? [],
@@ -315,11 +396,28 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
 
     const fetchCustomers = useCallback(fetchCustomerOptions, []);
 
+    // تاسك 76: مفضّلات هذا الموظف. تُحفظ على الخادم وتُحدَّث محلياً في اللحظة
+    // نفسها، فلا تقفز الشبكة تحت إصبع البائع في منتصف فاتورة.
+    const [favoriteIds, setFavoriteIds] = useState<number[]>(() => services.filter((s) => s.isFavorite).map((s) => s.id));
+
+    const toggleFavorite = useCallback((id: number) => {
+        setFavoriteIds((current) => (current.includes(id) ? current.filter((f) => f !== id) : [...current, id]));
+        router.post(service.favorites.toggle.url(id), {}, { preserveScroll: true, preserveState: true });
+    }, []);
+
+    // المفضّلة أولاً، ثم ترتيب الخادم (sort_order ثم الاسم — تاسك 82).
+    const favoriteServices = useMemo(() => services.filter((s) => favoriteIds.includes(s.id)), [services, favoriteIds]);
+    const otherServices = useMemo(() => services.filter((s) => !favoriteIds.includes(s.id)), [services, favoriteIds]);
+
     const filteredServices = useMemo(() => {
         const term = search.trim().toLowerCase();
         if (!term) return [];
-        return services.filter((s) => s.name.toLowerCase().includes(term)).slice(0, 8);
-    }, [services, search]);
+        return services
+            .filter((s) => s.name.toLowerCase().includes(term))
+            // والمفضّل يتقدّم داخل نتائج البحث كذلك، لا في الشبكة وحدها.
+            .sort((a, b) => Number(favoriteIds.includes(b.id)) - Number(favoriteIds.includes(a.id)))
+            .slice(0, 8);
+    }, [services, search, favoriteIds]);
 
     const subtotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineTotal(l), 0)), [cart]);
     // إجمالي تكلفة الخامات — داخلي، لا يمسّ ما يدفعه العميل.
@@ -464,7 +562,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     notes: '',
                     noteExamples: s.noteExamples ?? [],
                     // سطر المتر يبدأ بسعر متر الخدمة — قابلاً للتعديل؛ وغيره بصفر.
-                    unitPrice: s.pricingType === 'sqm' ? s.pricePerSqm : 0,
+                    unitPrice: isMeasured(s.pricingType) ? s.pricePerSqm : 0,
                     qty: 1,
                     discountPct: 0,
                     maxDiscountPct: s.maxDiscountPct,
@@ -474,6 +572,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                     isTahazir: s.isTahazir,
                     hasMaterials: s.hasMaterials,
                     materialsCost: s.materialsCost,
+                    materialsCostIsOpen: s.materialsCostIsOpen,
                     materials: s.materials ?? [],
                     isManual: false,
                     pricingType: s.pricingType,
@@ -551,6 +650,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 isTahazir: false,
                 hasMaterials: false,
                 materialsCost: 0,
+                materialsCostIsOpen: false,
                 materials: [],
                 isManual: true,
                 pricingType: 'unit',
@@ -585,15 +685,16 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             // الخامات تُعاد تعبئتها من الخدمة الجديدة — الخدمة تغيّرت فتغيّرت موادها.
             hasMaterials: s.hasMaterials,
             materialsCost: s.materialsCost,
+            materialsCostIsOpen: s.materialsCostIsOpen,
             materials: s.materials ?? [],
             discountPct: Math.min(cap, line.discountPct),
             pricingType: s.pricingType,
             pricePerSqm: s.pricePerSqm,
             agentCommissionPerSqm: s.agentCommissionPerSqm,
             // سعر سطر المتر هو سعر متر الخدمة؛ والمقاس يُفرَّغ ليُدخَل من جديد.
-            ...(s.pricingType === 'sqm' ? { unitPrice: s.pricePerSqm, widthCm: null, heightCm: null } : { widthCm: null, heightCm: null }),
+            ...(isMeasured(s.pricingType) ? { unitPrice: s.pricePerSqm, widthCm: null, heightCm: null } : { widthCm: null, heightCm: null }),
             // A per_sqm commission type no longer applies on a unit service.
-            ...(s.pricingType !== 'sqm' && line.agentCommissionType === 'per_sqm'
+            ...(!isMeasured(s.pricingType) && line.agentCommissionType === 'per_sqm'
                 ? { agentCommissionType: 'percentage' as LineAgentCommissionType, agentCommissionValue: 0 }
                 : {}),
         });
@@ -610,7 +711,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         // Sqm services default to the per-sqm rate from the service settings;
         // otherwise the agent's saved profile terms are the suggestion. Both stay
         // editable — the server recomputes the amount from what is submitted.
-        if (line.pricingType === 'sqm' && line.agentCommissionPerSqm > 0) {
+        if (isMeasured(line.pricingType) && line.agentCommissionPerSqm > 0) {
             updateLine(line.key, { agentId, agentCommissionType: 'per_sqm', agentCommissionValue: line.agentCommissionPerSqm });
         } else {
             updateLine(line.key, {
@@ -694,15 +795,15 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             toast.error('اختر خدمة لكل سطر يدوي');
             return;
         }
-        if (cart.some((l) => l.pricingType === 'sqm' && (!l.widthCm || !l.heightCm))) {
+        if (cart.some((l) => isMeasured(l.pricingType) && !lineHasSize(l))) {
             toast.error('أدخل العرض والطول لخدمات المتر المربع');
             return;
         }
         const overCap = isEmployee ? cart.find(isLineOverPriceCap) : undefined;
         if (overCap) {
             toast.error(
-                `سعر "${overCap.name}" يتجاوز الحد الأعلى المسموح (${formatCurrency(overCap.maxSellingPrice ?? 0)}${
-                    overCap.pricingType === 'sqm' ? ' للمتر' : ''
+                `سعر "${overCap.name}" يتجاوز أعلى سعر للبيع (${formatCurrency(overCap.maxSellingPrice ?? 0)}${
+                    isMeasured(overCap.pricingType) ? ' للمتر' : ''
                 })`,
             );
             return;
@@ -714,7 +815,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 lineMaterialsUnitCostGross(underFloor, vatPct) > (underFloor.minSellingPrice ?? 0) ? 'تكلفة الخامات' : 'أقل سعر للبيع';
             toast.error(
                 `سعر "${underFloor.name}" بعد الخصم يقلّ عن ${reason} (${formatCurrency(linePriceFloor(underFloor, vatPct))}${
-                    underFloor.pricingType === 'sqm' ? ' للمتر' : ''
+                    isMeasured(underFloor.pricingType) ? ' للمتر' : ''
                 } شاملة الضريبة)`,
             );
             return;
@@ -751,7 +852,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 qty: l.qty,
                 unit_price: l.unitPrice,
                 discount_pct: l.discountPct,
-                width_cm: l.pricingType === 'sqm' ? l.widthCm : null,
+                width_cm: isMeasured(l.pricingType) ? l.widthCm : null,
+                // الطولي بُعدٌ واحد: يُرسل الطول في width_cm ويبقى height_cm فارغاً.
                 height_cm: l.pricingType === 'sqm' ? l.heightCm : null,
                 has_materials: l.hasMaterials,
                 materials_cost: l.hasMaterials ? l.materialsCost : 0,
@@ -1140,22 +1242,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                         ))}
                                     </div>
 
-                                    {requiresReceipt && (
-                                        <div className="space-y-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
-                                            <Label htmlFor="receipt" className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400">
-                                                <Paperclip className="size-4" /> إيصال التحويل (مطلوب)
-                                            </Label>
-                                            <Input
-                                                id="receipt"
-                                                type="file"
-                                                accept="image/jpeg,image/png,image/webp,application/pdf"
-                                                onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
-                                                className="cursor-pointer"
-                                            />
-                                            <p className="text-muted-foreground text-xs">صورة (jpg, png, webp) أو ملف PDF — بحد أقصى 5 ميجابايت.</p>
-                                            {errors.receipt && <p className="text-destructive text-xs">{errors.receipt}</p>}
-                                        </div>
-                                    )}
+                                    {requiresReceipt && <ReceiptField id="receipt" onChange={setReceipt} error={errors.receipt} />}
                                 </div>
                             )}
                             {errors.payment_method_id && <p className="text-destructive mt-2 text-xs">{errors.payment_method_id}</p>}
@@ -1309,23 +1396,44 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">الخدمات المتاحة</CardTitle>
                             </CardHeader>
-                            <CardContent>
-                                <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
-                                    {services.map((s) => (
-                                        <button
-                                            key={s.id}
-                                            type="button"
-                                            onClick={() => addService(s)}
-                                            className="hover:bg-accent flex flex-col items-start gap-1 rounded-lg border p-3 text-right text-sm transition"
-                                        >
-                                            <span className="line-clamp-2 font-medium">{s.name}</span>
-                                            <span className="flex w-full items-center justify-between gap-1">
-                                                <span className="text-muted-foreground text-xs">عمولة {s.baseCommissionPct}%</span>
-                                                {s.isTahazir && <Badge variant="secondary">تحضير</Badge>}
-                                            </span>
-                                        </button>
-                                    ))}
-                                </div>
+                            <CardContent className="space-y-3">
+                                {/* تاسك 76: المفضّلة أعلى القائمة — والخدمة لا تتكرّر في القسمين. */}
+                                {favoriteServices.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-muted-foreground flex items-center gap-1.5 text-xs font-medium">
+                                            <Star className="size-3.5 fill-amber-400 text-amber-400" />
+                                            المفضّلة
+                                        </p>
+                                        <div className="grid max-h-40 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+                                            {favoriteServices.map((s) => (
+                                                <ServiceTile
+                                                    key={s.id}
+                                                    service={s}
+                                                    isFavorite
+                                                    onPick={() => addService(s)}
+                                                    onToggleFavorite={() => toggleFavorite(s.id)}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {otherServices.length > 0 && (
+                                    <div className="space-y-2">
+                                        {favoriteServices.length > 0 && <p className="text-muted-foreground text-xs font-medium">كل الخدمات</p>}
+                                        <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+                                            {otherServices.map((s) => (
+                                                <ServiceTile
+                                                    key={s.id}
+                                                    service={s}
+                                                    isFavorite={false}
+                                                    onPick={() => addService(s)}
+                                                    onToggleFavorite={() => toggleFavorite(s.id)}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
                     )}
@@ -1358,14 +1466,14 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 renderLineMeta={(line) => {
                                     const parts = [`عمولة ${line.baseCommissionPct}%`];
 
-                                    if (line.pricingType === 'sqm') parts.push('بالمتر المربع');
+                                    if (isMeasured(line.pricingType)) parts.push(pricingTypeLabel(line.pricingType));
 
                                     // الموظف وحده مقيَّد بالحدَّين، فلا يُعرضان على غيره.
                                     if (isEmployee) {
-                                        const unit = line.pricingType === 'sqm' ? ' للمتر' : '';
+                                        const unit = isMeasured(line.pricingType) ? ' للمتر' : '';
 
                                         if (line.maxSellingPrice !== null && line.maxSellingPrice > 0) {
-                                            parts.push(`الحد الأعلى ${formatCurrency(line.maxSellingPrice)}${unit}`);
+                                            parts.push(`أعلى سعر للبيع ${formatCurrency(line.maxSellingPrice)}${unit}`);
                                         }
 
                                         // والأرضية تُعرض قبل أن يُخطئ لا بعده — وهي
@@ -1373,7 +1481,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                         const floor = linePriceFloor(line, vatPct);
 
                                         if (floor > 0) {
-                                            parts.push(`الحد الأدنى ${formatCurrency(floor)}${unit}`);
+                                            parts.push(`أقل سعر للبيع ${formatCurrency(floor)}${unit}`);
                                         }
                                     }
 
@@ -1384,7 +1492,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 isPriceEditable={() => true}
                                 getPriceError={priceBoundError}
                                 // سطر المتر: الرقم في هذا العمود سعر المتر لا سعر القطعة.
-                                getPriceHint={(line) => (line.pricingType === 'sqm' ? 'للمتر المربع' : null)}
+                                getPriceHint={(line) => (isMeasured(line.pricingType) ? meterLabel(line.pricingType) : null)}
                                 getMaxDiscount={(line) => (line.maxDiscountPct > 0 ? line.maxDiscountPct : 100)}
                                 getLineTotal={lineTotal}
                                 onQtyChange={changeQty}
@@ -1394,27 +1502,29 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 onAddManual={addManualLine}
                                 // سطر المتر بلا مقاس بلا إجمالي — يُفتح عند إضافته حتى لا
                                 // يبحث الكاشير عن حقول العرض والطول.
-                                isLineDetailsInitiallyOpen={(line) => line.pricingType === 'sqm' && (!line.widthCm || !line.heightCm)}
+                                isLineDetailsInitiallyOpen={(line) => isMeasured(line.pricingType) && !lineHasSize(line)}
                                 renderLineSummary={(line) => {
                                     if (!line.branchServiceId) return null;
-                                    const isSqm = line.pricingType === 'sqm';
-                                    const hasDimensions = !!line.widthCm && !!line.heightCm;
+                                    const measured = isMeasured(line.pricingType);
+                                    const isLinear = line.pricingType === 'linear';
+                                    const hasDimensions = lineHasSize(line);
                                     const materials = lineMaterialsTotal(line);
                                     const note = line.notes.trim();
 
-                                    if (!isSqm && !line.agentId && materials <= 0 && !note) return null;
+                                    if (!measured && !line.agentId && materials <= 0 && !note) return null;
 
                                     return (
                                         <>
-                                            {isSqm &&
+                                            {measured &&
                                                 (hasDimensions ? (
                                                     <LineChip>
                                                         <Ruler className="size-3" />
-                                                        {line.widthCm}×{line.heightCm} سم — {round2(lineAreaSqm(line))} م²
+                                                        {isLinear ? `${line.widthCm} سم` : `${line.widthCm}×${line.heightCm} سم`} —{' '}
+                                                        {round2(lineAreaSqm(line))} {unitSuffix(line.pricingType)}
                                                     </LineChip>
                                                 ) : (
                                                     <LineChip tone="warning">
-                                                        <Ruler className="size-3" /> أدخل الأبعاد
+                                                        <Ruler className="size-3" /> {isLinear ? 'أدخل الطول' : 'أدخل الأبعاد'}
                                                     </LineChip>
                                                 ))}
 
@@ -1441,20 +1551,26 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 }}
                                 renderLineDetails={(line) => {
                                     if (!line.branchServiceId) return null;
-                                    const isSqm = line.pricingType === 'sqm';
+                                    const measured = isMeasured(line.pricingType);
+                                    const isLinear = line.pricingType === 'linear';
                                     const hasAgent = !!line.agentId;
 
                                     return (
                                         <>
-                                            {isSqm && (
+                                            {measured && (
                                                 <LineSection
-                                                    title="مقاس القطعة"
-                                                    // السعر هنا سعر المتر المربع لا سعر القطعة، فالمقاس يضربه ولا
-                                                    // يغيّره؛ وسعر متر الخدمة بجانبه للمقارنة.
+                                                    // تاسك 80: الطولي بُعدٌ واحد — يطلب الطول وحده، ويبقى
+                                                    // الطول محفوظاً في widthCm كما يقرؤه الخادم.
+                                                    title={isLinear ? 'طول القطعة' : 'مقاس القطعة'}
+                                                    // السعر هنا سعر وحدة القياس لا سعر القطعة، فالمقاس يضربه
+                                                    // ولا يغيّره؛ وسعر متر الخدمة بجانبه للمقارنة.
                                                     aside={`سعر متر الخدمة: ${formatCurrency(line.pricePerSqm)}`}
                                                 >
                                                     <div className="grid gap-3 sm:grid-cols-3">
-                                                        <LineField label="العرض (سم)" htmlFor={`width-${line.key}`}>
+                                                        <LineField
+                                                            label={isLinear ? 'الطول (سم)' : 'العرض (سم)'}
+                                                            htmlFor={`width-${line.key}`}
+                                                        >
                                                             <Input
                                                                 id={`width-${line.key}`}
                                                                 type="number"
@@ -1467,26 +1583,32 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                                     })
                                                                 }
                                                                 className="h-9 text-center"
-                                                                placeholder="100"
+                                                                placeholder={isLinear ? '200' : '100'}
                                                             />
                                                         </LineField>
-                                                        <LineField label="الطول (سم)" htmlFor={`height-${line.key}`}>
-                                                            <Input
-                                                                id={`height-${line.key}`}
-                                                                type="number"
-                                                                min={1}
-                                                                step="0.1"
-                                                                value={line.heightCm ?? ''}
-                                                                onChange={(e) =>
-                                                                    updateLine(line.key, {
-                                                                        heightCm: e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
-                                                                    })
-                                                                }
-                                                                className="h-9 text-center"
-                                                                placeholder="70"
-                                                            />
-                                                        </LineField>
-                                                        <LineField label="سعر المتر المربع" htmlFor={`sqm-price-${line.key}`}>
+                                                        {!isLinear && (
+                                                            <LineField label="الطول (سم)" htmlFor={`height-${line.key}`}>
+                                                                <Input
+                                                                    id={`height-${line.key}`}
+                                                                    type="number"
+                                                                    min={1}
+                                                                    step="0.1"
+                                                                    value={line.heightCm ?? ''}
+                                                                    onChange={(e) =>
+                                                                        updateLine(line.key, {
+                                                                            heightCm:
+                                                                                e.target.value === '' ? null : Math.max(0, Number(e.target.value)),
+                                                                        })
+                                                                    }
+                                                                    className="h-9 text-center"
+                                                                    placeholder="70"
+                                                                />
+                                                            </LineField>
+                                                        )}
+                                                        <LineField
+                                                            label={isLinear ? 'سعر المتر الطولي' : 'سعر المتر المربع'}
+                                                            htmlFor={`sqm-price-${line.key}`}
+                                                        >
                                                             <Input
                                                                 id={`sqm-price-${line.key}`}
                                                                 type="number"
@@ -1504,15 +1626,20 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                         </LineField>
                                                     </div>
                                                     {/* الرسالة نفسها التي يعرضها عمود السعر — سقفاً كانت
-                                                        أم أرضية، فلا يبقى نصٌّ يسمّي «الحد الأعلى» وحده. */}
-                                                    {priceBoundError(line) && (
-                                                        <p className="text-destructive text-[11px]">
-                                                            سعر المتر {formatCurrency(line.unitPrice)} — {priceBoundError(line)}.
-                                                        </p>
-                                                    )}
-                                                    {line.widthCm && line.heightCm ? (
+                                                        أم أرضية، فلا يتناقض نصّان في شاشةٍ واحدة. */}
+                                                    {(() => {
+                                                        const bound = priceBoundError(line);
+
+                                                        return bound ? (
+                                                            <p className="text-destructive text-[11px]" title={bound.detail}>
+                                                                {bound.text}
+                                                            </p>
+                                                        ) : null;
+                                                    })()}
+                                                    {lineHasSize(line) ? (
                                                         <p className={cn(LINE_HINT_CLASS, 'text-[11px]')}>
-                                                            المساحة {round2(lineAreaSqm(line))} م² × {formatCurrency(line.unitPrice)} للمتر ={' '}
+                                                            {isLinear ? 'الطول' : 'المساحة'} {round2(lineAreaSqm(line))}{' '}
+                                                            {unitSuffix(line.pricingType)} × {formatCurrency(line.unitPrice)} للمتر ={' '}
                                                             {formatCurrency(linePiecePrice(line))} للقطعة
                                                             {line.qty > 1 && (
                                                                 <>
@@ -1536,7 +1663,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                         </p>
                                                     ) : (
                                                         <p className="text-[11px] text-amber-700 dark:text-amber-400">
-                                                            أدخل العرض والطول ليُحتسب إجمالي السطر — السعر أعلاه للمتر المربع لا للقطعة.
+                                                            {isLinear
+                                                                ? 'أدخل الطول ليُحتسب إجمالي السطر — السعر أعلاه للمتر الطولي لا للقطعة.'
+                                                                : 'أدخل العرض والطول ليُحتسب إجمالي السطر — السعر أعلاه للمتر المربع لا للقطعة.'}
                                                         </p>
                                                     )}
                                                 </LineSection>
@@ -1583,7 +1712,11 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                                     <SelectContent>
                                                                         <SelectItem value="percentage">نسبة %</SelectItem>
                                                                         <SelectItem value="fixed">مبلغ ثابت</SelectItem>
-                                                                        {isSqm && <SelectItem value="per_sqm">لكل م²</SelectItem>}
+                                                                        {measured && (
+                                                                            <SelectItem value="per_sqm">
+                                                                                لكل {unitSuffix(line.pricingType)}
+                                                                            </SelectItem>
+                                                                        )}
                                                                     </SelectContent>
                                                                 </Select>
                                                             </LineField>
@@ -1592,7 +1725,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                                     line.agentCommissionType === 'percentage'
                                                                         ? 'النسبة (%)'
                                                                         : line.agentCommissionType === 'per_sqm'
-                                                                          ? 'ر.س / م²'
+                                                                          ? `ر.س / ${unitSuffix(line.pricingType)}`
                                                                           : 'المبلغ (ر.س)'
                                                                 }
                                                                 htmlFor={`agent-value-${line.key}`}
@@ -1626,7 +1759,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                 تعريف الخدمة للقراءة، والخادم يتجاهل ما يرسله. */}
                                             <LineSection
                                                 title={
-                                                    canEditMaterials ? (
+                                                    canToggleMaterials ? (
                                                         <label className="flex cursor-pointer items-center gap-2" htmlFor={`materials-${line.key}`}>
                                                             <Checkbox
                                                                 id={`materials-${line.key}`}
@@ -1640,18 +1773,24 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                     )
                                                 }
                                                 aside={
-                                                    canEditMaterials
+                                                    canToggleMaterials
                                                         ? 'داخلية — تُخصم من عمولة الموظف ولا تظهر للعميل'
-                                                        : 'تُحدَّد من إدارة الخدمة — للاطّلاع فقط'
+                                                        : line.materialsCostIsOpen
+                                                          ? 'تُحدَّد لكل فاتورة — أدخل تكلفة الخامات الفعلية'
+                                                          : 'تُحدَّد من إدارة الخدمة — للاطّلاع فقط'
                                                 }
                                             >
                                                 {line.hasMaterials ? (
                                                     <div className="grid gap-3 sm:grid-cols-3">
                                                         <LineField
-                                                            label={isSqm ? 'التكلفة للمتر المربع (ر.س)' : 'التكلفة للوحدة (ر.س)'}
+                                                            label={
+                                                                measured
+                                                                    ? `التكلفة ${meterLabel(line.pricingType)} (ر.س)`
+                                                                    : 'التكلفة للوحدة (ر.س)'
+                                                            }
                                                             htmlFor={`materials-cost-${line.key}`}
                                                         >
-                                                            {canEditMaterials ? (
+                                                            {canEditMaterialsCost(line) ? (
                                                                 <Input
                                                                     id={`materials-cost-${line.key}`}
                                                                     type="number"
@@ -1669,12 +1808,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                                 <LineReadout>{formatCurrency(line.materialsCost)}</LineReadout>
                                                             )}
                                                         </LineField>
-                                                        {/* العنوان يسمّي المضروب فيه فعلاً: الأمتار المربعة
+                                                        {/* العنوان يسمّي المضروب فيه فعلاً: وحدات القياس
                                                             لخدمة بالمتر، وعدد القطع لخدمة بالوحدة (تاسك 63). */}
                                                         <LineField
                                                             label={
-                                                                isSqm
-                                                                    ? `الإجمالي (× ${round2(lineUnits(line))} م²)`
+                                                                measured
+                                                                    ? `الإجمالي (× ${round2(lineUnits(line))} ${unitSuffix(line.pricingType)})`
                                                                     : `الإجمالي (× ${line.qty})`
                                                             }
                                                         >
@@ -1682,9 +1821,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                         </LineField>
                                                     </div>
                                                 ) : (
-                                                    !canEditMaterials && (
-                                                        <LineHint>لا خامات معرَّفة على هذه الخدمة.</LineHint>
-                                                    )
+                                                    !canToggleMaterials && <LineHint>لا خامات معرَّفة على هذه الخدمة.</LineHint>
                                                 )}
                                             </LineSection>
 

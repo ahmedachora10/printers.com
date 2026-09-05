@@ -46,7 +46,7 @@ class BranchServiceController extends Controller
         $branchId = $userBranch->id;
 
         $query = BranchService::with(['serviceTemplate', 'branch', 'materials.product.unit'])
-            ->where('branch_id', $branchId);
+            ->where('branch_services.branch_id', $branchId);
 
         if ($request->filled('search')) {
             $query->whereHas('serviceTemplate', function ($q) use ($request) {
@@ -55,17 +55,24 @@ class BranchServiceController extends Controller
         }
 
         if ($request->filled('status')) {
-            $query->where('is_active', (bool) $request->status);
+            $query->where('branch_services.is_active', (bool) $request->status);
         }
 
-        $branchServices = $query->latest()->paginate(20)->withQueryString();
+        // تاسك 82: نفس ترتيب قوالب الخدمات، فالشاشتان تعرضان الخدمات نفسها.
+        $branchServices = $query
+            ->join('service_templates', 'service_templates.id', '=', 'branch_services.service_template_id')
+            ->orderBy('service_templates.sort_order')
+            ->orderBy('service_templates.name')
+            ->select('branch_services.*')
+            ->paginate(20)
+            ->withQueryString();
 
         // الخدمات العامة + ما أنشأه هذا الفرع لنفسه (تاسك 45) — خدمات الفروع
         // الأخرى لا تظهر هنا.
         $serviceTemplates = ServiceTemplate::query()
             ->where('is_active', true)
             ->availableToBranch($branchId)
-            ->orderBy('name')
+            ->ordered()
             ->get(['id', 'name', 'branch_id'])
             ->map(fn (ServiceTemplate $t) => [
                 'id' => $t->id,

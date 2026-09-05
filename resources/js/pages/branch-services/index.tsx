@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
+import { isMeasured, unitSuffix } from '@/lib/service-pricing';
 import { formatCurrency } from '@/lib/utils';
 import branchServicesRoute from '@/routes/branch-services';
 import { type BreadcrumbItem } from '@/types';
@@ -121,7 +122,9 @@ export default function BranchServicesIndex({
                     s.maxSellingPrice !== null && s.maxSellingPrice > 0 ? (
                         <span className="tabular-nums">
                             {formatCurrency(s.maxSellingPrice)}
-                            {s.pricingType === 'sqm' && <span className="text-muted-foreground text-xs"> /م²</span>}
+                            {isMeasured(s.pricingType) && (
+                                <span className="text-muted-foreground text-xs"> /{unitSuffix(s.pricingType)}</span>
+                            )}
                         </span>
                     ) : (
                         <span className="text-muted-foreground text-sm">مفتوح</span>
@@ -134,7 +137,9 @@ export default function BranchServicesIndex({
                     s.minSellingPrice !== null && s.minSellingPrice > 0 ? (
                         <span className="tabular-nums">
                             {formatCurrency(s.minSellingPrice)}
-                            {s.pricingType === 'sqm' && <span className="text-muted-foreground text-xs"> /م²</span>}
+                            {isMeasured(s.pricingType) && (
+                                <span className="text-muted-foreground text-xs"> /{unitSuffix(s.pricingType)}</span>
+                            )}
                         </span>
                     ) : (
                         <span className="text-muted-foreground text-sm">مفتوح</span>
@@ -296,6 +301,8 @@ export default function BranchServicesIndex({
                     currentPage={branchServices.meta.current_page as number}
                     totalPages={branchServices.meta.last_page as number}
                     totalItems={branchServices.meta.total as number}
+                    from={branchServices.meta.from as number}
+                    to={branchServices.meta.to as number}
                     onPageChange={(page) => {
                         router.reload({ data: { page } });
                     }}
@@ -356,7 +363,7 @@ export default function BranchServicesIndex({
                 onOpenChange={(open) => !open && setMaterialsServiceId(null)}
                 branchServiceId={materialsServiceId}
                 serviceName={materialsService?.serviceTemplateName ?? ''}
-                isSqmService={materialsService?.pricingType === 'sqm'}
+                isSqmService={isMeasured(materialsService?.pricingType ?? 'unit')}
                 products={products}
                 current={materialsService?.materials ?? []}
             />

@@ -1,4 +1,5 @@
 import MaterialsShortageDialog from '@/components/invoices/materials-shortage-dialog';
+import { ReceiptField } from '@/components/invoices/receipt-field';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -8,7 +9,7 @@ import { formatCurrency } from '@/lib/utils';
 import payments from '@/routes/invoices/payments';
 import { type InvoiceType } from '@/types/invoice';
 import { router } from '@inertiajs/react';
-import { AlertTriangle, Loader2, Paperclip, Wallet } from 'lucide-react';
+import { AlertTriangle, Loader2, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -196,20 +197,7 @@ export default function RecordPaymentModal({
                         </div>
 
                         {requiresReceipt && (
-                            <div className="space-y-1.5">
-                                <Label htmlFor="payment-receipt" className="flex items-center gap-1.5">
-                                    <Paperclip className="size-3.5" /> إيصال التحويل <span className="text-destructive">*</span>
-                                </Label>
-                                <Input
-                                    id="payment-receipt"
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/webp,application/pdf"
-                                    onChange={(e) => setReceipt(e.target.files?.[0] ?? null)}
-                                    disabled={submitting}
-                                />
-                                <p className="text-muted-foreground text-xs">صورة (jpg, png, webp) أو ملف PDF، بحد أقصى 5 ميجابايت.</p>
-                                {errors.receipt && <p className="text-destructive text-xs">{errors.receipt}</p>}
-                            </div>
+                            <ReceiptField id="payment-receipt" onChange={setReceipt} error={errors.receipt} disabled={submitting} />
                         )}
 
                         <div className="space-y-1.5">

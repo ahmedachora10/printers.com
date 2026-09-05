@@ -6,6 +6,7 @@ use App\Actions\System\BackupDatabaseAction;
 use App\Support\ComposerBinary;
 use App\Support\DeploySeeders;
 use App\Support\PhpBinary;
+use App\Support\SeederRunner;
 use App\Support\Shell;
 use Illuminate\Console\Command;
 use Illuminate\Console\ConfirmableTrait;
@@ -347,19 +348,13 @@ class DeployCommand extends Command
      */
     private function seedInFreshProcess(string $class): bool
     {
-        if (! $this->devDependenciesInstalled || ! Shell::available()) {
+        if (! $this->devDependenciesInstalled || ! SeederRunner::canRunFresh()) {
             $this->callSilent('db:seed', ['--class' => $class, '--force' => true]);
 
             return false;
         }
 
-        $result = Process::path(base_path())
-            ->timeout(1800)
-            ->run([PhpBinary::path(), base_path('artisan'), 'db:seed', '--class='.$class, '--force']);
-
-        if ($result->failed()) {
-            throw new RuntimeException('فشل الزارع '.class_basename($class).': '.trim($result->errorOutput() ?: $result->output()));
-        }
+        SeederRunner::runFresh($class);
 
         return true;
     }
@@ -739,33 +734,7 @@ class DeployCommand extends Command
 
     private function composerInstall(string $composer, bool $withDev = false): void
     {
-        $home = storage_path('app/composer');
-        File::ensureDirectoryExists($home);
-
-        // composer.phar يُشغَّل بمُفسِّرٍ صريح: `php` في المسار على cPanel قد
-        // يكون نسخةً لا تُقلع بها حزم المشروع أصلاً.
-        $command = str_ends_with($composer, '.phar') ? [PhpBinary::path(), $composer] : [$composer];
-
-        $result = Process::path(base_path())
-            ->timeout(1200)
-            ->env([
-                'COMPOSER_HOME' => $home,
-                'COMPOSER_MEMORY_LIMIT' => '-1',
-                'COMPOSER_NO_INTERACTION' => '1',
-            ])
-            ->run([
-                ...$command,
-                'install',
-                ...($withDev ? [] : ['--no-dev']),
-                '--prefer-dist',
-                '--no-progress',
-                '--no-interaction',
-                '--optimize-autoloader',
-            ]);
-
-        if ($result->failed()) {
-            throw new RuntimeException('فشل composer install: '.trim($result->errorOutput() ?: $result->output()));
-        }
+        ComposerBinary::install($withDev);
     }
 
     /**

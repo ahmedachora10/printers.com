@@ -296,7 +296,8 @@ export default function LoyaltyIndex({
                                     currentPage={branchConfigs.meta.current_page}
                                     totalPages={branchConfigs.meta.last_page}
                                     totalItems={branchConfigs.meta.total}
-                                    pageSize={branchConfigs.meta.per_page}
+                                    from={branchConfigs.meta.from}
+                                    to={branchConfigs.meta.to}
                                     onPageChange={(page) => goToPage('branchPage', page)}
                                 />
                             )}
@@ -322,7 +323,8 @@ export default function LoyaltyIndex({
                                 currentPage={transactions.meta.current_page}
                                 totalPages={transactions.meta.last_page}
                                 totalItems={transactions.meta.total}
-                                pageSize={transactions.meta.per_page}
+                                from={transactions.meta.from}
+                                to={transactions.meta.to}
                                 onPageChange={(page) => goToPage('page', page)}
                             />
                         )}

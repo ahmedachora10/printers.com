@@ -212,6 +212,8 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                             currentPage={payments.meta.current_page as number}
                             totalPages={payments.meta.last_page as number}
                             totalItems={payments.meta.total as number}
+                            from={payments.meta.from as number}
+                            to={payments.meta.to as number}
                             onPageChange={(page) => {
                                 router.reload({ data: { page } });
                             }}

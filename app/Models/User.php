@@ -5,6 +5,7 @@ namespace App\Models;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Casts\SanitizedHtml;
 use App\Enums\Roles;
+use App\Http\Requests\User\StoreUserAttachmentRequest;
 use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
@@ -67,6 +68,24 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         'password',
         'remember_token',
     ];
+
+    /**
+     * تاسك 86: مرفقات ملفّ الموظف — سيرة ذاتية، عقد، شهادة. على القرص الخاص
+     * وحده: هذه بياناتٌ شخصية لا تُخدم من رابطٍ مفتوح يُخمَّن، فالتنزيل يمرّ
+     * بمسارٍ محميّ بسياسة كما تفعل إيصالات التحويل.
+     *
+     * ولا تُقيَّد الأنواع هنا: التحقّق في
+     * {@see StoreUserAttachmentRequest} برسائل عربية،
+     * بينما `acceptsMimeTypes` ترفض بصمتٍ ملفاً صحيحاً اختلف تخمين نوعه
+     * (docx تُقرأ zip أحياناً).
+     */
+    public const ATTACHMENTS_COLLECTION = 'attachments';
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection(self::ATTACHMENTS_COLLECTION)
+            ->useDisk('local');
+    }
 
     /** Per-request memo behind {@see workBranch()} — not an attribute. */
     protected ?Branch $workBranch = null;

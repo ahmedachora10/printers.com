@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PasswordInput } from '@/components/ui/password-input';
 import { RichTextField } from '@/components/ui/rich-text-field';
+import UserAttachmentsSection from '@/components/users/user-attachments-section';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type BranchOption, type ManagedUser, type RoleOption } from '@/types/user';
 import { useForm } from '@inertiajs/react';
@@ -90,7 +91,7 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-xl">
+            <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
                 <DialogHeader>
                     <DialogTitle>{isEdit ? 'تعديل مستخدم' : 'إضافة مستخدم'}</DialogTitle>
                 </DialogHeader>
@@ -255,6 +256,9 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
                                 onChange={(e) => setData('base_commission_pct', e.target.value)}
                                 dir="ltr"
                             />
+                            <p className="text-muted-foreground text-[11px] leading-tight">
+                                تُسجَّل تلقائياً كنسبة هذا الموظف على أي خدمة تُضاف لفرعه لاحقاً، ويمكن تعديلها لكل خدمة على حدة.
+                            </p>
                             <InputError message={errors.base_commission_pct} />
                         </div>
 
@@ -297,6 +301,10 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
                         />
                         <InputError message={errors.notes} />
                     </div>
+
+                    {/* المرفقات تُرفع بمسارها المستقلّ فور اختيارها، فلا تُعرض
+                        إلا لمستخدمٍ محفوظ — ولا معرّف قبل الحفظ أصلاً. */}
+                    {isEdit && user && <UserAttachmentsSection userId={user.id} canManage />}
 
                     <div className="flex items-center gap-2">
                         <Checkbox
