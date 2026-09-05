@@ -35,6 +35,15 @@ class ServiceTemplatePolicy
         return $user->roleName->isSuperAdmin() || $this->ownsTemplate($user, $serviceTemplate);
     }
 
+    /**
+     * تاسك 83: التكرار إنشاءٌ وتعديلٌ معاً — فمن يكرّر قالباً عامّاً ينشئ قالباً
+     * عامّاً، وهو ما يمنعه التاسك 45 عن مدير الفرع. فالشرط شرط التعديل نفسه.
+     */
+    public function duplicate(User $user, ServiceTemplate $serviceTemplate): bool
+    {
+        return $this->create($user) && $this->update($user, $serviceTemplate);
+    }
+
     public function delete(User $user, ServiceTemplate $serviceTemplate): bool
     {
         return $user->roleName->isSuperAdmin() || $this->ownsTemplate($user, $serviceTemplate);

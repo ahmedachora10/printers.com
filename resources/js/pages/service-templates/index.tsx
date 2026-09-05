@@ -1,4 +1,4 @@
-import { destroy, index, reorder } from '@/actions/App/Http/Controllers/ServiceTemplateController';
+import { destroy, duplicate as duplicateRoute, index, reorder } from '@/actions/App/Http/Controllers/ServiceTemplateController';
 import { type BranchEmployee, type EmployeeCommission } from '@/components/branch-services/branch-service-employees-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
@@ -11,7 +11,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type PaginatedServiceTemplate, type ServiceTemplate } from '@/types/service-template';
 import { router } from '@inertiajs/react';
-import { ArrowDown, ArrowUp, Network, Pencil, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, Network, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'قوالب الخدمات', href: '/service-templates' }];
@@ -71,6 +71,35 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
         },
         [templates.data],
     );
+
+    /**
+     * تاسك 83: نسخةٌ كاملة بشروط فروعها. تصل غير نشطة باسم «… — نسخة»، فتُفتح
+     * نافذة تعديلها فوراً ليسمّيها المستخدم قبل تفعيلها — النسخة توأمٌ لا صفٌّ
+     * جديد يُملأ من الصفر، وهو مقصد الطلب: ثمانية أسطر لا تختلف إلا في المقاس.
+     */
+    const duplicateTemplate = useCallback((template: ServiceTemplate) => {
+        router.post(
+            duplicateRoute.url({ serviceTemplate: template.id }),
+            {},
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: (page) => {
+                    const list = (page.props.templates as PaginatedServiceTemplate).data;
+                    // النسخة أحدثُ صفٍّ يحمل اسم الأصل ولاحقته — وقد تقع خارج
+                    // الصفحة إن انقسم الترتيب، فلا يُفتح شيء حينها.
+                    const copy = list
+                        .filter((t) => t.id !== template.id && t.name.startsWith(`${template.name} — نسخة`))
+                        .sort((a, b) => b.id - a.id)[0];
+
+                    if (copy) {
+                        setEditingTemplateId(copy.id);
+                        setFormOpen(true);
+                    }
+                },
+            },
+        );
+    }, []);
 
     function handleDelete() {
         if (!deletingTemplateId) return;
@@ -153,7 +182,7 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
             {
                 key: 'actions',
                 header: '',
-                headerClassName: 'w-36',
+                headerClassName: 'w-44',
                 cell: (template) => (
                     <div className="flex items-center gap-1.5">
                         <Button variant="outline" size="sm" title="إدارة الفروع" onClick={() => setManagingTemplateId(template.id)}>
@@ -161,6 +190,14 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
                         </Button>
                         <Button variant="outline" size="sm" title="تعديل" onClick={() => openEdit(template)}>
                             <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            title="تكرار بنفس الأسعار والمواصفات"
+                            onClick={() => duplicateTemplate(template)}
+                        >
+                            <Copy className="h-3.5 w-3.5" />
                         </Button>
                         <Button
                             variant="outline"
@@ -175,7 +212,7 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
                 ),
             },
         ],
-        [templates.data, move],
+        [templates.data, move, duplicateTemplate],
     );
 
     const [search, setSearch] = useState(filters.search ?? '');

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\ServiceTemplate\CreateServiceTemplateAction;
 use App\Actions\ServiceTemplate\DeleteServiceTemplateAction;
+use App\Actions\ServiceTemplate\DuplicateServiceTemplateAction;
 use App\Actions\ServiceTemplate\ReorderServiceTemplatesAction;
 use App\Actions\ServiceTemplate\UpdateServiceTemplateAction;
 use App\Enums\Roles;
@@ -131,6 +132,20 @@ class ServiceTemplateController extends Controller
         $action->handle($ids);
 
         return back(fallback: route('service-templates.index'));
+    }
+
+    /**
+     * تاسك 83: نسخةٌ من القالب بفروعه وشروطها. تُنشأ غير نشطة والواجهة تفتح
+     * تعديلها فوراً، فيسمّيها المستخدم قبل أن تصل نقطة البيع.
+     */
+    public function duplicate(ServiceTemplate $serviceTemplate, DuplicateServiceTemplateAction $action): RedirectResponse
+    {
+        Gate::authorize('duplicate', $serviceTemplate);
+
+        $copy = $action->handle($serviceTemplate);
+
+        return back(fallback: route('service-templates.index'))
+            ->with('success', "تم إنشاء نسخة «{$copy->name}» — عدّل اسمها ثم فعّلها");
     }
 
     public function destroy(ServiceTemplate $serviceTemplate, DeleteServiceTemplateAction $action): RedirectResponse

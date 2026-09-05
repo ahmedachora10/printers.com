@@ -120,6 +120,9 @@ Route::middleware(['auth'])->group(function () {
         Route::post('service-templates/reorder', [ServiceTemplateController::class, 'reorder'])
             ->name('service-templates.reorder');
 
+        Route::post('service-templates/{serviceTemplate}/duplicate', [ServiceTemplateController::class, 'duplicate'])
+            ->name('service-templates.duplicate');
+
         Route::resource('service-templates', ServiceTemplateController::class)
             ->except(['create', 'edit', 'store']);
     });
