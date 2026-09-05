@@ -4,11 +4,13 @@ on:
   push:
     branches:
       - develop
-      - main
   pull_request:
     branches:
       - develop
       - main
+  # يستدعيها ورك‌فلو النشر قبل أن يمسّ الإنتاج. ولأنّها تعمل من هناك على
+  # كل دفعٍ إلى main، أُسقط main من المُشغِّل أعلاه كي لا تعمل مرتين.
+  workflow_call:
 
 jobs:
   ci:

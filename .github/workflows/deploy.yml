@@ -1,0 +1,104 @@
+name: deploy
+
+# النشر إلى الإنتاج: تُبنى الأصول هنا (لا npm على cPanel)، ثم تُرفع إلى إصدارٍ
+# ثابت في المستودع، ثم يُستدعى مسار /deploy على الخادم ويُمرَّر إليه رابطها.
+on:
+  push:
+    branches:
+      - main
+
+# نشرٌ واحد في كل وقت. ولا نلغي الجاري: قطعُ نشرٍ في منتصفه أسوأ من انتظاره.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
+  deploy:
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 8.3 هي نسخة الخادم — نبني بها لا بأحدث ما في الـ runner.
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install PHP Dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Prepare Environment
+        run: |
+          cp .env.example .env
+          touch database/database.sqlite
+          php artisan key:generate
+
+      # resources/js/actions و resources/js/routes مُستثنيان من git، فلا بناء
+      # بدون توليدهما أولاً.
+      - name: Generate Wayfinder
+        run: php artisan wayfinder:generate --with-form
+
+      - name: Install Node Dependencies
+        run: npm ci
+
+      - name: Build Assets
+        run: npm run build
+
+      # الأمر app:deploy يبحث عن manifest.json في جذر المضغوط وفي build/ معاً،
+      # والاسم يحمل الـ sha كي لا تُخدع ذاكرةُ التنزيل بملفٍ قديم بنفس الاسم.
+      - name: Package Assets
+        id: package
+        run: |
+          name="build-${GITHUB_SHA:0:7}.zip"
+          (cd public && zip -qr "../$name" build)
+          ls -lh "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Publish Assets
+        id: assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view deploy-assets >/dev/null 2>&1 || gh release create deploy-assets \
+            --prerelease \
+            --title "أصول النشر" \
+            --notes "أصول الواجهة التي تبنيها GitHub Actions لكل نشر. لا تحذف هذا الإصدار."
+          gh release upload deploy-assets "${{ steps.package.outputs.name }}" --clobber
+          echo "url=${{ github.server_url }}/${{ github.repository }}/releases/download/deploy-assets/${{ steps.package.outputs.name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Prune Old Assets
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for asset in $(gh release view deploy-assets --json assets \
+            --jq '.assets | sort_by(.createdAt) | reverse | .[5:] | .[].name'); do
+            echo "حذف $asset"
+            gh release delete-asset deploy-assets "$asset" --yes
+          done
+
+      # ترويسة الرد تسبق النشر كلّه، فرمز HTTP لا يحمل خبر نجاحه: النتيجة
+      # تُقرأ من العلامة الختامية في آخر المخرجات، كما يفعل app:deploy-remote.
+      - name: Deploy
+        env:
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          ASSETS_URL: ${{ steps.assets.outputs.url }}
+        run: bash .github/scripts/deploy.sh
