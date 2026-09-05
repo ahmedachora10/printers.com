@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Actions\System\BackupDatabaseAction;
+use App\Support\Bytecode;
 use App\Support\ComposerBinary;
 use App\Support\DeploySeeders;
 use App\Support\PhpBinary;
@@ -437,7 +438,11 @@ class DeployCommand extends Command
 
             $this->callSilent('optimize');
 
-            return 'config، routes، views، events';
+            // جدولُ المسارات الجديد على القرص لا ينفع وفي ذاكرة الخادم نسخةٌ
+            // مُصرَّفة من القديم: يبقى المسار المُضاف حديثاً 404 حتى تُبطَل.
+            $flushed = Bytecode::flush();
+
+            return 'config، routes، views، events'.($flushed ? ' — وأُبطلت الشفرة المُصرَّفة' : '');
         });
     }
 
@@ -500,6 +505,7 @@ class DeployCommand extends Command
         try {
             $this->callSilent('optimize:clear');
             $this->callSilent('optimize');
+            Bytecode::flush();
         } catch (Throwable) {
             $this->notes[] = 'تعذّرت إعادة بناء الذاكرة المؤقتة بعد التراجع — نفّذ php artisan optimize يدوياً.';
         }

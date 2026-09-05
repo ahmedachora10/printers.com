@@ -6,6 +6,7 @@ use App\Actions\System\BackupDatabaseAction;
 use App\Actions\System\StreamConsoleAction;
 use App\Http\Requests\Deployment\RunTaskRequest;
 use App\Models\Branch;
+use App\Support\Bytecode;
 use App\Support\ComposerBinary;
 use App\Support\DeployAccess;
 use App\Support\DeploySeeders;
@@ -90,6 +91,7 @@ class DeploymentTaskController extends Controller
             'app:backup' => $this->backup($output),
             'db:seed' => $this->seed($data['seeders'] ?? [], $output),
             'app:composer-install' => $this->composer($output),
+            'optimize', 'optimize:clear' => $this->optimize($task['command'], $output),
             'app:deploy' => Artisan::call('app:deploy', ['--dry-run' => true, '--force' => true], $output),
             default => Artisan::call($task['command'], $this->arguments($task, $data), $output),
         };
@@ -162,6 +164,21 @@ class DeploymentTaskController extends Controller
         }
 
         return 0;
+    }
+
+    /**
+     * بناءُ الذاكرة المؤقتة يكتب bootstrap/cache على القرص، وقد يبقى الخادم
+     * يخدم النسخة المُصرَّفة من الملف القديم — فلا يُرى الجديدُ حتى تُبطَل.
+     */
+    private function optimize(string $command, OutputInterface $output): int
+    {
+        $status = Artisan::call($command, [], $output);
+
+        if (Bytecode::flush()) {
+            $output->writeln('أُبطلت الشفرة المُصرَّفة (opcache).');
+        }
+
+        return $status;
     }
 
     private function composer(OutputInterface $output): int

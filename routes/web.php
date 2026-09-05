@@ -56,6 +56,7 @@ use App\Http\Controllers\UserAttachmentController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\EnsureDeployUiEnabled;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
@@ -562,3 +563,21 @@ Route::middleware(['auth'])->group(function () {
 
 require __DIR__.'/settings.php';
 require __DIR__.'/auth.php';
+
+// عنوانٌ لا يطابق أيّ مسار يرمي استثناءه من داخل الموجِّه نفسه، أي قبل وسائط
+// الويب: لا جلسة، ولا بيانات Inertia مشتركة. فكانت صفحة 404 تُعرض بلا auth
+// فتنكسر في المتصفّح بدل أن تُعرض. والتقاطه هنا يجعله طلباً عادياً يمرّ
+// بالوسائط كاملةً، فتصل الصفحةَ مشاركاتُها ويعرف الزائرُ أين يعود.
+// (المسارات الاحتياطية تُطابَق بعد كلّ ما سواها مهما كان ترتيب تسجيلها.)
+Route::fallback(function (Request $request) {
+    if ($request->expectsJson() || $request->is('api/*')) {
+        return response()->json([
+            'message' => 'الصفحة غير موجودة',
+            'status' => 404,
+        ], 404);
+    }
+
+    return Inertia::render('errors/404')
+        ->toResponse($request)
+        ->setStatusCode(404);
+});

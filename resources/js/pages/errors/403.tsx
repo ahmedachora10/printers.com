@@ -4,7 +4,9 @@ import { Head, Link, usePage } from '@inertiajs/react';
 import { ShieldX } from 'lucide-react';
 
 export default function Forbidden() {
-    const { auth } = usePage<SharedData>().props;
+    // صفحة الخطأ قد تُعرض من خارج وسائط الويب (استثناءٌ يسبقها)،
+    // وحينها لا مشاركات أصلاً — فلا تُقرأ auth إلا بحذر.
+    const auth = usePage<Partial<SharedData>>().props.auth;
 
     return (
         <>
@@ -21,8 +23,8 @@ export default function Forbidden() {
                     </p>
                 </div>
                 <Button asChild>
-                    <Link href={route(auth.user ? 'dashboard' : 'home')}>
-                        {auth.user ? 'العودة إلى لوحة التحكم' : 'العودة إلى الصفحة الرئيسية'}
+                    <Link href={route(auth?.user ? 'dashboard' : 'home')}>
+                        {auth?.user ? 'العودة إلى لوحة التحكم' : 'العودة إلى الصفحة الرئيسية'}
                     </Link>
                 </Button>
             </div>

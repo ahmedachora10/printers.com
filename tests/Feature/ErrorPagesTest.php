@@ -1,13 +1,15 @@
 <?php
 
 use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 
-uses(\Illuminate\Foundation\Testing\RefreshDatabase::class);
+uses(RefreshDatabase::class);
 
 describe('Error Pages', function () {
     beforeEach(function () {
         $this->withoutVite();
-        $this->seed(\Database\Seeders\RolesAndPermissionsSeeder::class);
+        $this->seed(RolesAndPermissionsSeeder::class);
     });
 
     it('renders the errors/403 Inertia page when authorization fails', function () {
@@ -46,5 +48,26 @@ describe('Error Pages', function () {
         $this->get('/this-route-does-not-exist')
             ->assertNotFound()
             ->assertInertia(fn ($page) => $page->component('errors/404'));
+    });
+
+    // كان العنوان المجهول يُرمى من الموجِّه قبل وسائط الويب، فتصل الصفحةُ
+    // بلا auth وتنكسر في المتصفّح. المشاركات دليلُ مرورها بالوسائط.
+    it('shares the usual Inertia props on the 404 page of an unknown route', function () {
+        $user = User::factory()->create();
+        $user->addRole('branch-admin');
+
+        $this->actingAs($user)
+            ->get('/this-route-does-not-exist')
+            ->assertNotFound()
+            ->assertInertia(fn ($page) => $page
+                ->component('errors/404')
+                ->where('auth.user.id', $user->id)
+            );
+    });
+
+    it('returns a 404 JSON payload for API requests to unknown routes', function () {
+        $this->getJson('/this-route-does-not-exist')
+            ->assertNotFound()
+            ->assertJson(['status' => 404]);
     });
 });
