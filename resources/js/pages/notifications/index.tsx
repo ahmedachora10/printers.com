@@ -17,6 +17,7 @@ import {
     FileText,
     type LucideIcon,
     Package,
+    ShieldAlert,
     ShoppingBasket,
     Trash2,
     TrendingDown,
@@ -39,6 +40,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
     Building2,
     TrendingDown,
     Trophy,
+    ShieldAlert,
 };
 
 interface Props {

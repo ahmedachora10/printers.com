@@ -33,7 +33,10 @@ class DeploymentTaskController extends Controller
         if (! DeployAccess::granted($request)) {
             return Inertia::render('deployment/unlock', [
                 'appName' => (string) config('app.name'),
-                'configured' => DeployAccess::configured(),
+                // كالشاشة الأخرى: لا يُكشف للمجهول أنّ الخادم بلا مفتاح.
+                'configured' => DeployAccess::revealsConfiguration($request)
+                    ? DeployAccess::configured()
+                    : true,
             ]);
         }
 

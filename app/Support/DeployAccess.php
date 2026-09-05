@@ -19,9 +19,12 @@ class DeployAccess
 {
     public const SESSION_KEY = 'deploy_unlocked';
 
+    /** ختمُ آخر استعمالٍ للفتح، به تُقاس مدّة السكون. */
+    public const SESSION_TOUCHED_KEY = 'deploy_unlocked_at';
+
     public static function granted(Request $request): bool
     {
-        return self::isSuperAdmin($request) || $request->session()->get(self::SESSION_KEY) === true;
+        return self::isSuperAdmin($request) || self::unlockedBySession($request);
     }
 
     public static function isSuperAdmin(Request $request): bool
@@ -29,9 +32,29 @@ class DeployAccess
         return (bool) $request->user()?->hasRole('super-admin');
     }
 
+    /**
+     * الفتح بالمفتاح لا يدوم دوامَ الجلسة: من فتح على متصفّحٍ مشترَك ثم انصرف
+     * كان يترك باب الخادم مفتوحاً خلفه ما دامت الجلسة حيّة. فيُقاس السكون،
+     * وكلُّ طلبٍ مأذونٍ يُجدّد الختم، فلا يُقطع على أحدٍ عملٌ جارٍ ولا تبقى
+     * جلسةٌ متروكة مفتوحة.
+     *
+     * والسوبر أدمن خارج هذا كلّه: إذنه دوره لا مفتاحُه.
+     */
     public static function unlockedBySession(Request $request): bool
     {
-        return $request->session()->get(self::SESSION_KEY) === true;
+        if ($request->session()->get(self::SESSION_KEY) !== true) {
+            return false;
+        }
+
+        if (self::idleTooLong($request)) {
+            self::lock($request);
+
+            return false;
+        }
+
+        $request->session()->put(self::SESSION_TOUCHED_KEY, now()->getTimestamp());
+
+        return true;
     }
 
     /**
@@ -43,6 +66,16 @@ class DeployAccess
         return (string) config('deploy.token') !== '';
     }
 
+    /**
+     * أيُكشف للطارق أنّ الخادم بلا مفتاحٍ أصلاً؟ الكشف عونٌ للمدير يُشخّص به
+     * إعداده، وهو لمن يجسّ الأبواب خبرٌ نافع. فيُقصر على من دخل بحساب، ويُعرض
+     * على الزائر المجهول نموذجُ المفتاح دائماً كأنّ ثمّة مفتاحاً.
+     */
+    public static function revealsConfiguration(Request $request): bool
+    {
+        return $request->user() !== null;
+    }
+
     public static function matches(string $provided): bool
     {
         return self::configured() && hash_equals((string) config('deploy.token'), $provided);
@@ -51,6 +84,7 @@ class DeployAccess
     public static function unlock(Request $request): void
     {
         $request->session()->put(self::SESSION_KEY, true);
+        $request->session()->put(self::SESSION_TOUCHED_KEY, now()->getTimestamp());
 
         // ترقيةُ إذنٍ داخل جلسةٍ قائمة تستحقّ معرّفاً جديداً.
         $request->session()->regenerate();
@@ -58,6 +92,27 @@ class DeployAccess
 
     public static function lock(Request $request): void
     {
-        $request->session()->forget(self::SESSION_KEY);
+        $request->session()->forget([self::SESSION_KEY, self::SESSION_TOUCHED_KEY]);
+    }
+
+    /**
+     * فتحٌ بلا ختمٍ زمني — جلسةٌ سبقت هذا الشرط — يُعدّ منتهياً: الأمان في
+     * إعادة السؤال لا في افتراض الحداثة.
+     */
+    private static function idleTooLong(Request $request): bool
+    {
+        $minutes = (int) config('deploy.ui.unlock_ttl');
+
+        if ($minutes <= 0) {
+            return false;
+        }
+
+        $touched = $request->session()->get(self::SESSION_TOUCHED_KEY);
+
+        if (! is_int($touched)) {
+            return true;
+        }
+
+        return (now()->getTimestamp() - $touched) > $minutes * 60;
     }
 }

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use App\Notifications\DeployUnlockAttemptsNotification;
 use App\Support\DeployAccess;
 use App\Support\DeployPreferences;
 use App\Support\PhpBinary;
@@ -8,6 +9,7 @@ use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Notification;
 
 uses(RefreshDatabase::class);
 
@@ -69,10 +71,85 @@ it('يرفض المفتاح الخاطئ ويسجّل المحاولة', functio
 it('لا يفتح بمفتاحٍ فارغ حين لا مفتاح مضبوطاً على الخادم', function () {
     config()->set('deploy.token', null);
 
-    $this->get(route('deployment.index'))
-        ->assertInertia(fn ($page) => $page->component('deployment/unlock')->where('configured', false));
-
     $this->post(route('deployment.unlock'), ['token' => ''])->assertSessionHasErrors('token');
+
+    // ولمن دخل بحساب يُقال إنّ الخادم بلا مفتاح، فهو تشخيصٌ لا استطلاع.
+    $employee = User::factory()->create();
+    $employee->addRole('employee');
+
+    $this->actingAs($employee)
+        ->get(route('deployment.index'))
+        ->assertInertia(fn ($page) => $page->component('deployment/unlock')->where('configured', false));
+});
+
+it('لا يُفشي للزائر المجهول أنّ الخادم بلا مفتاح', function () {
+    config()->set('deploy.token', null);
+
+    // النموذج يُعرض كأنّ ثمّة مفتاحاً، والخطأ واحدٌ في الحالتين، فلا يعرف
+    // الطارقُ أوقف على بابٍ بلا قفلٍ أم أخطأ المفتاح.
+    $this->get(route('deployment.index'))
+        ->assertInertia(fn ($page) => $page->component('deployment/unlock')->where('configured', true));
+
+    $this->post(route('deployment.unlock'), ['token' => 'anything'])
+        ->assertSessionHasErrors(['token' => 'المفتاح غير صحيح.']);
+});
+
+it('يختم ردود شاشة النشر بمنع الفهرسة', function () {
+    $this->get(route('deployment.index'))
+        ->assertOk()
+        ->assertHeader('X-Robots-Tag', 'noindex, nofollow, noarchive');
+});
+
+it('يُغلق الفتح بالمفتاح بعد طول سكون', function () {
+    $this->post(route('deployment.unlock'), ['token' => 'secret-token']);
+
+    $this->travel(31)->minutes();
+
+    $this->get(route('deployment.index'))
+        ->assertInertia(fn ($page) => $page->component('deployment/unlock'));
+
+    $this->post(route('deployment.run'), ['dryRun' => true])->assertForbidden();
+});
+
+it('يُجدّد المهلة بكلّ طلبٍ مأذون فلا تُقطع جلسةٌ عاملة', function () {
+    $this->post(route('deployment.unlock'), ['token' => 'secret-token']);
+
+    // عشرون دقيقة، ثمّ زيارةٌ تُجدّد الختم، ثمّ عشرون أخرى: المجموع أربعون
+    // وهو فوق المهلة، والسكون المتّصل عشرون وهو دونها.
+    $this->travel(20)->minutes();
+    $this->get(route('deployment.index'))
+        ->assertInertia(fn ($page) => $page->component('deployment/index')->etc());
+
+    $this->travel(20)->minutes();
+    $this->get(route('deployment.index'))
+        ->assertInertia(fn ($page) => $page->component('deployment/index')->etc());
+});
+
+it('لا تمسّ المهلةُ السوبر أدمن، فإذنه دوره لا مفتاحه', function () {
+    $this->travel(90)->minutes();
+
+    $this->actingAs($this->superAdmin)
+        ->get(route('deployment.index'))
+        ->assertInertia(fn ($page) => $page->component('deployment/index')->etc());
+});
+
+it('يُنبّه المديرين العامّين بعد تكرار المحاولات الخاطئة', function () {
+    Cache::flush();
+    Notification::fake();
+
+    $this->post(route('deployment.unlock'), ['token' => 'wrong-1']);
+    $this->post(route('deployment.unlock'), ['token' => 'wrong-2']);
+
+    Notification::assertNothingSent();
+
+    $this->post(route('deployment.unlock'), ['token' => 'wrong-3']);
+
+    Notification::assertSentTo($this->superAdmin, DeployUnlockAttemptsNotification::class);
+
+    // ولا يُعاد الخبر على كلّ محاولةٍ بعده.
+    Notification::fake();
+    $this->post(route('deployment.unlock'), ['token' => 'wrong-4']);
+    Notification::assertNothingSent();
 });
 
 it('يفتح الشاشة للزائر بالمفتاح الصحيح', function () {

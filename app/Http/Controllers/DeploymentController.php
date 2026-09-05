@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Actions\System\StreamDeployAction;
 use App\Http\Requests\Deployment\RunDeploymentRequest;
+use App\Models\User;
+use App\Notifications\DeployUnlockAttemptsNotification;
 use App\Support\ComposerBinary;
 use App\Support\DeployAccess;
 use App\Support\DeployPreferences;
@@ -12,6 +14,8 @@ use App\Support\PhpBinary;
 use App\Support\Shell;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
@@ -35,7 +39,11 @@ class DeploymentController extends Controller
         if (! DeployAccess::granted($request)) {
             return Inertia::render('deployment/unlock', [
                 'appName' => (string) config('app.name'),
-                'configured' => DeployAccess::configured(),
+                // للزائر المجهول يُعرض النموذج دائماً: أن يعلم أنّ الخادم بلا
+                // مفتاحٍ خبرٌ يُفيده وحده، فيُقصر على من دخل بحساب.
+                'configured' => DeployAccess::revealsConfiguration($request)
+                    ? DeployAccess::configured()
+                    : true,
             ]);
         }
 
@@ -60,8 +68,13 @@ class DeploymentController extends Controller
                 ->withProperties(['ip' => $request->ip(), 'agent' => $request->userAgent()])
                 ->log('محاولة فتح شاشة النشر بمفتاحٍ خاطئ');
 
+            $this->alertOnRepeatedFailures($request);
+
             throw ValidationException::withMessages([
-                'token' => DeployAccess::configured() ? 'المفتاح غير صحيح.' : 'لا مفتاح نشرٍ مضبوطٌ على هذا الخادم.',
+                // ولا يُقال للمجهول إنّ الخادم بلا مفتاح؛ يستوي عنده الخطأان.
+                'token' => DeployAccess::revealsConfiguration($request) && ! DeployAccess::configured()
+                    ? 'لا مفتاح نشرٍ مضبوطٌ على هذا الخادم.'
+                    : 'المفتاح غير صحيح.',
             ]);
         }
 
@@ -96,6 +109,47 @@ class DeploymentController extends Controller
             'via' => DeployAccess::isSuperAdmin($request) ? 'ui' : 'ui-token',
             'user' => $request->user()?->name,
         ]);
+    }
+
+    /**
+     * الطَّرقُ المتكرّر على المفتاح يُخنق ويُسجَّل، لكنّ الخنق يردّ ولا يُخبر،
+     * والسجلّ لا يُقرأ إلا بعد وقوع شيء. فيُرفع الخبر إلى المديرين العامّين
+     * عند بلوغ الحدّ، مرّةً واحدةً في النافذة كي لا يصير التنبيه ضجيجاً.
+     *
+     * والعدّ لكلّ عنوانٍ على حدة، فمحاولاتُ مديرٍ نسي مفتاحه لا تُخلط بغيرها.
+     */
+    private function alertOnRepeatedFailures(Request $request): void
+    {
+        $threshold = (int) config('deploy.ui.unlock_alert_threshold');
+        $window = (int) config('deploy.ui.unlock_alert_window');
+
+        if ($threshold <= 0 || $window <= 0) {
+            return;
+        }
+
+        $key = 'deploy-unlock-failures:'.$request->ip();
+        $attempts = (int) Cache::get($key, 0) + 1;
+
+        Cache::put($key, $attempts, now()->addMinutes($window));
+
+        // عند الحدّ تماماً: ما دونه مبكّر، وما فوقه تكرارٌ لخبرٍ قيل.
+        if ($attempts !== $threshold) {
+            return;
+        }
+
+        $admins = User::query()
+            ->whereHas('roles', fn ($query) => $query->where('name', 'super-admin'))
+            ->get();
+
+        if ($admins->isEmpty()) {
+            return;
+        }
+
+        Notification::send($admins, new DeployUnlockAttemptsNotification(
+            (string) $request->ip(),
+            $attempts,
+            $window,
+        ));
     }
 
     /**
