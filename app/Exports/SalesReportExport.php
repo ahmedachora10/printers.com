@@ -20,7 +20,7 @@ class SalesReportExport implements FromCollection, ShouldAutoSize, WithHeadings,
     /** @return array<int, string> */
     public function headings(): array
     {
-        return ['رقم الفاتورة', 'النوع', 'الفرع', 'الموظف', 'طريقة الدفع', 'الإجمالي قبل الخصم', 'الخصومات', 'الضريبة', 'الإجمالي', 'تاريخ الدفع'];
+        return ['رقم الفاتورة', 'النوع', 'الحركة', 'الفرع', 'الموظف', 'طريقة الدفع', 'الإجمالي قبل الخصم', 'الخصومات', 'الضريبة', 'الإجمالي', 'تاريخ الدفع'];
     }
 
     /** @return Collection<int, mixed> */
@@ -29,6 +29,8 @@ class SalesReportExport implements FromCollection, ShouldAutoSize, WithHeadings,
         return $this->invoices->map(fn (array $inv) => [
             $inv['invoiceNumber'],
             $inv['type'],
+            // «تحصيل» أو «مرتجع» — صفوف المرتجع تحمل أرقاماً سالبة.
+            $inv['kind'],
             $inv['branchName'],
             $inv['userName'],
             $inv['methodName'],

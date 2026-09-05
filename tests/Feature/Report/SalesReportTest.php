@@ -250,6 +250,119 @@ describe('Sales Report', function () {
                 ->where('byDay.2.total', 0));
     });
 
+    // ── المرتجعات ──────────────────────────────────────────────────
+    //
+    // المرتجع حدثُ تحصيلٍ سالب: يُطرح من الإيراد ويُعرض مجموعُه مستقلاً. أما
+    // الفاتورة المرتجعة بالكامل فحالتها `returned` تُخرجها من التقرير أصلاً،
+    // فلا يُطرح مرتجعها فوق ذلك.
+
+    it('subtracts a partial refund from realized revenue', function () {
+        $invoice = paidProductInvoice($this->branch, $this->branchAdmin); // total 115
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 15,
+            'reason' => 'مرتجع جزئي',
+        ])->assertRedirect();
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.total', 100)
+                ->where('totals.refunds', 15)
+                ->where('totals.invoiceCount', 1));
+    });
+
+    it('prorates a partial refund across subtotal and VAT', function () {
+        $invoice = paidProductInvoice($this->branch, $this->branchAdmin); // 100 + 15 ضريبة = 115
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 57.5, // نصف الفاتورة
+            'reason' => 'نصف المبلغ',
+        ])->assertRedirect();
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.subtotal', 50)
+                ->where('totals.vat', 7.5)
+                ->where('totals.total', 57.5));
+    });
+
+    it('does not subtract twice when the refund empties the invoice', function () {
+        // المرتجع الكامل يجعل الحالة `returned`، فتسقط الفاتورة من التقرير كلياً؛
+        // طرحُ صفّ مرتجعها فوق ذلك كان سيُخرج الإيراد بالسالب.
+        $invoice = paidProductInvoice($this->branch, $this->branchAdmin); // total 115
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 115,
+            'reason' => 'مرتجع كامل',
+        ])->assertRedirect();
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.total', 0)
+                ->where('totals.refunds', 0)
+                ->where('totals.invoiceCount', 0));
+    });
+
+    it('dates the refund by the day the money went back, not the sale', function () {
+        $invoice = paidProductInvoice($this->branch, $this->branchAdmin, [
+            'paid_at' => now()->subDays(5),
+        ]);
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 15,
+            'reason' => 'مرتجع اليوم على بيع قديم',
+        ])->assertRedirect();
+
+        // نافذةٌ تضمّ المرتجع وحده: إيرادٌ سالب وعددُ فواتير صفر — الفاتورة لم
+        // تُبَع في هذه الفترة.
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales', ['from' => now()->toDateString(), 'to' => now()->toDateString()]))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.total', -15)
+                ->where('totals.refunds', 15)
+                ->where('totals.invoiceCount', 0));
+
+        // ونافذةٌ تضمّ البيع وحده: الإيراد كاملاً بلا خصم.
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales', [
+                'from' => now()->subDays(5)->toDateString(),
+                'to' => now()->subDays(5)->toDateString(),
+            ]))
+            ->assertInertia(fn ($page) => $page->where('totals.total', 115));
+    });
+
+    it('attributes the refund to the employee who raised the invoice', function () {
+        $employee = User::factory()->create(['branch_id' => $this->branch->id]);
+        $employee->addRole(Roles::EMPLOYEE->value);
+
+        $invoice = paidServiceInvoice($this->branch, $employee); // total 230
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'amount' => 30,
+            'reason' => 'مرتجع جزئي',
+        ])->assertRedirect();
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->has('byEmployee', 1)
+                ->where('byEmployee.0.userId', $employee->id)
+                ->where('byEmployee.0.total', 200));
+    });
+
     // ── EXPORT ─────────────────────────────────────────────────────
 
     it('exports the report as an xlsx download', function () {

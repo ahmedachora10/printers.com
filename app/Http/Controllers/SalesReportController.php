@@ -34,6 +34,12 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * of the total that the payment represents, so the identity
  * `subtotal − discounts + VAT = total` still holds on partial collections. For a
  * fully collected invoice the share is 1 and nothing changes.
+ *
+ * والمرتجع حدثُ تحصيلٍ سالب على المنوال نفسه: مالٌ خرج، مؤرَّخٌ بيوم خروجه،
+ * موزَّعةٌ أرقامُه بحصّته من الفاتورة. فالإيراد المعروض صافٍ من المرتجعات، وتُعرض
+ * جملتها إلى جانبه. أما الفاتورة المرتجعة بالكامل فقد سقطت أصلاً بحكم حالتها
+ * (`returned` خارج COLLECTED_STATUSES)، فلا يُطرح مرتجعها فوق ذلك — وهو نفس
+ * التمييز الذي يقيمه عمود `deductible` في التقرير اليومي.
  */
 class SalesReportController extends Controller
 {
@@ -112,7 +118,8 @@ class SalesReportController extends Controller
      *  A. one row per recorded payment (deposit or instalment), dated by that
      *     payment and carrying its own payment method;
      *  B. one row per paid invoice that has no payment rows at all — settled in
-     *     one go at the till — worth its whole total and dated by paid_at.
+     *     one go at the till — worth its whole total and dated by paid_at;
+     *  C. one *negative* row per refund, dated by the day the money went back.
      *
      * Because DB::table() bypasses the SoftDeletes global scope, deleted rows
      * are excluded explicitly.
@@ -165,8 +172,34 @@ class SalesReportController extends Controller
                 DB::raw('i.vat_amount as vat_share'),
             ]);
 
+        // C. المرتجعات — أحداثٌ سالبة بحصّتها من الفاتورة. تُقصر على الفواتير
+        // التي ما زالت محسوبةً هنا: الفاتورة المرتجعة بالكامل حالتها `returned`
+        // فسقطت من الفرعين أعلاه، وطرحُ مرتجعها فوق ذلك خصمٌ ثانٍ لنفس المبلغ.
+        $refundShare = '(r.amount * 1.0) / NULLIF(i.total_amount, 0)';
+
+        $refunds = DB::table('refunds as r')
+            ->join($table.' as i', 'i.id', '=', 'r.invoice_id')
+            ->where('r.invoice_type', $morphClass)
+            ->whereNull('r.deleted_at')
+            ->whereNull('i.deleted_at')
+            ->whereIn('i.status', self::COLLECTED_STATUSES)
+            ->select([
+                DB::raw('i.id as invoice_id'),
+                DB::raw('i.invoice_number as invoice_number'),
+                DB::raw('i.branch_id as branch_id'),
+                // يُنسب المرتجع إلى منشئ الفاتورة لا إلى من سجّله: الأثر على
+                // مبيعات ذلك الموظف. نفس عُرف التقرير اليومي.
+                DB::raw('i.user_id as user_id'),
+                DB::raw('i.payment_method_id as payment_method_id'),
+                DB::raw('r.created_at as realized_at'),
+                DB::raw('-r.amount as realized'),
+                DB::raw("-i.subtotal * ({$refundShare}) as subtotal_share"),
+                DB::raw("-{$discounts} * ({$refundShare}) as discounts_share"),
+                DB::raw("-i.vat_amount * ({$refundShare}) as vat_share"),
+            ]);
+
         return DB::query()
-            ->fromSub($payments->unionAll($direct), 'events')
+            ->fromSub($payments->unionAll($direct)->unionAll($refunds), 'events')
             ->whereNotNull('events.realized_at')
             ->when($scope['branchId'], fn ($q) => $q->where('events.branch_id', $scope['branchId']))
             ->when($scope['from'], fn ($q) => $q->where('events.realized_at', '>=', $scope['from']))
@@ -180,6 +213,16 @@ class SalesReportController extends Controller
     }
 
     /**
+     * عدد الفواتير: تُعدّ مرةً واحدة وإن امتدّت على عدة أحداث تحصيل، ولا يُعدّ
+     * المرتجع فيها — وإلا لأضاف مرتجعُ فاتورةٍ بيعت في فترة سابقة فاتورةً لم
+     * تُبَع في فترة المرتجع.
+     */
+    private const COUNT_EXPR = 'COUNT(DISTINCT CASE WHEN events.realized > 0 THEN events.invoice_id END)';
+
+    /** جملة ما رُدّ للعملاء، موجبةً، إلى جانب الإيراد الصافي منها. */
+    private const REFUNDS_EXPR = 'COALESCE(SUM(CASE WHEN events.realized < 0 THEN -events.realized ELSE 0 END), 0)';
+
+    /**
      * The aggregate columns every breakdown selects — an invoice may span
      * several collection events, so it is counted once, distinctly.
      *
@@ -188,11 +231,12 @@ class SalesReportController extends Controller
     private function sumColumns(): array
     {
         return [
-            DB::raw('COUNT(DISTINCT events.invoice_id) as c'),
+            DB::raw(self::COUNT_EXPR.' as c'),
             DB::raw('COALESCE(SUM(events.subtotal_share), 0) as subtotal'),
             DB::raw('COALESCE(SUM(events.discounts_share), 0) as discounts'),
             DB::raw('COALESCE(SUM(events.vat_share), 0) as vat'),
             DB::raw('COALESCE(SUM(events.realized), 0) as total'),
+            DB::raw(self::REFUNDS_EXPR.' as refunds'),
         ];
     }
 
@@ -204,7 +248,7 @@ class SalesReportController extends Controller
      */
     private function totals(array $scope, string $type): array
     {
-        $subtotal = $discounts = $vat = $total = 0.0;
+        $subtotal = $discounts = $vat = $total = $refunds = 0.0;
         $count = 0;
 
         foreach ($this->tablesForType($type) as $table) {
@@ -215,6 +259,7 @@ class SalesReportController extends Controller
             $discounts += (float) $row->discounts;
             $vat += (float) $row->vat;
             $total += (float) $row->total;
+            $refunds += (float) $row->refunds;
         }
 
         return [
@@ -222,6 +267,7 @@ class SalesReportController extends Controller
             'subtotal' => $subtotal,
             'discounts' => $discounts,
             'vat' => $vat,
+            'refunds' => $refunds,
             'total' => $total,
         ];
     }
@@ -247,6 +293,7 @@ class SalesReportController extends Controller
                 'subtotal' => (float) $row->subtotal,
                 'discounts' => (float) $row->discounts,
                 'vat' => (float) $row->vat,
+                'refunds' => (float) $row->refunds,
                 'total' => (float) $row->total,
             ];
         }
@@ -275,7 +322,7 @@ class SalesReportController extends Controller
                 ->groupBy(DB::raw('DATE(events.realized_at)'))
                 ->get([
                     DB::raw('DATE(events.realized_at) as day'),
-                    DB::raw('COUNT(DISTINCT events.invoice_id) as c'),
+                    DB::raw(self::COUNT_EXPR.' as c'),
                     DB::raw('COALESCE(SUM(events.realized), 0) as total'),
                 ]);
 
@@ -309,7 +356,7 @@ class SalesReportController extends Controller
                 ->get([
                     DB::raw('events.user_id as user_id'),
                     'users.name as user_name',
-                    DB::raw('COUNT(DISTINCT events.invoice_id) as c'),
+                    DB::raw(self::COUNT_EXPR.' as c'),
                     DB::raw('COALESCE(SUM(events.realized), 0) as total'),
                 ]);
 
@@ -341,7 +388,7 @@ class SalesReportController extends Controller
                 ->get([
                     DB::raw('events.payment_method_id as method_id'),
                     'payment_methods.name as method_name',
-                    DB::raw('COUNT(DISTINCT events.invoice_id) as c'),
+                    DB::raw(self::COUNT_EXPR.' as c'),
                     DB::raw('COALESCE(SUM(events.realized), 0) as total'),
                 ]);
 
@@ -378,7 +425,7 @@ class SalesReportController extends Controller
                 ->get([
                     DB::raw('events.branch_id as branch_id'),
                     'branches.name as branch_name',
-                    DB::raw('COUNT(DISTINCT events.invoice_id) as c'),
+                    DB::raw(self::COUNT_EXPR.' as c'),
                     DB::raw('COALESCE(SUM(events.realized), 0) as total'),
                 ]);
 
@@ -396,7 +443,8 @@ class SalesReportController extends Controller
     /**
      * Detail rows for the Excel export, merged and sorted by date — one row per
      * collection event, so an invoice paid off in instalments lists each of them
-     * under the same invoice number.
+     * under the same invoice number, and a refund lists as a negative row of its
+     * own under عمود «الحركة».
      *
      * @param  array<string, mixed>  $scope
      * @return Collection<int, array<string, mixed>>
@@ -428,6 +476,9 @@ class SalesReportController extends Controller
                 $rows->push([
                     'invoiceNumber' => $r->invoice_number,
                     'type' => $typeLabel,
+                    // الحدث السالب مرتجع، وما عداه تحصيل — فلا يقرأ القارئ رقماً
+                    // سالباً في ورقةٍ بلا تفسير.
+                    'kind' => (float) $r->total < 0 ? 'مرتجع' : 'تحصيل',
                     'branchName' => $r->branch_name,
                     'userName' => $r->user_name,
                     'methodName' => $r->method_name ?? 'غير محدد',

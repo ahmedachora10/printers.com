@@ -20,7 +20,7 @@ import {
     type SalesReportTypeRow,
 } from '@/types/sales-report';
 import { Head } from '@inertiajs/react';
-import { CreditCard, Download, Percent, Receipt, TrendingUp, Wallet } from 'lucide-react';
+import { CreditCard, Download, Percent, Receipt, TrendingUp, Undo2, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير المبيعات', href: '/reports/sales' }];
@@ -37,6 +37,7 @@ const typeColumns: ColumnDef<SalesReportTypeRow>[] = [
     { key: 'subtotal', header: 'قبل الخصم', cell: (row) => formatCurrency(row.subtotal) },
     { key: 'discounts', header: 'الخصومات', className: 'text-amber-600', cell: (row) => formatCurrency(row.discounts) },
     { key: 'vat', header: 'الضريبة', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.vat) },
+    { key: 'refunds', header: 'المرتجعات', className: 'text-rose-600', cell: (row) => formatCurrency(row.refunds) },
     { key: 'total', header: 'الإجمالي', className: 'font-semibold text-green-600', cell: (row) => formatCurrency(row.total) },
 ];
 
@@ -166,6 +167,16 @@ export default function SalesReportIndex({
                         value={formatCurrency(totals.vat)}
                         valueClass="text-muted-foreground"
                     />
+                    {/* بطاقةٌ لا تظهر إلا عند وجود مرتجعات، فتبقى الشبكة خمس
+                        بطاقات في الحالة الغالبة ولا تُضغط أرقام العملة. */}
+                    {totals.refunds > 0 && (
+                        <SummaryCard
+                            icon={<Undo2 className="size-4" />}
+                            label="المرتجعات"
+                            value={formatCurrency(totals.refunds)}
+                            valueClass="text-rose-600"
+                        />
+                    )}
                     <SummaryCard
                         icon={<Wallet className="size-4" />}
                         label="صافي المبيعات"
@@ -193,6 +204,7 @@ export default function SalesReportIndex({
                                     <TableCell className="font-bold">{formatCurrency(totals.subtotal)}</TableCell>
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.discounts)}</TableCell>
                                     <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.vat)}</TableCell>
+                                    <TableCell className="font-bold text-rose-600">{formatCurrency(totals.refunds)}</TableCell>
                                     <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
                                 </TableRow>
                             }
