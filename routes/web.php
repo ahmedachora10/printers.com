@@ -26,8 +26,8 @@ use App\Http\Controllers\DeploymentTaskController;
 use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
-use App\Http\Controllers\FavoriteServiceController;
 use App\Http\Controllers\ExpenseReportController;
+use App\Http\Controllers\FavoriteServiceController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\IncentiveReportController;
@@ -52,6 +52,7 @@ use App\Http\Controllers\ServiceTemplateController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StockReconciliationController;
 use App\Http\Controllers\SupplierController;
+use App\Http\Controllers\UserAttachmentController;
 use App\Http\Controllers\UserController;
 use App\Http\Middleware\EnsureDeployUiEnabled;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
@@ -116,12 +117,9 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('branches/{branch}/toggle-status', [BranchController::class, 'toggleStatus'])
             ->name('branches.toggle-status');
 
-        // تاسك 82: ترتيب العرض اليدوي — يُسجَّل قبل الـresource كي لا يبتلعه
-        // `service-templates/{serviceTemplate}`.
         Route::post('service-templates/reorder', [ServiceTemplateController::class, 'reorder'])
             ->name('service-templates.reorder');
 
-        // `store` تعيش في مجموعة مدير الفرع أدناه: الإنشاء متاح للاثنين (تاسك 45).
         Route::resource('service-templates', ServiceTemplateController::class)
             ->except(['create', 'edit', 'store']);
     });
@@ -400,6 +398,16 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
         Route::resource('agent-payments', AgentPaymentController::class)
             ->only(['index', 'store']);
+    });
+
+    // تاسك 86: مرفقات ملفّ الموظف. خارج بوّابة الأدوار عمداً — الموظف يقرأ
+    // مرفقات ملفّه هو — والصلاحية كلّها في UserPolicy: من يديره يرفع ويحذف،
+    // وهو يطّلع فقط.
+    Route::prefix('users/{user}/attachments')->name('users.attachments.')->group(function () {
+        Route::get('/', [UserAttachmentController::class, 'index'])->name('index');
+        Route::post('/', [UserAttachmentController::class, 'store'])->name('store');
+        Route::get('{media}/download', [UserAttachmentController::class, 'download'])->name('download');
+        Route::delete('{media}', [UserAttachmentController::class, 'destroy'])->name('destroy');
     });
 
     Route::middleware('role:branch-admin|super-admin')->group(function () {
