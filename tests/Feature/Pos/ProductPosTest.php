@@ -325,6 +325,8 @@ describe('Product POS', function () {
 
         $this->get(route('pos.product.print', $invoice))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('pos/product/print'));
+            ->assertInertia(fn ($page) => $page->component('pos/product/print')
+                // اسم الموظف صاحب الفاتورة يُطبع في شبكة بيانات الإيصال.
+                ->where('invoice.userName', $this->accountant->name));
     });
 });

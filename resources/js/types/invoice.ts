@@ -94,6 +94,8 @@ export interface Invoice {
     vatAmount: number;
     totalAmount: number;
     employeeCommission: number | null;
+    /** الموظف صاحب الفاتورة — مَن أنشأها، لا مَن يطبعها */
+    userName: string | null;
     customerName: string | null;
     customerPhone: string | null;
     customerTaxNumber: string | null;

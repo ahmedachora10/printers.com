@@ -276,6 +276,27 @@ describe('Invoice View (M13)', function () {
                 ->whereNot('zatcaQr', null));
     });
 
+    it('prints the employee who raised the invoice, not the one printing it', function () {
+        $employee = User::factory()->create(['name' => 'موظف الفاتورة', 'branch_id' => $this->branch->id]);
+        $employee->addRole(Roles::EMPLOYEE->value);
+        $invoice = makeServiceInvoice($this->branch, $employee);
+
+        // المدير هو من يطبع، والاسم المطبوع يبقى اسم صاحب الفاتورة.
+        $this->get(route('invoices.print', ['type' => 'service', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('invoices/print')
+                ->where('invoice.userName', 'موظف الفاتورة'));
+    });
+
+    it('carries the employee name onto a quotation too', function () {
+        $invoice = makeServiceInvoice($this->branch, $this->admin, ['status' => 'due', 'paid_at' => null]);
+
+        $this->get(route('invoices.print', ['type' => 'service', 'id' => $invoice->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->where('invoice.status', 'due')
+                ->where('invoice.userName', $this->admin->name));
+    });
+
     it('forbids printing a cancelled invoice', function () {
         $invoice = makeProductInvoice($this->branch, $this->admin, ['status' => 'cancelled', 'paid_at' => null]);
 

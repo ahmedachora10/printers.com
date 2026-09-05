@@ -65,6 +65,12 @@ export default function ProductInvoicePrint({ invoice, branch }: Props) {
                     <span>الحالة</span>
                     <span>{invoice.statusLabel}</span>
                 </div>
+                {invoice.userName && (
+                    <div className="flex justify-between">
+                        <span>الموظف</span>
+                        <span>{invoice.userName}</span>
+                    </div>
+                )}
                 {invoice.customerName && (
                     <div className="flex justify-between">
                         <span>العميل</span>

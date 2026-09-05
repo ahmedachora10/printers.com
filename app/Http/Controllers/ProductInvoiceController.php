@@ -97,7 +97,7 @@ class ProductInvoiceController extends Controller
     {
         Gate::authorize('view', $invoice);
 
-        $invoice->load(['lines', 'customer:id,full_name,phone,tax_number', 'paymentMethod:id,name', 'branch:id,name,phone,address,tax_number']);
+        $invoice->load(['lines', 'user:id,name', 'customer:id,full_name,phone,tax_number', 'paymentMethod:id,name', 'branch:id,name,phone,address,tax_number']);
 
         // قبل الاعتماد الورقة عرض سعر لا فاتورة ضريبية — فلا تحمل الرقم الضريبي للفرع.
         $isQuotation = $invoice->status !== InvoiceStatusEnum::PAID;
@@ -116,6 +116,8 @@ class ProductInvoiceController extends Controller
                 'vatPct' => (float) $invoice->vat_pct,
                 'vatAmount' => (float) $invoice->vat_amount,
                 'totalAmount' => (float) $invoice->total_amount,
+                // الموظف صاحب الفاتورة — مَن أنشأها لا مَن يطبعها.
+                'userName' => $invoice->user?->name,
                 'customerName' => $invoice->customer?->full_name,
                 'customerPhone' => $invoice->customer?->phone,
                 'customerTaxNumber' => $invoice->customer?->tax_number,

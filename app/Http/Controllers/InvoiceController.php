@@ -79,6 +79,7 @@ class InvoiceController extends Controller
         $invoice->load([
             'lines',
             'customer:id,full_name,phone,tax_number',
+            'user:id,name',
             'paymentMethod:id,name',
             'branch',
             'refunds' => fn ($q) => $q->with('user:id,name')->latest(),
@@ -119,6 +120,7 @@ class InvoiceController extends Controller
         $invoice->load([
             'lines',
             'customer:id,full_name,phone,tax_number',
+            'user:id,name',
             'paymentMethod:id,name',
             'branch',
             // العربون والمتبقي يُطبعان أسفل الإجمالي.

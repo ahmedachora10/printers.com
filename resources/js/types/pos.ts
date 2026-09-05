@@ -245,6 +245,8 @@ export interface PosInvoice {
     hasPayments: boolean;
     paidAmount: number;
     paymentRemaining: number;
+    /** الموظف صاحب الفاتورة — مَن أنشأها، لا مَن يطبعها */
+    userName: string | null;
     customerName: string | null;
     customerPhone: string | null;
     /** يميّز الفاتورة الضريبية (B2B) عن المبسطة (B2C) في ورقة الطباعة */

@@ -596,7 +596,9 @@ describe('Service POS', function () {
 
         $this->get(route('pos.service.print', $invoice))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('pos/service/print'));
+            ->assertInertia(fn ($page) => $page->component('pos/service/print')
+                // اسم الموظف صاحب الفاتورة يُطبع في شبكة بيانات الإيصال.
+                ->where('invoice.userName', $this->employee->name));
     });
 
     it('prints a due invoice as a quotation without the branch tax number (تاسك 13)', function () {

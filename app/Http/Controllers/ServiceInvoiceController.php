@@ -547,6 +547,7 @@ class ServiceInvoiceController extends Controller
 
         $invoice->load([
             'lines',
+            'user:id,name',
             'customer:id,full_name,phone,tax_number',
             'paymentMethod:id,name',
             'branch:id,name,phone,address,tax_number',
@@ -575,6 +576,8 @@ class ServiceInvoiceController extends Controller
                 'hasPayments' => $invoice->payments->isNotEmpty(),
                 'paidAmount' => $invoice->paidAmount(),
                 'paymentRemaining' => $invoice->remainingAmount(),
+                // الموظف صاحب الفاتورة — مَن أنشأها لا مَن يطبعها.
+                'userName' => $invoice->user?->name,
                 'customerName' => $invoice->customer?->full_name,
                 'customerPhone' => $invoice->customer?->phone,
                 'customerTaxNumber' => $invoice->customer?->tax_number,

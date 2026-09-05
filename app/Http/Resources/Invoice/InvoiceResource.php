@@ -138,6 +138,9 @@ class InvoiceResource extends JsonResource
             'employeeCommission' => $this->resource instanceof ServiceInvoice
                 ? (float) $this->resource->employee_commission
                 : null,
+            // الموظف صاحب الفاتورة — مَن أنشأها لا مَن يطبعها، فيبقى الاسم واحداً
+            // مهما تغيّر الطابع.
+            'userName' => $this->user?->name,
             'customerName' => $this->customer?->full_name,
             'customerPhone' => $this->customer?->phone,
             'customerTaxNumber' => $this->customer?->tax_number ?? null,

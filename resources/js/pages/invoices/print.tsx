@@ -63,6 +63,12 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                     <span>الحالة</span>
                     <span>{invoice.statusLabel}</span>
                 </div>
+                {invoice.userName && (
+                    <div className="flex justify-between">
+                        <span>الموظف</span>
+                        <span>{invoice.userName}</span>
+                    </div>
+                )}
                 {invoice.customerName && (
                     <div className="flex justify-between">
                         <span>العميل</span>
@@ -186,6 +192,12 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
                     <div className="flex justify-between">
                         <span className="text-neutral-500">التاريخ</span>
                         <span>{formatDateTime(invoice.createdAt)}</span>
+                    </div>
+                )}
+                {invoice.userName && (
+                    <div className="flex justify-between">
+                        <span className="text-neutral-500">الموظف</span>
+                        <span>{invoice.userName}</span>
                     </div>
                 )}
                 <div className="flex justify-between">
