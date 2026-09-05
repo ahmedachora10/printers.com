@@ -341,6 +341,8 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                     currentPage={items.meta.current_page as number}
                     totalPages={items.meta.last_page as number}
                     totalItems={items.meta.total as number}
+                    from={items.meta.from as number}
+                    to={items.meta.to as number}
                     onPageChange={(page) => {
                         router.reload({ data: { page } });
                     }}

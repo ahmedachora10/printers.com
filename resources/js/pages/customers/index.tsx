@@ -374,6 +374,8 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
                     currentPage={items.meta.current_page as number}
                     totalPages={items.meta.last_page as number}
                     totalItems={items.meta.total as number}
+                    from={items.meta.from as number}
+                    to={items.meta.to as number}
                     onPageChange={(page) => {
                         router.reload({ data: { page } });
                     }}

@@ -250,6 +250,8 @@ export default function CatalogPricesIndex({ subcategory, prices, filters, branc
                     currentPage={prices.meta.current_page as number}
                     totalPages={prices.meta.last_page as number}
                     totalItems={prices.meta.total as number}
+                    from={prices.meta.from as number}
+                    to={prices.meta.to as number}
                     onPageChange={(page) => router.reload({ data: { page } })}
                 />
             </div>

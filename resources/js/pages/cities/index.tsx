@@ -188,6 +188,8 @@ export default function CitiesIndex({ cities, filters }: Props) {
                     currentPage={cities.meta.current_page as number}
                     totalPages={cities.meta.last_page as number}
                     totalItems={cities.meta.total as number}
+                    from={cities.meta.from as number}
+                    to={cities.meta.to as number}
                     onPageChange={(page) => {
                         router.reload({ data: { page } });
                     }}

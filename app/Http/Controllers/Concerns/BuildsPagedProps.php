@@ -17,7 +17,7 @@ trait BuildsPagedProps
     /**
      * @param  LengthAwarePaginator<int, mixed>  $paginator
      * @param  (callable(mixed): array<string, mixed>)|null  $map  تحويل كل صف إلى شكله المعروض
-     * @return array{data: list<mixed>, meta: array<string, int>}
+     * @return array{data: list<mixed>, meta: array<string, int|null>}
      */
     protected function pagedProp(LengthAwarePaginator $paginator, ?callable $map = null): array
     {
@@ -34,14 +34,24 @@ trait BuildsPagedProps
         ];
     }
 
-    /** @return array<string, int> */
+    /**
+     * تاسك 78: `from` و`to` جزءٌ من الترويسة لا تخمينٌ في الواجهة — سطر «عرض
+     * س‑ص من أصل ع» كان يُعيد حسابهما بحجم صفحةٍ مفترض فيكذب في كل شاشة لا
+     * تصفّح بذلك الحجم. صفحةٌ بلا نتائج تعيد null لا صفراً.
+     *
+     * @return array<string, int|null>
+     */
     protected function pageMeta(int $currentPage, int $lastPage, int $total, int $perPage): array
     {
+        $from = $total === 0 ? null : ($currentPage - 1) * $perPage + 1;
+
         return [
             'current_page' => $currentPage,
             'last_page' => $lastPage,
             'total' => $total,
             'per_page' => $perPage,
+            'from' => $from,
+            'to' => $from === null ? null : min($currentPage * $perPage, $total),
         ];
     }
 }

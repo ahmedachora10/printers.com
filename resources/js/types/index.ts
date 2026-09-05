@@ -66,6 +66,9 @@ export interface PageMeta {
     last_page: number;
     total: number;
     per_page: number;
+    /** مدى الصفحة كما حسبه الخادم (تاسك 78) — null على صفحةٍ بلا نتائج. */
+    from: number | null;
+    to: number | null;
 }
 
 /** جدولٌ مرقَّم: صفوف الصفحة الحالية وترويستها. */

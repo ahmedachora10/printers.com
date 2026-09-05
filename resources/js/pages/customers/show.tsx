@@ -346,7 +346,8 @@ export default function CustomerShow({
                                         currentPage={invoiceHistory.meta.current_page}
                                         totalPages={invoiceHistory.meta.last_page}
                                         totalItems={invoiceHistory.meta.total}
-                                        pageSize={invoiceHistory.meta.per_page}
+                                        from={invoiceHistory.meta.from}
+                                        to={invoiceHistory.meta.to}
                                         onPageChange={(page) => goToPage('invoicePage', page)}
                                     />
                                 )}
@@ -469,7 +470,8 @@ export default function CustomerShow({
                                         currentPage={loyaltyHistory.meta.current_page}
                                         totalPages={loyaltyHistory.meta.last_page}
                                         totalItems={loyaltyHistory.meta.total}
-                                        pageSize={loyaltyHistory.meta.per_page}
+                                        from={loyaltyHistory.meta.from}
+                                        to={loyaltyHistory.meta.to}
                                         onPageChange={(page) => goToPage('loyaltyPage', page)}
                                     />
                                 )}

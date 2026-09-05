@@ -258,6 +258,8 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
                     currentPage={templates.meta.current_page as number}
                     totalPages={templates.meta.last_page as number}
                     totalItems={templates.meta.total as number}
+                    from={templates.meta.from as number}
+                    to={templates.meta.to as number}
                     onPageChange={(page) => {
                         router.reload({ data: { page } });
                     }}

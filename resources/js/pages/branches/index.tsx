@@ -219,6 +219,8 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
                     currentPage={branches.meta.current_page as number}
                     totalPages={branches.meta.last_page as number}
                     totalItems={branches.meta.total as number}
+                    from={branches.meta.from as number}
+                    to={branches.meta.to as number}
                     onPageChange={(page) => {
                         router.reload({ data: { page } });
                     }}

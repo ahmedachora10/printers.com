@@ -301,6 +301,8 @@ export default function BranchServicesIndex({
                     currentPage={branchServices.meta.current_page as number}
                     totalPages={branchServices.meta.last_page as number}
                     totalItems={branchServices.meta.total as number}
+                    from={branchServices.meta.from as number}
+                    to={branchServices.meta.to as number}
                     onPageChange={(page) => {
                         router.reload({ data: { page } });
                     }}

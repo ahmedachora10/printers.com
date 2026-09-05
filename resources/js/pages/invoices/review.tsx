@@ -64,7 +64,7 @@ interface ReviewInvoice {
 interface Props {
     /** الصفحة الحالية من الطابور فقط — عددها الكلّي في `meta.total`. */
     invoices: ReviewInvoice[];
-    meta: { currentPage: number; lastPage: number; perPage: number; total: number };
+    meta: { currentPage: number; lastPage: number; perPage: number; total: number; from: number | null; to: number | null };
     /** إجماليات **المدى المطبَّق** لا الصفحة المعروضة. */
     summary: { quotesCount: number; quotesTotal: number };
     filters: {
@@ -660,7 +660,8 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                     currentPage={meta.currentPage}
                     totalPages={meta.lastPage}
                     totalItems={meta.total}
-                    pageSize={meta.perPage}
+                    from={meta.from}
+                    to={meta.to}
                     // router.reload يحتفظ بمعاملات الرابط الحالية، فالمدى والفرز
                     // والبحث لا تضيع عند تغيير الصفحة.
                     onPageChange={(page) => router.reload({ data: { page } })}

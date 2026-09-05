@@ -246,6 +246,8 @@ export default function CatalogSubcategoriesIndex({ category, subcategories, fil
                     currentPage={subcategories.meta.current_page as number}
                     totalPages={subcategories.meta.last_page as number}
                     totalItems={subcategories.meta.total as number}
+                    from={subcategories.meta.from as number}
+                    to={subcategories.meta.to as number}
                     onPageChange={(page) => router.reload({ data: { page } })}
                 />
             </div>

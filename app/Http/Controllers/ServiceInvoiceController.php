@@ -15,8 +15,8 @@ use App\Actions\ServiceInvoice\ReturnServiceInvoiceAction;
 use App\Actions\ServiceInvoice\UpdateServiceInvoiceAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
-use App\Enums\ServicePricingTypeEnum;
 use App\Enums\Roles;
+use App\Enums\ServicePricingTypeEnum;
 use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\ReturnServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\ReviewQueueFilterRequest;
@@ -333,6 +333,9 @@ class ServiceInvoiceController extends Controller
                 'lastPage' => $paginator->lastPage(),
                 'perPage' => $paginator->perPage(),
                 'total' => $paginator->total(),
+                // تاسك 78: مدى الصفحة من المُرقِّم نفسه، لا محسوباً في الواجهة.
+                'from' => $paginator->firstItem(),
+                'to' => $paginator->lastItem(),
             ],
             // شارة العدد تتبع المدى المطبَّق لا كل الطابور.
             'summary' => [
