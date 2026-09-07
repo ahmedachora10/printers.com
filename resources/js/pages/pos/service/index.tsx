@@ -134,6 +134,14 @@ const lineMaterialsTotal = (line: ServiceCartLine) =>
 const lineMaterialsUnitCost = (line: ServiceCartLine) => (line.hasMaterials ? round2(Math.max(0, line.materialsCost)) : 0);
 
 /**
+ * سطرٌ خدمتُه تُسعّر خامتها عند البيع (تاسك 77) ولم تُكتب تكلفتها بعد. الصفر
+ * مقبولٌ اليوم — المنع الذي كان يردّ الفاتورة رُفع — لكنه يُرى قبل أن يمضي:
+ * بلا تكلفةٍ تسقط أرضية السعر المأخوذة من الخامات وتُحتسب العمولة على كامل
+ * الصافي، فالسهو عنها يكلّف المركز لا الموظف.
+ */
+const lineMaterialsCostMissing = (line: ServiceCartLine) => line.materialsCostIsOpen && line.hasMaterials && lineMaterialsUnitCost(line) <= 0;
+
+/**
  * تكلفة الخامة **شاملةً الضريبة** — الطرف الذي يُقارَن به السعر في أرضية التاسك
  * 65، لأن السعر المكتوب شاملٌ لها منذ التاسك 37. خامةٌ بـ20 = «اكتب 23.00 فأكثر».
  */
@@ -447,6 +455,19 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     }, [cart]);
 
     const materialsTotal = useMemo(() => round2(cart.reduce((sum, l) => sum + lineMaterialsTotal(l), 0)), [cart]);
+
+    /**
+     * خطأ السلة المعروض فوق الجدول. الخادم يردّ أخطاء الأسطر بمفاتيح مثل
+     * `lines.0.materials_cost`، وكانت الشاشة لا تقرأ إلا `lines` وحده فتُبتلع
+     * البقيّة ويُرفض الحفظ بلا سبب معلن — تُجمع هنا جميعاً بلا تكرار.
+     */
+    const cartError = useMemo(() => {
+        const messages = Object.entries(errors)
+            .filter(([key]) => key === 'lines' || key.startsWith('lines.'))
+            .map(([, message]) => message);
+
+        return messages.length > 0 ? [...new Set(messages)].join(' — ') : undefined;
+    }, [errors]);
     const selectedAgents = useMemo(() => agents.filter((a) => agentIds.includes(a.id)), [agentIds, agents]);
     const selectedPaymentMethod = useMemo(() => paymentMethods.find((m) => m.id === paymentMethodId) ?? null, [paymentMethods, paymentMethodId]);
     const requiresReceipt = selectedPaymentMethod?.requiresAttachment ?? false;
@@ -844,6 +865,15 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             toast.error('يجب إرفاق إيصال التحويل لطريقة الدفع المحددة');
             return;
         }
+        // تنبيهٌ لا يمنع: خدمةٌ تُسعّر خامتها عند البيع مرّت بلا تكلفة. الفاتورة
+        // تُحفظ كما هي — القرار للموظف — لكنه يُقال له أثرها قبل أن تمضي.
+        const missingMaterials = cart.filter(lineMaterialsCostMissing);
+        if (missingMaterials.length > 0) {
+            toast.warning(
+                `بلا تكلفة خامات: ${missingMaterials.map((l) => l.name).join('، ')} — تُحفظ الفاتورة وتُحتسب العمولة على كامل الصافي.`,
+            );
+        }
+
         setSubmitting(true);
         setErrors({});
 
@@ -881,7 +911,13 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         const options = {
             forceFormData: true,
             preserveScroll: true,
-            onError: (e: Record<string, string>) => setErrors(e),
+            // شبكة أمان: كل خطأ عائدٍ من الخادم يُقال، ولو لم يكن لحقله موضعٌ
+            // على الشاشة. بدونها يُرفض الحفظ صامتاً ولا يعرف الموظف لماذا.
+            onError: (e: Record<string, string>) => {
+                setErrors(e);
+                const first = Object.values(e)[0];
+                toast.error(first ?? 'تعذّر حفظ الفاتورة — راجع البيانات المدخلة');
+            },
             onFinish: () => setSubmitting(false),
         };
 
@@ -1457,7 +1493,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 lines={cart}
                                 itemLabel="الخدمة"
                                 emptyHint="ابحث عن خدمة أو أضف سطر يدوي"
-                                error={errors.lines}
+                                error={cartError}
                                 isLineSelectable={(line) => line.isManual && !line.branchServiceId}
                                 renderLineSelect={(line) => (
                                     <Select
@@ -1526,8 +1562,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                     const hasDimensions = lineHasSize(line);
                                     const materials = lineMaterialsTotal(line);
                                     const note = line.notes.trim();
+                                    // تكلفة الخامة تُكتب هنا لا في تعريف الخدمة — تُقال على
+                                    // الشريط المطوي لأن الحقل نفسه داخل اللوحة، فلا يُطلب من
+                                    // الموظف أن يفتح كل سطرٍ ليعرف أن فيه ما يُكتب.
+                                    const needsMaterialsCost = lineMaterialsCostMissing(line);
 
-                                    if (!measured && !line.agentId && materials <= 0 && !note) return null;
+                                    if (!measured && !line.agentId && materials <= 0 && !note && !needsMaterialsCost) return null;
 
                                     return (
                                         <>
@@ -1553,6 +1593,12 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                             {materials > 0 && (
                                                 <LineChip>
                                                     <Package className="size-3" /> خامات {formatCurrency(materials)}
+                                                </LineChip>
+                                            )}
+
+                                            {needsMaterialsCost && (
+                                                <LineChip tone="warning">
+                                                    <Package className="size-3" /> تكلفة الخامات تُحدَّد هنا
                                                 </LineChip>
                                             )}
 
@@ -1792,7 +1838,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                                     canToggleMaterials
                                                         ? 'داخلية — تُخصم من عمولة الموظف ولا تظهر للعميل'
                                                         : line.materialsCostIsOpen
-                                                          ? 'تُحدَّد لكل فاتورة — أدخل تكلفة الخامات الفعلية'
+                                                          ? 'تُحدَّد لكل فاتورة — اكتب التكلفة الفعلية، واتركها صفراً إن لم تُستهلك خامة'
                                                           : 'تُحدَّد من إدارة الخدمة — للاطّلاع فقط'
                                                 }
                                             >

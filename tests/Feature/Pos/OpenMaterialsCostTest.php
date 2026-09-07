@@ -58,7 +58,9 @@ function openMaterialsPayload(BranchService $service, array $lineAttrs = []): ar
 
 /**
  * تاسك 77: خدمةٌ «لها خامات» وتكلفتها صفر = التكلفة تُحدَّد وقت البيع، فيكتبها
- * الموظف في الفاتورة. وما عدا ذلك يبقى منع تاسك 54 على حاله حرفياً.
+ * الموظف في الفاتورة. والرقم اختياري: كان مُلزَماً موجباً فيُردّ الحفظ بدونه،
+ * فصار الصفر مقبولاً بطلب العميل — خدمةٌ تخرج بلا خامة أمرٌ واقع — ويُنبَّه
+ * عليه في الشاشة بلا منع. وما عدا ذلك يبقى منع تاسك 54 على حاله حرفياً.
  */
 describe('Employee-authored materials cost', function () {
     beforeEach(function () {
@@ -110,17 +112,33 @@ describe('Employee-authored materials cost', function () {
         expect((float) ServiceInvoice::firstOrFail()->lines()->firstOrFail()->materials_cost)->toEqual(0.00);
     });
 
-    it('demands a positive figure on an open service', function () {
+    it('accepts a zero cost from the employee', function () {
         $service = openMaterialsService(['has_materials' => true, 'materials_cost' => 0]);
 
-        // اختيارية الرقم تُسقط أرضية السعر وتكبّر العمولة معاً، فهو مُلزِم موجب.
-        $this->post(route('pos.service.store'), openMaterialsPayload($service))
-            ->assertSessionHasErrors('lines.0.materials_cost');
+        // الصفر مقبول: خدمةٌ خرجت بلا خامة في هذه الفاتورة. أثره معلوم ومقصود —
+        // لا خصم من أساس العمولة: 200 ÷ 1.15 = 173.91 × 50% = 86.96.
+        $this->post(route('pos.service.store'), openMaterialsPayload($service, ['unit_price' => 200]))
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
 
-        $this->post(route('pos.service.store'), openMaterialsPayload($service, ['materials_cost' => 0]))
-            ->assertSessionHasErrors('lines.0.materials_cost');
+        $line = ServiceInvoice::firstOrFail()->lines()->firstOrFail();
 
-        expect(ServiceInvoice::count())->toBe(0);
+        expect((float) $line->materials_cost)->toEqual(0.00)
+            ->and((float) $line->materials_total)->toEqual(0.00)
+            ->and((float) $line->commission_amount)->toEqual(86.96);
+    });
+
+    it('drops the materials floor with the cost left at zero', function () {
+        $service = openMaterialsService(['has_materials' => true, 'materials_cost' => 0]);
+
+        // بتكلفة 100 كانت الأرضية 115.00 فيُرفض سعر 110 (الاختبار التالي)؛
+        // وبصفرٍ مكتوبٍ صراحةً لا أرضية من الخامات، فيمرّ السعر نفسه.
+        $this->post(route('pos.service.store'), openMaterialsPayload($service, [
+            'unit_price' => 110,
+            'materials_cost' => 0,
+        ]))->assertSessionHasNoErrors();
+
+        expect(ServiceInvoice::count())->toBe(1);
     });
 
     it('lets the price floor follow the typed figure', function () {
