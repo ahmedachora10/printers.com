@@ -42,6 +42,7 @@ class ServiceInvoice extends Model implements HasMedia
         'total_amount',
         'employee_commission',
         'notes',
+        'internal_notes',
         'delivery_at',
         'delivered_at',
         'delivered_by',

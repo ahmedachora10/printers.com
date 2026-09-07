@@ -1,5 +1,6 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import DeliveryBadge from '@/components/invoices/delivery-badge';
+import InternalNotesCard from '@/components/invoices/internal-notes-card';
 import InvoiceNotes from '@/components/invoices/invoice-notes';
 import LineInternals from '@/components/invoices/line-internals';
 import MaterialsShortageDialog from '@/components/invoices/materials-shortage-dialog';
@@ -536,6 +537,12 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                             />
 
                             <InvoiceNotes notes={invoice.notes} />
+                            <InternalNotesCard
+                                type={invoice.type}
+                                id={invoice.id}
+                                notes={invoice.internalNotes}
+                                canEdit={invoice.canEditInternalNotes}
+                            />
 
                             <Separator className="my-4" />
 

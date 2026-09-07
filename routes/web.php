@@ -325,6 +325,11 @@ Route::middleware(['auth'])->group(function () {
             Route::get('{type}/{id}/receipt', [InvoiceReceiptController::class, 'show'])
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('receipt');
 
+            // تاسك 95: الملاحظة الداخلية تُصحَّح بعد الاعتماد — تعليمات تنفيذٍ
+            // لا رقمٌ مالي. من يملك تعديلها يُقرَّر داخل المتحكّم لكل فاتورة.
+            Route::patch('{type}/{id}/internal-notes', [InvoiceController::class, 'updateInternalNotes'])
+                ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('internal-notes');
+
             // إيصال دفعة بعينها — الصلاحية مأخوذة من الفاتورة الأم داخل المتحكِّم.
             Route::get('payments/{payment}/receipt', [InvoiceReceiptController::class, 'payment'])
                 ->name('payments.receipt');

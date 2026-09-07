@@ -40,7 +40,7 @@ import {
     type ServiceCartLine,
 } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { AlertTriangle, Award, BadgePercent, CalendarClock, Info, Package, Printer, Ruler, Save, Search, Star, StickyNote, Tag, X } from 'lucide-react';
+import { AlertTriangle, Award, BadgePercent, CalendarClock, Info, Lock, Package, Printer, Ruler, Save, Search, Star, StickyNote, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -387,6 +387,8 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // Remark about the whole order, printed under the lines table — distinct
     // from the per-line detail edited inside each cart row.
     const [notes, setNotes] = useState(invoice?.notes ?? '');
+    // تاسك 95: ملاحظة داخلية للموظفين والإدارة — لا تصل العميل ولا تُطبع.
+    const [internalNotes, setInternalNotes] = useState(invoice?.internalNotes ?? '');
     // موعد تسليم العمل — يُلتقط تاريخاً ووقتاً منفصلين ويُرسل «YYYY-MM-DD HH:MM».
     const [deliveryDate, setDeliveryDate] = useState(() => splitDeliveryAt(invoice?.deliveryAt).date);
     const [deliveryTime, setDeliveryTime] = useState(() => splitDeliveryAt(invoice?.deliveryAt).time);
@@ -825,6 +827,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         setStatus(isEmployee ? 'due' : 'paid');
         setRedeemPoints('');
         setNotes('');
+        setInternalNotes('');
         setDeliveryDate('');
         setDeliveryTime('');
         removeCoupon();
@@ -898,6 +901,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             payment_method_id: paymentMethodId,
             receipt,
             notes: notes.trim() || null,
+            internal_notes: internalNotes.trim() || null,
             delivery_at: deliveryAt,
             lines: cart.map((l) => ({
                 branch_service_id: l.branchServiceId,
@@ -1261,6 +1265,27 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                             />
                             <p className="text-muted-foreground text-xs">تُطبع أسفل جدول البنود في الفاتورة.</p>
                             {errors.notes && <p className="text-destructive text-xs">{errors.notes}</p>}
+
+                            {/* تاسك 95: الملاحظة الداخلية — تعليمات تنفيذ أو تنبيه
+                                للمحاسب. الخادم يحذفها من حمولة الطباعة، فلا تصل
+                                العميل بفتح مصدر الصفحة. */}
+                            <div className="mt-4 space-y-1.5 border-t pt-4">
+                                <Label htmlFor="invoice-internal-notes" className="flex items-center gap-1.5 text-sm">
+                                    <Lock className="size-3.5" aria-hidden />
+                                    ملاحظات داخلية (لا تظهر للعميل)
+                                </Label>
+                                <textarea
+                                    id="invoice-internal-notes"
+                                    rows={2}
+                                    maxLength={1000}
+                                    value={internalNotes}
+                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInternalNotes(e.target.value)}
+                                    placeholder="تعليمات التنفيذ أو تنبيه للمحاسب — لا تُطبع في الفاتورة"
+                                    className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[56px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                />
+                                <p className="text-muted-foreground text-xs">يراها الموظفون والإدارة فقط، ولا تظهر في أي ورقة طباعة.</p>
+                                {errors.internal_notes && <p className="text-destructive text-xs">{errors.internal_notes}</p>}
+                            </div>
                         </CardContent>
                     </Card>
 

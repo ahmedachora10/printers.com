@@ -185,6 +185,8 @@ export interface EditServiceInvoice {
     hasReceipt: boolean;
     /** ملاحظات على مستوى الفاتورة كاملة — تختلف عن ملاحظات السطر */
     notes: string | null;
+    /** ملاحظة داخلية للموظفين والإدارة — لا تظهر للعميل ولا تُطبع (تاسك 95) */
+    internalNotes: string | null;
     /** موعد تسليم العمل بصيغة «YYYY-MM-DD HH:MM» كما يقرأه المنتقي */
     deliveryAt: string | null;
     lines: EditServiceInvoiceLine[];

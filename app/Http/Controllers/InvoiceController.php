@@ -12,6 +12,7 @@ use App\Models\PaymentMethod;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -167,6 +168,63 @@ class InvoiceController extends Controller
                     ->values()
                 : [],
         ]);
+    }
+
+    /**
+     * تاسك 95 — تحرير الملاحظة الداخلية بعد إصدار الفاتورة.
+     *
+     * تعليمات التنفيذ تتغيّر بعد الاعتماد أحياناً، وهي ليست رقماً مالياً فلا
+     * تُغلق بإغلاق الفاتورة. يكتبها من يراها — المراجعون وصاحب الفاتورة — ولا
+     * تمسّ مبلغاً ولا حالة، ويُسجَّل كل تغيير في سجلّ النشاط.
+     */
+    public function updateInternalNotes(string $type, int $id, Request $request): RedirectResponse
+    {
+        $invoice = $this->resolveInvoice($type, $id);
+        Gate::authorize('view', $invoice);
+
+        abort_unless($this->mayEditInternalNotes($invoice, $request), 403, 'لا تملك تعديل الملاحظات الداخلية لهذه الفاتورة.');
+
+        $validated = $request->validate([
+            'internal_notes' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'internal_notes.max' => 'الملاحظات الداخلية يجب ألا تتجاوز 1000 حرف.',
+        ]);
+
+        $notes = trim((string) ($validated['internal_notes'] ?? ''));
+        $before = $invoice->internal_notes;
+
+        $invoice->update(['internal_notes' => $notes === '' ? null : $notes]);
+
+        activity('invoices')
+            ->causedBy($request->user())
+            ->performedOn($invoice)
+            ->withProperties(['old' => $before, 'new' => $invoice->internal_notes])
+            ->log('updated internal notes');
+
+        return back()->with('success', 'تم حفظ الملاحظات الداخلية.');
+    }
+
+    /**
+     * مرآةُ InvoiceResource::canEditInternalNotes — الصفّ يعرض الزرّ والخادم
+     * هو من يقرّر. الملغاة والمرتجعة أُغلقت قصّتها.
+     */
+    private function mayEditInternalNotes(ProductInvoice|ServiceInvoice $invoice, Request $request): bool
+    {
+        $user = $request->user();
+        $role = $user?->roleName;
+
+        if ($role === null) {
+            return false;
+        }
+
+        if ($invoice->status === InvoiceStatusEnum::CANCELLED || $invoice->status === InvoiceStatusEnum::RETURNED) {
+            return false;
+        }
+
+        return $role->isSuperAdmin()
+            || $role->isBranchAdmin()
+            || $role->isAccountant()
+            || ($role->isEmployee() && (int) $invoice->user_id === $user->id);
     }
 
     public function print(string $type, int $id, Request $request, GenerateZatcaQrAction $qrAction): Response

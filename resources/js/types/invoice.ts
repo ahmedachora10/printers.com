@@ -77,6 +77,9 @@ export interface Invoice {
     paidAt: string | null;
     status: InvoiceStatus;
     statusLabel: string;
+    /** ملاحظة داخلية للموظفين والإدارة — null لمن لا يملك رؤيتها ولكل ورقة طباعة (تاسك 95) */
+    internalNotes: string | null;
+    canEditInternalNotes: boolean;
     /** Why a reviewer rejected the invoice — service invoices only. */
     cancellationReason: string | null;
     cancelledByName: string | null;

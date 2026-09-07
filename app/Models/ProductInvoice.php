@@ -42,6 +42,7 @@ class ProductInvoice extends Model implements HasMedia
         'vat_amount',
         'total_amount',
         'notes',
+        'internal_notes',
         'status',
         'paid_at',
     ];

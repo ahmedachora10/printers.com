@@ -107,6 +107,10 @@ class ServiceInvoiceController extends Controller
                 'paymentMethodId' => $invoice->payment_method_id,
                 'hasReceipt' => $invoice->hasReceipt(),
                 'notes' => $invoice->notes,
+                // تاسك 95: الملاحظة الداخلية تُعاد إلى شاشة التعديل كما هي —
+                // من يفتح الشاشة يملك رؤيتها أصلاً (السياسة تحصرها في صاحب
+                // الفاتورة ومدير الفرع).
+                'internalNotes' => $invoice->internal_notes,
                 // «YYYY-MM-DD HH:MM» — الصيغة التي يقرأها منتقي الموعد في الواجهة.
                 'deliveryAt' => $invoice->delivery_at?->format('Y-m-d H:i'),
                 'lines' => $invoice->lines->map(function ($line) use ($servicesById) {
@@ -310,6 +314,9 @@ class ServiceInvoiceController extends Controller
                     // زرّ تعديل الفاتورة في الطابور: لمدير الفرع لا للمحاسب —
                     // الصلاحية هي الفيصل، فلا يُكرَّر الدور في الواجهة.
                     'canEdit' => Gate::allows('update', $invoice),
+                    // تاسك 95: تعليمات الموظف للمحاسب تُقرأ في الطابور قبل
+                    // الاعتماد — الطابور مقصور على المراجعين، ولا يُطبع منه شيء.
+                    'internalNotes' => $invoice->internal_notes,
                     'lines' => $invoice->lines->map(fn ($line) => [
                         'name' => $line->service_name,
                         'notes' => $line->notes,

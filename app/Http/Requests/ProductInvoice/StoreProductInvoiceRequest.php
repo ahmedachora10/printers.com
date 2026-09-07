@@ -38,6 +38,8 @@ class StoreProductInvoiceRequest extends FormRequest
             'print' => ['nullable', 'boolean'],
             // Invoice-level remark for the customer, printed under the lines.
             'notes' => ['nullable', 'string', 'max:1000'],
+            // تاسك 95: ملاحظة داخلية للموظفين والإدارة — لا تُطبع للعميل.
+            'internal_notes' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.product_id' => ['nullable', 'integer', 'exists:products,id'],
             'lines.*.name' => ['nullable', 'required_without:lines.*.product_id', 'string', 'max:255'],
@@ -84,6 +86,7 @@ class StoreProductInvoiceRequest extends FormRequest
             'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
             'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',
+            'internal_notes.max' => 'الملاحظات الداخلية يجب ألا تتجاوز 1000 حرف.',
             'lines.required' => 'يجب إضافة منتج واحد على الأقل للفاتورة.',
             'lines.min' => 'يجب إضافة منتج واحد على الأقل للفاتورة.',
             'lines.*.qty.min' => 'الكمية يجب أن تكون أكبر من صفر.',

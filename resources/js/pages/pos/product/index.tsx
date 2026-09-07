@@ -17,7 +17,7 @@ import product from '@/routes/pos/product';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type CartLine, type PosAgent, type PosCustomer, type PosLoyalty, type PosPaymentMethod, type PosProduct } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Award, Printer, Ruler, Save, Search, Tag, X } from 'lucide-react';
+import { Award, Lock, Printer, Ruler, Save, Search, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -91,6 +91,8 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
     const [redeemPoints, setRedeemPoints] = useState('');
     // Remark about the whole order, printed under the lines table.
     const [notes, setNotes] = useState('');
+    // تاسك 95: ملاحظة داخلية للموظفين والإدارة — لا تصل العميل ولا تُطبع.
+    const [internalNotes, setInternalNotes] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const manualSeq = useRef(0);
@@ -353,6 +355,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
         setStatus('paid');
         setRedeemPoints('');
         setNotes('');
+        setInternalNotes('');
         removeCoupon();
     }
 
@@ -393,6 +396,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                 status,
                 print,
                 notes: notes.trim() || null,
+                internal_notes: internalNotes.trim() || null,
                 lines: cart.map((l) => ({
                     product_id: l.productId,
                     name: l.productId ? null : l.name.trim(),
@@ -628,6 +632,25 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                             />
                             <p className="text-muted-foreground text-xs">تُطبع أسفل جدول البنود في الفاتورة.</p>
                             {errors.notes && <p className="text-destructive text-xs">{errors.notes}</p>}
+
+                            {/* تاسك 95: ملاحظة داخلية — يحذفها الخادم من حمولة الطباعة. */}
+                            <div className="mt-4 space-y-1.5 border-t pt-4">
+                                <Label htmlFor="invoice-internal-notes" className="flex items-center gap-1.5 text-sm">
+                                    <Lock className="size-3.5" aria-hidden />
+                                    ملاحظات داخلية (لا تظهر للعميل)
+                                </Label>
+                                <textarea
+                                    id="invoice-internal-notes"
+                                    rows={2}
+                                    maxLength={1000}
+                                    value={internalNotes}
+                                    onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setInternalNotes(e.target.value)}
+                                    placeholder="تعليمات التنفيذ أو تنبيه للمحاسب — لا تُطبع في الفاتورة"
+                                    className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[56px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                />
+                                <p className="text-muted-foreground text-xs">يراها الموظفون والإدارة فقط، ولا تظهر في أي ورقة طباعة.</p>
+                                {errors.internal_notes && <p className="text-destructive text-xs">{errors.internal_notes}</p>}
+                            </div>
                         </CardContent>
                     </Card>
 

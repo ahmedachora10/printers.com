@@ -167,6 +167,11 @@ class InvoiceResource extends JsonResource
             // Invoice-level remark for the customer — distinct from the
             // per-line detail carried on InvoiceLineResource::notes.
             'notes' => $this->notes,
+            // تاسك 95: الملاحظة الداخلية — تعليمات تنفيذ أو تنبيه، لا يراها
+            // العميل. تُحجب عمّن لا يملكها بنفس قاعدة أرقام التكلفة، وتُحذف
+            // من حمولة الطباعة كاملةً عبر withoutInternalCosts().
+            'internalNotes' => $this->showsInternalCostsTo($request) ? $this->internal_notes : null,
+            'canEditInternalNotes' => $this->canEditInternalNotes($request),
             'receiptUrl' => $this->receiptUrl(),
             // تاسك 94: أرقام السطر الداخلية (تكلفة الخامات، عمولة الموظف،
             // الشريحة) تُحجب عمّن لا يملكها — قرارٌ واحد يُتخذ هنا ويُمرَّر
@@ -241,5 +246,18 @@ class InvoiceResource extends JsonResource
         }
 
         return $role?->isEmployee() && (int) $this->user_id === $user->id;
+    }
+
+    /**
+     * تاسك 95 — من يكتب الملاحظة الداخلية أو يصحّحها؟ من يراها: المراجعون
+     * وصاحبُ الفاتورة. وتبقى قابلة للتعديل **بعد الاعتماد** — فهي تعليمات
+     * تنفيذٍ لا رقمٌ مالي، ولا تغيّر شيئاً في مبلغ الفاتورة ولا في حالتها.
+     * والملغاة والمرتجعة أُغلقت قصّتها فلا تُعدَّل. الحكم النهائي في السياسة.
+     */
+    private function canEditInternalNotes(Request $request): bool
+    {
+        return $this->showsInternalCostsTo($request)
+            && $this->status !== InvoiceStatusEnum::CANCELLED
+            && $this->status !== InvoiceStatusEnum::RETURNED;
     }
 }
