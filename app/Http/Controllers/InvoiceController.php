@@ -8,6 +8,7 @@ use App\Enums\InvoiceTypeEnum;
 use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
 use App\Models\Branch;
+use App\Models\PaymentMethod;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use Illuminate\Database\Query\Builder;
@@ -20,6 +21,13 @@ use Inertia\Response;
 
 class InvoiceController extends Controller
 {
+    /**
+     * خيار الحالة الجامع «غير مسددة (عليها متبقٍ)» — ليس حالةً في
+     * InvoiceStatusEnum بل جمعُ الآجلة والمدفوعة جزئياً، وهو ما يبحث عنه
+     * المحاسب فعلاً حين يسأل عمّا لم يُحصَّل بعد (تاسك 92).
+     */
+    private const STATUS_UNSETTLED = 'unsettled';
+
     public function index(Request $request): Response
     {
         $user = Auth::user();
@@ -67,8 +75,60 @@ class InvoiceController extends Controller
             'branches' => $isSuperAdmin
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,
-            'filters' => $request->only(['search', 'type', 'status', 'date_from', 'date_to', 'branch_id', 'delivery']),
+            // خيارات الحالة من المصدر لا نسخةً يدوية في الواجهة — النسخة اليدوية
+            // هي التي تخلّفت على «آجلة» بينما الخادم يسمّيها «غير مسددة» (تاسك 92).
+            // ويتقدّمها خيارٌ جامع ليس حالةً في الـenum: كل ما على العميل متبقٍ.
+            'statusOptions' => array_merge(
+                [['value' => self::STATUS_UNSETTLED, 'label' => 'غير مسددة (عليها متبقٍ)']],
+                array_map(
+                    fn (InvoiceStatusEnum $s) => ['value' => $s->value, 'label' => $s->label()],
+                    InvoiceStatusEnum::cases(),
+                ),
+            ),
+            'filterOptions' => $this->filterOptions($isSuperAdmin, $branchId),
+            'filters' => $request->only([
+                'search', 'type', 'status', 'date_from', 'date_to', 'branch_id', 'delivery',
+                'user_id', 'payment_method_id', 'branch_service_id',
+            ]),
         ]);
+    }
+
+    /**
+     * قوائم التصفية (تاسك 92): موظفو الفرع، وطرق الدفع، وخدمات الفرع. كلّها
+     * مقيَّدة بفرع المستخدم ما لم يكن سوبر أدمن — وإلا رأى مدير الفرع أسماء
+     * موظفي فرعٍ آخر في قائمته.
+     *
+     * @return array<string, mixed>
+     */
+    private function filterOptions(bool $isSuperAdmin, ?int $branchId): array
+    {
+        $employees = DB::table('users')
+            ->whereNull('users.deleted_at')
+            ->when(! $isSuperAdmin, fn ($q) => $q->where('users.branch_id', $branchId))
+            ->orderBy('users.name')
+            ->get(['users.id', 'users.name']);
+
+        // الطرق العامة وما أضافه الفرع — نفس نطاق PaymentMethod::visibleToBranch
+        // الذي تقرأه شاشة الفاتورة، فلا يفترق الفلتر عن مصدره.
+        $paymentMethods = PaymentMethod::query()
+            ->where('is_active', true)
+            ->visibleToBranch($isSuperAdmin ? null : $branchId)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        // الخدمة تُصفّى بمعرّف branch_service لا باسمها النصّي: الاسم لقطةٌ على
+        // السطر وقد يتكرّر بين الفروع والقوالب.
+        $services = DB::table('branch_services')
+            ->join('service_templates', 'service_templates.id', '=', 'branch_services.service_template_id')
+            ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_services.branch_id', $branchId))
+            ->orderBy('service_templates.name')
+            ->get(['branch_services.id', 'service_templates.name']);
+
+        return [
+            'employees' => $employees,
+            'paymentMethods' => $paymentMethods,
+            'services' => $services,
+        ];
     }
 
     public function show(string $type, int $id): Response
@@ -259,6 +319,26 @@ class InvoiceController extends Controller
                 fn ($q) => $q->where("{$table}.branch_id", (int) $request->input('branch_id')))
             ->when($request->filled('status') && in_array($request->input('status'), InvoiceStatusEnum::all(), true),
                 fn ($q) => $q->where("{$table}.status", $request->input('status')))
+            // «غير مسددة (عليها متبقٍ)»: خيارٌ جامع لا حالةٌ في الـenum.
+            ->when($request->input('status') === self::STATUS_UNSETTLED, fn ($q) => $q->whereIn("{$table}.status", [
+                InvoiceStatusEnum::DUE->value,
+                InvoiceStatusEnum::PARTIALLY_PAID->value,
+            ]))
+            // منشئ الفاتورة — فلترٌ صريح بدل البحث النصّي في اسم الموظف.
+            ->when($request->filled('user_id'), fn ($q) => $q->where("{$table}.user_id", (int) $request->input('user_id')))
+            ->when($request->filled('payment_method_id'),
+                fn ($q) => $q->where("{$table}.payment_method_id", (int) $request->input('payment_method_id')))
+            // نوع الخدمة يخصّ فواتير الخدمات وحدها، فاختياره يُقصي فرع المنتجات
+            // من الاتحاد كاملاً — تماماً كما يفعل فلتر موعد التسليم أدناه.
+            ->when($request->filled('branch_service_id'), function ($q) use ($table, $type, $request) {
+                if ($type !== InvoiceTypeEnum::SERVICE) {
+                    return $q->whereRaw('1 = 0');
+                }
+
+                return $q->whereExists(fn ($sub) => $sub->from('service_invoice_lines')
+                    ->whereColumn('service_invoice_lines.invoice_id', "{$table}.id")
+                    ->where('service_invoice_lines.branch_service_id', (int) $request->input('branch_service_id')));
+            })
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate("{$table}.created_at", '>=', $request->input('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate("{$table}.created_at", '<=', $request->input('date_to')))
             // «تسليم اليوم / متأخر / تم التسليم»: يخص فواتير الخدمات وحدها، فيُقصى

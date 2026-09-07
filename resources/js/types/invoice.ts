@@ -183,4 +183,9 @@ export interface InvoiceFilters {
     branch_id?: string;
     /** 'today' | 'overdue' | 'delivered' — تصفية حسب موعد التسليم */
     delivery?: string;
+    /** منشئ الفاتورة */
+    user_id?: string;
+    payment_method_id?: string;
+    /** معرّف branch_services — تصفية بالخدمة تُقصي فواتير المنتجات */
+    branch_service_id?: string;
 }
