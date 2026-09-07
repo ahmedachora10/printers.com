@@ -160,6 +160,12 @@ export interface InvoiceListItem {
     /** Owner of an invoice that is already returned — the control shows, disabled. */
     returnLocked: boolean;
     canEditCustomer: boolean;
+    /** طريقة دفع الفاتورة، أو null إن لم تُحدَّد بعد */
+    paymentMethodName: string | null;
+    /** هل يملك المستخدم اعتماد هذه الفاتورة من صفّ القائمة (خدمات، غير مسددة، مراجع) */
+    canApprove: boolean;
+    /** ما ينقصها قبل الاعتماد: 'method' طريقة دفع، 'receipt' إيصال تحويل، أو null */
+    approveBlockedReason: 'method' | 'receipt' | null;
 }
 
 export interface PaginatedInvoice {

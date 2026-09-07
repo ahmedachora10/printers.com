@@ -31,6 +31,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string|null $cancellation_reason
  * @property string|null $delivery_at
  * @property string|null $delivered_at
+ * @property int|null $payment_method_id
+ * @property string|null $payment_method_name
+ * @property bool|int|null $payment_requires_attachment
+ * @property int|string|null $receipt_count
  */
 class InvoiceListResource extends JsonResource
 {
@@ -73,6 +77,12 @@ class InvoiceListResource extends JsonResource
             && $this->delivered_at === null
             && $status !== InvoiceStatusEnum::CANCELLED
             && $status !== InvoiceStatusEnum::RETURNED;
+
+        // زرّ الاعتماد السريع (تاسك 88): مرآةً للميدلوير على invoices.service.pay
+        // وللحالة التي يقبلها ServiceInvoiceController::markPaid. المدفوعة جزئياً
+        // مستثناة عمداً — تُغلق بتسجيل دفعةٍ بالمتبقي لا باعتمادٍ مجمل، والمتحكّم
+        // يرفضها صراحةً. القرار النهائي يبقى للسياسة على الخادم.
+        $canApprove = $isReviewer && $status === InvoiceStatusEnum::DUE;
 
         return [
             'id' => (int) $this->id,
@@ -132,7 +142,32 @@ class InvoiceListResource extends JsonResource
             // disabled — so the row reads as "returned", not as "not yours".
             'returnLocked' => $isOwnerEmployee && $status === InvoiceStatusEnum::RETURNED,
             'canEditCustomer' => $canEditCustomer,
+            // طريقة الدفع في القائمة (تاسك 88) — «—» في الواجهة عند غيابها.
+            'paymentMethodName' => $this->payment_method_name,
+            'canApprove' => $canApprove,
+            // ما ينقص الفاتورة قبل أن تُعتمد، فيُنقل المستخدم إلى شاشتها برسالةٍ
+            // تسمّي الناقص بدل أن يفشل الطلب صامتاً. عجز الخامات ليس منها: لا
+            // يُعرف إلا بمحاولة الاعتماد، وله حوار إقرارٍ في شاشة الفاتورة.
+            'approveBlockedReason' => $canApprove ? $this->approveBlockedReason() : null,
         ];
+    }
+
+    /**
+     * حارسا الاعتماد اللذان يمكن قراءتهما من صفّ القائمة: طريقة الدفع المحفوظة
+     * (تاسك 59) وإيصال التحويل حين تستلزمه الطريقة. مرآةُ
+     * ServiceInvoiceController::assertPaymentMethodChosen وassertReceiptAttached.
+     */
+    private function approveBlockedReason(): ?string
+    {
+        if ($this->payment_method_id === null) {
+            return 'method';
+        }
+
+        if ($this->payment_requires_attachment && (int) $this->receipt_count === 0) {
+            return 'receipt';
+        }
+
+        return null;
     }
 
     /**

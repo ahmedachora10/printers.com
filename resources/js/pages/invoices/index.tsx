@@ -21,7 +21,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
 import { Link, router } from '@inertiajs/react';
-import { Eye, Info, Loader2, PackageCheck, Pencil, Printer, Search, Undo2, UserPlus, X } from 'lucide-react';
+import { CheckCircle2, Eye, Info, Loader2, PackageCheck, Pencil, Printer, Search, Undo2, UserPlus, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -92,6 +92,9 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     // «تم تسليم العمل»: ختم لا رجعة فيه، فيمرّ بتأكيد ولو كان زراً سريعاً في الصف.
     const [deliverItem, setDeliverItem] = useState<InvoiceListItem | null>(null);
     const [delivering, setDelivering] = useState(false);
+    // اعتماد الفاتورة من صفّ القائمة (تاسك 88) — بتأكيدٍ صغير، فهو قرار مالي.
+    const [approveItem, setApproveItem] = useState<InvoiceListItem | null>(null);
+    const [approving, setApproving] = useState(false);
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
     // Customer name/phone/tax editing — service invoices only, gated by
@@ -163,6 +166,52 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 onFinish: () => {
                     setDelivering(false);
                     setDeliverItem(null);
+                },
+            },
+        );
+    }
+
+    /**
+     * الاعتماد من القائمة (تاسك 88). الفاتورة الناقصةُ حارساً لا تُرسل أصلاً —
+     * يُنقل المستخدم إلى شاشتها حيث يُستكمل الناقص، برسالةٍ تسمّيه. الفشل الصامت
+     * هو بالضبط العطل الذي أُصلح في كوميت e74d0a9.
+     */
+    function startApprove(item: InvoiceListItem) {
+        if (item.approveBlockedReason === 'method') {
+            toast.error('حدّد طريقة الدفع أولاً — فُتحت شاشة الفاتورة.');
+            router.visit(`/invoices/${item.type}/${item.id}`);
+            return;
+        }
+        if (item.approveBlockedReason === 'receipt') {
+            toast.error('أرفق إيصال التحويل أولاً — فُتحت شاشة الفاتورة.');
+            router.visit(`/invoices/${item.type}/${item.id}`);
+            return;
+        }
+        setApproveItem(item);
+    }
+
+    function confirmApprove() {
+        if (!approveItem) return;
+        const item = approveItem;
+        setApproving(true);
+        router.patch(
+            serviceInvoice.pay(item.id).url,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success(`تم اعتماد الفاتورة ${item.invoiceNumber}.`),
+                onError: (e) => {
+                    // عجز الخامات له حوار إقرارٍ في شاشة الفاتورة — لا يُكرَّر هنا.
+                    if (e.materials_shortage) {
+                        toast.error('يوجد عجز في خامات المخزون — أُقرّه من شاشة الفاتورة.');
+                        router.visit(`/invoices/${item.type}/${item.id}`);
+                        return;
+                    }
+                    toast.error((Object.values(e)[0] as string) ?? 'تعذّر اعتماد الفاتورة.');
+                },
+                onFinish: () => {
+                    setApproving(false);
+                    setApproveItem(null);
                 },
             },
         );
@@ -308,6 +357,11 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 ),
             },
             {
+                key: 'paymentMethodName',
+                header: 'طريقة الدفع',
+                cell: (item) => item.paymentMethodName ?? <span className="text-muted-foreground">—</span>,
+            },
+            {
                 key: 'remainingAmount',
                 header: 'المتبقي',
                 cell: (item) =>
@@ -370,7 +424,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'actions',
                 header: '',
-                headerClassName: 'w-36',
+                headerClassName: 'w-44',
                 cell: (item) => (
                     <div className="flex items-center gap-1.5">
                         <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
@@ -383,6 +437,25 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                                 <Printer className="h-3.5 w-3.5" />
                             </a>
                         </Button>
+                        {/* اعتماد الفاتورة غير المسددة من القائمة (تاسك 88). */}
+                        {item.canApprove && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className={cn(ACTION_BUTTON, 'text-green-700 hover:text-green-800 dark:text-green-400')}
+                                aria-label="اعتماد الفاتورة"
+                                title={
+                                    item.approveBlockedReason === 'method'
+                                        ? 'ينقصها تحديد طريقة الدفع'
+                                        : item.approveBlockedReason === 'receipt'
+                                          ? 'ينقصها إيصال التحويل'
+                                          : 'اعتماد الفاتورة'
+                                }
+                                onClick={() => startApprove(item)}
+                            >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
                         {/* زر سريع لفواتير الخدمة الحيّة التي لم يُسلَّم عملها بعد (تاسك 31). */}
                         {item.canDeliver && (
                             <Button
@@ -571,6 +644,27 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                         </Button>
                         <Button className="bg-green-600 text-white hover:bg-green-700" onClick={confirmDeliver} disabled={delivering}>
                             {delivering ? <Loader2 className="size-4 animate-spin" /> : <PackageCheck className="size-4" />} تأكيد التسليم
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!approveItem} onOpenChange={(open) => !open && !approving && setApproveItem(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>اعتماد الفاتورة</DialogTitle>
+                        <DialogDescription>
+                            تُعتمد الفاتورة {approveItem?.invoiceNumber} بكامل قيمتها {approveItem ? formatCurrency(approveItem.totalAmount) : ''}
+                            {approveItem?.customerName ? ` للعميل ${approveItem.customerName}` : ''} بطريقة الدفع «{approveItem?.paymentMethodName}»، فتصير
+                            حالتها «مدفوعة» وتُقيَّد عمولاتها ونقاط ولائها وتُخصم خاماتها من المخزون.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setApproveItem(null)} disabled={approving}>
+                            تراجع
+                        </Button>
+                        <Button className="bg-green-600 text-white hover:bg-green-700" onClick={confirmApprove} disabled={approving}>
+                            {approving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} تأكيد الاعتماد
                         </Button>
                     </DialogFooter>
                 </DialogContent>

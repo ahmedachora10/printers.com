@@ -41,7 +41,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as delivered_at, null as paid_amount, null as refunded_amount');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as delivered_at, null as payment_method_id, null as payment_method_name, null as payment_requires_attachment, null as paid_amount, null as refunded_amount, null as receipt_count');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -234,12 +234,24 @@ class InvoiceController extends Controller
             ->whereColumn('refunds.invoice_id', "{$table}.id")
             ->whereNull('refunds.deleted_at');
 
+        // إيصال التحويل يُرفق كوسائط على الفاتورة نفسها (HasReceiptMedia). عدُّه
+        // هنا يُغني صفَّ القائمة عن تحميل الوسائط لكل فاتورة، ويسمح لزرّ الاعتماد
+        // السريع بمعرفة الناقص قبل أن يُرسل طلباً يُرفض.
+        $receiptSub = DB::table('media')
+            ->selectRaw('count(*)')
+            ->where('media.model_type', $type->modelClass())
+            ->where('media.collection_name', 'receipt')
+            ->whereColumn('media.model_id', "{$table}.id");
+
         $delivery = $request->input('delivery');
 
         return DB::table($table)
             ->leftJoin('customers', 'customers.id', '=', "{$table}.customer_id")
             ->leftJoin('users', 'users.id', '=', "{$table}.user_id")
             ->leftJoin('branches', 'branches.id', '=', "{$table}.branch_id")
+            // طريقة الدفع عمودٌ على كلا الجدولين، فالوصلة واحدة لفرعَي الاتحاد.
+            // تُعرض في القائمة (تاسك 88) ويُصفّى بها (تاسك 92).
+            ->leftJoin('payment_methods', 'payment_methods.id', '=', "{$table}.payment_method_id")
             ->whereNull("{$table}.deleted_at")
             ->when(! $isSuperAdmin, fn ($q) => $q->where("{$table}.branch_id", $branchId))
             // Super-admins see every branch by default, and may narrow to one.
@@ -295,8 +307,12 @@ class InvoiceController extends Controller
                 $cancellationSelect,
                 $deliverySelect,
                 $deliveredSelect,
+                "{$table}.payment_method_id",
+                'payment_methods.name as payment_method_name',
+                'payment_methods.requires_attachment as payment_requires_attachment',
             ])
             ->selectSub($paidSub, 'paid_amount')
-            ->selectSub($refundedSub, 'refunded_amount');
+            ->selectSub($refundedSub, 'refunded_amount')
+            ->selectSub($receiptSub, 'receipt_count');
     }
 }
