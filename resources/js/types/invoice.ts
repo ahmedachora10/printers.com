@@ -19,7 +19,13 @@ export interface InvoiceLine {
     pieces: number | null;
     discountPct: number;
     subtotal: number;
+    /** عمولة الموظف عن هذا السطر — رقمٌ داخلي، null لمن لا يملك رؤيته ولكل ورقة طباعة */
     commissionAmount: number | null;
+    /** تكلفة الخامة للوحدة وإجمالها × الكمية — داخلية كذلك (تاسك 94)، خدمات فقط */
+    materialsCost: number | null;
+    materialsTotal: number | null;
+    /** شريحة العمولة المطبَّقة على السطر (M15) */
+    tierApplied: number | null;
     lineAgentName: string | null;
     lineAgentCommissionAmount: number | null;
 }

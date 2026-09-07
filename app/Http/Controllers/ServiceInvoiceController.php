@@ -320,6 +320,12 @@ class ServiceInvoiceController extends Controller
                         'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
                         'discountPct' => (float) $line->discount_pct,
                         'subtotal' => (float) $line->subtotal,
+                        // تاسك 94: أرقام السطر الداخلية — الطابور مقصورٌ على
+                        // المراجعين بالميدلوير، فلا حاجب إضافي هنا. ولا تُطبع.
+                        'materialsCost' => (float) $line->materials_cost,
+                        'materialsTotal' => (float) $line->materials_total,
+                        'commissionAmount' => $line->commission_amount !== null ? (float) $line->commission_amount : null,
+                        'tierApplied' => $line->tier_applied !== null ? (int) $line->tier_applied : null,
                     ])->values(),
                 ];
             });

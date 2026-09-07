@@ -22,6 +22,20 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class InvoiceLineResource extends JsonResource
 {
+    /**
+     * تاسك 94: هل يرى القارئُ أرقام التكلفة الداخلية على هذا السطر؟ القرار
+     * يُتخذ مرةً في InvoiceResource ويُمرَّر إلى كل سطر — الافتراض الحجب،
+     * فالسطر المبنيّ خارج ذلك السياق (الطباعة مثلاً) لا يسرّب شيئاً.
+     */
+    private bool $showsInternalCosts = false;
+
+    public function showingInternalCosts(bool $shows): static
+    {
+        $this->showsInternalCosts = $shows;
+
+        return $this;
+    }
+
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
@@ -50,8 +64,22 @@ class InvoiceLineResource extends JsonResource
                 : null,
             'discountPct' => (float) $this->discount_pct,
             'subtotal' => (float) $this->subtotal,
-            'commissionAmount' => $this->commission_amount !== null
+            // عمولة الموظف عن السطر — كانت تخرج للجميع، وهي رقمٌ داخلي كتكلفة
+            // الخامة فحُجبت معها (تاسك 94).
+            'commissionAmount' => $this->showsInternalCosts && $this->commission_amount !== null
                 ? (float) $this->commission_amount
+                : null,
+            // تكلفة الخامات: مكتوبة على السطر منذ تاسك 7 ولم تخرج من هنا قط،
+            // فلم تعرضها أي شاشة. للوحدة وإجمالُها × الكمية.
+            'materialsCost' => $this->showsInternalCosts && $isService && $this->resource->materials_cost !== null
+                ? (float) $this->resource->materials_cost
+                : null,
+            'materialsTotal' => $this->showsInternalCosts && $isService && $this->resource->materials_total !== null
+                ? (float) $this->resource->materials_total
+                : null,
+            // الشريحة التي طُبّقت على عمولة هذا السطر (M15).
+            'tierApplied' => $this->showsInternalCosts && $isService && $this->resource->tier_applied !== null
+                ? (int) $this->resource->tier_applied
                 : null,
             'lineAgentName' => $isService ? $this->resource->lineAgent?->name : null,
             'lineAgentCommissionAmount' => $isService && $this->resource->agent_id !== null

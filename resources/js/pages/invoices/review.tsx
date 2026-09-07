@@ -22,6 +22,7 @@ import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckCircle2, ChevronDown, ClipboardList, Paperclip, Pencil, Search, User, UserPlus, Wallet, X, XCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import LineInternals from '@/components/invoices/line-internals';
 import { toast } from 'sonner';
 
 interface ReviewLine {
@@ -35,6 +36,11 @@ interface ReviewLine {
     heightCm: number | null;
     discountPct: number;
     subtotal: number;
+    /** تاسك 94 — أرقام داخلية للمراجع، لا تُطبع للعميل */
+    materialsCost: number | null;
+    materialsTotal: number | null;
+    commissionAmount: number | null;
+    tierApplied: number | null;
 }
 
 interface ReviewInvoice {
@@ -93,6 +99,7 @@ const reviewLineColumns: ColumnDef<ReviewLine>[] = [
                 {line.name}
                 {line.notes && <span className="text-muted-foreground block text-xs whitespace-pre-line">{line.notes}</span>}
                 {formatLineSize(line) && <span className="text-muted-foreground block text-xs">المقاس: {formatLineSize(line)}</span>}
+                <LineInternals line={line} />
             </>
         ),
     },

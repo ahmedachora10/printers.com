@@ -200,7 +200,11 @@ class InvoiceController extends Controller
         // الاستجابة الضريبي. العربون سداد، فالمدفوعة جزئياً تحملهما على كامل قيمتها.
         $isQuotation = ! $invoice->status->isTaxDocument();
 
-        $payload = (new InvoiceResource($invoice))->toArray($request);
+        // تاسك 94: أرقام التكلفة الداخلية (تكلفة الخامات، عمولة السطر، الشريحة)
+        // لا تُطبع للعميل بحال ولأي دور — ولا يكفي إخفاؤها في المكوّن، فحمولة
+        // Inertia تصل المتصفح كاملةً ويقرؤها من يفتح مصدر الصفحة. تُحجب على
+        // الخادم كما يُحجب الرقم الضريبي في عرض السعر.
+        $payload = (new InvoiceResource($invoice))->withoutInternalCosts()->toArray($request);
 
         if ($isQuotation) {
             $payload['branch']['taxNumber'] = null;
