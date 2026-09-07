@@ -50,6 +50,15 @@ interface PosCartTableProps<T extends PosCartLineBase> {
     getMaxDiscount: (line: T) => number;
     getLineTotal: (line: T) => number;
     /**
+     * الاتجاه العكسي لحساب السطر: الكاشير يكتب المبلغ المتّفق عليه في خانة
+     * الإجمالي فيُشتقّ منه السعر بدل أن يُشتقّ الإجمالي من السعر. القسمة عند
+     * المستدعي وحده لأنه من يعرف وحدات السطر — قطعاً كانت أم أمتاراً — وما إذا
+     * كان خصمٌ مطروحاً منه. بلا هذه الدالّة يبقى العمود قراءةً فقط كما كان.
+     */
+    onTotalChange?: (line: T, total: number) => void;
+    /** أي الأسطر يُحرَّر إجماليها — الافتراضي: ما يُحرَّر سعره. */
+    isTotalEditable?: (line: T) => boolean;
+    /**
      * يحلّ محلّ مِعداد الكمية لسطرٍ كميتُه مشتقّة لا مكتوبة — كسطر المنتج المسعّر
      * بالمتر المربع، مساحتُه تأتي من المقاس داخل تفاصيل السطر (تاسك 51).
      */
@@ -99,6 +108,47 @@ function QuantityStepper({ qty, onChange }: { qty: number; onChange: (delta: num
                 <Plus className="size-3" />
             </Button>
         </div>
+    );
+}
+
+const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/**
+ * الإجمالي مكتوباً لا معروضاً فقط: يتبع الحسابَ ما لم يكن الكاشير يكتب فيه الآن،
+ * فإن غادر الحقل — أو ضغط Enter — سُلّم رقمه للمستدعي ليشتقّ منه سعر الوحدة.
+ * الاشتقاق عند المغادرة لا مع كل ضغطة مفتاح، وإلا قفز السعر مع كل رقمٍ نصفِ
+ * مكتوب. وتُمحى المسوّدة عند التسليم فيعود الحقل تابعاً للحساب، ومنه يظهر أثر
+ * التقريب فوراً: 10 على كمية 3 سعرُها 3.33 وإجماليها 9.99.
+ */
+function EditableTotal({ total, onCommit }: { total: number; onCommit: (total: number) => void }) {
+    const [draft, setDraft] = useState<string | null>(null);
+
+    const commit = () => {
+        if (draft === null) return;
+        const value = round2(Number(draft));
+        setDraft(null);
+        if (draft.trim() === '' || !Number.isFinite(value) || value < 0 || value === round2(total)) return;
+        onCommit(value);
+    };
+
+    return (
+        <Input
+            type="number"
+            min={0}
+            step="0.01"
+            inputMode="decimal"
+            aria-label="إجمالي السطر"
+            value={draft ?? round2(total)}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    e.currentTarget.blur();
+                }
+            }}
+            className={cn(CONTROL_HEIGHT, 'text-center font-semibold')}
+        />
     );
 }
 
@@ -190,6 +240,8 @@ export function PosCartTable<T extends PosCartLineBase>({
     getPriceHint,
     getMaxDiscount,
     getLineTotal,
+    onTotalChange,
+    isTotalEditable,
     renderQtyControl,
     onQtyChange,
     onPriceChange,
@@ -287,6 +339,21 @@ export function PosCartTable<T extends PosCartLineBase>({
         />
     );
 
+    // الإجمالي يُحرَّر حيث يُحرَّر السعر — لأن تحريره تحريرٌ للسعر بطريقٍ آخر —
+    // ما لم يضيّق المستدعي ذلك أكثر (سطرٌ بلا مقاسٍ بعد، فلا وحدات تُقسم عليها).
+    const totalControl = (line: T, className?: string) => {
+        const total = getLineTotal(line);
+        const editable = onTotalChange && (isTotalEditable ?? isPriceEditable)(line);
+
+        if (!editable) {
+            return (
+                <span className={cn('flex items-center text-sm font-semibold tabular-nums', CONTROL_HEIGHT, className)}>{formatCurrency(total)}</span>
+            );
+        }
+
+        return <EditableTotal total={total} onCommit={(value) => onTotalChange(line, value)} />;
+    };
+
     const removeControl = (line: T) => (
         <Button
             type="button"
@@ -376,11 +443,7 @@ export function PosCartTable<T extends PosCartLineBase>({
 
                                                 <TableCell className="p-2 text-center align-top">{discountControl(line)}</TableCell>
 
-                                                <TableCell className="p-2 text-center align-top text-sm font-semibold tabular-nums">
-                                                    <span className={cn('flex items-center justify-center', CONTROL_HEIGHT)}>
-                                                        {formatCurrency(getLineTotal(line))}
-                                                    </span>
-                                                </TableCell>
+                                                <TableCell className="p-2 text-center align-top">{totalControl(line, 'justify-center')}</TableCell>
 
                                                 <TableCell className="p-2 text-center align-top">{removeControl(line)}</TableCell>
                                             </TableRow>
@@ -415,11 +478,7 @@ export function PosCartTable<T extends PosCartLineBase>({
                                         <LineField label="الكمية">{qtyControl(line)}</LineField>
                                         <LineField label="السعر (شامل الضريبة)">{priceControl(line)}</LineField>
                                         <LineField label="خصم %">{discountControl(line)}</LineField>
-                                        <LineField label="الإجمالي">
-                                            <span className="flex h-8 items-center text-sm font-semibold tabular-nums">
-                                                {formatCurrency(getLineTotal(line))}
-                                            </span>
-                                        </LineField>
+                                        <LineField label="الإجمالي">{totalControl(line)}</LineField>
                                     </div>
 
                                     {details && detailsBlock(line, details)}

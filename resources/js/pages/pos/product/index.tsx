@@ -299,6 +299,18 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
         updateLine(line.key, { ...patch, qty });
     }
 
+    /**
+     * الإجمالي مكتوباً والسعر مشتقّاً منه — عكس اتجاه الحساب المعتاد. الرقم الذي
+     * يكتبه الكاشير هو ما سيدفعه العميل على السطر: شاملاً الضريبة و**بعد** الخصم،
+     * فتُخرَج نسبة الخصم من المقسوم عليه ليبقى الخصم كما كتبه. وسطر المتر المربع
+     * كميّته مساحته فيُشتقّ له سعر المتر. والسعر يُقرَّب لخانتين كسائر الأسعار.
+     */
+    function setLineTotal(line: CartLine, total: number) {
+        const divisor = line.qty * (1 - line.discountPct / 100);
+        if (divisor <= 0) return;
+        updateLine(line.key, { unitPrice: round2(total / divisor) });
+    }
+
     function removeLine(key: string) {
         setCart((prev) => prev.filter((l) => l.key !== key));
     }
@@ -753,6 +765,11 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                 isPriceEditable={(line) => line.isManual}
                                 getMaxDiscount={() => 100}
                                 getLineTotal={lineTotal}
+                                onTotalChange={setLineTotal}
+                                // سعر سطر المنتج من بطاقة المنتج لا من الكاشير، فلا يُحرَّر
+                                // إجماليه أيضاً — تحريره تحريرٌ للسعر بطريقٍ آخر. ويبقى
+                                // السطر اليدوي، وله كميةٌ يُقسم عليها.
+                                isTotalEditable={(line) => line.isManual && line.qty > 0}
                                 // كمية سطر المتر المربع مشتقّة من المقاس، فلا مِعداد لها.
                                 renderQtyControl={(line) =>
                                     line.isSqm ? (

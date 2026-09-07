@@ -737,6 +737,19 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         updateLine(line.key, { discountPct: clamped });
     }
 
+    /**
+     * الإجمالي مكتوباً والسعر مشتقّاً منه — عكس اتجاه الحساب المعتاد. الرقم الذي
+     * يكتبه الكاشير هو ما سيدفعه العميل على السطر: شاملاً الضريبة كالمعروض،
+     * و**بعد** الخصم، فتُخرَج نسبة الخصم من المقسوم عليه ليبقى الخصم كما كتبه.
+     * وسطر المتر يُشتقّ له سعر المتر لأن وحداته مساحته لا قطعه. السعر يُقرَّب
+     * لخانتين كسائر أسعار النظام، فقد يعود الإجمالي أقلّ من المكتوب بالهللة.
+     */
+    function setLineTotal(line: ServiceCartLine, total: number) {
+        const divisor = lineUnits(line) * (1 - line.discountPct / 100);
+        if (divisor <= 0) return;
+        updateLine(line.key, { unitPrice: round2(total / divisor) });
+    }
+
     function removeLine(key: string) {
         setCart((prev) => prev.filter((l) => l.key !== key));
     }
@@ -1495,6 +1508,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 getPriceHint={(line) => (isMeasured(line.pricingType) ? meterLabel(line.pricingType) : null)}
                                 getMaxDiscount={(line) => (line.maxDiscountPct > 0 ? line.maxDiscountPct : 100)}
                                 getLineTotal={lineTotal}
+                                onTotalChange={setLineTotal}
+                                // سطر المتر بلا مقاس بلا وحدات يُقسم عليها، فلا إجمالي يُكتب فيه بعد.
+                                isTotalEditable={(line) => lineUnits(line) > 0}
                                 onQtyChange={changeQty}
                                 onPriceChange={(line, price) => updateLine(line.key, { unitPrice: price })}
                                 onDiscountChange={setDiscount}
