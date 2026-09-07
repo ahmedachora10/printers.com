@@ -57,16 +57,14 @@ class ApprovePurchaseRequestAction
                 $settled = $linesById[$line->id];
                 $product = Product::findOrFail($settled['product_id']);
 
+                // تاسك 89: القرار يُكتب في أعمدته، ولا يُمسّ ما كتبه مقدّم
+                // الطلب. كان الاعتماد يستبدل الاسم والكمية والتكلفة والوحدة
+                // بما قرّره المعتمِد، فيُمحى الطلب الأصلي بلا نسخة في أي مكان.
                 $line->update([
-                    'product_id' => $product->id,
-                    // A line the requester typed by hand takes the name and the
-                    // unit of the product it was just linked to.
-                    'item_name' => $product->name,
-                    'is_sqm' => (bool) $product->is_sqm,
-                    // The approved quantity replaces the requested one: it is
-                    // what enters the stock, so it is what the line records.
-                    'qty' => $settled['qty'],
-                    'estimated_unit_cost' => $settled['unit_cost'],
+                    'approved_product_id' => $product->id,
+                    'approved_is_sqm' => (bool) $product->is_sqm,
+                    'approved_qty' => $settled['qty'],
+                    'approved_unit_cost' => $settled['unit_cost'],
                 ]);
 
                 $this->recordStockMovement->handle(
