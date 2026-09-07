@@ -201,9 +201,31 @@ function lineAgentCommission(line: ServiceCartLine, vatPct: number, agents: PosA
 }
 
 /**
- * بطاقة خدمة في شبكة «الخدمات المتاحة»، ومعها زرّ النجمة (تاسك 76). النجمة
- * زرٌّ مستقلّ لا زرٌّ داخل زرّ، ويُوقف انتشار الضغطة كي لا يُضيف الخدمة للسلة
- * من ضغط على النجمة.
+ * زرّ النجمة وحده (تاسك 76). يعيش فوق زرّ الخدمة لا داخله — زرٌّ داخل زرّ
+ * تركيبٌ غير سليم — ويُوقف انتشار الضغطة كي لا يُضيف الخدمة للسلة. و`onMouseDown`
+ * المُلغى يُبقي التركيز في حقل البحث، فلا تُغلق قائمة النتائج تحت الإصبع.
+ */
+function FavoriteStar({ isFavorite, onToggle, className }: { isFavorite: boolean; onToggle: () => void; className?: string }) {
+    return (
+        <button
+            type="button"
+            title={isFavorite ? 'إزالة من المفضّلة' : 'إضافة إلى المفضّلة'}
+            aria-label={isFavorite ? 'إزالة من المفضّلة' : 'إضافة إلى المفضّلة'}
+            aria-pressed={isFavorite}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+                e.stopPropagation();
+                onToggle();
+            }}
+            className={cn('text-muted-foreground absolute rounded-md p-1.5 transition hover:text-amber-500', className)}
+        >
+            <Star className={cn('size-3.5', isFavorite && 'fill-amber-400 text-amber-400')} />
+        </button>
+    );
+}
+
+/**
+ * بطاقة خدمة في شبكة «الخدمات المتاحة»، ومعها زرّ النجمة (تاسك 76).
  */
 function ServiceTile({
     service: s,
@@ -229,19 +251,7 @@ function ServiceTile({
                     {s.isTahazir && <Badge variant="secondary">تحضير</Badge>}
                 </span>
             </button>
-            <button
-                type="button"
-                title={isFavorite ? 'إزالة من المفضّلة' : 'إضافة إلى المفضّلة'}
-                aria-label={isFavorite ? 'إزالة من المفضّلة' : 'إضافة إلى المفضّلة'}
-                aria-pressed={isFavorite}
-                onClick={(e) => {
-                    e.stopPropagation();
-                    onToggleFavorite();
-                }}
-                className="text-muted-foreground hover:text-amber-500 absolute top-1.5 end-1.5 rounded-md p-1.5 transition"
-            >
-                <Star className={cn('size-3.5', isFavorite && 'fill-amber-400 text-amber-400')} />
-            </button>
+            <FavoriteStar isFavorite={isFavorite} onToggle={onToggleFavorite} className="top-1.5 end-1.5" />
         </div>
     );
 }
@@ -1421,19 +1431,27 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                     <p className="text-muted-foreground p-3 text-center text-sm">لا توجد خدمات مطابقة</p>
                                 ) : (
                                     filteredServices.map((s) => (
-                                        <button
-                                            key={s.id}
-                                            type="button"
-                                            onMouseDown={(e) => e.preventDefault()}
-                                            onClick={() => addService(s)}
-                                            className="hover:bg-accent flex w-full items-center justify-between gap-2 p-3 text-right text-sm transition"
-                                        >
-                                            <div className="min-w-0">
-                                                <p className="truncate font-medium">{s.name}</p>
-                                                <p className="text-muted-foreground text-xs">عمولة {s.baseCommissionPct}%</p>
-                                            </div>
-                                            {s.isTahazir && <Badge variant="secondary">تحضير</Badge>}
-                                        </button>
+                                        // النجمة هنا كما في الشبكة: تُميّز الخدمة دون إضافتها للسلة،
+                                        // والقائمة تبقى مفتوحة فيتقدّم الصفّ المُميَّز إلى أعلى النتائج.
+                                        <div key={s.id} className="relative">
+                                            <button
+                                                type="button"
+                                                onMouseDown={(e) => e.preventDefault()}
+                                                onClick={() => addService(s)}
+                                                className="hover:bg-accent flex w-full items-center justify-between gap-2 p-3 pe-11 text-right text-sm transition"
+                                            >
+                                                <div className="min-w-0">
+                                                    <p className="truncate font-medium">{s.name}</p>
+                                                    <p className="text-muted-foreground text-xs">عمولة {s.baseCommissionPct}%</p>
+                                                </div>
+                                                {s.isTahazir && <Badge variant="secondary">تحضير</Badge>}
+                                            </button>
+                                            <FavoriteStar
+                                                isFavorite={favoriteIds.includes(s.id)}
+                                                onToggle={() => toggleFavorite(s.id)}
+                                                className="end-2 top-1/2 -translate-y-1/2"
+                                            />
+                                        </div>
                                     ))
                                 )}
                             </div>
