@@ -8,9 +8,11 @@ use App\Enums\InvoiceTypeEnum;
 use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
 use App\Models\Branch;
+use App\Models\PaymentMethod;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +22,13 @@ use Inertia\Response;
 
 class InvoiceController extends Controller
 {
+    /**
+     * خيار الحالة الجامع «غير مسددة (عليها متبقٍ)» — ليس حالةً في
+     * InvoiceStatusEnum بل جمعُ الآجلة والمدفوعة جزئياً، وهو ما يبحث عنه
+     * المحاسب فعلاً حين يسأل عمّا لم يُحصَّل بعد (تاسك 92).
+     */
+    private const STATUS_UNSETTLED = 'unsettled';
+
     public function index(Request $request): Response
     {
         $user = Auth::user();
@@ -41,7 +50,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as delivered_at, null as paid_amount, null as refunded_amount');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as delivered_at, null as payment_method_id, null as payment_method_name, null as payment_requires_attachment, null as paid_amount, null as refunded_amount, null as receipt_count');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -67,8 +76,60 @@ class InvoiceController extends Controller
             'branches' => $isSuperAdmin
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,
-            'filters' => $request->only(['search', 'type', 'status', 'date_from', 'date_to', 'branch_id', 'delivery']),
+            // خيارات الحالة من المصدر لا نسخةً يدوية في الواجهة — النسخة اليدوية
+            // هي التي تخلّفت على «آجلة» بينما الخادم يسمّيها «غير مسددة» (تاسك 92).
+            // ويتقدّمها خيارٌ جامع ليس حالةً في الـenum: كل ما على العميل متبقٍ.
+            'statusOptions' => array_merge(
+                [['value' => self::STATUS_UNSETTLED, 'label' => 'غير مسددة (عليها متبقٍ)']],
+                array_map(
+                    fn (InvoiceStatusEnum $s) => ['value' => $s->value, 'label' => $s->label()],
+                    InvoiceStatusEnum::cases(),
+                ),
+            ),
+            'filterOptions' => $this->filterOptions($isSuperAdmin, $branchId),
+            'filters' => $request->only([
+                'search', 'type', 'status', 'date_from', 'date_to', 'branch_id', 'delivery',
+                'user_id', 'payment_method_id', 'branch_service_id',
+            ]),
         ]);
+    }
+
+    /**
+     * قوائم التصفية (تاسك 92): موظفو الفرع، وطرق الدفع، وخدمات الفرع. كلّها
+     * مقيَّدة بفرع المستخدم ما لم يكن سوبر أدمن — وإلا رأى مدير الفرع أسماء
+     * موظفي فرعٍ آخر في قائمته.
+     *
+     * @return array<string, mixed>
+     */
+    private function filterOptions(bool $isSuperAdmin, ?int $branchId): array
+    {
+        $employees = DB::table('users')
+            ->whereNull('users.deleted_at')
+            ->when(! $isSuperAdmin, fn ($q) => $q->where('users.branch_id', $branchId))
+            ->orderBy('users.name')
+            ->get(['users.id', 'users.name']);
+
+        // الطرق العامة وما أضافه الفرع — نفس نطاق PaymentMethod::visibleToBranch
+        // الذي تقرأه شاشة الفاتورة، فلا يفترق الفلتر عن مصدره.
+        $paymentMethods = PaymentMethod::query()
+            ->where('is_active', true)
+            ->visibleToBranch($isSuperAdmin ? null : $branchId)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        // الخدمة تُصفّى بمعرّف branch_service لا باسمها النصّي: الاسم لقطةٌ على
+        // السطر وقد يتكرّر بين الفروع والقوالب.
+        $services = DB::table('branch_services')
+            ->join('service_templates', 'service_templates.id', '=', 'branch_services.service_template_id')
+            ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_services.branch_id', $branchId))
+            ->orderBy('service_templates.name')
+            ->get(['branch_services.id', 'service_templates.name']);
+
+        return [
+            'employees' => $employees,
+            'paymentMethods' => $paymentMethods,
+            'services' => $services,
+        ];
     }
 
     public function show(string $type, int $id): Response
@@ -109,6 +170,63 @@ class InvoiceController extends Controller
         ]);
     }
 
+    /**
+     * تاسك 95 — تحرير الملاحظة الداخلية بعد إصدار الفاتورة.
+     *
+     * تعليمات التنفيذ تتغيّر بعد الاعتماد أحياناً، وهي ليست رقماً مالياً فلا
+     * تُغلق بإغلاق الفاتورة. يكتبها من يراها — المراجعون وصاحب الفاتورة — ولا
+     * تمسّ مبلغاً ولا حالة، ويُسجَّل كل تغيير في سجلّ النشاط.
+     */
+    public function updateInternalNotes(string $type, int $id, Request $request): RedirectResponse
+    {
+        $invoice = $this->resolveInvoice($type, $id);
+        Gate::authorize('view', $invoice);
+
+        abort_unless($this->mayEditInternalNotes($invoice, $request), 403, 'لا تملك تعديل الملاحظات الداخلية لهذه الفاتورة.');
+
+        $validated = $request->validate([
+            'internal_notes' => ['nullable', 'string', 'max:1000'],
+        ], [
+            'internal_notes.max' => 'الملاحظات الداخلية يجب ألا تتجاوز 1000 حرف.',
+        ]);
+
+        $notes = trim((string) ($validated['internal_notes'] ?? ''));
+        $before = $invoice->internal_notes;
+
+        $invoice->update(['internal_notes' => $notes === '' ? null : $notes]);
+
+        activity('invoices')
+            ->causedBy($request->user())
+            ->performedOn($invoice)
+            ->withProperties(['old' => $before, 'new' => $invoice->internal_notes])
+            ->log('updated internal notes');
+
+        return back()->with('success', 'تم حفظ الملاحظات الداخلية.');
+    }
+
+    /**
+     * مرآةُ InvoiceResource::canEditInternalNotes — الصفّ يعرض الزرّ والخادم
+     * هو من يقرّر. الملغاة والمرتجعة أُغلقت قصّتها.
+     */
+    private function mayEditInternalNotes(ProductInvoice|ServiceInvoice $invoice, Request $request): bool
+    {
+        $user = $request->user();
+        $role = $user?->roleName;
+
+        if ($role === null) {
+            return false;
+        }
+
+        if ($invoice->status === InvoiceStatusEnum::CANCELLED || $invoice->status === InvoiceStatusEnum::RETURNED) {
+            return false;
+        }
+
+        return $role->isSuperAdmin()
+            || $role->isBranchAdmin()
+            || $role->isAccountant()
+            || ($role->isEmployee() && (int) $invoice->user_id === $user->id);
+    }
+
     public function print(string $type, int $id, Request $request, GenerateZatcaQrAction $qrAction): Response
     {
         $invoice = $this->resolveInvoice($type, $id);
@@ -140,7 +258,11 @@ class InvoiceController extends Controller
         // الاستجابة الضريبي. العربون سداد، فالمدفوعة جزئياً تحملهما على كامل قيمتها.
         $isQuotation = ! $invoice->status->isTaxDocument();
 
-        $payload = (new InvoiceResource($invoice))->toArray($request);
+        // تاسك 94: أرقام التكلفة الداخلية (تكلفة الخامات، عمولة السطر، الشريحة)
+        // لا تُطبع للعميل بحال ولأي دور — ولا يكفي إخفاؤها في المكوّن، فحمولة
+        // Inertia تصل المتصفح كاملةً ويقرؤها من يفتح مصدر الصفحة. تُحجب على
+        // الخادم كما يُحجب الرقم الضريبي في عرض السعر.
+        $payload = (new InvoiceResource($invoice))->withoutInternalCosts()->toArray($request);
 
         if ($isQuotation) {
             $payload['branch']['taxNumber'] = null;
@@ -234,12 +356,24 @@ class InvoiceController extends Controller
             ->whereColumn('refunds.invoice_id', "{$table}.id")
             ->whereNull('refunds.deleted_at');
 
+        // إيصال التحويل يُرفق كوسائط على الفاتورة نفسها (HasReceiptMedia). عدُّه
+        // هنا يُغني صفَّ القائمة عن تحميل الوسائط لكل فاتورة، ويسمح لزرّ الاعتماد
+        // السريع بمعرفة الناقص قبل أن يُرسل طلباً يُرفض.
+        $receiptSub = DB::table('media')
+            ->selectRaw('count(*)')
+            ->where('media.model_type', $type->modelClass())
+            ->where('media.collection_name', 'receipt')
+            ->whereColumn('media.model_id', "{$table}.id");
+
         $delivery = $request->input('delivery');
 
         return DB::table($table)
             ->leftJoin('customers', 'customers.id', '=', "{$table}.customer_id")
             ->leftJoin('users', 'users.id', '=', "{$table}.user_id")
             ->leftJoin('branches', 'branches.id', '=', "{$table}.branch_id")
+            // طريقة الدفع عمودٌ على كلا الجدولين، فالوصلة واحدة لفرعَي الاتحاد.
+            // تُعرض في القائمة (تاسك 88) ويُصفّى بها (تاسك 92).
+            ->leftJoin('payment_methods', 'payment_methods.id', '=', "{$table}.payment_method_id")
             ->whereNull("{$table}.deleted_at")
             ->when(! $isSuperAdmin, fn ($q) => $q->where("{$table}.branch_id", $branchId))
             // Super-admins see every branch by default, and may narrow to one.
@@ -247,6 +381,26 @@ class InvoiceController extends Controller
                 fn ($q) => $q->where("{$table}.branch_id", (int) $request->input('branch_id')))
             ->when($request->filled('status') && in_array($request->input('status'), InvoiceStatusEnum::all(), true),
                 fn ($q) => $q->where("{$table}.status", $request->input('status')))
+            // «غير مسددة (عليها متبقٍ)»: خيارٌ جامع لا حالةٌ في الـenum.
+            ->when($request->input('status') === self::STATUS_UNSETTLED, fn ($q) => $q->whereIn("{$table}.status", [
+                InvoiceStatusEnum::DUE->value,
+                InvoiceStatusEnum::PARTIALLY_PAID->value,
+            ]))
+            // منشئ الفاتورة — فلترٌ صريح بدل البحث النصّي في اسم الموظف.
+            ->when($request->filled('user_id'), fn ($q) => $q->where("{$table}.user_id", (int) $request->input('user_id')))
+            ->when($request->filled('payment_method_id'),
+                fn ($q) => $q->where("{$table}.payment_method_id", (int) $request->input('payment_method_id')))
+            // نوع الخدمة يخصّ فواتير الخدمات وحدها، فاختياره يُقصي فرع المنتجات
+            // من الاتحاد كاملاً — تماماً كما يفعل فلتر موعد التسليم أدناه.
+            ->when($request->filled('branch_service_id'), function ($q) use ($table, $type, $request) {
+                if ($type !== InvoiceTypeEnum::SERVICE) {
+                    return $q->whereRaw('1 = 0');
+                }
+
+                return $q->whereExists(fn ($sub) => $sub->from('service_invoice_lines')
+                    ->whereColumn('service_invoice_lines.invoice_id', "{$table}.id")
+                    ->where('service_invoice_lines.branch_service_id', (int) $request->input('branch_service_id')));
+            })
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate("{$table}.created_at", '>=', $request->input('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate("{$table}.created_at", '<=', $request->input('date_to')))
             // «تسليم اليوم / متأخر / تم التسليم»: يخص فواتير الخدمات وحدها، فيُقصى
@@ -295,8 +449,12 @@ class InvoiceController extends Controller
                 $cancellationSelect,
                 $deliverySelect,
                 $deliveredSelect,
+                "{$table}.payment_method_id",
+                'payment_methods.name as payment_method_name',
+                'payment_methods.requires_attachment as payment_requires_attachment',
             ])
             ->selectSub($paidSub, 'paid_amount')
-            ->selectSub($refundedSub, 'refunded_amount');
+            ->selectSub($refundedSub, 'refunded_amount')
+            ->selectSub($receiptSub, 'receipt_count');
     }
 }

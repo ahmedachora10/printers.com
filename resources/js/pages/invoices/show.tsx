@@ -1,6 +1,8 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import DeliveryBadge from '@/components/invoices/delivery-badge';
+import InternalNotesCard from '@/components/invoices/internal-notes-card';
 import InvoiceNotes from '@/components/invoices/invoice-notes';
+import LineInternals from '@/components/invoices/line-internals';
 import MaterialsShortageDialog from '@/components/invoices/materials-shortage-dialog';
 import { ReceiptField } from '@/components/invoices/receipt-field';
 import RecordPaymentModal, { type PaymentMethodOption } from '@/components/invoices/record-payment-modal';
@@ -56,6 +58,7 @@ const lineColumns: ColumnDef<InvoiceLine>[] = [
                         )}
                     </span>
                 )}
+                <LineInternals line={line} />
             </>
         ),
     },
@@ -534,6 +537,12 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                             />
 
                             <InvoiceNotes notes={invoice.notes} />
+                            <InternalNotesCard
+                                type={invoice.type}
+                                id={invoice.id}
+                                notes={invoice.internalNotes}
+                                canEdit={invoice.canEditInternalNotes}
+                            />
 
                             <Separator className="my-4" />
 

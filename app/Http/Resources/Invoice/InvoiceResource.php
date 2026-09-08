@@ -19,6 +19,19 @@ use Illuminate\Http\Resources\Json\JsonResource;
  */
 class InvoiceResource extends JsonResource
 {
+    /**
+     * تاسك 94: يُرفع لحمولة الطباعة، فتُحجب أرقام التكلفة الداخلية عن كل دور
+     * بلا استثناء — الورقة تصل العميل.
+     */
+    private bool $hidesInternalCosts = false;
+
+    public function withoutInternalCosts(): static
+    {
+        $this->hidesInternalCosts = true;
+
+        return $this;
+    }
+
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
@@ -154,8 +167,18 @@ class InvoiceResource extends JsonResource
             // Invoice-level remark for the customer — distinct from the
             // per-line detail carried on InvoiceLineResource::notes.
             'notes' => $this->notes,
+            // تاسك 95: الملاحظة الداخلية — تعليمات تنفيذ أو تنبيه، لا يراها
+            // العميل. تُحجب عمّن لا يملكها بنفس قاعدة أرقام التكلفة، وتُحذف
+            // من حمولة الطباعة كاملةً عبر withoutInternalCosts().
+            'internalNotes' => $this->showsInternalCostsTo($request) ? $this->internal_notes : null,
+            'canEditInternalNotes' => $this->canEditInternalNotes($request),
             'receiptUrl' => $this->receiptUrl(),
-            'lines' => InvoiceLineResource::collection($this->whenLoaded('lines')),
+            // تاسك 94: أرقام السطر الداخلية (تكلفة الخامات، عمولة الموظف،
+            // الشريحة) تُحجب عمّن لا يملكها — قرارٌ واحد يُتخذ هنا ويُمرَّر
+            // لكل سطر، فلا يقرأ كل سطر الفاتورة الأم من جديد.
+            'lines' => $this->whenLoaded('lines', fn () => $this->lines->map(
+                fn ($line) => (new InvoiceLineResource($line))->showingInternalCosts($this->showsInternalCostsTo($request)),
+            )->values()),
             'refundedTotal' => $refundedTotal,
             'refundableRemaining' => $refundableRemaining,
             'isFullyRefunded' => $refundedTotal > 0 && $refundableRemaining <= 0,
@@ -196,5 +219,45 @@ class InvoiceResource extends JsonResource
                 'logoUrl' => $this->branch?->getFirstMediaUrl('logo') ?: null,
             ],
         ];
+    }
+
+    /**
+     * تاسك 94 — من يرى أرقام التكلفة الداخلية على سطور الفاتورة؟
+     *
+     * المراجعون (سوبر أدمن، مدير فرع، محاسب) دائماً، وصاحبُ الفاتورة الموظف
+     * على فاتورته وحدها: هو من قد يكتب تكلفة الخامة منذ تاسك 77، وهي تُخصم من
+     * أساس عمولته منذ تاسك 7 — فمن حقّه أن يرى ما خُصم. ولا أحد غيرهما،
+     * وبوابة المندوب لا تراها بحال.
+     *
+     * ولا تُطبع لأحد إطلاقاً: InvoiceController::print() يحذفها من الحمولة.
+     */
+    private function showsInternalCostsTo(Request $request): bool
+    {
+        $user = $request->user();
+
+        if ($this->hidesInternalCosts || $user === null) {
+            return false;
+        }
+
+        $role = $user->roleName;
+
+        if ($role?->isSuperAdmin() || $role?->isBranchAdmin() || $role?->isAccountant()) {
+            return true;
+        }
+
+        return $role?->isEmployee() && (int) $this->user_id === $user->id;
+    }
+
+    /**
+     * تاسك 95 — من يكتب الملاحظة الداخلية أو يصحّحها؟ من يراها: المراجعون
+     * وصاحبُ الفاتورة. وتبقى قابلة للتعديل **بعد الاعتماد** — فهي تعليمات
+     * تنفيذٍ لا رقمٌ مالي، ولا تغيّر شيئاً في مبلغ الفاتورة ولا في حالتها.
+     * والملغاة والمرتجعة أُغلقت قصّتها فلا تُعدَّل. الحكم النهائي في السياسة.
+     */
+    private function canEditInternalNotes(Request $request): bool
+    {
+        return $this->showsInternalCostsTo($request)
+            && $this->status !== InvoiceStatusEnum::CANCELLED
+            && $this->status !== InvoiceStatusEnum::RETURNED;
     }
 }

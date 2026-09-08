@@ -37,11 +37,12 @@ class ConvertToPurchaseOrderAction
             ]);
         }
 
-        $request->load('lines.product');
+        $request->load('lines.product', 'lines.approvedProduct');
 
         // A purchase order can only carry catalogued products; free-text items
-        // have to be created in the inventory first.
-        $lines = $request->lines->filter(fn (PurchaseRequestLine $line) => $line->product_id !== null);
+        // have to be created in the inventory first. تاسك 89: المنتج المعتمد
+        // يسبق المقترح — القرار هو ما يُشترى.
+        $lines = $request->lines->filter(fn (PurchaseRequestLine $line) => $line->effectiveProductId() !== null);
 
         if ($lines->isEmpty()) {
             throw ValidationException::withMessages([
@@ -57,9 +58,10 @@ class ConvertToPurchaseOrderAction
                 'expected_delivery' => $data['expected_delivery'] ?? null,
                 'notes' => $request->notes,
                 'lines' => $lines->map(fn (PurchaseRequestLine $line) => [
-                    'product_id' => $line->product_id,
-                    'ordered_qty' => $line->qty,
-                    'unit_cost' => (float) ($line->estimated_unit_cost ?? $line->product?->cost_price ?? 0),
+                    'product_id' => $line->effectiveProductId(),
+                    'ordered_qty' => $line->effectiveQty(),
+                    'unit_cost' => $line->effectiveUnitCost()
+                        ?? (float) ($line->approvedProduct?->cost_price ?? $line->product?->cost_price ?? 0),
                 ])->values()->all(),
             ]);
 

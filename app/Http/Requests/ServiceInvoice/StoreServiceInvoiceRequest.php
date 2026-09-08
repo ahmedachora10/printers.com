@@ -56,6 +56,8 @@ class StoreServiceInvoiceRequest extends FormRequest
             'delivery_at' => ['nullable', 'date', 'after_or_equal:today'],
             // Invoice-level remark for the customer, printed under the lines.
             'notes' => ['nullable', 'string', 'max:1000'],
+            // تاسك 95: ملاحظة داخلية للموظفين والإدارة — لا تُطبع للعميل.
+            'internal_notes' => ['nullable', 'string', 'max:1000'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.branch_service_id' => ['required', 'integer', 'exists:branch_services,id'],
             'lines.*.notes' => ['nullable', 'string', 'max:500'],
@@ -107,6 +109,7 @@ class StoreServiceInvoiceRequest extends FormRequest
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
             'status.in' => 'لا يمكنك إصدار فاتورة مدفوعة. يتم حفظ الفاتورة كمعلقة ليراجعها المحاسب.',
             'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',
+            'internal_notes.max' => 'الملاحظات الداخلية يجب ألا تتجاوز 1000 حرف.',
             'delivery_at.date' => 'موعد التسليم غير صالح.',
             'delivery_at.after_or_equal' => 'موعد التسليم يجب ألا يكون قبل اليوم.',
             'lines.required' => 'يجب إضافة خدمة واحدة على الأقل للفاتورة.',

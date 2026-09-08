@@ -181,12 +181,14 @@ describe('Internal purchase requests', function () {
         expect((float) $movements->firstWhere('product_id', $this->product->id)->unit_cost)->toBe(14.5);
         expect((float) $movements->firstWhere('product_id', $sqmProduct->id)->unit_cost)->toBe(30.0);
 
-        // The settled line now carries the approver's product, name and cost.
+        // تاسك 89: القرار يُكتب في أعمدته، وما كتبه الموظف يبقى كما كتبه.
         $freeLine->refresh();
-        expect($freeLine->product_id)->toBe($sqmProduct->id);
-        expect($freeLine->item_name)->toBe($sqmProduct->name);
-        expect($freeLine->is_sqm)->toBeTrue();
-        expect((float) $freeLine->estimated_unit_cost)->toBe(30.0);
+        expect($freeLine->approved_product_id)->toBe($sqmProduct->id);
+        expect($freeLine->approved_is_sqm)->toBeTrue();
+        expect((float) $freeLine->approved_unit_cost)->toBe(30.0);
+        expect($freeLine->item_name)->toBe('فينيل بالمتر');
+        expect($freeLine->product_id)->toBeNull();
+        expect($freeLine->estimated_unit_cost)->toBeNull();
     });
 
     it('feeds the stock with the quantity the approver settled, not the one that was asked for', function () use ($submit, $approvalPayload) {
@@ -201,9 +203,11 @@ describe('Internal purchase requests', function () {
             ]))
             ->assertRedirect();
 
-        // The approved quantity replaces the requested one — it is what the
-        // movement carries, so it is what the line records.
-        expect((float) $line->refresh()->qty)->toBe(4.0);
+        // تاسك 89: الحركة تحمل الكمية المعتمدة، والسطر يحتفظ بالاثنتين —
+        // ما طُلب في qty وما اعتُمد في approved_qty.
+        $line->refresh();
+        expect((float) $line->approved_qty)->toBe(4.0);
+        expect((float) $line->qty)->toBe(10.0);
         expect($this->product->refresh()->current_stock)->toEqual(4);
 
         $movement = StockMovement::where('reference_type', PurchaseRequest::class)
@@ -453,6 +457,83 @@ describe('Internal purchase requests', function () {
             ->assertInertia(fn ($page) => $page->has('items.data', 0));
 
         $this->patch(route('purchase-requests.approve', $request))->assertForbidden();
+    });
+
+    /**
+     * تاسك 89 — الاعتماد كان يمحو ما طلبه الموظف: الاسم والكمية والتكلفة
+     * والوحدة كلها تُستبدل بما قرّره المعتمِد، بلا نسخة في أي جدول ولا سجلّ.
+     */
+    it('keeps what the employee asked for beside what the approver settled on', function () use ($submit, $approvalPayload) {
+        $other = Product::factory()->create([
+            'branch_id' => $this->branch->id,
+            'category_id' => ProductCategory::factory(),
+            'unit_id' => ProductUnit::factory(),
+            'name' => 'ورق A3',
+            'is_sqm' => false,
+            'current_stock' => 0,
+        ]);
+
+        $this->actingAs($this->employee);
+        $request = $submit([['item_name' => 'ورق مقوّى', 'qty' => 5, 'estimated_unit_cost' => 3]]);
+        $line = $request->lines->first();
+
+        $this->actingAs($this->admin)
+            ->patch(route('purchase-requests.approve', $request), $approvalPayload($request, [
+                $line->id => ['product_id' => $other->id, 'qty' => 2, 'unit_cost' => 7],
+            ]))
+            ->assertRedirect();
+
+        $line->refresh();
+
+        // ما طُلب — كما كُتب حرفياً.
+        expect($line->item_name)->toBe('ورق مقوّى')
+            ->and((float) $line->qty)->toBe(5.0)
+            ->and((float) $line->estimated_unit_cost)->toBe(3.0)
+            ->and($line->product_id)->toBeNull();
+
+        // وما اعتُمد — في أعمدته وحدها.
+        expect($line->approved_product_id)->toBe($other->id)
+            ->and((float) $line->approved_qty)->toBe(2.0)
+            ->and((float) $line->approved_unit_cost)->toBe(7.0);
+
+        // والحركة بالقيم المعتمدة.
+        $movement = StockMovement::where('reference_type', PurchaseRequest::class)
+            ->where('reference_id', $request->id)
+            ->sole();
+
+        expect((float) $movement->qty)->toBe(2.0)
+            ->and((float) $movement->unit_cost)->toBe(7.0)
+            ->and($movement->product_id)->toBe($other->id);
+
+        // والإجمالي التقديري يقرأ القرار لا الطلب: 2 × 7 لا 5 × 3.
+        expect($request->refresh()->load('lines')->estimatedTotal())->toBe(14.0);
+    });
+
+    it('shows both figures and the resulting stock movements on the request', function () use ($submit, $approvalPayload) {
+        $this->actingAs($this->employee);
+        $request = $submit([['item_name' => 'حبر أسود', 'qty' => 9, 'estimated_unit_cost' => 4]]);
+        $line = $request->lines->first();
+
+        $this->actingAs($this->admin)
+            ->patch(route('purchase-requests.approve', $request), $approvalPayload($request, [
+                $line->id => ['product_id' => $this->product->id, 'qty' => 3, 'unit_cost' => 11],
+            ]))
+            ->assertRedirect();
+
+        $this->actingAs($this->admin)
+            ->get(route('purchase-requests.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('items.data.0.lines.0.requestedItemName', 'حبر أسود')
+                ->where('items.data.0.lines.0.requestedQty', 9)
+                ->where('items.data.0.lines.0.requestedUnitCost', 4)
+                ->where('items.data.0.lines.0.approvedQty', 3)
+                ->where('items.data.0.lines.0.approvedUnitCost', 11)
+                ->where('items.data.0.lines.0.approvedProductName', $this->product->name)
+                ->where('items.data.0.lines.0.wasSettled', true)
+                // الرقم «الفعلي» يبقى ما يُبنى عليه العرض والإجماليات.
+                ->where('items.data.0.lines.0.qty', 3)
+                ->has('items.data.0.stockMovements', 1)
+                ->where('items.data.0.stockMovements.0.qty', 3));
     });
 
     it('blocks the agent portal from the module entirely', function () {

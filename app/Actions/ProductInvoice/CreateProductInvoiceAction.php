@@ -206,6 +206,8 @@ class CreateProductInvoiceAction
                 'total_amount' => $total,
                 // Invoice-level remark for the customer, printed under the lines.
                 'notes' => $this->normalizeNotes($data['notes'] ?? null),
+                // تاسك 95: ملاحظة داخلية لا تُطبع للعميل.
+                'internal_notes' => $this->normalizeNotes($data['internal_notes'] ?? null),
                 'status' => $status,
                 'paid_at' => $status === InvoiceStatusEnum::PAID ? now() : null,
             ]);

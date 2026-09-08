@@ -91,7 +91,7 @@ class SalesReportController extends Controller
         $type = $request->input('type', 'all');
 
         return Excel::download(
-            new SalesReportExport($this->detailInvoices($scope, $type)),
+            new SalesReportExport($this->detailInvoices($scope, $type), $this->byDay($scope, $type)),
             'sales-report-'.now()->format('Y-m-d').'.xlsx',
         );
     }
@@ -262,6 +262,10 @@ class SalesReportController extends Controller
             $refunds += (float) $row->refunds;
         }
 
+        // تاسك 87: مصروفات المدى كلّه، وصافيه بعدها — بطاقةُ ملخّصٍ تقابل
+        // العمودين، فلا يصدّر المستخدم ملفاً ينقصه نصف ما رآه على الشاشة.
+        $expenses = round(array_sum($this->expensesDaily($scope)), 2);
+
         return [
             'invoiceCount' => $count,
             'subtotal' => $subtotal,
@@ -269,6 +273,8 @@ class SalesReportController extends Controller
             'vat' => $vat,
             'refunds' => $refunds,
             'total' => $total,
+            'expenses' => $expenses,
+            'net' => round($total - $expenses, 2),
         ];
     }
 
@@ -312,9 +318,10 @@ class SalesReportController extends Controller
     private function byDay(array $scope, string $type): array
     {
         $days = [];
+        $blank = ['count' => 0, 'total' => 0.0, 'expenses' => 0.0, 'net' => 0.0];
 
         foreach ($this->dayRange->handle($scope) as $day) {
-            $days[$day] = ['date' => $day, 'count' => 0, 'total' => 0.0];
+            $days[$day] = ['date' => $day, ...$blank];
         }
 
         foreach ($this->tablesForType($type) as $table) {
@@ -328,15 +335,65 @@ class SalesReportController extends Controller
 
             foreach ($rows as $row) {
                 $key = (string) $row->day;
-                $days[$key] ??= ['date' => $key, 'count' => 0, 'total' => 0.0];
+                $days[$key] ??= ['date' => $key, ...$blank];
                 $days[$key]['count'] += (int) $row->c;
                 $days[$key]['total'] += (float) $row->total;
             }
         }
 
+        // تاسك 87: يومٌ فيه مصروف بلا مبيعات موجودٌ في الحلقة أصلاً (المدى يأتي
+        // من BuildReportDayRange)، فيظهر بصافٍ سالب — وهو صحيح.
+        foreach ($this->expensesDaily($scope) as $day => $amount) {
+            $days[$day] ??= ['date' => $day, ...$blank];
+            $days[$day]['expenses'] += $amount;
+        }
+
+        foreach ($days as $day => $row) {
+            $days[$day]['net'] = round($row['total'] - $row['expenses'], 2);
+        }
+
         ksort($days);
 
         return array_values($days);
+    }
+
+    /**
+     * مصروفات كل يوم في المدى — جدول `expenses` وحده.
+     *
+     * ⚠️ **لا يشمل قيمة المخزون الوارد** عمداً. التقرير اليومي يجمعهما تحت اسم
+     * «المشتريات» (DailyReportController::purchasesDaily)، ونصّ العميل هنا
+     * «إجمالي قيمة المصروفات المسجلة في النظام» = هذا الجدول وحده. خلطُهما
+     * يجعل تقريرين يعرضان رقمين مختلفين لليوم نفسه تحت اسمين متشابهين.
+     *
+     * والمصروف لا نوع له، فلا يتأثّر بفلتر «منتجات/خدمات» — العمود يعرض مصروف
+     * اليوم كاملاً في الحالات الثلاث.
+     *
+     * @param  array<string, mixed>  $scope
+     * @return array<string, float>
+     */
+    private function expensesDaily(array $scope): array
+    {
+        $daily = [];
+
+        $rows = DB::table('expenses')
+            // DB::table يتجاوز نطاق الحذف الناعم، فالشرط صريح — وإلا حُسب
+            // مصروفٌ محذوف (نفس المطبّ الذي وقع في هذا التقرير سابقاً).
+            ->whereNull('deleted_at')
+            ->when($scope['branchId'], fn ($q) => $q->where('branch_id', $scope['branchId']))
+            ->when($scope['from'], fn ($q) => $q->where('date', '>=', $scope['from']))
+            ->when($scope['to'], fn ($q) => $q->where('date', '<=', $scope['to']))
+            ->groupBy(DB::raw('DATE(date)'))
+            ->get([
+                DB::raw('DATE(date) as day'),
+                DB::raw('COALESCE(SUM(total), 0) as amount'),
+            ]);
+
+        foreach ($rows as $row) {
+            $day = (string) $row->day;
+            $daily[$day] = ($daily[$day] ?? 0.0) + (float) $row->amount;
+        }
+
+        return $daily;
     }
 
     /**

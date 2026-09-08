@@ -2,6 +2,7 @@ export type PurchaseRequestStatus = 'pending' | 'approved' | 'rejected' | 'conve
 
 export interface PurchaseRequestLine {
     id: number;
+    /** الفعلي: المنتج المعتمد إن وُجد، وإلا ما اقترحه مقدّم الطلب */
     productId: number | null;
     itemName: string;
     sku?: string | null;
@@ -11,6 +12,31 @@ export interface PurchaseRequestLine {
     estimatedUnitCost: number | null;
     estimatedSubtotal: number;
     notes: string | null;
+
+    /** تاسك 89 — ما طلبه الموظف، لا يُمسّ عند الاعتماد */
+    requestedItemName: string;
+    requestedQty: number;
+    requestedIsSqm: boolean;
+    requestedUnitCost: number | null;
+    requestedSku?: string | null;
+
+    /** تاسك 89 — ما استقرّ عليه المعتمِد (null قبل القرار) */
+    approvedProductId: number | null;
+    approvedProductName?: string | null;
+    approvedSku?: string | null;
+    approvedQty: number | null;
+    approvedIsSqm: boolean | null;
+    approvedUnitCost: number | null;
+    wasSettled: boolean;
+}
+
+/** حركة مخزون وُلدت من اعتماد الطلب (تاسك 68). */
+export interface PurchaseRequestMovement {
+    id: number;
+    productName: string | null;
+    qty: number;
+    unitCost: number | null;
+    createdAt: string | null;
 }
 
 export interface PurchaseRequest {
@@ -28,10 +54,12 @@ export interface PurchaseRequest {
     decisionReason: string | null;
     purchaseOrderId: number | null;
     purchaseOrderNumber?: string | null;
+    purchaseOrderSupplierName?: string | null;
     createdAt: string | null;
     estimatedTotal?: number;
     linesCount?: number;
     lines?: PurchaseRequestLine[];
+    stockMovements?: PurchaseRequestMovement[];
     canDecide: boolean;
     canConvert: boolean;
 }

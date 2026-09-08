@@ -37,7 +37,17 @@ class PurchaseRequestController extends Controller
 
         $items = PurchaseRequest::query()
             ->visibleTo(Auth::user())
-            ->with(['branch:id,name', 'requestedBy:id,name', 'decidedBy:id,name', 'purchaseOrder:id,po_number', 'lines.product:id,sku'])
+            ->with([
+                'branch:id,name',
+                'requestedBy:id,name',
+                'decidedBy:id,name',
+                'purchaseOrder:id,po_number,supplier_id',
+                'purchaseOrder.supplier:id,name',
+                'lines.product:id,name,sku',
+                // تاسك 89: قرار المعتمِد يُعرض بجوار الطلب، وحركاته بجواره.
+                'lines.approvedProduct:id,name,sku',
+                'stockMovements.product:id,name',
+            ])
             ->withCount('lines')
             ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
             ->when($request->filled('search'), fn ($q) => $q->whereHas(

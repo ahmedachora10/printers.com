@@ -19,7 +19,13 @@ export interface InvoiceLine {
     pieces: number | null;
     discountPct: number;
     subtotal: number;
+    /** عمولة الموظف عن هذا السطر — رقمٌ داخلي، null لمن لا يملك رؤيته ولكل ورقة طباعة */
     commissionAmount: number | null;
+    /** تكلفة الخامة للوحدة وإجمالها × الكمية — داخلية كذلك (تاسك 94)، خدمات فقط */
+    materialsCost: number | null;
+    materialsTotal: number | null;
+    /** شريحة العمولة المطبَّقة على السطر (M15) */
+    tierApplied: number | null;
     lineAgentName: string | null;
     lineAgentCommissionAmount: number | null;
 }
@@ -71,6 +77,9 @@ export interface Invoice {
     paidAt: string | null;
     status: InvoiceStatus;
     statusLabel: string;
+    /** ملاحظة داخلية للموظفين والإدارة — null لمن لا يملك رؤيتها ولكل ورقة طباعة (تاسك 95) */
+    internalNotes: string | null;
+    canEditInternalNotes: boolean;
     /** Why a reviewer rejected the invoice — service invoices only. */
     cancellationReason: string | null;
     cancelledByName: string | null;
@@ -160,6 +169,12 @@ export interface InvoiceListItem {
     /** Owner of an invoice that is already returned — the control shows, disabled. */
     returnLocked: boolean;
     canEditCustomer: boolean;
+    /** طريقة دفع الفاتورة، أو null إن لم تُحدَّد بعد */
+    paymentMethodName: string | null;
+    /** هل يملك المستخدم اعتماد هذه الفاتورة من صفّ القائمة (خدمات، غير مسددة، مراجع) */
+    canApprove: boolean;
+    /** ما ينقصها قبل الاعتماد: 'method' طريقة دفع، 'receipt' إيصال تحويل، أو null */
+    approveBlockedReason: 'method' | 'receipt' | null;
 }
 
 export interface PaginatedInvoice {
@@ -177,4 +192,9 @@ export interface InvoiceFilters {
     branch_id?: string;
     /** 'today' | 'overdue' | 'delivered' — تصفية حسب موعد التسليم */
     delivery?: string;
+    /** منشئ الفاتورة */
+    user_id?: string;
+    payment_method_id?: string;
+    /** معرّف branch_services — تصفية بالخدمة تُقصي فواتير المنتجات */
+    branch_service_id?: string;
 }

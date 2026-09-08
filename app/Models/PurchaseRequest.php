@@ -77,6 +77,19 @@ class PurchaseRequest extends Model
     }
 
     /**
+     * حركات المخزون التي وُلدت من اعتماد هذا الطلب (تاسك 68). `reference_id`
+     * معرِّفٌ داخل جدوله لا عبره، فالنوع شرطٌ لازم لا تحسيناً.
+     *
+     * @return HasMany<StockMovement, $this>
+     */
+    public function stockMovements(): HasMany
+    {
+        return $this->hasMany(StockMovement::class, 'reference_id')
+            ->where('reference_type', self::class)
+            ->oldest('id');
+    }
+
+    /**
      * تاسك 68: a request whose approval already fed the stock never walks the
      * purchase-order path as well — the same quantity would land in the
      * insert-only ledger twice, and no row there can be taken back. Requests
@@ -87,11 +100,15 @@ class PurchaseRequest extends Model
         return $this->status->canConvert() && $this->stock_fed_at === null;
     }
 
-    /** Estimated total of the request (lines with no estimate count as zero). */
+    /**
+     * Estimated total of the request (lines with no estimate count as zero).
+     * تاسك 89: القيمة المعتمدة تسبق المطلوبة حين اتُّخذ القرار — ما يُدفع فعلاً
+     * هو ما استقرّ عليه المعتمِد، لا ما قدّره مقدّم الطلب.
+     */
     public function estimatedTotal(): float
     {
         return (float) $this->lines
-            ->map(fn (PurchaseRequestLine $line) => $line->qty * (float) ($line->estimated_unit_cost ?? 0))
+            ->map(fn (PurchaseRequestLine $line) => $line->effectiveQty() * ($line->effectiveUnitCost() ?? 0))
             ->sum();
     }
 

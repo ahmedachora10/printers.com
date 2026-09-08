@@ -42,6 +42,14 @@ type Panel = 'none' | 'reject' | 'convert';
 const unitLabel = (isSqm: boolean) => (isSqm ? 'م²' : 'قطعة');
 const formatQty = (qty: number) => (Number.isInteger(qty) ? qty.toString() : qty.toFixed(2));
 
+/**
+ * تاسك 89: سطرٌ مكتوم يعرض ما طُلب أصلاً حين يخالفه ما اعتُمد. الطلب واقعةٌ
+ * والقرار واقعةٌ أخرى، فيبقيان معاً بدل أن يمحو أحدهما الآخر.
+ */
+function RequestedHint({ children }: { children: React.ReactNode }) {
+    return <p className="text-muted-foreground mt-0.5 text-[11px]">المطلوب: {children}</p>;
+}
+
 export default function PrDetailModal({ request, onOpenChange, suppliers, products }: Props) {
     const [panel, setPanel] = useState<Panel>('none');
 
@@ -116,6 +124,10 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
 
     const branchProducts = products.filter((p) => p.branchId === request.branchId);
 
+    // تاسك 89: هل اتُّخذ قرارٌ على أي سطر؟ يقرّر عرض عمود «المطلوب» المكتوم.
+    const settledAny = (request.lines ?? []).some((line) => line.wasSettled);
+    const movements = request.stockMovements ?? [];
+
     const approve = () => approveForm.patch(purchaseRequests.approve(request.id).url, { onSuccess: close, preserveScroll: true });
 
     const reject = (e: React.FormEvent) => {
@@ -176,6 +188,12 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                                 <dd className="font-mono text-xs tracking-wider">{request.purchaseOrderNumber}</dd>
                             </div>
                         )}
+                        {request.purchaseOrderSupplierName && (
+                            <div>
+                                <dt className="text-muted-foreground">المورّد</dt>
+                                <dd className="font-medium">{request.purchaseOrderSupplierName}</dd>
+                            </div>
+                        )}
                     </dl>
 
                     {request.notes && (
@@ -221,13 +239,19 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                         </div>
                     )}
 
+                    {settledAny && (
+                        <p className="text-muted-foreground text-xs">
+                            الأرقام أدناه هي <span className="text-foreground font-medium">المعتمدة</span>، وتحتها ما طلبه الموظف حين اختلفا.
+                        </p>
+                    )}
+
                     <div className="overflow-x-auto rounded-md border">
                         <table className="w-full text-sm">
                             <thead className="bg-muted/50 text-muted-foreground text-xs">
                                 <tr>
                                     <th className="p-2 text-right font-medium">الصنف</th>
                                     <th className="p-2 text-right font-medium">الكمية</th>
-                                    <th className="p-2 text-right font-medium">السعر التقديري</th>
+                                    <th className="p-2 text-right font-medium">{settledAny ? 'تكلفة الوحدة' : 'السعر التقديري'}</th>
                                     <th className="p-2 text-right font-medium">الإجمالي</th>
                                 </tr>
                             </thead>
@@ -240,6 +264,15 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                                                 <Badge variant="outline" className="ms-2 border-amber-200 bg-amber-50 text-[10px] text-amber-800">
                                                     غير مُعرَّف بالمخزون
                                                 </Badge>
+                                            )}
+                                            {(line.approvedSku ?? line.sku) && (
+                                                <p className="text-muted-foreground mt-0.5 font-mono text-[11px] tracking-wider" dir="ltr">
+                                                    {line.approvedSku ?? line.sku}
+                                                </p>
+                                            )}
+                                            {/* اسم الصنف الذي كتبه الموظف — يُعرض حين اعتُمد باسم منتج آخر. */}
+                                            {line.approvedProductName && line.approvedProductName !== line.requestedItemName && (
+                                                <RequestedHint>{line.requestedItemName}</RequestedHint>
                                             )}
                                             {line.notes && <p className="text-muted-foreground mt-0.5 text-xs">{line.notes}</p>}
                                             {editable && (
@@ -284,6 +317,11 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                                                 <>
                                                     {formatQty(line.qty)}{' '}
                                                     <span className="text-muted-foreground text-xs">{unitLabel(line.isSqm)}</span>
+                                                    {line.approvedQty !== null && line.approvedQty !== line.requestedQty && (
+                                                        <RequestedHint>
+                                                            {formatQty(line.requestedQty)} {unitLabel(line.requestedIsSqm)}
+                                                        </RequestedHint>
+                                                    )}
                                                 </>
                                             )}
                                         </td>
@@ -299,10 +337,15 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                                                     value={settled.find((l) => l.id === line.id)?.unit_cost ?? ''}
                                                     onChange={(e) => setSettled(line.id, 'unit_cost', e.target.value)}
                                                 />
-                                            ) : line.estimatedUnitCost === null ? (
-                                                '—'
                                             ) : (
-                                                formatCurrency(line.estimatedUnitCost)
+                                                <>
+                                                    {line.estimatedUnitCost === null ? '—' : formatCurrency(line.estimatedUnitCost)}
+                                                    {line.approvedUnitCost !== null && line.approvedUnitCost !== line.requestedUnitCost && (
+                                                        <RequestedHint>
+                                                            {line.requestedUnitCost === null ? 'بلا تقدير' : formatCurrency(line.requestedUnitCost)}
+                                                        </RequestedHint>
+                                                    )}
+                                                </>
                                             )}
                                         </td>
                                         <td dir="ltr" className="p-2 text-right tabular-nums">
@@ -323,6 +366,28 @@ export default function PrDetailModal({ request, onOpenChange, suppliers, produc
                             </tfoot>
                         </table>
                     </div>
+
+                    {/* تاسك 89: الاعتماد يكتب حركات مخزون لا تُعدَّل ولا تُحذف — فهي
+                        جزءٌ من قصّة الطلب، ولم تكن معروضة في أي شاشة. */}
+                    {movements.length > 0 && (
+                        <div className="rounded-md border">
+                            <p className="bg-muted/50 text-muted-foreground border-b p-2 text-xs font-medium">
+                                حركات المخزون الناتجة عن الاعتماد ({movements.length})
+                            </p>
+                            <ul className="divide-y text-sm">
+                                {movements.map((movement) => (
+                                    <li key={movement.id} className="flex flex-wrap items-center justify-between gap-2 p-2">
+                                        <span>{movement.productName ?? '—'}</span>
+                                        <span className="text-muted-foreground text-xs tabular-nums" dir="ltr">
+                                            {formatQty(movement.qty)}
+                                            {movement.unitCost !== null ? ` × ${formatCurrency(movement.unitCost)}` : ''}
+                                            {movement.createdAt ? ` · ${movement.createdAt}` : ''}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
 
                     {typeof approveErrors.lines === 'string' && <InputError message={approveErrors.lines} />}
                     <InputError message={approveErrors.status} />

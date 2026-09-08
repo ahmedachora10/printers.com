@@ -21,7 +21,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
 import { Link, router } from '@inertiajs/react';
-import { Eye, Info, Loader2, PackageCheck, Pencil, Printer, Search, Undo2, UserPlus, X } from 'lucide-react';
+import { CheckCircle2, Eye, Info, Loader2, PackageCheck, Pencil, Printer, Search, Undo2, UserPlus, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -37,14 +37,6 @@ const TYPE_COLORS: Record<string, string> = {
     service: 'border-purple-200 bg-purple-50 text-purple-700',
 };
 
-const STATUS_OPTIONS = [
-    { value: 'paid', label: 'مدفوعة' },
-    { value: 'partially_paid', label: 'مدفوعة جزئياً' },
-    { value: 'due', label: 'آجلة' },
-    { value: 'cancelled', label: 'ملغاة' },
-    { value: 'returned', label: 'مرتجع' },
-];
-
 // موعد التسليم يخص فواتير الخدمات، فاختيار أيٍّ من الخيارين يُقصي فواتير
 // المنتجات من النتيجة.
 const DELIVERY_OPTIONS = [
@@ -54,23 +46,42 @@ const DELIVERY_OPTIONS = [
 ];
 
 /** Modal-only filters — the search box and the date range apply on their own. */
-const MODAL_KEYS = ['type', 'branch_id', 'status', 'delivery'];
+const MODAL_KEYS = ['type', 'branch_id', 'status', 'delivery', 'user_id', 'payment_method_id', 'branch_service_id'];
+
+interface NamedOption {
+    id: number;
+    name: string;
+}
 
 interface Props {
     items: PaginatedInvoice;
     isSuperAdmin: boolean;
     availableTypes: { value: string; label: string }[];
     branches: { id: number; name: string }[] | null;
+    /** خيارات الحالة من الخادم — لا نسخة يدوية تتخلّف عن InvoiceStatusEnum */
+    statusOptions: { value: string; label: string }[];
+    filterOptions: { employees: NamedOption[]; paymentMethods: NamedOption[]; services: NamedOption[] };
     filters: InvoiceFilters;
 }
 
-export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, branches, filters }: Props) {
+export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, branches, statusOptions, filterOptions, filters }: Props) {
     // Filtering follows the report pages: the selects live in a modal, the date
     // range stays visible above the table, and applied values show as removable
     // chips. 'all' is the cleared value for the selects — useReportFilters drops
     // it from the query, so the controller keeps seeing an absent parameter.
     const defaults = useMemo<FilterValues>(
-        () => ({ search: '', type: 'all', status: 'all', branch_id: 'all', delivery: 'all', date_from: '', date_to: '' }),
+        () => ({
+            search: '',
+            type: 'all',
+            status: 'all',
+            branch_id: 'all',
+            delivery: 'all',
+            user_id: 'all',
+            payment_method_id: 'all',
+            branch_service_id: 'all',
+            date_from: '',
+            date_to: '',
+        }),
         [],
     );
 
@@ -80,6 +91,9 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         status: filters.status ?? 'all',
         branch_id: filters.branch_id ?? 'all',
         delivery: filters.delivery ?? 'all',
+        user_id: filters.user_id ?? 'all',
+        payment_method_id: filters.payment_method_id ?? 'all',
+        branch_service_id: filters.branch_service_id ?? 'all',
         date_from: filters.date_from ?? '',
         date_to: filters.date_to ?? '',
     };
@@ -92,6 +106,9 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     // «تم تسليم العمل»: ختم لا رجعة فيه، فيمرّ بتأكيد ولو كان زراً سريعاً في الصف.
     const [deliverItem, setDeliverItem] = useState<InvoiceListItem | null>(null);
     const [delivering, setDelivering] = useState(false);
+    // اعتماد الفاتورة من صفّ القائمة (تاسك 88) — بتأكيدٍ صغير، فهو قرار مالي.
+    const [approveItem, setApproveItem] = useState<InvoiceListItem | null>(null);
+    const [approving, setApproving] = useState(false);
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
     // Customer name/phone/tax editing — service invoices only, gated by
@@ -168,6 +185,52 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         );
     }
 
+    /**
+     * الاعتماد من القائمة (تاسك 88). الفاتورة الناقصةُ حارساً لا تُرسل أصلاً —
+     * يُنقل المستخدم إلى شاشتها حيث يُستكمل الناقص، برسالةٍ تسمّيه. الفشل الصامت
+     * هو بالضبط العطل الذي أُصلح في كوميت e74d0a9.
+     */
+    function startApprove(item: InvoiceListItem) {
+        if (item.approveBlockedReason === 'method') {
+            toast.error('حدّد طريقة الدفع أولاً — فُتحت شاشة الفاتورة.');
+            router.visit(`/invoices/${item.type}/${item.id}`);
+            return;
+        }
+        if (item.approveBlockedReason === 'receipt') {
+            toast.error('أرفق إيصال التحويل أولاً — فُتحت شاشة الفاتورة.');
+            router.visit(`/invoices/${item.type}/${item.id}`);
+            return;
+        }
+        setApproveItem(item);
+    }
+
+    function confirmApprove() {
+        if (!approveItem) return;
+        const item = approveItem;
+        setApproving(true);
+        router.patch(
+            serviceInvoice.pay(item.id).url,
+            {},
+            {
+                preserveScroll: true,
+                onSuccess: () => toast.success(`تم اعتماد الفاتورة ${item.invoiceNumber}.`),
+                onError: (e) => {
+                    // عجز الخامات له حوار إقرارٍ في شاشة الفاتورة — لا يُكرَّر هنا.
+                    if (e.materials_shortage) {
+                        toast.error('يوجد عجز في خامات المخزون — أُقرّه من شاشة الفاتورة.');
+                        router.visit(`/invoices/${item.type}/${item.id}`);
+                        return;
+                    }
+                    toast.error((Object.values(e)[0] as string) ?? 'تعذّر اعتماد الفاتورة.');
+                },
+                onFinish: () => {
+                    setApproving(false);
+                    setApproveItem(null);
+                },
+            },
+        );
+    }
+
     // Typing searches on its own after a short pause; every other filter applies
     // on click, so the list never reloads mid-keystroke.
     const handleSearchChange = (value: string) => {
@@ -195,12 +258,24 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         chips.push({ key: 'branch_id', label: `الفرع: ${name}`, onRemove: () => f.remove('branch_id') });
     }
     if (f.isActive('status')) {
-        const label = STATUS_OPTIONS.find((o) => o.value === applied.status)?.label ?? applied.status;
+        const label = statusOptions.find((o) => o.value === applied.status)?.label ?? applied.status;
         chips.push({ key: 'status', label: `الحالة: ${label}`, onRemove: () => f.remove('status') });
     }
     if (f.isActive('delivery')) {
         const label = DELIVERY_OPTIONS.find((o) => o.value === applied.delivery)?.label ?? applied.delivery;
         chips.push({ key: 'delivery', label: `التسليم: ${label}`, onRemove: () => f.remove('delivery') });
+    }
+    if (f.isActive('user_id')) {
+        const name = filterOptions.employees.find((e) => e.id.toString() === applied.user_id)?.name ?? applied.user_id;
+        chips.push({ key: 'user_id', label: `الموظف: ${name}`, onRemove: () => f.remove('user_id') });
+    }
+    if (f.isActive('branch_service_id')) {
+        const name = filterOptions.services.find((s) => s.id.toString() === applied.branch_service_id)?.name ?? applied.branch_service_id;
+        chips.push({ key: 'branch_service_id', label: `الخدمة: ${name}`, onRemove: () => f.remove('branch_service_id') });
+    }
+    if (f.isActive('payment_method_id')) {
+        const name = filterOptions.paymentMethods.find((m) => m.id.toString() === applied.payment_method_id)?.name ?? applied.payment_method_id;
+        chips.push({ key: 'payment_method_id', label: `طريقة الدفع: ${name}`, onRemove: () => f.remove('payment_method_id') });
     }
 
     const columns = useMemo<ColumnDef<InvoiceListItem>[]>(
@@ -308,6 +383,11 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 ),
             },
             {
+                key: 'paymentMethodName',
+                header: 'طريقة الدفع',
+                cell: (item) => item.paymentMethodName ?? <span className="text-muted-foreground">—</span>,
+            },
+            {
                 key: 'remainingAmount',
                 header: 'المتبقي',
                 cell: (item) =>
@@ -370,7 +450,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'actions',
                 header: '',
-                headerClassName: 'w-36',
+                headerClassName: 'w-44',
                 cell: (item) => (
                     <div className="flex items-center gap-1.5">
                         <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
@@ -383,6 +463,25 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                                 <Printer className="h-3.5 w-3.5" />
                             </a>
                         </Button>
+                        {/* اعتماد الفاتورة غير المسددة من القائمة (تاسك 88). */}
+                        {item.canApprove && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className={cn(ACTION_BUTTON, 'text-green-700 hover:text-green-800 dark:text-green-400')}
+                                aria-label="اعتماد الفاتورة"
+                                title={
+                                    item.approveBlockedReason === 'method'
+                                        ? 'ينقصها تحديد طريقة الدفع'
+                                        : item.approveBlockedReason === 'receipt'
+                                          ? 'ينقصها إيصال التحويل'
+                                          : 'اعتماد الفاتورة'
+                                }
+                                onClick={() => startApprove(item)}
+                            >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
                         {/* زر سريع لفواتير الخدمة الحيّة التي لم يُسلَّم عملها بعد (تاسك 31). */}
                         {item.canDeliver && (
                             <Button
@@ -463,7 +562,29 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                             value={f.draft.status}
                             onChange={(v) => f.setField('status', v)}
                             allLabel="كل الحالات"
-                            options={STATUS_OPTIONS}
+                            options={statusOptions}
+                        />
+                        <FilterSelect
+                            label="الموظف"
+                            value={f.draft.user_id}
+                            onChange={(v) => f.setField('user_id', v)}
+                            allLabel="كل الموظفين"
+                            options={filterOptions.employees.map((e) => ({ value: e.id.toString(), label: e.name }))}
+                        />
+                        {/* الخدمة تخصّ فواتير الخدمات، فاختيارها يُقصي فواتير المنتجات. */}
+                        <FilterSelect
+                            label="نوع الخدمة"
+                            value={f.draft.branch_service_id}
+                            onChange={(v) => f.setField('branch_service_id', v)}
+                            allLabel="كل الخدمات"
+                            options={filterOptions.services.map((s) => ({ value: s.id.toString(), label: s.name }))}
+                        />
+                        <FilterSelect
+                            label="طريقة الدفع"
+                            value={f.draft.payment_method_id}
+                            onChange={(v) => f.setField('payment_method_id', v)}
+                            allLabel="كل الطرق"
+                            options={filterOptions.paymentMethods.map((m) => ({ value: m.id.toString(), label: m.name }))}
                         />
                         <FilterSelect
                             label="موعد التسليم"
@@ -571,6 +692,27 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                         </Button>
                         <Button className="bg-green-600 text-white hover:bg-green-700" onClick={confirmDeliver} disabled={delivering}>
                             {delivering ? <Loader2 className="size-4 animate-spin" /> : <PackageCheck className="size-4" />} تأكيد التسليم
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!approveItem} onOpenChange={(open) => !open && !approving && setApproveItem(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>اعتماد الفاتورة</DialogTitle>
+                        <DialogDescription>
+                            تُعتمد الفاتورة {approveItem?.invoiceNumber} بكامل قيمتها {approveItem ? formatCurrency(approveItem.totalAmount) : ''}
+                            {approveItem?.customerName ? ` للعميل ${approveItem.customerName}` : ''} بطريقة الدفع «{approveItem?.paymentMethodName}»، فتصير
+                            حالتها «مدفوعة» وتُقيَّد عمولاتها ونقاط ولائها وتُخصم خاماتها من المخزون.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setApproveItem(null)} disabled={approving}>
+                            تراجع
+                        </Button>
+                        <Button className="bg-green-600 text-white hover:bg-green-700" onClick={confirmApprove} disabled={approving}>
+                            {approving ? <Loader2 className="size-4 animate-spin" /> : <CheckCircle2 className="size-4" />} تأكيد الاعتماد
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -20,8 +20,9 @@ import posService from '@/routes/pos/service';
 import serviceInvoice from '@/routes/invoices/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckCircle2, ChevronDown, ClipboardList, Paperclip, Pencil, Search, User, UserPlus, Wallet, X, XCircle } from 'lucide-react';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckCircle2, ChevronDown, ClipboardList, Lock, Paperclip, Pencil, Search, User, UserPlus, Wallet, X, XCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import LineInternals from '@/components/invoices/line-internals';
 import { toast } from 'sonner';
 
 interface ReviewLine {
@@ -35,6 +36,11 @@ interface ReviewLine {
     heightCm: number | null;
     discountPct: number;
     subtotal: number;
+    /** تاسك 94 — أرقام داخلية للمراجع، لا تُطبع للعميل */
+    materialsCost: number | null;
+    materialsTotal: number | null;
+    commissionAmount: number | null;
+    tierApplied: number | null;
 }
 
 interface ReviewInvoice {
@@ -58,6 +64,8 @@ interface ReviewInvoice {
     remainingAmount: number;
     /** فتح شاشة التعديل الكاملة — لمدير الفرع لا للمحاسب */
     canEdit: boolean;
+    /** تعليمات الموظف للمحاسب — لا تظهر للعميل ولا تُطبع (تاسك 95) */
+    internalNotes: string | null;
     lines: ReviewLine[];
 }
 
@@ -93,6 +101,7 @@ const reviewLineColumns: ColumnDef<ReviewLine>[] = [
                 {line.name}
                 {line.notes && <span className="text-muted-foreground block text-xs whitespace-pre-line">{line.notes}</span>}
                 {formatLineSize(line) && <span className="text-muted-foreground block text-xs">المقاس: {formatLineSize(line)}</span>}
+                <LineInternals line={line} />
             </>
         ),
     },
@@ -536,6 +545,20 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                                                 data={invoice.lines}
                                                 keyExtractor={(line) => invoice.lines.indexOf(line)}
                                             />
+
+                                            {/* تاسك 95: تعليمات الموظف للمحاسب — تُقرأ قبل الاعتماد
+                                                ولا تظهر في أي ورقة تصل العميل. */}
+                                            {invoice.internalNotes && invoice.internalNotes.trim() !== '' && (
+                                                <div className="rounded-md border border-amber-300 bg-amber-50/60 p-2.5 dark:border-amber-900 dark:bg-amber-950/30">
+                                                    <p className="mb-0.5 flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                                                        <Lock className="size-3" aria-hidden />
+                                                        ملاحظات داخلية — لا تظهر للعميل
+                                                    </p>
+                                                    <p className="text-xs whitespace-pre-line text-amber-900 dark:text-amber-100">
+                                                        {invoice.internalNotes}
+                                                    </p>
+                                                </div>
+                                            )}
 
                                             <Separator />
 
