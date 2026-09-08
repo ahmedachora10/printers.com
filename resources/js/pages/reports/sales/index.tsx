@@ -6,6 +6,7 @@ import { FilterModal } from '@/components/reports/filter-modal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { TableCell, TableRow } from '@/components/ui/table';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -20,7 +21,7 @@ import {
     type SalesReportTypeRow,
 } from '@/types/sales-report';
 import { Head } from '@inertiajs/react';
-import { CreditCard, Download, Percent, Receipt, TrendingUp, Undo2, Wallet } from 'lucide-react';
+import { CreditCard, Download, Info, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير المبيعات', href: '/reports/sales' }];
@@ -47,10 +48,42 @@ const breakdownColumns = (nameHeader: string): ColumnDef<BreakdownRow>[] => [
     { key: 'total', header: 'الإجمالي', className: 'font-medium', cell: (row) => formatCurrency(row.total) },
 ];
 
+/**
+ * تاسك 87 — هذا التقرير يقيس **المحصَّل** لا المُفوتر، فـ«الإجمالي − المصروفات»
+ * رقمُ تدفّقٍ نقدي لا ربحٍ محاسبي: لا يطرح تكلفة الخامات ولا العمولات ولا
+ * الرواتب. يُقال ذلك صراحةً على رأس العمود فلا يُبنى قرارٌ على قراءةٍ خاطئة.
+ */
+const NET_HINT = 'المحصَّل ناقص المصروفات المسجّلة لليوم — ليس ربحاً صافياً (لا يطرح الخامات ولا العمولات).';
+
 const dayColumns: ColumnDef<SalesReportDayRow>[] = [
     { key: 'date', header: 'التاريخ', cell: (row) => formatDate(row.date) },
     { key: 'count', header: 'عدد الفواتير', cell: (row) => row.count },
     { key: 'total', header: 'الإجمالي', className: 'font-medium', cell: (row) => formatCurrency(row.total) },
+    {
+        key: 'expenses',
+        header: 'المصروفات',
+        className: 'text-amber-600',
+        cell: (row) => formatCurrency(row.expenses),
+    },
+    {
+        key: 'net',
+        header: (
+            <TooltipProvider delayDuration={100}>
+                <Tooltip>
+                    <TooltipTrigger asChild>
+                        <span className="inline-flex cursor-help items-center gap-1">
+                            الصافي
+                            <Info className="text-muted-foreground size-3.5" aria-hidden />
+                            <span className="sr-only">{NET_HINT}</span>
+                        </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">{NET_HINT}</TooltipContent>
+                </Tooltip>
+            </TooltipProvider>
+        ),
+        className: 'font-semibold',
+        cell: (row) => <span className={row.net < 0 ? 'text-rose-600' : 'text-green-600'}>{formatCurrency(row.net)}</span>,
+    },
 ];
 
 interface Props {
@@ -183,6 +216,21 @@ export default function SalesReportIndex({
                         value={formatCurrency(totals.total)}
                         valueClass="text-green-600"
                     />
+                    {/* تاسك 87: بطاقتان تقابلان العمودين الجديدين في جدول اليوم،
+                        فلا يقرأ المستخدم رقماً في الجدول لا يجد جملته أعلاه. */}
+                    <SummaryCard
+                        icon={<Receipt className="size-4" />}
+                        label="المصروفات"
+                        value={formatCurrency(totals.expenses)}
+                        valueClass="text-amber-600"
+                    />
+                    <SummaryCard
+                        icon={<PiggyBank className="size-4" />}
+                        label="الصافي بعد المصروفات"
+                        value={formatCurrency(totals.net)}
+                        valueClass={totals.net < 0 ? 'text-rose-600' : 'text-green-600'}
+                        hint={NET_HINT}
+                    />
                 </div>
 
                 {/* By type */}
@@ -252,13 +300,39 @@ export default function SalesReportIndex({
     );
 }
 
-function SummaryCard({ icon, label, value, valueClass }: { icon: React.ReactNode; label: string; value: string; valueClass?: string }) {
+function SummaryCard({
+    icon,
+    label,
+    value,
+    valueClass,
+    hint,
+}: {
+    icon: React.ReactNode;
+    label: string;
+    value: string;
+    valueClass?: string;
+    /** تفسيرٌ يظهر عند المرور على البطاقة — لرقمٍ يُقرأ خطأً بلا شرح */
+    hint?: string;
+}) {
     return (
         <Card className="min-w-0">
             <CardHeader className="pb-2">
                 <CardTitle className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
                     <span className="shrink-0">{icon}</span>
                     <span className="truncate">{label}</span>
+                    {hint && (
+                        <TooltipProvider delayDuration={100}>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <span className="shrink-0 cursor-help">
+                                        <Info className="size-3.5" aria-hidden />
+                                        <span className="sr-only">{hint}</span>
+                                    </span>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs">{hint}</TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    )}
                 </CardTitle>
             </CardHeader>
             <CardContent>

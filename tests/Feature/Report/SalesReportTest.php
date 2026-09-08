@@ -1,10 +1,17 @@
 <?php
 
 use App\Enums\Roles;
+use App\Enums\StockMovementTypeEnum;
 use App\Models\Branch;
+use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\PaymentMethod;
+use App\Models\Product;
+use App\Models\ProductCategory;
 use App\Models\ProductInvoice;
+use App\Models\ProductUnit;
 use App\Models\ServiceInvoice;
+use App\Models\StockMovement;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -361,6 +368,98 @@ describe('Sales Report', function () {
                 ->has('byEmployee', 1)
                 ->where('byEmployee.0.userId', $employee->id)
                 ->where('byEmployee.0.total', 200));
+    });
+
+    // ── EXPENSES & NET (تاسك 87) ───────────────────────────────────
+
+    it('subtracts the day expenses from the day total', function () {
+        paidProductInvoice($this->branch, $this->branchAdmin); // 115
+        Expense::factory()->create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'expense_category_id' => ExpenseCategory::factory(),
+            'total' => 40,
+            'date' => today()->toDateString(),
+        ]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->where('byDay.0.total', 115)
+                ->where('byDay.0.expenses', 40)
+                ->where('byDay.0.net', 75)
+                ->where('totals.expenses', 40)
+                ->where('totals.net', 75));
+    });
+
+    it('shows a day with expenses and no sales, with a negative net', function () {
+        Expense::factory()->create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'expense_category_id' => ExpenseCategory::factory(),
+            'total' => 60,
+            'date' => today()->toDateString(),
+        ]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->has('byDay', 1)
+                ->where('byDay.0.total', 0)
+                ->where('byDay.0.expenses', 60)
+                ->where('byDay.0.net', -60));
+    });
+
+    it('ignores a soft-deleted expense', function () {
+        $expense = Expense::factory()->create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'expense_category_id' => ExpenseCategory::factory(),
+            'total' => 25,
+            'date' => today()->toDateString(),
+        ]);
+        $expense->delete();
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page->where('totals.expenses', 0));
+    });
+
+    it('never counts an expense of another branch for a branch admin', function () {
+        Expense::factory()->create([
+            'branch_id' => $this->otherBranch->id,
+            'user_id' => $this->branchAdmin->id,
+            'expense_category_id' => ExpenseCategory::factory(),
+            'total' => 500,
+            'date' => today()->toDateString(),
+        ]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page->where('totals.expenses', 0));
+    });
+
+    it('leaves incoming stock value out of the expenses column', function () {
+        // التقرير اليومي يجمع هذه تحت «المشتريات»؛ هنا «المصروفات» = جدول
+        // expenses وحده، وإلا عرض تقريران رقمين مختلفين لليوم نفسه.
+        $product = Product::factory()->create([
+            'branch_id' => $this->branch->id,
+            'category_id' => ProductCategory::factory(),
+            'unit_id' => ProductUnit::factory(),
+        ]);
+
+        StockMovement::create([
+            'product_id' => $product->id,
+            'branch_id' => $this->branch->id,
+            'type' => StockMovementTypeEnum::PURCHASE_IN,
+            'qty' => 10,
+            'unit_cost' => 30,
+            'created_by' => $this->branchAdmin->id,
+        ]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page->where('totals.expenses', 0));
     });
 
     // ── EXPORT ─────────────────────────────────────────────────────

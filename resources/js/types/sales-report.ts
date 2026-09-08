@@ -6,6 +6,10 @@ export interface SalesReportTotals {
     /** جملة ما رُدّ للعملاء، موجبةً — و`total` صافٍ منها */
     refunds: number;
     total: number;
+    /** مصروفات المدى من جدول expenses وحده — لا تشمل قيمة المخزون الوارد (تاسك 87) */
+    expenses: number;
+    /** total − expenses: تدفّقٌ نقدي لا ربحٌ محاسبي */
+    net: number;
 }
 
 export interface SalesReportTypeRow {
@@ -23,6 +27,10 @@ export interface SalesReportDayRow {
     date: string;
     count: number;
     total: number;
+    /** مصروفات اليوم من جدول expenses وحده (تاسك 87) */
+    expenses: number;
+    /** total − expenses — قد يكون سالباً في يومٍ فيه مصروف بلا مبيعات */
+    net: number;
 }
 
 export interface SalesReportEmployeeRow {

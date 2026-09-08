@@ -2,51 +2,78 @@
 
 namespace App\Exports;
 
+use App\Exports\Sheets\ReportSheet;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
-use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\ShouldAutoSize;
-use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithStyles;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use Maatwebsite\Excel\Concerns\Exportable;
+use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 
-class SalesReportExport implements FromCollection, ShouldAutoSize, WithHeadings, WithStyles
+/**
+ * تصدير تقرير المبيعات: ورقة الفواتير (حدثُ تحصيلٍ لكل صفّ) ثم ورقة «المبيعات
+ * اليومية».
+ *
+ * الثانية أُضيفت مع تاسك 87: عمودا «المصروفات» و«الصافي» يُقرآن على الشاشة في
+ * جدول اليوم لا في قائمة الفواتير، فبغير ورقةٍ تقابله يصدّر المستخدم ملفاً
+ * ينقصه نصفُ ما رآه.
+ */
+class SalesReportExport implements WithMultipleSheets
 {
+    use Exportable;
+
     /**
      * @param  Collection<int, array<string, mixed>>  $invoices
+     * @param  array<int, array<string, mixed>>  $byDay
      */
-    public function __construct(private readonly Collection $invoices) {}
+    public function __construct(
+        private readonly Collection $invoices,
+        private readonly array $byDay = [],
+    ) {}
 
-    /** @return array<int, string> */
-    public function headings(): array
+    /** @return array<int, ReportSheet> */
+    public function sheets(): array
     {
-        return ['رقم الفاتورة', 'النوع', 'الحركة', 'الفرع', 'الموظف', 'طريقة الدفع', 'الإجمالي قبل الخصم', 'الخصومات', 'الضريبة', 'الإجمالي', 'تاريخ الدفع'];
+        return [$this->invoicesSheet(), $this->dailySheet()];
     }
 
-    /** @return Collection<int, mixed> */
-    public function collection(): Collection
+    private function invoicesSheet(): ReportSheet
     {
-        return $this->invoices->map(fn (array $inv) => [
-            $inv['invoiceNumber'],
-            $inv['type'],
-            // «تحصيل» أو «مرتجع» — صفوف المرتجع تحمل أرقاماً سالبة.
-            $inv['kind'],
-            $inv['branchName'],
-            $inv['userName'],
-            $inv['methodName'],
-            number_format((float) $inv['subtotal'], 2),
-            number_format((float) $inv['discounts'], 2),
-            number_format((float) $inv['vat'], 2),
-            number_format((float) $inv['total'], 2),
-            $inv['paidAt'] ? Carbon::parse($inv['paidAt'])->format('d/m/Y') : '—',
-        ]);
+        return new ReportSheet(
+            'الفواتير',
+            ['رقم الفاتورة', 'النوع', 'الحركة', 'الفرع', 'الموظف', 'طريقة الدفع', 'الإجمالي قبل الخصم', 'الخصومات', 'الضريبة', 'الإجمالي', 'تاريخ الدفع'],
+            $this->invoices->map(fn (array $inv) => [
+                $inv['invoiceNumber'],
+                $inv['type'],
+                // «تحصيل» أو «مرتجع» — صفوف المرتجع تحمل أرقاماً سالبة.
+                $inv['kind'],
+                $inv['branchName'],
+                $inv['userName'],
+                $inv['methodName'],
+                $this->money($inv['subtotal']),
+                $this->money($inv['discounts']),
+                $this->money($inv['vat']),
+                $this->money($inv['total']),
+                $inv['paidAt'] ? Carbon::parse($inv['paidAt'])->format('d/m/Y') : '—',
+            ]),
+        );
     }
 
-    /** @return array<int, array<string, mixed>> */
-    public function styles(Worksheet $sheet): array
+    private function dailySheet(): ReportSheet
     {
-        return [
-            1 => ['font' => ['bold' => true]],
-        ];
+        return new ReportSheet(
+            'المبيعات اليومية',
+            ['التاريخ', 'عدد الفواتير', 'الإجمالي', 'المصروفات', 'الصافي'],
+            collect($this->byDay)->map(fn (array $day) => [
+                Carbon::parse($day['date'])->format('d/m/Y'),
+                $day['count'],
+                $this->money($day['total']),
+                $this->money($day['expenses'] ?? 0),
+                $this->money($day['net'] ?? 0),
+            ]),
+        );
+    }
+
+    private function money(mixed $value): string
+    {
+        return number_format((float) $value, 2);
     }
 }
