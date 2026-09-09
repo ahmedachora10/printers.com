@@ -36,6 +36,9 @@ class SearchPosCustomersAction
             }))
             ->orderBy('full_name')
             ->limit($limit)
+            // تاسك 93: دفتر العناوين يسافر مع البطاقة — تحميلٌ واحد لكل القائمة
+            // لا استعلامٌ لكل عميل، فاختيار العنوان في نقطة البيع بلا رحلة ثانية.
+            ->with('addresses')
             ->get(['id', 'full_name', 'phone', 'tax_number', 'agent_id', 'customer_type', 'points_balance', 'tier']);
 
         // النقاط المحجوزة لكل عملاء القائمة باستعلامين، لا باستعلامين لكل عميل.

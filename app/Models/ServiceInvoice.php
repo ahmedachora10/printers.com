@@ -37,6 +37,12 @@ class ServiceInvoice extends Model implements HasMedia
         'points_redeemed',
         'points_discount',
         'points_redeemed_at',
+        'shipping_fee',
+        'shipping_provider_id',
+        'shipping_zone_id',
+        'shipping_distance_km',
+        'customer_address_id',
+        'shipping_address',
         'vat_pct',
         'vat_amount',
         'total_amount',
@@ -63,6 +69,8 @@ class ServiceInvoice extends Model implements HasMedia
         'points_redeemed' => 'integer',
         'points_discount' => 'decimal:2',
         'points_redeemed_at' => 'datetime',
+        'shipping_fee' => 'decimal:2',
+        'shipping_distance_km' => 'decimal:2',
         'vat_pct' => 'decimal:2',
         'vat_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
@@ -153,6 +161,27 @@ class ServiceInvoice extends Model implements HasMedia
     }
 
     /** @return BelongsTo<PaymentMethod, $this> */
+    /** مزوّد التوصيل — سائق أو شركة (تاسك 93). */
+    public function shippingProvider(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryProvider::class, 'shipping_provider_id');
+    }
+
+    /** شريحة سعر التوصيل التي حُسب منها الرسم. */
+    public function shippingZone(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryZone::class, 'shipping_zone_id');
+    }
+
+    /**
+     * العنوان المختار من دفتر العميل. مرجعٌ للتحليل وحده — اللقطة النصّية في
+     * `shipping_address` هي ما طُبع، ولا يغيّره تعديلُ الدفتر لاحقاً.
+     */
+    public function customerAddress(): BelongsTo
+    {
+        return $this->belongsTo(CustomerAddress::class, 'customer_address_id');
+    }
+
     public function paymentMethod(): BelongsTo
     {
         return $this->belongsTo(PaymentMethod::class);

@@ -5,6 +5,7 @@ namespace App\Actions\ServiceInvoice;
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
 use App\Actions\ServiceInvoice\Concerns\LogsAuthoredMaterialsCost;
+use App\Actions\ServiceInvoice\Concerns\SavesShippingAddress;
 use App\Actions\ServiceInvoice\Concerns\SyncsServiceInvoiceAgents;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\InvoiceStatusEnum;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\DB;
 
 class CreateServiceInvoiceAction
 {
-    use LogsAuthoredMaterialsCost, SyncsServiceInvoiceAgents, WritesServiceInvoiceLines;
+    use LogsAuthoredMaterialsCost, SavesShippingAddress, SyncsServiceInvoiceAgents, WritesServiceInvoiceLines;
 
     public function __construct(
         private readonly CalculateServiceInvoiceAction $calculator,
@@ -51,6 +52,9 @@ class CreateServiceInvoiceAction
             }
 
             $this->writeLines($invoice, $calc['lines']);
+            // تاسك 93: عنوانٌ جديد يُضاف إلى دفتر العميل داخل المعاملة نفسها،
+            // فإمّا حُفظت الفاتورة وعنوانها معاً أو لم يُحفظ شيء.
+            $this->saveShippingAddress($invoice, $data);
             $this->logAuthoredMaterialsCost($invoice, $calc['lines']);
 
             // Commission is earned only once the invoice is approved (paid). A due

@@ -24,6 +24,7 @@ class Refund extends Model
         'invoice_id',
         'invoice_type',
         'amount',
+        'shipping_refunded',
         'reason',
         'stock_reversed',
     ];
@@ -31,6 +32,7 @@ class Refund extends Model
     protected $casts = [
         'source_type' => InvoiceTypeEnum::class,
         'amount' => 'decimal:2',
+        'shipping_refunded' => 'decimal:2',
         'stock_reversed' => 'boolean',
     ];
 

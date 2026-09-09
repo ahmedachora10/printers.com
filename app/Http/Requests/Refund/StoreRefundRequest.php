@@ -23,6 +23,9 @@ class StoreRefundRequest extends FormRequest
             'reason' => ['required', 'string', 'max:1000'],
             // فواتير المنتجات تعيد بضاعتها، وفواتير الخدمات تعيد خاماتها.
             'reverse_stock' => ['nullable', 'boolean'],
+            // تاسك 93: هل تُردّ قيمة التوصيل للعميل؟ قرارُ المحاسب لكل حالة،
+            // ويُكتب على صفّ المرتجع بدل أن يُستنتج من المبلغ.
+            'refund_shipping' => ['nullable', 'boolean'],
         ];
     }
 

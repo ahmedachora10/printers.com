@@ -131,7 +131,10 @@ trait ReversesServiceInvoiceAccruals
 
         $removed = min($earned, $customer->points_balance);
         $newBalance = $customer->points_balance - $removed;
-        $newSpend = max(0, (float) $customer->cumulative_spend - (float) $invoice->total_amount);
+        // يُطرح بالمقياس نفسه الذي أُضيف به (تاسك 93): صافياً من رسم التوصيل،
+        // وإلا سحب الإرجاعُ من إنفاق العميل مالاً لم يُضَف إليه قطّ.
+        $newSpend = max(0, (float) $customer->cumulative_spend
+            - round((float) $invoice->total_amount - $invoice->shippingFee(), 2));
 
         $customer->update([
             'points_balance' => $newBalance,

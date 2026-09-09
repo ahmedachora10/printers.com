@@ -59,7 +59,10 @@ class EarnLoyaltyPointsAction
             // النقاط تقوم على قيمة الفاتورة صافيةً من ضريبة القيمة المضافة:
             // العميل لا يكسب على ضريبةٍ تذهب إلى الدولة، وهي القاعدة نفسها التي
             // تحكم كل نسبة عمولة في النظام.
-            $earned = (int) floor($invoice->netAmount() * (float) $config->earning_rate);
+            //
+            // تاسك 93: ومن رسم التوصيل كذلك — مالُ الشحن أجرةُ سائقٍ لا بيعٌ
+            // يُكافأ عليه. وفاتورةٌ بلا شحن تقرأ الرقم نفسه الذي كانت تقرؤه.
+            $earned = (int) floor($invoice->salesNetAmount() * (float) $config->earning_rate);
 
             if ($earned <= 0) {
                 return null;
@@ -68,8 +71,12 @@ class EarnLoyaltyPointsAction
             // أما الإنفاق التراكمي فيقوم على المبلغ **شاملاً الضريبة**: حدود
             // الفئات في الإعدادات يقرؤها المستخدم بالمبلغ الذي يدفعه العميل على
             // الفاتورة، فمن دفع 500 بلغ حدّ 500. المقياسان مختلفان عن قصد.
+            //
+            // تاسك 93: ورسمُ التوصيل خارجه — قياسُ الفئة قياسُ ما اشتراه العميل
+            // من المركز، لا ما دفعه لسائقٍ ليحمله إليه.
             $newBalance = $customer->points_balance + $earned;
-            $newSpend = (float) $customer->cumulative_spend + (float) $invoice->total_amount;
+            $newSpend = (float) $customer->cumulative_spend
+                + round((float) $invoice->total_amount - $invoice->shippingFee(), 2);
             $tier = $config->tierForSpend($newSpend);
 
             $customer->update([
