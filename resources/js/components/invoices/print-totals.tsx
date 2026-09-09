@@ -13,6 +13,11 @@ export interface PrintTotalsSource {
     vatPct: number;
     vatAmount: number;
     totalAmount: number;
+    /**
+     * رسم التوصيل شاملاً الضريبة (تاسك 93) — غائبٌ أو صفرٌ على فواتير المنتجات
+     * وعلى كل فاتورة خدماتٍ بلا شحن، فلا يظهر لها سطر.
+     */
+    shippingFee?: number | null;
 }
 
 /** تسميات الخصومات بترتيب مصفوفة invoiceTotals. */
@@ -28,6 +33,7 @@ export function printTotals(invoice: PrintTotalsSource) {
         vatPct: invoice.vatPct,
         vatAmount: invoice.vatAmount,
         totalAmount: invoice.totalAmount,
+        shippingFee: invoice.shippingFee ?? 0,
         discounts: [invoice.tierDiscountAmount, invoice.couponDiscount, invoice.agentDiscount, invoice.pointsDiscount],
     });
 }
@@ -52,6 +58,14 @@ export function ThermalTotals({ invoice }: { invoice: PrintTotalsSource }) {
                         <span>−{formatCurrency(discount)}</span>
                     </div>
                 ) : null,
+            )}
+            {/* تاسك 93: التوصيل سطرٌ مستقلٌّ واضح — إضافةٌ لا خصم. يظهر ولو كان
+                صفراً متى وُجد شحن، فيقرأ العميل أن التوصيل كان مجّانياً. */}
+            {invoice.shippingFee !== undefined && invoice.shippingFee !== null && (
+                <div className="flex justify-between">
+                    <span>التوصيل</span>
+                    <span>{invoice.shippingFee > 0 ? formatCurrency(totals.shipping) : 'مجاني'}</span>
+                </div>
             )}
             <div className="flex justify-between">
                 <span>الضريبة ({invoice.vatPct}%)</span>

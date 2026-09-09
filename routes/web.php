@@ -328,6 +328,12 @@ Route::middleware(['auth'])->group(function () {
             Route::get('{type}/{id}/receipt', [InvoiceReceiptController::class, 'show'])
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('receipt');
 
+            // تاسك 93 — بيان التوصيل: ورقة السائق. على فواتير الخدمات وحدها
+            // (لا شحن على المنتجات في هذه المرحلة)، وفي هذه المجموعة لا في
+            // مجموعة نقطة البيع كي يبلغها المحاسب أيضاً.
+            Route::get('service/{invoice}/delivery-note', [ServiceInvoiceController::class, 'deliveryNote'])
+                ->whereNumber('invoice')->name('service.delivery-note');
+
             // تاسك 95: الملاحظة الداخلية تُصحَّح بعد الاعتماد — تعليمات تنفيذٍ
             // لا رقمٌ مالي. من يملك تعديلها يُقرَّر داخل المتحكّم لكل فاتورة.
             Route::patch('{type}/{id}/internal-notes', [InvoiceController::class, 'updateInternalNotes'])

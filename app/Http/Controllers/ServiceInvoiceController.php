@@ -262,7 +262,7 @@ class ServiceInvoiceController extends Controller
             ->first();
 
         $paginator = $query
-            ->with(['lines', 'customer:id,full_name,phone,tax_number', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media'])
+            ->with(['lines', 'customer:id,full_name,phone,tax_number', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media', 'shippingProvider:id,name'])
             ->orderBy($request->sortColumn(), $request->sortDirection())
             // فارز ثانوي ثابت: صفّان بنفس اللحظة كانا يتبادلان الترتيب بين صفحة
             // وأخرى فيتكرّر أحدهما ويسقط الآخر.
@@ -317,6 +317,11 @@ class ServiceInvoiceController extends Controller
                     'subtotal' => (float) $invoice->subtotal,
                     'vatAmount' => (float) $invoice->vat_amount,
                     'totalAmount' => (float) $invoice->total_amount,
+                    // تاسك 93: المراجع يعتمد الفاتورة من هنا وهو صاحب صلاحية
+                    // تعديل قيمة التوصيل، فلا بدّ أن يقرأها قبل الاعتماد.
+                    'shippingFee' => (float) $invoice->shipping_fee,
+                    'shippingProviderName' => $invoice->shippingProvider?->name,
+                    'shippingAddress' => $invoice->shipping_address,
                     // سقف الدفعة الأولى (العربون). الطابور لا يحمل إلا فواتير آجلة
                     // لم يُقبض منها شيء، فالمتبقي هو الإجمالي — ويُرسل صراحةً لأن
                     // نافذة تسجيل الدفعة تحدّ به المبلغ.
@@ -564,6 +569,65 @@ class ServiceInvoiceController extends Controller
         return $recipients->unique('id')->reject(fn (User $u) => $u->id === Auth::id())->values();
     }
 
+    /**
+     * تاسك 93 — «بيان توصيل»: الورقة التي تُسلَّم للسائق.
+     *
+     * تحمل ما يحتاجه ليصل ويسلّم — العميل وجوّاله وعنوانه، ورقم الطلب وبنوده،
+     * واسمه هو، وقيمة التوصيل — و**لا تحمل أسعار البنود ولا أي عمولة**: السائق
+     * طرفٌ خارجيّ لا يرى ما باع به المركز.
+     *
+     * ورقةٌ مستقلّة بزرٍّ مستقلّ لا تُطبع تلقائياً مع الفاتورة، بنصّ قرار العميل.
+     */
+    public function deliveryNote(ServiceInvoice $invoice): Response
+    {
+        Gate::authorize('view', $invoice);
+
+        // بيانٌ بلا سائق لا معنى له — الورقة كلّها موجّهةٌ إليه.
+        abort_if($invoice->shipping_provider_id === null, 404, 'لا يوجد توصيل على هذه الفاتورة.');
+
+        $invoice->load([
+            'lines',
+            'customer:id,full_name,phone',
+            'branch:id,name,phone,address',
+            'shippingProvider:id,name,phone,type',
+            'shippingZone:id,name',
+        ]);
+
+        return Inertia::render('invoices/delivery-note', [
+            'note' => [
+                'invoiceNumber' => $invoice->invoice_number,
+                'createdAt' => $invoice->created_at?->toIso8601String(),
+                // موعد تسليم العمل — يفيد السائق متى كان الطلب مرتبطاً بموعد.
+                'deliveryAt' => $invoice->delivery_at?->toIso8601String(),
+                'customerName' => $invoice->customer?->full_name,
+                'customerPhone' => $invoice->customer?->phone,
+                // اللقطة النصّية لا الدفتر: ما كُتب وقت الفوترة هو ما يُطبع.
+                'address' => $invoice->shipping_address,
+                'zoneName' => $invoice->shippingZone?->name,
+                'distanceKm' => $invoice->shipping_distance_km !== null ? (float) $invoice->shipping_distance_km : null,
+                'providerName' => $invoice->shippingProvider?->name,
+                'providerPhone' => $invoice->shippingProvider?->phone,
+                'shippingFee' => (float) $invoice->shipping_fee,
+                // ملاحظة العميل تفيد السائق (طابق، بوابة…)؛ والداخلية لا تخرج.
+                'notes' => $invoice->notes,
+                // البنود بأسمائها وكمّياتها وحدها — بلا سعرٍ ولا إجمالي.
+                'lines' => $invoice->lines->map(fn ($line) => [
+                    'name' => $line->service_name,
+                    'notes' => $line->notes,
+                    'qty' => $line->qty,
+                ])->values(),
+            ],
+            'branch' => [
+                'name' => $invoice->branch?->name,
+                'phone' => $invoice->branch?->phone,
+                'address' => $invoice->branch?->address,
+                // بيانٌ داخليّ لا فاتورة ضريبية: لا رقم ضريبي ولا رمز ZATCA.
+                'taxNumber' => null,
+                'logoUrl' => $invoice->branch?->getFirstMediaUrl('logo') ?: null,
+            ],
+        ]);
+    }
+
     public function print(ServiceInvoice $invoice): Response
     {
         Gate::authorize('view', $invoice);
@@ -595,6 +659,8 @@ class ServiceInvoiceController extends Controller
                 'vatPct' => (float) $invoice->vat_pct,
                 'vatAmount' => (float) $invoice->vat_amount,
                 'totalAmount' => (float) $invoice->total_amount,
+                // تاسك 93: سطر التوصيل يُطبع مستقلاً فوق الإجمالي.
+                'shippingFee' => (float) $invoice->shipping_fee,
                 // العربون وما بقي على العميل — يُطبعان تحت الإجمالي متى قُبضت دفعة.
                 'hasPayments' => $invoice->payments->isNotEmpty(),
                 'paidAmount' => $invoice->paidAmount(),

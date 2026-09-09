@@ -285,6 +285,11 @@ export interface PosInvoice {
     vatPct: number;
     vatAmount: number;
     totalAmount: number;
+    /**
+     * رسم التوصيل شاملاً الضريبة (تاسك 93). اختياريّ لأن إيصال المنتجات يشترك
+     * في هذا النوع وهو بلا شحن.
+     */
+    shippingFee?: number | null;
     /** العربون وما بقي على العميل — يُطبعان تحت الإجمالي متى قُبضت دفعة */
     hasPayments: boolean;
     paidAmount: number;
