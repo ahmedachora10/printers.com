@@ -312,6 +312,14 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
+                // تاسك 93 — السائقون وشرائح أسعار التوصيل.
+                'title' => 'التوصيل',
+                'url' => route('shipping.index'),
+                'icon' => 'Bike',
+                'group' => 'finance',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
                 'title' => 'الحوافز والمكافآت',
                 'url' => route('incentives.index'),
                 'icon' => 'Trophy',

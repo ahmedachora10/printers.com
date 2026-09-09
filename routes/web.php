@@ -23,6 +23,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\DeploymentController;
 use App\Http\Controllers\DeploymentTaskController;
+use App\Http\Controllers\DeliveryProviderController;
+use App\Http\Controllers\DeliveryZoneController;
 use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
@@ -49,6 +51,7 @@ use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\ServiceInvoiceController;
 use App\Http\Controllers\ServicePriceListController;
 use App\Http\Controllers\ServiceTemplateController;
+use App\Http\Controllers\ShippingController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StockReconciliationController;
 use App\Http\Controllers\SupplierController;
@@ -486,6 +489,22 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('expense-categories', ExpenseCategoryController::class)
             ->parameters(['expense-categories' => 'expenseCategory'])
             ->only(['index', 'store', 'update', 'destroy']);
+
+        // تاسك 93 — التوصيل: شاشةٌ واحدة بتبويبين، ومورِدان يكتب كلٌّ منهما
+        // في جدوله. `toggle-status` قبل الـresource وإلا التقطه `{id}`.
+        Route::get('shipping', [ShippingController::class, 'index'])->name('shipping.index');
+
+        Route::patch('delivery-providers/{deliveryProvider}/toggle-status', [DeliveryProviderController::class, 'toggleStatus'])
+            ->name('delivery-providers.toggle-status');
+        Route::resource('delivery-providers', DeliveryProviderController::class)
+            ->parameters(['delivery-providers' => 'deliveryProvider'])
+            ->only(['store', 'update', 'destroy']);
+
+        Route::patch('delivery-zones/{deliveryZone}/toggle-status', [DeliveryZoneController::class, 'toggleStatus'])
+            ->name('delivery-zones.toggle-status');
+        Route::resource('delivery-zones', DeliveryZoneController::class)
+            ->parameters(['delivery-zones' => 'deliveryZone'])
+            ->only(['store', 'update', 'destroy']);
 
         Route::patch('coupons/{coupon}/toggle-status', [CouponController::class, 'toggleStatus'])
             ->name('coupons.toggle-status');

@@ -13,6 +13,8 @@ use App\Models\City;
 use App\Models\CommissionPayment;
 use App\Models\Coupon;
 use App\Models\Customer;
+use App\Models\DeliveryProvider;
+use App\Models\DeliveryZone;
 use App\Models\EmployeeDeduction;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
@@ -42,6 +44,8 @@ use App\Policies\CityPolicy;
 use App\Policies\CommissionPaymentPolicy;
 use App\Policies\CouponPolicy;
 use App\Policies\CustomerPolicy;
+use App\Policies\DeliveryProviderPolicy;
+use App\Policies\DeliveryZonePolicy;
 use App\Policies\EmployeeDeductionPolicy;
 use App\Policies\ExpenseCategoryPolicy;
 use App\Policies\ExpensePolicy;
@@ -127,6 +131,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(PurchaseRequest::class, PurchaseRequestPolicy::class);
         Gate::policy(Setting::class, SettingPolicy::class);
         Gate::policy(PaymentMethod::class, PaymentMethodPolicy::class);
+        Gate::policy(DeliveryProvider::class, DeliveryProviderPolicy::class);
+        Gate::policy(DeliveryZone::class, DeliveryZonePolicy::class);
         Gate::policy(User::class, UserPolicy::class);
     }
 
