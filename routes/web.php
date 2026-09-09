@@ -23,6 +23,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\DeploymentController;
 use App\Http\Controllers\DeploymentTaskController;
+use App\Http\Controllers\DeliveryLogController;
 use App\Http\Controllers\DeliveryProviderController;
 use App\Http\Controllers\DeliveryZoneController;
 use App\Http\Controllers\EmployeeDeductionController;
@@ -499,6 +500,10 @@ Route::middleware(['auth'])->group(function () {
         // تاسك 93 — التوصيل: شاشةٌ واحدة بتبويبين، ومورِدان يكتب كلٌّ منهما
         // في جدوله. `toggle-status` قبل الـresource وإلا التقطه `{id}`.
         Route::get('shipping', [ShippingController::class, 'index'])->name('shipping.index');
+
+        // تاسك 93 — كشف توصيلات اليوم: متابعةٌ تشغيلية قراءةً فقط.
+        Route::get('shipping/deliveries', [DeliveryLogController::class, 'index'])
+            ->name('shipping.deliveries');
 
         Route::patch('delivery-providers/{deliveryProvider}/toggle-status', [DeliveryProviderController::class, 'toggleStatus'])
             ->name('delivery-providers.toggle-status');

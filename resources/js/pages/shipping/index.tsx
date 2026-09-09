@@ -1,6 +1,7 @@
 import { destroy as destroyProvider, toggleStatus as toggleProvider } from '@/actions/App/Http/Controllers/DeliveryProviderController';
 import { destroy as destroyZone, toggleStatus as toggleZone } from '@/actions/App/Http/Controllers/DeliveryZoneController';
 import { index as shippingIndex } from '@/actions/App/Http/Controllers/ShippingController';
+import { index as deliveriesIndex } from '@/actions/App/Http/Controllers/DeliveryLogController';
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import DeliveryProviderFormModal from '@/components/shipping/delivery-provider-form-modal';
 import DeliveryZoneFormModal from '@/components/shipping/delivery-zone-form-modal';
@@ -13,8 +14,8 @@ import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import type { DeliveryProvider, DeliveryZone, EnumOption, ShippingBranchOption } from '@/types/shipping';
-import { router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Link, router } from '@inertiajs/react';
+import { ClipboardList, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'التوصيل', href: '/shipping' }];
@@ -247,6 +248,14 @@ export default function ShippingIndex({
                             السائقون وشركات التوصيل، وأسعار التوصيل حسب الحي أو المسافة.
                         </p>
                     </div>
+
+                    {/* تاسك 93: كشف المتابعة اليومية — قريباً من إدارة السائقين
+                        الذين يظهرون فيه. */}
+                    <Button variant="outline" asChild>
+                        <Link href={deliveriesIndex.url()}>
+                            <ClipboardList className="size-4" /> كشف التوصيل
+                        </Link>
+                    </Button>
 
                     {isSuperAdmin && (
                         <Select value={branchFilter || 'all'} onValueChange={handleBranchFilter}>

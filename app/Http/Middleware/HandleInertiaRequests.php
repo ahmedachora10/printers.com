@@ -378,6 +378,15 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
+                // تاسك 93 — كشف توصيلات اليوم لكل سائق. في مجموعة التقارير
+                // لأنه قراءةٌ ومتابعة، لا شاشةَ إدارةٍ كإدارة السائقين.
+                'title' => 'كشف التوصيل',
+                'url' => route('shipping.deliveries'),
+                'icon' => 'Bike',
+                'group' => 'reports',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
                 'title' => 'التقرير اليومي',
                 'url' => route('reports.daily'),
                 'icon' => 'CalendarDays',
