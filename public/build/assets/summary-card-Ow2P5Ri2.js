@@ -1,6 +1,0 @@
-import{a as n}from"./createLucideIcon-CTydcG68.js";import{j as e}from"./app-Fewcb7Fz.js";import{C as m,a as d,b as l,c as o}from"./card-YJM0SBXR.js";/**
- * @license lucide-react v0.475.0 - ISC
- *
- * This source code is licensed under the ISC license.
- * See the LICENSE file in the root directory of this source tree.
- */const x=[["path",{d:"m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z",key:"7g6ntu"}],["path",{d:"m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z",key:"ijws7r"}],["path",{d:"M7 21h10",key:"1b0cd5"}],["path",{d:"M12 3v18",key:"108xh3"}],["path",{d:"M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2",key:"3gwbw2"}]],u=n("Scale",x);function j({icon:s,label:t,value:r,valueClass:c,hint:a}){return e.jsxs(m,{className:"min-w-0",children:[e.jsx(d,{className:"pb-2",children:e.jsxs(l,{className:"text-muted-foreground flex items-center gap-2 text-sm font-medium",children:[e.jsx("span",{className:"shrink-0",children:s}),e.jsx("span",{className:"truncate",children:t})]})}),e.jsxs(o,{children:[e.jsx("p",{className:`truncate text-xl font-bold sm:text-2xl ${c??""}`,children:r}),a&&e.jsx("p",{className:"text-muted-foreground mt-1 truncate text-sm tabular-nums",children:a})]})]})}export{j as S,u as a};

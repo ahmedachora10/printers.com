@@ -37,6 +37,8 @@ import {
     type PosLoyalty,
     type PosPaymentMethod,
     type PosService,
+    type PosShippingProvider,
+    type PosShippingZone,
     type ServiceCartLine,
 } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
@@ -62,6 +64,11 @@ interface Props {
     paymentMethods: PosPaymentMethod[];
     vatPct: number;
     loyalty: PosLoyalty;
+    /** تاسك 93 — التوصيل: مزوّدو الفرع وشرائح أسعاره. */
+    shippingProviders: PosShippingProvider[];
+    shippingZones: PosShippingZone[];
+    /** الإدارة تكتب القيمة يدوياً؛ الموظف يختار الشريحة وسعرُها هو الحاكم. */
+    canEditShippingFee: boolean;
     /** Present only when the owning employee re-opens a DUE invoice to edit it. */
     invoice?: EditServiceInvoice;
 }
@@ -75,6 +82,25 @@ interface AppliedCoupon {
 }
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
+
+/**
+ * تاسك 93 — الشريحة التي تشمل مسافةً مكتوبة.
+ *
+ * المدى نصف مفتوح (`from <= d < to`) تماماً كـ`DeliveryZone::coversDistance()`
+ * في الخادم، فالمسافة 5 تخصّ شريحة 5–10 وحدها لا 0–5. والأحياء لا تُقاس
+ * بمسافة أبداً فتُستبعد من البحث.
+ */
+function zoneForDistance(zones: PosShippingZone[], km: number): PosShippingZone | null {
+    return (
+        zones.find(
+            (zone) =>
+                zone.type === 'distance' &&
+                zone.fromKm !== null &&
+                km >= zone.fromKm &&
+                (zone.toKm === null || km < zone.toKm),
+        ) ?? null
+    );
+}
 
 /** اليوم بصيغة YYYY-MM-DD محلياً — أدنى موعد تسليم يقبله الخادم. */
 function todayIso(): string {
@@ -256,7 +282,17 @@ function ServiceTile({
     );
 }
 
-export default function ServicePos({ services, agents, paymentMethods, vatPct, loyalty, invoice }: Props) {
+export default function ServicePos({
+    services,
+    agents,
+    paymentMethods,
+    vatPct,
+    loyalty,
+    shippingProviders,
+    shippingZones,
+    canEditShippingFee,
+    invoice,
+}: Props) {
     const { props } = usePage<SharedData>();
     // Employees may only raise DUE (معلق) invoices for an accountant to review;
     // the paid/due toggle is hidden for them and the status is locked to 'due'.
@@ -395,6 +431,29 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
+    // ── تاسك 93: التوصيل ──────────────────────────────────────────
+    // «التوصيل» هنا شحنُ الطلب إلى العميل، لا «موعد التسليم» أعلاه — حقلان
+    // مختلفان تماماً، ولذلك سُمّي كلُّ ما يخصّ الشحن shipping في الكود.
+    const [shippingProviderId, setShippingProviderId] = useState<number | null>(invoice?.shippingProviderId ?? null);
+    const [shippingZoneId, setShippingZoneId] = useState<number | null>(invoice?.shippingZoneId ?? null);
+    const [shippingFee, setShippingFee] = useState(invoice?.shippingFee ? String(invoice.shippingFee) : '');
+    const [shippingDistanceKm, setShippingDistanceKm] = useState(
+        invoice?.shippingDistanceKm != null ? String(invoice.shippingDistanceKm) : '',
+    );
+    const [customerAddressId, setCustomerAddressId] = useState<number | null>(invoice?.customerAddressId ?? null);
+    const [shippingAddress, setShippingAddress] = useState(invoice?.shippingAddress ?? '');
+    const [shippingAddressLabel, setShippingAddressLabel] = useState('');
+    const [shippingLocationUrl, setShippingLocationUrl] = useState('');
+    // عنوانٌ جديد يُحفظ في دفتر العميل — إضافةً لا استبدالاً.
+    const [saveShippingAddress, setSaveShippingAddress] = useState(false);
+
+    const selectedZone = shippingZones.find((zone) => zone.id === shippingZoneId) ?? null;
+    // القيمة المعروضة: ما كتبته الإدارة إن كتبت، وإلا سعر الشريحة. والموظف لا
+    // يكتب أصلاً — الخادم يتجاهل ما يرسله ويأخذ سعر الشريحة.
+    const shippingAmount = round2(
+        canEditShippingFee && shippingFee !== '' ? Number(shippingFee) || 0 : (selectedZone?.price ?? 0),
+    );
+
     useEffect(() => {
         if (props.success) {
             toast.success(props.success as string);
@@ -525,9 +584,13 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     }, [loyaltyOn, redeemPoints, loyalty.redemptionRate, afterAgent]);
     // الأسعار المُدخلة شاملة للضريبة: ما يبقى بعد الخصومات هو الإجمالي الذي
     // يدفعه العميل، والضريبة تُستخرج من داخله بالطرح. مطابق للخادم حرفياً.
-    const total = useMemo(() => round2(afterAgent - pointsDiscount), [afterAgent, pointsDiscount]);
-    // Every commission is earned on the value net of VAT — mirrors the server's
-    // netBeforeVat.
+    //
+    // تاسك 93: وعاءان كما في الخادم — مال الخدمات وحده أساسُ كل عمولة، ورسم
+    // التوصيل يُضاف بعد كامل سلسلة الخصومات فلا يخصمه كوبونٌ ولا فئة، ولا
+    // يدخل أساسَ عمولة.
+    const servicesTotal = useMemo(() => round2(afterAgent - pointsDiscount), [afterAgent, pointsDiscount]);
+    const servicesNet = useMemo(() => round2(servicesTotal / (1 + vatPct / 100)), [servicesTotal, vatPct]);
+    const total = useMemo(() => round2(servicesTotal + shippingAmount), [servicesTotal, shippingAmount]);
     const netBeforeVat = useMemo(() => round2(total / (1 + vatPct / 100)), [total, vatPct]);
     const vatAmount = useMemo(() => round2(total - netBeforeVat), [total, netBeforeVat]);
     // Employee commission is earned on that net value, after every invoice-level
@@ -539,7 +602,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
     // base rate, not the employee's own rate.
     const commission = useMemo(() => {
         if (subtotal <= 0) return 0;
-        const ratio = netBeforeVat / subtotal;
+        const ratio = servicesNet / subtotal;
 
         return round2(
             cart.reduce((sum, l) => {
@@ -548,7 +611,7 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 return sum + round2((round2(lineNet - materials) * l.baseCommissionPct) / 100);
             }, 0),
         );
-    }, [cart, netBeforeVat, subtotal]);
+    }, [cart, servicesNet, subtotal]);
     // تفكيك ما يُعرض للكاشير: مجموع فرعي وخصومات صافية من الضريبة يجمعها العمود
     // مع الضريبة فيساوي الإجمالي بالقرش — نفس اشتقاق شاشة الفاتورة والطباعة.
     const totals = useMemo(
@@ -557,9 +620,10 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                 vatPct,
                 vatAmount,
                 totalAmount: total,
+                shippingFee: shippingAmount,
                 discounts: [tierDiscount, couponDiscount, agentDiscount, pointsDiscount],
             }),
-        [vatPct, vatAmount, total, tierDiscount, couponDiscount, agentDiscount, pointsDiscount],
+        [vatPct, vatAmount, total, shippingAmount, tierDiscount, couponDiscount, agentDiscount, pointsDiscount],
     );
     // Each rebate-mode agent earns independently on the net-of-VAT value; the
     // preview shows their combined rebate.
@@ -568,9 +632,9 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             round2(
                 selectedAgents
                     .filter((a) => a.discountMode === 'rebate')
-                    .reduce((sum, a) => sum + Math.min(a.discountType === 'fixed' ? a.rate : (netBeforeVat * a.rate) / 100, netBeforeVat), 0),
+                    .reduce((sum, a) => sum + Math.min(a.discountType === 'fixed' ? a.rate : (servicesNet * a.rate) / 100, servicesNet), 0),
             ),
-        [selectedAgents, netBeforeVat],
+        [selectedAgents, servicesNet],
     );
     // Per-line commission owners' shares — informational: paid to the agents
     // later, never deducted from the customer's total.
@@ -631,6 +695,41 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             tax_number: customer?.taxNumber ?? '',
         });
         setCustomerErrors({});
+
+        // تاسك 93: عنوانه الافتراضيّ يقع عليه الاختيار، وتتبعه شريحته وسعرها —
+        // فلا يقدّر الكاشير مسافةً ولا يبحث عن حيّ. وتبديل العميل يمسح عنوان
+        // سابقه، وإلا شُحن طلبٌ إلى عنوان عميلٍ آخر.
+        const preferred = customer?.addresses?.find((address) => address.isDefault) ?? null;
+
+        setCustomerAddressId(preferred?.id ?? null);
+        setShippingAddress(preferred?.address ?? '');
+        setShippingLocationUrl(preferred?.locationUrl ?? '');
+        setShippingAddressLabel('');
+        setSaveShippingAddress(false);
+
+        if (preferred?.deliveryZoneId != null) {
+            applyZone(preferred.deliveryZoneId);
+        }
+    }
+
+    /** اختيار شريحة: تُملأ قيمتها من سعرها، ما لم تكن الإدارة قد كتبت قيمةً. */
+    function applyZone(zoneId: number | null) {
+        setShippingZoneId(zoneId);
+        setShippingFee('');
+    }
+
+    /**
+     * كتابة المسافة تنتقي شريحتها وحدها. والبحث في شرائح المسافة فقط — الأحياء
+     * لا تُقاس بمسافة، فكتابةُ رقمٍ لا تزيح حيّاً اختاره الكاشير عمداً.
+     */
+    function applyDistance(value: string) {
+        setShippingDistanceKm(value);
+
+        const km = Number(value);
+        if (value === '' || Number.isNaN(km)) return;
+
+        const match = zoneForDistance(shippingZones, km);
+        if (match) applyZone(match.id);
     }
 
     // Nothing to submit until one of the three fields differs from the record.
@@ -830,7 +929,21 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
         setInternalNotes('');
         setDeliveryDate('');
         setDeliveryTime('');
+        resetShipping();
         removeCoupon();
+    }
+
+    /** تاسك 93: تفريغ بطاقة التوصيل — الفاتورة التالية تبدأ بلا سائق ولا عنوان. */
+    function resetShipping() {
+        setShippingProviderId(null);
+        setShippingZoneId(null);
+        setShippingFee('');
+        setShippingDistanceKm('');
+        setCustomerAddressId(null);
+        setShippingAddress('');
+        setShippingAddressLabel('');
+        setShippingLocationUrl('');
+        setSaveShippingAddress(false);
     }
 
     function submit(print: boolean) {
@@ -903,6 +1016,17 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
             notes: notes.trim() || null,
             internal_notes: internalNotes.trim() || null,
             delivery_at: deliveryAt,
+            // تاسك 93 — التوصيل. القيمة تُرسل ممّن يملك كتابتها فقط؛ ومن سواه
+            // يأخذ الخادمُ سعرَ الشريحة على أي حال، فإرسالها لا يفيده.
+            shipping_provider_id: shippingProviderId,
+            shipping_zone_id: shippingZoneId,
+            shipping_fee: canEditShippingFee && shippingFee !== '' ? Number(shippingFee) : null,
+            shipping_distance_km: shippingDistanceKm !== '' ? Number(shippingDistanceKm) : null,
+            customer_address_id: customerAddressId,
+            shipping_address: shippingAddress.trim() || null,
+            save_shipping_address: saveShippingAddress,
+            shipping_address_label: shippingAddressLabel.trim() || null,
+            shipping_location_url: shippingLocationUrl.trim() || null,
             lines: cart.map((l) => ({
                 branch_service_id: l.branchServiceId,
                 notes: l.notes.trim() || null,
@@ -1199,6 +1323,14 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                     <span>−{formatCurrency(totals.discounts[3])}</span>
                                 </div>
                             )}
+                            {/* تاسك 93: التوصيل سطرٌ مستقلٌّ فوق الضريبة — إضافةٌ
+                                لا خصم، فيقرؤه العميل واضحاً على فاتورته. */}
+                            {shippingProviderId !== null && (
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">التوصيل</span>
+                                    <span>{shippingAmount > 0 ? formatCurrency(totals.shipping) : 'مجاني'}</span>
+                                </div>
+                            )}
                             <div className="flex justify-between">
                                 <span className="text-muted-foreground">الضريبة ({vatPct}%)</span>
                                 <span>{formatCurrency(totals.vatAmount)}</span>
@@ -1396,6 +1528,186 @@ export default function ServicePos({ services, agents, paymentMethods, vatPct, l
                                 <p className="text-muted-foreground text-xs">اختياري — يظهر في الفاتورة ويُذكَّر به الموظف قبل الموعد بيوم.</p>
                             )}
                             {errors.delivery_at && <p className="text-destructive text-xs">{errors.delivery_at}</p>}
+                        </CardContent>
+                    </Card>
+
+                    {/* تاسك 93 — التوصيل: شحنُ الطلب إلى العميل. لا يُخلط ببطاقة
+                        «موعد التسليم» أعلاه، وهي موعد استلام العمل من الفرع. */}
+                    <Card>
+                        <CardHeader className="pb-3">
+                            <CardTitle className="text-base">التوصيل</CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3">
+                            <div className="space-y-1">
+                                <Label htmlFor="shipping-provider" className="text-xs">
+                                    السائق أو شركة التوصيل
+                                </Label>
+                                <Select
+                                    value={shippingProviderId === null ? 'none' : String(shippingProviderId)}
+                                    onValueChange={(v) => {
+                                        if (v === 'none') {
+                                            resetShipping();
+                                            return;
+                                        }
+                                        setShippingProviderId(Number(v));
+                                    }}
+                                >
+                                    <SelectTrigger id="shipping-provider">
+                                        <SelectValue placeholder="بدون توصيل" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">بدون توصيل</SelectItem>
+                                        {shippingProviders.map((provider) => (
+                                            <SelectItem key={provider.id} value={String(provider.id)}>
+                                                {provider.name} — {provider.typeLabel}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {errors.shipping_provider_id && <p className="text-destructive text-xs">{errors.shipping_provider_id}</p>}
+                            </div>
+
+                            {shippingProviderId !== null && (
+                                <>
+                                    {/* عناوين العميل المحفوظة: اختيارُ عنوانٍ يملأ شريحته
+                                        وسعرها، فلا تُقدَّر مسافةٌ ولا يُبحث عن حي. */}
+                                    {(selectedCustomer?.addresses?.length ?? 0) > 0 && (
+                                        <div className="space-y-1">
+                                            <Label htmlFor="shipping-address-pick" className="text-xs">
+                                                عنوان العميل
+                                            </Label>
+                                            <Select
+                                                value={customerAddressId === null ? 'new' : String(customerAddressId)}
+                                                onValueChange={(v) => {
+                                                    if (v === 'new') {
+                                                        setCustomerAddressId(null);
+                                                        setShippingAddress('');
+                                                        setShippingLocationUrl('');
+                                                        return;
+                                                    }
+                                                    const picked = selectedCustomer?.addresses.find((a) => a.id === Number(v));
+                                                    setCustomerAddressId(picked?.id ?? null);
+                                                    setShippingAddress(picked?.address ?? '');
+                                                    setShippingLocationUrl(picked?.locationUrl ?? '');
+                                                    setSaveShippingAddress(false);
+                                                    if (picked?.deliveryZoneId != null) applyZone(picked.deliveryZoneId);
+                                                }}
+                                            >
+                                                <SelectTrigger id="shipping-address-pick">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {selectedCustomer?.addresses.map((address) => (
+                                                        <SelectItem key={address.id} value={String(address.id)}>
+                                                            {address.displayLabel}
+                                                        </SelectItem>
+                                                    ))}
+                                                    <SelectItem value="new">عنوان جديد…</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-1">
+                                        <Label htmlFor="shipping-address" className="text-xs">
+                                            العنوان
+                                        </Label>
+                                        <textarea
+                                            id="shipping-address"
+                                            rows={2}
+                                            value={shippingAddress}
+                                            onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setShippingAddress(e.target.value)}
+                                            placeholder="الحي، الشارع، رقم المبنى"
+                                            className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[56px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                                        />
+                                        {errors.shipping_address && <p className="text-destructive text-xs">{errors.shipping_address}</p>}
+                                    </div>
+
+                                    {/* عنوانٌ جديد لعميلٍ له بطاقة يُضاف إلى دفتره —
+                                        إضافةً لا استبدالاً لعنوانه القائم. */}
+                                    {selectedCustomer && customerAddressId === null && shippingAddress.trim() !== '' && (
+                                        <div className="space-y-2 rounded-md border border-dashed p-2">
+                                            <label className="flex cursor-pointer items-center gap-2 text-xs">
+                                                <Checkbox
+                                                    checked={saveShippingAddress}
+                                                    onCheckedChange={(checked) => setSaveShippingAddress(checked === true)}
+                                                />
+                                                حفظ العنوان في بطاقة العميل
+                                            </label>
+                                            {saveShippingAddress && (
+                                                <Input
+                                                    value={shippingAddressLabel}
+                                                    onChange={(e) => setShippingAddressLabel(e.target.value)}
+                                                    placeholder="اسم العنوان — المنزل، المكتب…"
+                                                    className="h-8 text-xs"
+                                                />
+                                            )}
+                                        </div>
+                                    )}
+
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="space-y-1">
+                                            <Label htmlFor="shipping-zone" className="text-xs">
+                                                الحي أو الشريحة
+                                            </Label>
+                                            <Select
+                                                value={shippingZoneId === null ? 'none' : String(shippingZoneId)}
+                                                onValueChange={(v) => applyZone(v === 'none' ? null : Number(v))}
+                                            >
+                                                <SelectTrigger id="shipping-zone">
+                                                    <SelectValue placeholder="اختر" />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="none">بدون</SelectItem>
+                                                    {/* الأحياء أولاً: الطريق الأغلب في نقطة البيع. */}
+                                                    {shippingZones.map((zone) => (
+                                                        <SelectItem key={zone.id} value={String(zone.id)}>
+                                                            {zone.name}
+                                                            {zone.rangeLabel ? ` (${zone.rangeLabel})` : ''} — {formatCurrency(zone.price)}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label htmlFor="shipping-distance" className="text-xs">
+                                                المسافة (كم)
+                                            </Label>
+                                            <Input
+                                                id="shipping-distance"
+                                                type="number"
+                                                step="0.1"
+                                                min="0"
+                                                value={shippingDistanceKm}
+                                                onChange={(e) => applyDistance(e.target.value)}
+                                                placeholder="اختياري"
+                                            />
+                                        </div>
+                                    </div>
+                                    {errors.shipping_zone_id && <p className="text-destructive text-xs">{errors.shipping_zone_id}</p>}
+
+                                    <div className="space-y-1">
+                                        <Label htmlFor="shipping-fee" className="text-xs">
+                                            قيمة التوصيل
+                                        </Label>
+                                        <Input
+                                            id="shipping-fee"
+                                            type="number"
+                                            step="0.01"
+                                            min="0"
+                                            value={canEditShippingFee ? (shippingFee !== '' ? shippingFee : String(shippingAmount)) : String(shippingAmount)}
+                                            onChange={(e) => setShippingFee(e.target.value)}
+                                            disabled={!canEditShippingFee}
+                                        />
+                                        <p className="text-muted-foreground text-xs">
+                                            {canEditShippingFee
+                                                ? 'تُملأ من الشريحة، وللإدارة تعديلها. شاملة الضريبة.'
+                                                : 'تُحتسب من الشريحة المحددة — تعديلها للإدارة.'}
+                                        </p>
+                                        {errors.shipping_fee && <p className="text-destructive text-xs">{errors.shipping_fee}</p>}
+                                    </div>
+                                </>
+                            )}
                         </CardContent>
                     </Card>
 

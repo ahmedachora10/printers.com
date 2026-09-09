@@ -29,6 +29,8 @@ use App\Models\BranchService;
 use App\Models\BranchServiceMaterial;
 use App\Models\Coupon;
 use App\Models\Customer;
+use App\Models\DeliveryProvider;
+use App\Models\DeliveryZone;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\User;
@@ -70,7 +72,7 @@ class ServiceInvoiceController extends Controller
         $user = Auth::user();
         $branchId = (int) $invoice->branch_id;
 
-        $invoice->load(['lines', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'invoiceAgents:id,service_invoice_id,agent_id']);
+        $invoice->load(['lines', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'customer.addresses', 'invoiceAgents:id,service_invoice_id,agent_id']);
 
         $loyalty = LoyaltyConfig::forBranch($branchId);
         $loyaltyActive = (bool) $loyalty->is_active;
@@ -113,6 +115,14 @@ class ServiceInvoiceController extends Controller
                 'internalNotes' => $invoice->internal_notes,
                 // «YYYY-MM-DD HH:MM» — الصيغة التي يقرأها منتقي الموعد في الواجهة.
                 'deliveryAt' => $invoice->delivery_at?->format('Y-m-d H:i'),
+                // تاسك 93 — التوصيل يعود إلى الشاشة كما حُفظ، فإعادة الحفظ لا
+                // تُسقط سائقاً ولا عنواناً.
+                'shippingProviderId' => $invoice->shipping_provider_id,
+                'shippingZoneId' => $invoice->shipping_zone_id,
+                'shippingFee' => (float) $invoice->shipping_fee,
+                'shippingDistanceKm' => $invoice->shipping_distance_km !== null ? (float) $invoice->shipping_distance_km : null,
+                'customerAddressId' => $invoice->customer_address_id,
+                'shippingAddress' => $invoice->shipping_address,
                 'lines' => $invoice->lines->map(function ($line) use ($servicesById) {
                     $service = $servicesById->get($line->branch_service_id);
 
@@ -662,7 +672,66 @@ class ServiceInvoiceController extends Controller
                 'redemptionRate' => (float) ($loyalty?->redemption_rate ?? 0),
                 'minRedemptionPoints' => (int) ($loyalty?->min_redemption_points ?? 0),
             ],
+            // تاسك 93 — التوصيل: استعلامان ثابتان بجوار طرق الدفع، لا واحدٌ لكل
+            // خدمة، فلا يزيدان عدد استعلامات الشاشة بعدد الخدمات.
+            'shippingProviders' => $this->shippingProviderOptions($branchId),
+            'shippingZones' => $this->shippingZoneOptions($branchId),
+            // من يملك كتابة قيمة التوصيل يدوياً: الإدارة لا الموظف. الواجهة
+            // تُقفل الحقل، والخادم يتجاهل ما يُرسله الموظف على أي حال.
+            'canEditShippingFee' => ! $user->roleName->isEmployee(),
         ];
+    }
+
+    /**
+     * مزوّدو التوصيل النشطون في الفرع (تاسك 93).
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function shippingProviderOptions(?int $branchId): Collection
+    {
+        if ($branchId === null) {
+            return collect();
+        }
+
+        return DeliveryProvider::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (DeliveryProvider $provider) => [
+                'id' => $provider->id,
+                'name' => $provider->name,
+                'typeLabel' => $provider->type->label(),
+                'phone' => $provider->phone,
+            ]);
+    }
+
+    /**
+     * شرائح أسعار التوصيل النشطة في الفرع، مرتّبةً: الأحياء أولاً ثم المسافات
+     * — والأحياء أولاً لأنها الطريق الأغلب في نقطة البيع.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function shippingZoneOptions(?int $branchId): Collection
+    {
+        if ($branchId === null) {
+            return collect();
+        }
+
+        return DeliveryZone::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->ordered()
+            ->get()
+            ->map(fn (DeliveryZone $zone) => [
+                'id' => $zone->id,
+                'name' => $zone->name,
+                'type' => $zone->type->value,
+                'fromKm' => $zone->from_km !== null ? (float) $zone->from_km : null,
+                'toKm' => $zone->to_km !== null ? (float) $zone->to_km : null,
+                'rangeLabel' => $zone->rangeLabel(),
+                'price' => (float) $zone->price,
+            ]);
     }
 
     /**
