@@ -19,10 +19,12 @@ import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
 import { INVOICE_STATUS_COLORS, formatLineSize, formatLineUnitPrice, invoiceDocumentTitle, invoiceTotals } from '@/lib/invoice';
 import { formatCurrency, formatDateTime, formatQty } from '@/lib/utils';
+import { updatePaymentMethod as updatePaymentRowMethod } from '@/routes/invoice-payments';
+import { updatePaymentMethod as updateInvoicePaymentMethod } from '@/routes/invoices';
 import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { type Invoice } from '@/types/invoice';
+import { type Invoice, type InvoicePayment, type PaymentMethodChange } from '@/types/invoice';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Ban, Bike, CheckCircle2, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -31,6 +33,7 @@ import { toast } from 'sonner';
 interface Props {
     invoice: Invoice;
     paymentMethodOptions: PaymentMethodOption[];
+    paymentMethodHistory: PaymentMethodChange[];
 }
 
 type InvoiceLine = Invoice['lines'][number];
@@ -112,7 +115,7 @@ function TotalRow({ label, value, strong = false }: { label: string; value: stri
     );
 }
 
-export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
+export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory }: Props) {
     const { props } = usePage<SharedData>();
     const [refundOpen, setRefundOpen] = useState(false);
     const [paymentOpen, setPaymentOpen] = useState(false);
@@ -132,22 +135,37 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
     const [customerErrors, setCustomerErrors] = useState<Record<string, string | undefined>>({});
     const [savingCustomer, setSavingCustomer] = useState(false);
     const [methodOpen, setMethodOpen] = useState(false);
+    // تاسك 99: النافذة نفسها تعدّل طريقة الفاتورة أو طريقة دفعةٍ منها — null هنا
+    // يعني الفاتورة.
+    const [methodPayment, setMethodPayment] = useState<InvoicePayment | null>(null);
     const [methodId, setMethodId] = useState<number | null>(invoice.paymentMethodId);
     const [savingMethod, setSavingMethod] = useState(false);
     const [methodReceipt, setMethodReceipt] = useState<File | null>(null);
     const [methodErrors, setMethodErrors] = useState<Record<string, string | undefined>>({});
 
-    // طريقةُ تحويلٍ اختيرت ولمّا تحمل الفاتورة إيصالاً: النافذة تطلبه قبل الحفظ،
+    const methodCurrentId = methodPayment ? methodPayment.paymentMethodId : invoice.paymentMethodId;
+    const methodExistingReceipt = methodPayment ? methodPayment.receiptUrl : invoice.receiptUrl;
+
+    // طريقةُ تحويلٍ اختيرت ولمّا يحمل الهدف إيصالاً: النافذة تطلبه قبل الحفظ،
     // والخادم يرفض بدونه — فلا تُعتمد فاتورة تحويل بلا إثبات.
     const methodNeedsReceipt = paymentMethodOptions.find((m) => m.id === methodId)?.requiresAttachment === true;
-    const methodReceiptMissing = methodNeedsReceipt && !invoice.receiptUrl && !methodReceipt;
+    const methodReceiptMissing = methodNeedsReceipt && !methodExistingReceipt && !methodReceipt;
+
+    function openMethodDialog(payment: InvoicePayment | null) {
+        setMethodPayment(payment);
+        setMethodId(payment ? payment.paymentMethodId : invoice.paymentMethodId);
+        setMethodReceipt(null);
+        setMethodErrors({});
+        setMethodOpen(true);
+    }
 
     // نفس القاعدة عند الاعتماد، مقيسةً بطريقة الفاتورة المحفوظة لا بالمختارة في
-    // النافذة: الزرّ يُعطَّل والخادم يرفض.
+    // النافذة: الزرّ يُعطَّل والخادم يرفض. paymentMethodId لا paymentMethod —
+    // الثاني اسمٌ للعرض قد يأتي من الدفعات.
     const receiptMissingForApproval =
         paymentMethodOptions.find((m) => m.id === invoice.paymentMethodId)?.requiresAttachment === true && !invoice.receiptUrl;
-    const canApprove = !!invoice.paymentMethod && !receiptMissingForApproval;
-    const approveHint = !invoice.paymentMethod
+    const canApprove = invoice.paymentMethodId !== null && !receiptMissingForApproval;
+    const approveHint = invoice.paymentMethodId === null
         ? 'حدّد طريقة الدفع قبل اعتماد الفاتورة'
         : receiptMissingForApproval
           ? 'أرفق إيصال التحويل قبل اعتماد الفاتورة'
@@ -237,7 +255,9 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
         setMethodErrors({});
         // POST مع `_method` لأن رفع ملف عبر PATCH لا يمرّ في multipart.
         router.post(
-            serviceInvoice.updatePaymentMethod(invoice.id).url,
+            methodPayment
+                ? updatePaymentRowMethod(methodPayment.id).url
+                : updateInvoicePaymentMethod({ type: invoice.type, id: invoice.id }).url,
             { _method: 'patch', payment_method_id: methodId, ...(methodReceipt ? { receipt: methodReceipt } : {}) },
             {
                 forceFormData: true,
@@ -348,7 +368,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                             </Button>
                         )}
                         {invoice.canEditPaymentMethod && (
-                            <Button variant="outline" onClick={() => setMethodOpen(true)}>
+                            <Button variant="outline" onClick={() => openMethodDialog(null)}>
                                 <CreditCard className="size-4" /> طريقة الدفع
                             </Button>
                         )}
@@ -452,6 +472,19 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                                                 <span className={payment.paymentMethod ? 'text-muted-foreground' : 'text-muted-foreground/70 italic'}>
                                                     {payment.paymentMethod ?? 'غير محدّدة'}
                                                 </span>
+                                                {/* تاسك 99: الطريقة وحدها تُصحَّح — المبلغ والتاريخ لا. */}
+                                                {invoice.canEditPaymentRows && (
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="size-7"
+                                                        title="تغيير طريقة هذه الدفعة"
+                                                        onClick={() => openMethodDialog(payment)}
+                                                    >
+                                                        <Pencil className="size-3.5" />
+                                                        <span className="sr-only">تغيير طريقة هذه الدفعة</span>
+                                                    </Button>
+                                                )}
                                                 {payment.receiptUrl && (
                                                     <a
                                                         href={payment.receiptUrl}
@@ -611,6 +644,19 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                                 <MetaRow label="الرقم الضريبي للعميل" value={<span dir="ltr">{invoice.customerTaxNumber}</span>} />
                             )}
                             <MetaRow label="طريقة الدفع" value={invoice.paymentMethod ?? '—'} />
+                            {/* تاسك 99: التغيير بعد الاعتماد يعيد كتابة نقد يومٍ مضى، فأثره
+                                ظاهرٌ هنا لا في السجلّ وحده. */}
+                            {paymentMethodHistory.length > 0 && (
+                                <ul className="text-muted-foreground mb-1 space-y-0.5 text-xs">
+                                    {paymentMethodHistory.map((change) => (
+                                        <li key={change.id}>
+                                            {change.isPayment ? 'دفعة: ' : ''}عُدّلت من {change.old ?? 'غير محدّدة'} إلى {change.new ?? '—'}
+                                            {change.byName && <> — {change.byName}</>}
+                                            {change.at && <> — {formatDateTime(change.at)}</>}
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
                             {(invoice.deliveryAt || invoice.deliveredAt) && (
                                 <MetaRow
                                     label="موعد التسليم"
@@ -743,12 +789,23 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                 </DialogContent>
             </Dialog>
 
-            {/* طريقة الدفع — لا تُعتمد الفاتورة بلا واحدة، وهذا باب المحاسب إليها */}
+            {/* طريقة الدفع — لا تُعتمد الفاتورة بلا واحدة، وهذا باب المحاسب إليها.
+                وبعد الاعتماد تصحيحٌ لخطأ الكاشير (تاسك 99)، للفاتورة أو لدفعةٍ منها. */}
             <Dialog open={methodOpen} onOpenChange={(open) => !open && !savingMethod && setMethodOpen(false)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>طريقة دفع الفاتورة {invoice.invoiceNumber}</DialogTitle>
-                        <DialogDescription>كيف حُصِّل مبلغ هذه الفاتورة. لا تُعتمد الفاتورة قبل تحديدها.</DialogDescription>
+                        <DialogTitle>
+                            {methodPayment
+                                ? `طريقة دفعة ${formatCurrency(methodPayment.amount)} على الفاتورة ${invoice.invoiceNumber}`
+                                : `طريقة دفع الفاتورة ${invoice.invoiceNumber}`}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {methodPayment
+                                ? 'تتغيّر الطريقة وحدها — المبلغ والتاريخ يبقيان كما سُجّلا، ويُحفظ التغيير في سجلّ الفاتورة.'
+                                : invoice.status === 'due'
+                                  ? 'كيف حُصِّل مبلغ هذه الفاتورة. لا تُعتمد الفاتورة قبل تحديدها.'
+                                  : 'تصحيح طريقة دفع فاتورة معتمدة — ينقل مبلغها في تقرير المبيعات إلى الطريقة الجديدة، ويُحفظ التغيير في سجلّ الفاتورة.'}
+                        </DialogDescription>
                     </DialogHeader>
                     {paymentMethodOptions.length === 0 ? (
                         <p className="text-destructive text-sm">لا توجد طرق دفع مفعّلة لهذا الفرع — أضفها من الإعدادات أولاً.</p>
@@ -773,7 +830,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                                     onChange={setMethodReceipt}
                                     error={methodErrors.receipt}
                                     disabled={savingMethod}
-                                    existingUrl={invoice.receiptUrl}
+                                    existingUrl={methodExistingReceipt}
                                 />
                             )}
                         </div>
@@ -785,7 +842,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                         <Button
                             onClick={savePaymentMethod}
                             disabled={
-                                savingMethod || !methodId || methodReceiptMissing || (methodId === invoice.paymentMethodId && !methodReceipt)
+                                savingMethod || !methodId || methodReceiptMissing || (methodId === methodCurrentId && !methodReceipt)
                             }
                             title={methodReceiptMissing ? 'أرفق إيصال التحويل أولاً' : undefined}
                         >

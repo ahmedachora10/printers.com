@@ -110,10 +110,11 @@ class InvoiceResource extends JsonResource
         // بيانات العميل وطريقة الدفع. الزرّان يظهران هنا لمن تسمح له الصلاحية —
         // فالموظف صاحبُها يراهما كذلك، وهما ما يحتاجه المحاسب قبل الاعتماد.
         $canEditCustomer = $user !== null && $isServiceInvoice && $user->can('updateCustomer', $this->resource);
-        $canEditPaymentMethod = $user !== null
-            && $isServiceInvoice
-            && $this->status === InvoiceStatusEnum::DUE
-            && $user->can('updateStatus', $this->resource);
+        // تاسك 99: قبل الاعتماد وبعده. وفاتورةٌ سُدّدت بدفعات طريقتُها على صفوف
+        // دفعاتها، فالتعديل يُعرض على كل صفّ لا على الفاتورة.
+        $canChangePaymentMethod = $user !== null && $user->can('changePaymentMethod', $this->resource);
+        $hasPaymentRows = $this->relationLoaded('payments') && $this->payments->isNotEmpty();
+        $canEditPaymentMethod = $canChangePaymentMethod && ! $hasPaymentRows;
         $canReturn = $user !== null
             && $isServiceInvoice
             && $user->can('returnInvoice', $this->resource)
@@ -166,8 +167,9 @@ class InvoiceResource extends JsonResource
             'customerName' => $this->customer?->full_name,
             'customerPhone' => $this->customer?->phone,
             'customerTaxNumber' => $this->customer?->tax_number ?? null,
-            'paymentMethod' => $this->paymentMethod?->name,
-            // يسبق اختيارَ نافذة «طريقة الدفع» في شاشة الفاتورة.
+            'paymentMethod' => $this->paymentMethodLabel(),
+            // يسبق اختيارَ نافذة «طريقة الدفع» في شاشة الفاتورة، ويحرس زرّ
+            // الاعتماد — طريقة الفاتورة نفسها لا طريقة دفعاتها.
             'paymentMethodId' => $this->payment_method_id,
             // Invoice-level remark for the customer — distinct from the
             // per-line detail carried on InvoiceLineResource::notes.
@@ -197,10 +199,13 @@ class InvoiceResource extends JsonResource
                     'amount' => (float) $payment->amount,
                     'paidAt' => $payment->paid_at?->toIso8601String(),
                     'paymentMethod' => $payment->paymentMethod?->name,
+                    'paymentMethodId' => $payment->payment_method_id,
                     'recordedByName' => $payment->recordedBy?->name,
                     'notes' => $payment->notes,
                     'receiptUrl' => $payment->receiptUrl(),
                 ])->values()->all()),
+            // تاسك 99: تعديل طريقة كل دفعة — المبلغ والتاريخ لا يُمسّان.
+            'canEditPaymentRows' => $canChangePaymentMethod && $hasPaymentRows,
             'canRefund' => $canRefund,
             'canApprovePayment' => $canApprovePayment,
             'canEdit' => $canEdit,
@@ -224,6 +229,28 @@ class InvoiceResource extends JsonResource
                 'logoUrl' => $this->branch?->getFirstMediaUrl('logo') ?: null,
             ],
         ];
+    }
+
+    /**
+     * طريقة الدفع كما يقرؤها تقرير المبيعات: فاتورةٌ سُدّدت بدفعات طريقتُها
+     * طرقُ دفعاتها (وطريقة الفاتورة لصفٍّ قديم بلا طريقة)، وإلا فطريقة الفاتورة.
+     * بغير هذا عرضت فاتورة العربون «طريقة الدفع: —» وهي مسدَّدة بالشبكة.
+     */
+    private function paymentMethodLabel(): ?string
+    {
+        $own = $this->paymentMethod?->name;
+
+        if (! $this->relationLoaded('payments') || $this->payments->isEmpty()) {
+            return $own;
+        }
+
+        $names = $this->payments
+            ->map(fn (InvoicePayment $payment) => $payment->paymentMethod?->name ?? $own)
+            ->filter()
+            ->unique()
+            ->values();
+
+        return $names->isEmpty() ? $own : $names->implode(' + ');
     }
 
     /**

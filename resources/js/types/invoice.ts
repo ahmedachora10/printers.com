@@ -53,10 +53,21 @@ export interface InvoicePayment {
     amount: number;
     paidAt: string | null;
     paymentMethod: string | null;
+    paymentMethodId: number | null;
     recordedByName: string | null;
     notes: string | null;
     /** رابط إيصال هذه الدفعة (محمي بالصلاحية)، أو null إن لم يُرفق شيء */
     receiptUrl: string | null;
+}
+
+/** تغييرٌ واحد لطريقة الدفع — على الفاتورة أو على دفعةٍ منها (تاسك 99). */
+export interface PaymentMethodChange {
+    id: number;
+    old: string | null;
+    new: string | null;
+    isPayment: boolean;
+    byName: string | null;
+    at: string | null;
 }
 
 export interface InvoiceAgent {
@@ -111,7 +122,9 @@ export interface Invoice {
     customerName: string | null;
     customerPhone: string | null;
     customerTaxNumber: string | null;
+    /** طريقة الدفع كما تُقرأ: طرق الدفعات إن سُدّدت بدفعات، وإلا طريقة الفاتورة (تاسك 99) */
     paymentMethod: string | null;
+    /** طريقة الفاتورة نفسها — هي ما يحرس الاعتماد */
     paymentMethodId: number | null;
     /** ملاحظات على مستوى الفاتورة كاملة — تختلف عن ملاحظات السطر */
     notes: string | null;
@@ -132,6 +145,8 @@ export interface Invoice {
     /** المحاسب لا يعدّل الخدمات ولا الأسعار — يبقى له هذان على فاتورة الموظف */
     canEditCustomer: boolean;
     canEditPaymentMethod: boolean;
+    /** تعديل طريقة كل دفعة — لفاتورةٍ سُدّدت بدفعات (تاسك 99) */
+    canEditPaymentRows: boolean;
     canReturn: boolean;
     refunds?: InvoiceRefund[];
     branch: InvoiceBranch;

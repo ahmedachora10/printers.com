@@ -136,7 +136,7 @@ describe('Accountant scope on an employee invoice', function () {
     it('names the payment method from the invoice screen and stays there', function () {
         $this->actingAs($this->accountant)
             ->from($this->showUrl)
-            ->patch(route('invoices.service.update-payment-method', $this->invoice), [
+            ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $this->invoice->id]), [
                 'payment_method_id' => $this->cash->id,
             ])->assertRedirect($this->showUrl);
 
@@ -151,7 +151,7 @@ describe('Accountant scope on an employee invoice', function () {
 
         $this->actingAs($this->accountant)
             ->from($this->showUrl)
-            ->patch(route('invoices.service.update-payment-method', $this->invoice), [
+            ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $this->invoice->id]), [
                 'payment_method_id' => $foreign->id,
             ])->assertSessionHasErrors('payment_method_id');
 
