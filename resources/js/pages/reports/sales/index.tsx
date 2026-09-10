@@ -247,7 +247,7 @@ export default function SalesReportIndex({
                     />
                     <SummaryCard
                         icon={<PiggyBank className="size-4" />}
-                        label="المتبقي من النقد"
+                        label="متبقي النقد"
                         value={formatCurrency(totals.cashRemaining)}
                         valueClass={totals.cashRemaining < 0 ? 'text-rose-600' : 'text-green-600'}
                         hint={CASH_HINT}
