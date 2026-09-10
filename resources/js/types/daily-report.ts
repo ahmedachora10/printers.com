@@ -7,6 +7,8 @@ export interface DailyReportRow {
     isTotal: boolean;
     products: number;
     services: number;
+    /** جملة رسوم التوصيل — خارج «الخدمات» وداخلٌ في «الإجمالي» (تاسك 93) */
+    shipping: number;
     total: number;
     /** ما حُصِّل فعلاً في اليوم من دفعات الفواتير، صافياً بعد طرح المرتجعات. */
     collected: number;
@@ -22,6 +24,8 @@ export interface DailyReportTotals {
     dayCount: number;
     products: number;
     services: number;
+    /** جملة رسوم التوصيل — خارج «الخدمات» وداخلٌ في «الإجمالي» (تاسك 93) */
+    shipping: number;
     total: number;
     collected: number;
     refunds: number;

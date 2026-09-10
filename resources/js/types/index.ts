@@ -71,6 +71,12 @@ export interface PageMeta {
     to: number | null;
 }
 
+/** خيارُ enum قادمٌ من الخادم: القيمة المخزَّنة وتسميتها العربية. */
+export interface EnumOption<T extends string = string> {
+    value: T;
+    label: string;
+}
+
 /** جدولٌ مرقَّم: صفوف الصفحة الحالية وترويستها. */
 export interface Paginated<T> {
     data: T[];

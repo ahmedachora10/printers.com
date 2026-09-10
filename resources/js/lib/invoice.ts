@@ -116,6 +116,12 @@ export interface TotalsBreakdownInput {
     totalAmount: number;
     /** الخصومات كما تُطرح فعلاً من فاتورة العميل (شاملة للضريبة)، بترتيب العرض */
     discounts: number[];
+    /**
+     * رسم التوصيل شاملاً الضريبة (تاسك 93) — صفرٌ أو غائبٌ على كل فاتورة بلا شحن.
+     * يُمرَّر ليُطرح من المجموع الفرعي: بغيره يبتلعه، إذ يُشتقّ الفرعيُّ بالعكس
+     * من الإجمالي فيظهر بيعُ الخدمات أغلى مما كان.
+     */
+    shippingFee?: number;
 }
 
 export interface TotalsBreakdown {
@@ -123,6 +129,8 @@ export interface TotalsBreakdown {
     subtotal: number;
     /** الخصومات نفسها صافيةً من الضريبة، بنفس ترتيب المدخل */
     discounts: number[];
+    /** رسم التوصيل صافياً من الضريبة — سطرٌ مستقلٌّ يُضاف فوق الإجمالي */
+    shipping: number;
     vatAmount: number;
     /** الإجمالي شامل الضريبة = ما يدفعه العميل */
     total: number;
@@ -141,13 +149,19 @@ const round2 = (value: number): number => Math.round(value * 100) / 100;
  * المجموع الفرعي مشتقّ من (الإجمالي − الضريبة) مضافاً إليه الخصومات الصافية،
  * لا من مجموع الأسطر، حتى لا يُنتج التقريب فرق قرش في العمود.
  */
-export function invoiceTotals({ vatPct, vatAmount, totalAmount, discounts }: TotalsBreakdownInput): TotalsBreakdown {
+export function invoiceTotals({ vatPct, vatAmount, totalAmount, discounts, shippingFee = 0 }: TotalsBreakdownInput): TotalsBreakdown {
     const netDiscounts = discounts.map((discount) => round2(discount / (1 + vatPct / 100)));
-    const net = round2(totalAmount - vatAmount);
+    // تاسك 93: حصّة الشحن تخرج من الصافي قبل اشتقاق المجموع الفرعي — الشحن
+    // بيعُ خدمةِ نقلٍ لا بيعُ خدمات المركز، فيُعرض سطراً مستقلاً فوق الإجمالي:
+    //
+    //   المجموع الفرعي − الخصومات + التوصيل + الضريبة = الإجمالي
+    const netShipping = round2(shippingFee / (1 + vatPct / 100));
+    const net = round2(totalAmount - vatAmount - netShipping);
 
     return {
         subtotal: round2(net + netDiscounts.reduce((sum, discount) => sum + discount, 0)),
         discounts: netDiscounts,
+        shipping: netShipping,
         vatAmount,
         total: totalAmount,
     };

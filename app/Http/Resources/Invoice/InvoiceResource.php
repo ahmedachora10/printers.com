@@ -152,6 +152,11 @@ class InvoiceResource extends JsonResource
             'vatPct' => (float) $this->vat_pct,
             'vatAmount' => (float) $this->vat_amount,
             'totalAmount' => (float) $this->total_amount,
+            // تاسك 93 — التوصيل. المورد متعدّد الأشكال يخدم فاتورة المنتجات
+            // أيضاً وهي بلا أعمدة شحن، فيُحرس كلُّ حقلٍ بنوع الفاتورة و`null`
+            // فيها يعني «لا شحن على هذا النوع» فلا يُطبع له سطر.
+            'shippingFee' => $isServiceInvoice ? (float) $this->resource->shipping_fee : null,
+            'shippingProviderName' => $isServiceInvoice ? $this->resource->shippingProvider?->name : null,
             'employeeCommission' => $this->resource instanceof ServiceInvoice
                 ? (float) $this->resource->employee_commission
                 : null,

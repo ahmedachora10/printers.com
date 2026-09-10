@@ -144,6 +144,9 @@ class DailyReportController extends Controller
                 'isTotal' => false,
                 'products' => 0.0,
                 'services' => 0.0,
+                // تاسك 93: الشحن خارج «الخدمات» وداخلٌ في «الإجمالي» — فما بيع
+                // يبقى بيعاً، وما دفعه العميل يبقى مطابقاً للمحصَّل.
+                'shipping' => 0.0,
                 'total' => 0.0,
                 'collected' => 0.0,
                 'refunds' => 0.0,
@@ -174,7 +177,10 @@ class DailyReportController extends Controller
                 $employeeId = $detailed ? (int) $row->user_id : 0;
                 $ensure($day, $employeeId);
                 $buckets[$day][$employeeId][$key] += (float) $row->gross;
-                $buckets[$day][$employeeId]['total'] += (float) $row->gross;
+                $buckets[$day][$employeeId]['shipping'] += (float) $row->shipping;
+                // الإجمالي يجمع البيع والشحن معاً: هو ما على الفاتورة، ويقابل
+                // عمود «المحصَّل» فلا ينكسر التطابق بينهما.
+                $buckets[$day][$employeeId]['total'] += (float) $row->gross + (float) $row->shipping;
                 $buckets[$day][$employeeId]['vat'] += (float) $row->vat;
             }
         }
@@ -262,6 +268,7 @@ class DailyReportController extends Controller
             'employeeName' => null,
             'isTotal' => true,
             'products' => $sum('products'),
+            'shipping' => $sum('shipping'),
             'services' => $sum('services'),
             'total' => $sum('total'),
             // صفوف اليوم خُصمت منها مرتجعاتها قبل بلوغ هذه الدالة، فالمجموع
@@ -307,9 +314,15 @@ class DailyReportController extends Controller
         // «المحصَّل» 115 لنفس اليوم. الاسم `gross` صريح حتى لا يُقرأ صافياً.
         // الضريبة تبقى في عمودها للعرض، ولم يتغيّر تقرير المبيعات ولا لوحة
         // التحكم — هما صافيان بقرار التاسك 37، وخلط الاثنين يعطي رقمين باسم واحد.
+        // تاسك 93: رسم التوصيل يُطرح من مبيعات الخدمات ويُعرض عموداً مستقلاً —
+        // مالُ الشحن أجرةُ سائقٍ لا بيعُ المركز، وتركُه داخل `gross` يضخّم
+        // مبيعات اليوم بما لم يبعه أحد. وفاتورة المنتجات بلا عمود شحن فتقرأ صفراً.
+        $shipping = $table === 'service_invoices' ? $table.'.shipping_fee' : '0';
+
         $columns = [
             DB::raw('DATE('.$approvedAt.') as day'),
-            DB::raw('COALESCE(SUM('.$table.'.total_amount), 0) as gross'),
+            DB::raw('COALESCE(SUM('.$table.'.total_amount - '.$shipping.'), 0) as gross'),
+            DB::raw('COALESCE(SUM('.$shipping.'), 0) as shipping'),
             DB::raw('COALESCE(SUM('.$table.'.vat_amount), 0) as vat'),
         ];
 
@@ -557,6 +570,7 @@ class DailyReportController extends Controller
             'dayCount' => $details->pluck('date')->unique()->count(),
             'products' => (float) $details->sum('products'),
             'services' => (float) $details->sum('services'),
+            'shipping' => (float) $details->sum('shipping'),
             'total' => (float) $details->sum('total'),
             'collected' => (float) $details->sum('collected'),
             'refunds' => (float) $details->sum('refunds'),

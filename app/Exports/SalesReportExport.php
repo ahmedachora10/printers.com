@@ -39,7 +39,9 @@ class SalesReportExport implements WithMultipleSheets
     {
         return new ReportSheet(
             'الفواتير',
-            ['رقم الفاتورة', 'النوع', 'الحركة', 'الفرع', 'الموظف', 'طريقة الدفع', 'الإجمالي قبل الخصم', 'الخصومات', 'الضريبة', 'الإجمالي', 'تاريخ الدفع'],
+            // ⚠️ العناوين موضعية: أي عمودٍ يُضاف هنا يُضاف في map أدناه بالترتيب
+            // نفسه، وإلا انزاح كل ما بعده عن عنوانه.
+            ['رقم الفاتورة', 'النوع', 'الحركة', 'الفرع', 'الموظف', 'طريقة الدفع', 'الإجمالي قبل الخصم', 'الخصومات', 'الضريبة', 'التوصيل', 'الإجمالي', 'تاريخ الدفع'],
             $this->invoices->map(fn (array $inv) => [
                 $inv['invoiceNumber'],
                 $inv['type'],
@@ -51,6 +53,7 @@ class SalesReportExport implements WithMultipleSheets
                 $this->money($inv['subtotal']),
                 $this->money($inv['discounts']),
                 $this->money($inv['vat']),
+                $this->money($inv['shipping'] ?? 0),
                 $this->money($inv['total']),
                 $inv['paidAt'] ? Carbon::parse($inv['paidAt'])->format('d/m/Y') : '—',
             ]),

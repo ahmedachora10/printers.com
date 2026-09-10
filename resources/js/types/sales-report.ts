@@ -3,6 +3,8 @@ export interface SalesReportTotals {
     subtotal: number;
     discounts: number;
     vat: number;
+    /** جملة رسوم التوصيل — داخلةٌ في الإجمالي ومعروضةٌ مستقلّةً (تاسك 93) */
+    shipping: number;
     /** جملة ما رُدّ للعملاء، موجبةً — و`total` صافٍ منها */
     refunds: number;
     total: number;
@@ -19,6 +21,8 @@ export interface SalesReportTypeRow {
     subtotal: number;
     discounts: number;
     vat: number;
+    /** جملة رسوم التوصيل — داخلةٌ في الإجمالي ومعروضةٌ مستقلّةً (تاسك 93) */
+    shipping: number;
     refunds: number;
     total: number;
 }

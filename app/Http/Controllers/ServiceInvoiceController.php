@@ -29,6 +29,8 @@ use App\Models\BranchService;
 use App\Models\BranchServiceMaterial;
 use App\Models\Coupon;
 use App\Models\Customer;
+use App\Models\DeliveryProvider;
+use App\Models\DeliveryZone;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\User;
@@ -70,7 +72,7 @@ class ServiceInvoiceController extends Controller
         $user = Auth::user();
         $branchId = (int) $invoice->branch_id;
 
-        $invoice->load(['lines', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'invoiceAgents:id,service_invoice_id,agent_id']);
+        $invoice->load(['lines', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'customer.addresses', 'invoiceAgents:id,service_invoice_id,agent_id']);
 
         $loyalty = LoyaltyConfig::forBranch($branchId);
         $loyaltyActive = (bool) $loyalty->is_active;
@@ -113,6 +115,14 @@ class ServiceInvoiceController extends Controller
                 'internalNotes' => $invoice->internal_notes,
                 // «YYYY-MM-DD HH:MM» — الصيغة التي يقرأها منتقي الموعد في الواجهة.
                 'deliveryAt' => $invoice->delivery_at?->format('Y-m-d H:i'),
+                // تاسك 93 — التوصيل يعود إلى الشاشة كما حُفظ، فإعادة الحفظ لا
+                // تُسقط سائقاً ولا عنواناً.
+                'shippingProviderId' => $invoice->shipping_provider_id,
+                'shippingZoneId' => $invoice->shipping_zone_id,
+                'shippingFee' => (float) $invoice->shipping_fee,
+                'shippingDistanceKm' => $invoice->shipping_distance_km !== null ? (float) $invoice->shipping_distance_km : null,
+                'customerAddressId' => $invoice->customer_address_id,
+                'shippingAddress' => $invoice->shipping_address,
                 'lines' => $invoice->lines->map(function ($line) use ($servicesById) {
                     $service = $servicesById->get($line->branch_service_id);
 
@@ -554,6 +564,65 @@ class ServiceInvoiceController extends Controller
         return $recipients->unique('id')->reject(fn (User $u) => $u->id === Auth::id())->values();
     }
 
+    /**
+     * تاسك 93 — «بيان توصيل»: الورقة التي تُسلَّم للسائق.
+     *
+     * تحمل ما يحتاجه ليصل ويسلّم — العميل وجوّاله وعنوانه، ورقم الطلب وبنوده،
+     * واسمه هو، وقيمة التوصيل — و**لا تحمل أسعار البنود ولا أي عمولة**: السائق
+     * طرفٌ خارجيّ لا يرى ما باع به المركز.
+     *
+     * ورقةٌ مستقلّة بزرٍّ مستقلّ لا تُطبع تلقائياً مع الفاتورة، بنصّ قرار العميل.
+     */
+    public function deliveryNote(ServiceInvoice $invoice): Response
+    {
+        Gate::authorize('view', $invoice);
+
+        // بيانٌ بلا سائق لا معنى له — الورقة كلّها موجّهةٌ إليه.
+        abort_if($invoice->shipping_provider_id === null, 404, 'لا يوجد توصيل على هذه الفاتورة.');
+
+        $invoice->load([
+            'lines',
+            'customer:id,full_name,phone',
+            'branch:id,name,phone,address',
+            'shippingProvider:id,name,phone,type',
+            'shippingZone:id,name',
+        ]);
+
+        return Inertia::render('invoices/delivery-note', [
+            'note' => [
+                'invoiceNumber' => $invoice->invoice_number,
+                'createdAt' => $invoice->created_at?->toIso8601String(),
+                // موعد تسليم العمل — يفيد السائق متى كان الطلب مرتبطاً بموعد.
+                'deliveryAt' => $invoice->delivery_at?->toIso8601String(),
+                'customerName' => $invoice->customer?->full_name,
+                'customerPhone' => $invoice->customer?->phone,
+                // اللقطة النصّية لا الدفتر: ما كُتب وقت الفوترة هو ما يُطبع.
+                'address' => $invoice->shipping_address,
+                'zoneName' => $invoice->shippingZone?->name,
+                'distanceKm' => $invoice->shipping_distance_km !== null ? (float) $invoice->shipping_distance_km : null,
+                'providerName' => $invoice->shippingProvider?->name,
+                'providerPhone' => $invoice->shippingProvider?->phone,
+                'shippingFee' => (float) $invoice->shipping_fee,
+                // ملاحظة العميل تفيد السائق (طابق، بوابة…)؛ والداخلية لا تخرج.
+                'notes' => $invoice->notes,
+                // البنود بأسمائها وكمّياتها وحدها — بلا سعرٍ ولا إجمالي.
+                'lines' => $invoice->lines->map(fn ($line) => [
+                    'name' => $line->service_name,
+                    'notes' => $line->notes,
+                    'qty' => $line->qty,
+                ])->values(),
+            ],
+            'branch' => [
+                'name' => $invoice->branch?->name,
+                'phone' => $invoice->branch?->phone,
+                'address' => $invoice->branch?->address,
+                // بيانٌ داخليّ لا فاتورة ضريبية: لا رقم ضريبي ولا رمز ZATCA.
+                'taxNumber' => null,
+                'logoUrl' => $invoice->branch?->getFirstMediaUrl('logo') ?: null,
+            ],
+        ]);
+    }
+
     public function print(ServiceInvoice $invoice): Response
     {
         Gate::authorize('view', $invoice);
@@ -585,6 +654,8 @@ class ServiceInvoiceController extends Controller
                 'vatPct' => (float) $invoice->vat_pct,
                 'vatAmount' => (float) $invoice->vat_amount,
                 'totalAmount' => (float) $invoice->total_amount,
+                // تاسك 93: سطر التوصيل يُطبع مستقلاً فوق الإجمالي.
+                'shippingFee' => (float) $invoice->shipping_fee,
                 // العربون وما بقي على العميل — يُطبعان تحت الإجمالي متى قُبضت دفعة.
                 'hasPayments' => $invoice->payments->isNotEmpty(),
                 'paidAmount' => $invoice->paidAmount(),
@@ -662,7 +733,65 @@ class ServiceInvoiceController extends Controller
                 'redemptionRate' => (float) ($loyalty?->redemption_rate ?? 0),
                 'minRedemptionPoints' => (int) ($loyalty?->min_redemption_points ?? 0),
             ],
+            // تاسك 93 — التوصيل: استعلامان ثابتان بجوار طرق الدفع، لا واحدٌ لكل
+            // خدمة، فلا يزيدان عدد استعلامات الشاشة بعدد الخدمات.
+            'shippingProviders' => $this->shippingProviderOptions($branchId),
+            'shippingZones' => $this->shippingZoneOptions($branchId),
+            // من يملك كتابة قيمة التوصيل يدوياً: الإدارة لا الموظف. الواجهة
+            // تُقفل الحقل، والخادم يتجاهل ما يُرسله الموظف على أي حال.
+            'canEditShippingFee' => ! $user->roleName->isEmployee(),
         ];
+    }
+
+    /**
+     * مزوّدو التوصيل النشطون في الفرع (تاسك 93).
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function shippingProviderOptions(?int $branchId): Collection
+    {
+        if ($branchId === null) {
+            return collect();
+        }
+
+        return DeliveryProvider::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get()
+            ->map(fn (DeliveryProvider $provider) => [
+                'id' => $provider->id,
+                'name' => $provider->name,
+                'typeLabel' => $provider->type->label(),
+            ]);
+    }
+
+    /**
+     * شرائح أسعار التوصيل النشطة في الفرع، مرتّبةً: الأحياء أولاً ثم المسافات
+     * — والأحياء أولاً لأنها الطريق الأغلب في نقطة البيع.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function shippingZoneOptions(?int $branchId): Collection
+    {
+        if ($branchId === null) {
+            return collect();
+        }
+
+        return DeliveryZone::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->ordered()
+            ->get()
+            ->map(fn (DeliveryZone $zone) => [
+                'id' => $zone->id,
+                'name' => $zone->name,
+                'type' => $zone->type->value,
+                'fromKm' => $zone->from_km !== null ? (float) $zone->from_km : null,
+                'toKm' => $zone->to_km !== null ? (float) $zone->to_km : null,
+                'rangeLabel' => $zone->rangeLabel(),
+                'price' => (float) $zone->price,
+            ]);
     }
 
     /**

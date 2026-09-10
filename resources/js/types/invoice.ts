@@ -102,6 +102,9 @@ export interface Invoice {
     vatPct: number;
     vatAmount: number;
     totalAmount: number;
+    /** تاسك 93 — التوصيل. null على فواتير المنتجات: لا شحن على هذا النوع. */
+    shippingFee: number | null;
+    shippingProviderName: string | null;
     employeeCommission: number | null;
     /** الموظف صاحب الفاتورة — مَن أنشأها، لا مَن يطبعها */
     userName: string | null;

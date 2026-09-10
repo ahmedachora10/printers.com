@@ -109,6 +109,40 @@ export interface PosCustomer {
     tierLabel: string;
     tierDiscountPct: number;
     loyaltyEligible: boolean;
+    /** دفتر عناوين العميل (تاسك 93) — يسافر مع البطاقة فلا رحلة ثانية لجلبه */
+    addresses: PosCustomerAddress[];
+}
+
+/** عنوانٌ محفوظ في دفتر العميل، يحمل شريحة توصيله (تاسك 93). */
+export interface PosCustomerAddress {
+    id: number;
+    label: string | null;
+    address: string;
+    locationUrl: string | null;
+    /** «المكتب — طريق الملك فهد» — ما يُعرض في المنتقي */
+    displayLabel: string;
+    /** اختيار العنوان يملأ الشريحة وسعرها بلا مسافة تُقدَّر */
+    deliveryZoneId: number | null;
+    isDefault: boolean;
+}
+
+/** مزوّد توصيل متاح في الفرع. */
+export interface PosShippingProvider {
+    id: number;
+    name: string;
+    typeLabel: string;
+}
+
+/** شريحة سعر توصيل: حيٌّ باسمه أو مدىً بالكيلومترات. */
+export interface PosShippingZone {
+    id: number;
+    name: string;
+    type: 'area' | 'distance';
+    fromKm: number | null;
+    toKm: number | null;
+    rangeLabel: string | null;
+    /** شاملٌ للضريبة كسائر أسعار النظام (تاسك 37) */
+    price: number;
 }
 
 export interface PosLoyalty {
@@ -189,6 +223,13 @@ export interface EditServiceInvoice {
     internalNotes: string | null;
     /** موعد تسليم العمل بصيغة «YYYY-MM-DD HH:MM» كما يقرأه المنتقي */
     deliveryAt: string | null;
+    /** التوصيل كما حُفظ (تاسك 93) — «التوصيل» غير «موعد التسليم» أعلاه */
+    shippingProviderId: number | null;
+    shippingZoneId: number | null;
+    shippingFee: number;
+    shippingDistanceKm: number | null;
+    customerAddressId: number | null;
+    shippingAddress: string | null;
     lines: EditServiceInvoiceLine[];
 }
 
@@ -243,6 +284,11 @@ export interface PosInvoice {
     vatPct: number;
     vatAmount: number;
     totalAmount: number;
+    /**
+     * رسم التوصيل شاملاً الضريبة (تاسك 93). اختياريّ لأن إيصال المنتجات يشترك
+     * في هذا النوع وهو بلا شحن.
+     */
+    shippingFee?: number | null;
     /** العربون وما بقي على العميل — يُطبعان تحت الإجمالي متى قُبضت دفعة */
     hasPayments: boolean;
     paidAmount: number;

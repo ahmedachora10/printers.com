@@ -37,6 +37,12 @@ class ServiceInvoice extends Model implements HasMedia
         'points_redeemed',
         'points_discount',
         'points_redeemed_at',
+        'shipping_fee',
+        'shipping_provider_id',
+        'shipping_zone_id',
+        'shipping_distance_km',
+        'customer_address_id',
+        'shipping_address',
         'vat_pct',
         'vat_amount',
         'total_amount',
@@ -63,6 +69,8 @@ class ServiceInvoice extends Model implements HasMedia
         'points_redeemed' => 'integer',
         'points_discount' => 'decimal:2',
         'points_redeemed_at' => 'datetime',
+        'shipping_fee' => 'decimal:2',
+        'shipping_distance_km' => 'decimal:2',
         'vat_pct' => 'decimal:2',
         'vat_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
@@ -150,6 +158,18 @@ class ServiceInvoice extends Model implements HasMedia
     {
         return $this->belongsToMany(Agent::class, 'service_invoice_agent', 'service_invoice_id', 'agent_id')
             ->withPivot(['discount_mode', 'discount_type', 'rate', 'discount_amount', 'rebate_amount', 'line_commission_amount', 'agent_payment_id']);
+    }
+
+    /** مزوّد التوصيل — سائق أو شركة (تاسك 93). */
+    public function shippingProvider(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryProvider::class, 'shipping_provider_id');
+    }
+
+    /** شريحة سعر التوصيل التي حُسب منها الرسم. */
+    public function shippingZone(): BelongsTo
+    {
+        return $this->belongsTo(DeliveryZone::class, 'shipping_zone_id');
     }
 
     /** @return BelongsTo<PaymentMethod, $this> */

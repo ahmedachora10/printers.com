@@ -57,6 +57,25 @@ class SalesReportController extends Controller
         return "({$alias}.tier_discount_amount + {$alias}.coupon_discount + {$alias}.points_discount + {$alias}.agent_discount)";
     }
 
+    /**
+     * تاسك 93 — رسم التوصيل، مقروءاً من جدول الفاتورة أو صفراً.
+     *
+     * ⚠️ التقرير اتحادٌ بين جدولَي الفواتير، وفاتورة المنتجات بلا عمود شحن في
+     * هذه المرحلة: لا بدّ من `0` صريحة على فرعها وإلا اختلّت أعمدة الاتحاد.
+     */
+    private function shipping(string $table, string $alias): string
+    {
+        return $table === 'service_invoices' ? "{$alias}.shipping_fee" : '0';
+    }
+
+    /**
+     * وما رُدّ منه على المرتجع — بقرار المحاسب المكتوب لا باستنتاجٍ نسبيّ.
+     */
+    private function shippingRefunded(string $table, string $alias): string
+    {
+        return $table === 'service_invoices' ? "{$alias}.shipping_refunded" : '0';
+    }
+
     public function index(SalesReportFilterRequest $request, ResolveReportScope $resolveScope): Response
     {
         $scope = $resolveScope->handle($request);
@@ -130,6 +149,8 @@ class SalesReportController extends Controller
     {
         $morphClass = $this->morphClassFor($table);
         $discounts = $this->discounts('i');
+        $shipping = $this->shipping($table, 'i');
+        $shippingRefunded = $this->shippingRefunded($table, 'r');
         // حصة الدفعة من الفاتورة: تُوزَّع بها أرقامُ الفاتورة (الفرعي، الخصومات،
         // الضريبة) فتبقى المعادلة متسقة على التحصيل الجزئي. الضرب في 1.0 يفرض
         // قسمةً عشرية — SQLite يقسم الأعداد الصحيحة قسمةً صحيحة فتصير الحصة صفراً.
@@ -151,6 +172,9 @@ class SalesReportController extends Controller
                 DB::raw("i.subtotal * ({$share}) as subtotal_share"),
                 DB::raw("{$discounts} * ({$share}) as discounts_share"),
                 DB::raw("i.vat_amount * ({$share}) as vat_share"),
+                // التوصيل يتبع الحصّة كبقية أرقام الفاتورة: دفعةٌ جزئية تحمل
+                // جزءاً من الشحن كما تحمل جزءاً من الضريبة.
+                DB::raw("{$shipping} * ({$share}) as shipping_share"),
             ]);
 
         $direct = DB::table($table.' as i')
@@ -170,6 +194,7 @@ class SalesReportController extends Controller
                 DB::raw('i.subtotal as subtotal_share'),
                 DB::raw("{$discounts} as discounts_share"),
                 DB::raw('i.vat_amount as vat_share'),
+                DB::raw("{$shipping} as shipping_share"),
             ]);
 
         // C. المرتجعات — أحداثٌ سالبة بحصّتها من الفاتورة. تُقصر على الفواتير
@@ -196,6 +221,10 @@ class SalesReportController extends Controller
                 DB::raw("-i.subtotal * ({$refundShare}) as subtotal_share"),
                 DB::raw("-{$discounts} * ({$refundShare}) as discounts_share"),
                 DB::raw("-i.vat_amount * ({$refundShare}) as vat_share"),
+                // ما رُدّ من الشحن مكتوبٌ على صفّ المرتجع بقرار المحاسب، فلا
+                // يُوزَّع نسبياً كبقية الأرقام: مرتجعٌ لم يُردّ شحنه لا يُنقص
+                // جملة التوصيل، ومرتجعٌ رُدّ يُنقصها بما رُدّ بالضبط.
+                DB::raw("-{$shippingRefunded} as shipping_share"),
             ]);
 
         return DB::query()
@@ -235,6 +264,9 @@ class SalesReportController extends Controller
             DB::raw('COALESCE(SUM(events.subtotal_share), 0) as subtotal'),
             DB::raw('COALESCE(SUM(events.discounts_share), 0) as discounts'),
             DB::raw('COALESCE(SUM(events.vat_share), 0) as vat'),
+            // تاسك 93: جملة الشحن مستقلّةً حتى لا تُقرأ إيراد خدمات. تُضاف هنا
+            // مرّةً واحدة فترثها كل تفصيلات التقرير.
+            DB::raw('COALESCE(SUM(events.shipping_share), 0) as shipping'),
             DB::raw('COALESCE(SUM(events.realized), 0) as total'),
             DB::raw(self::REFUNDS_EXPR.' as refunds'),
         ];
@@ -248,7 +280,7 @@ class SalesReportController extends Controller
      */
     private function totals(array $scope, string $type): array
     {
-        $subtotal = $discounts = $vat = $total = $refunds = 0.0;
+        $subtotal = $discounts = $vat = $total = $refunds = $shipping = 0.0;
         $count = 0;
 
         foreach ($this->tablesForType($type) as $table) {
@@ -258,6 +290,7 @@ class SalesReportController extends Controller
             $subtotal += (float) $row->subtotal;
             $discounts += (float) $row->discounts;
             $vat += (float) $row->vat;
+            $shipping += (float) $row->shipping;
             $total += (float) $row->total;
             $refunds += (float) $row->refunds;
         }
@@ -271,6 +304,9 @@ class SalesReportController extends Controller
             'subtotal' => $subtotal,
             'discounts' => $discounts,
             'vat' => $vat,
+            // تاسك 93: جملة الشحن مستقلّةً — داخلةٌ في `total` كما يدفعها العميل،
+            // ومعروضةٌ بجانبه حتى لا تُقرأ إيراد خدمات.
+            'shipping' => round($shipping, 2),
             'refunds' => $refunds,
             'total' => $total,
             'expenses' => $expenses,
@@ -299,6 +335,7 @@ class SalesReportController extends Controller
                 'subtotal' => (float) $row->subtotal,
                 'discounts' => (float) $row->discounts,
                 'vat' => (float) $row->vat,
+                'shipping' => round((float) $row->shipping, 2),
                 'refunds' => (float) $row->refunds,
                 'total' => (float) $row->total,
             ];
@@ -526,6 +563,7 @@ class SalesReportController extends Controller
                     DB::raw('events.subtotal_share as subtotal'),
                     DB::raw('events.discounts_share as discounts'),
                     DB::raw('events.vat_share as vat'),
+                    DB::raw('events.shipping_share as shipping'),
                     DB::raw('events.realized as total'),
                 ]);
 
@@ -542,6 +580,7 @@ class SalesReportController extends Controller
                     'subtotal' => (float) $r->subtotal,
                     'discounts' => (float) $r->discounts,
                     'vat' => (float) $r->vat,
+                    'shipping' => (float) $r->shipping,
                     'total' => (float) $r->total,
                     'paidAt' => $r->paid_at ? Carbon::parse($r->paid_at)->toIso8601String() : null,
                 ]);

@@ -24,7 +24,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice } from '@/types/invoice';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Ban, CheckCircle2, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
+import { Ban, Bike, CheckCircle2, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -159,6 +159,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
         vatPct: invoice.vatPct,
         vatAmount: invoice.vatAmount,
         totalAmount: invoice.totalAmount,
+        shippingFee: invoice.shippingFee ?? 0,
         discounts: [invoice.tierDiscountAmount, invoice.couponDiscount, invoice.agentDiscount, invoice.pointsDiscount],
     });
 
@@ -358,6 +359,19 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                         )}
                         {invoice.status !== 'cancelled' && (
                             <>
+                                {/* تاسك 93: بيان السائق بزرٍّ مستقلّ لا يُطبع تلقائياً
+                                    مع الفاتورة — ولا يظهر إلا لطلبٍ له توصيل. */}
+                                {invoice.shippingFee !== null && invoice.shippingProviderName && (
+                                    <Button variant="outline" asChild>
+                                        <a
+                                            href={serviceInvoice.deliveryNote(invoice.id).url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                        >
+                                            <Bike className="size-4" /> بيان توصيل
+                                        </a>
+                                    </Button>
+                                )}
                                 <Button variant="outline" asChild>
                                     <a href={`${printBase}?format=thermal`} target="_blank" rel="noreferrer">
                                         <ReceiptText className="size-4" /> إيصال حراري
@@ -552,6 +566,14 @@ export default function InvoiceShow({ invoice, paymentMethodOptions }: Props) {
                                 {totals.discounts[1] > 0 && <TotalRow label="خصم الكوبون" value={`−${formatCurrency(totals.discounts[1])}`} />}
                                 {totals.discounts[2] > 0 && <TotalRow label="خصم المندوب" value={`−${formatCurrency(totals.discounts[2])}`} />}
                                 {totals.discounts[3] > 0 && <TotalRow label="خصم النقاط" value={`−${formatCurrency(totals.discounts[3])}`} />}
+                                {/* تاسك 93: التوصيل سطرٌ مستقلٌّ واضح فوق الإجمالي —
+                                    إضافةٌ لا خصم، ويظهر ولو كان مجّانياً. */}
+                                {invoice.shippingFee !== null && invoice.shippingFee !== undefined && (
+                                    <TotalRow
+                                        label={invoice.shippingProviderName ? `التوصيل — ${invoice.shippingProviderName}` : 'التوصيل'}
+                                        value={invoice.shippingFee > 0 ? formatCurrency(totals.shipping) : 'مجاني'}
+                                    />
+                                )}
                                 <TotalRow label={`الضريبة (${invoice.vatPct}%)`} value={formatCurrency(totals.vatAmount)} />
                                 <Separator className="my-1" />
                                 <TotalRow label="الإجمالي" value={formatCurrency(totals.total)} strong />

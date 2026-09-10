@@ -1,7 +1,6 @@
-export interface EnumOption {
-    value: string;
-    label: string;
-}
+import type { EnumOption } from '.';
+
+export type { EnumOption };
 
 export interface EmployeeOption {
     id: number;

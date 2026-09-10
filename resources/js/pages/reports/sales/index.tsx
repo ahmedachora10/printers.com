@@ -21,7 +21,7 @@ import {
     type SalesReportTypeRow,
 } from '@/types/sales-report';
 import { Head } from '@inertiajs/react';
-import { CreditCard, Download, Info, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Wallet } from 'lucide-react';
+import { Bike, CreditCard, Download, Info, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير المبيعات', href: '/reports/sales' }];
@@ -38,6 +38,8 @@ const typeColumns: ColumnDef<SalesReportTypeRow>[] = [
     { key: 'subtotal', header: 'قبل الخصم', cell: (row) => formatCurrency(row.subtotal) },
     { key: 'discounts', header: 'الخصومات', className: 'text-amber-600', cell: (row) => formatCurrency(row.discounts) },
     { key: 'vat', header: 'الضريبة', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.vat) },
+    // تاسك 93: الشحن عمودٌ مستقلّ حتى لا يُقرأ إيراد خدمات.
+    { key: 'shipping', header: 'التوصيل', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.shipping) },
     { key: 'refunds', header: 'المرتجعات', className: 'text-rose-600', cell: (row) => formatCurrency(row.refunds) },
     { key: 'total', header: 'الإجمالي', className: 'font-semibold text-green-600', cell: (row) => formatCurrency(row.total) },
 ];
@@ -200,6 +202,16 @@ export default function SalesReportIndex({
                         value={formatCurrency(totals.vat)}
                         valueClass="text-muted-foreground"
                     />
+                    {/* تاسك 93: بطاقةٌ لا تظهر إلا لفرعٍ يوصّل — الفرع بلا توصيل
+                        لا تُزحم شبكتُه ببطاقةٍ صفرها ثابت. */}
+                    {totals.shipping > 0 && (
+                        <SummaryCard
+                            icon={<Bike className="size-4" />}
+                            label="جملة التوصيل"
+                            value={formatCurrency(totals.shipping)}
+                            valueClass="text-muted-foreground"
+                        />
+                    )}
                     {/* بطاقةٌ لا تظهر إلا عند وجود مرتجعات، فتبقى الشبكة خمس
                         بطاقات في الحالة الغالبة ولا تُضغط أرقام العملة. */}
                     {totals.refunds > 0 && (
@@ -252,6 +264,7 @@ export default function SalesReportIndex({
                                     <TableCell className="font-bold">{formatCurrency(totals.subtotal)}</TableCell>
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.discounts)}</TableCell>
                                     <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.vat)}</TableCell>
+                                    <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.shipping)}</TableCell>
                                     <TableCell className="font-bold text-rose-600">{formatCurrency(totals.refunds)}</TableCell>
                                     <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
                                 </TableRow>

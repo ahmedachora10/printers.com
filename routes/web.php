@@ -23,6 +23,9 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\DeploymentController;
 use App\Http\Controllers\DeploymentTaskController;
+use App\Http\Controllers\DeliveryLogController;
+use App\Http\Controllers\DeliveryProviderController;
+use App\Http\Controllers\DeliveryZoneController;
 use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
@@ -49,6 +52,7 @@ use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\ServiceInvoiceController;
 use App\Http\Controllers\ServicePriceListController;
 use App\Http\Controllers\ServiceTemplateController;
+use App\Http\Controllers\ShippingController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StockReconciliationController;
 use App\Http\Controllers\SupplierController;
@@ -325,6 +329,12 @@ Route::middleware(['auth'])->group(function () {
             Route::get('{type}/{id}/receipt', [InvoiceReceiptController::class, 'show'])
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('receipt');
 
+            // تاسك 93 — بيان التوصيل: ورقة السائق. على فواتير الخدمات وحدها
+            // (لا شحن على المنتجات في هذه المرحلة)، وفي هذه المجموعة لا في
+            // مجموعة نقطة البيع كي يبلغها المحاسب أيضاً.
+            Route::get('service/{invoice}/delivery-note', [ServiceInvoiceController::class, 'deliveryNote'])
+                ->whereNumber('invoice')->name('service.delivery-note');
+
             // تاسك 95: الملاحظة الداخلية تُصحَّح بعد الاعتماد — تعليمات تنفيذٍ
             // لا رقمٌ مالي. من يملك تعديلها يُقرَّر داخل المتحكّم لكل فاتورة.
             Route::patch('{type}/{id}/internal-notes', [InvoiceController::class, 'updateInternalNotes'])
@@ -486,6 +496,26 @@ Route::middleware(['auth'])->group(function () {
         Route::resource('expense-categories', ExpenseCategoryController::class)
             ->parameters(['expense-categories' => 'expenseCategory'])
             ->only(['index', 'store', 'update', 'destroy']);
+
+        // تاسك 93 — التوصيل: شاشةٌ واحدة بتبويبين، ومورِدان يكتب كلٌّ منهما
+        // في جدوله. `toggle-status` قبل الـresource وإلا التقطه `{id}`.
+        Route::get('shipping', [ShippingController::class, 'index'])->name('shipping.index');
+
+        // تاسك 93 — كشف توصيلات اليوم: متابعةٌ تشغيلية قراءةً فقط.
+        Route::get('shipping/deliveries', [DeliveryLogController::class, 'index'])
+            ->name('shipping.deliveries');
+
+        Route::patch('delivery-providers/{deliveryProvider}/toggle-status', [DeliveryProviderController::class, 'toggleStatus'])
+            ->name('delivery-providers.toggle-status');
+        Route::resource('delivery-providers', DeliveryProviderController::class)
+            ->parameters(['delivery-providers' => 'deliveryProvider'])
+            ->only(['store', 'update', 'destroy']);
+
+        Route::patch('delivery-zones/{deliveryZone}/toggle-status', [DeliveryZoneController::class, 'toggleStatus'])
+            ->name('delivery-zones.toggle-status');
+        Route::resource('delivery-zones', DeliveryZoneController::class)
+            ->parameters(['delivery-zones' => 'deliveryZone'])
+            ->only(['store', 'update', 'destroy']);
 
         Route::patch('coupons/{coupon}/toggle-status', [CouponController::class, 'toggleStatus'])
             ->name('coupons.toggle-status');

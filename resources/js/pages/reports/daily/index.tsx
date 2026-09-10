@@ -88,6 +88,8 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
             // «المنتجات/الخدمات/الإجمالي» شاملة الضريبة منذ التاسك 58.
             { key: 'products', header: 'المنتجات', cell: (row) => formatCurrency(row.products) },
             { key: 'services', header: 'الخدمات', cell: (row) => formatCurrency(row.services) },
+            // تاسك 93: الشحن عمودٌ مستقلّ — أجرةُ سائقٍ لا بيعُ خدمة.
+            { key: 'shipping', header: 'التوصيل', cell: (row) => formatCurrency(row.shipping) },
             { key: 'total', header: 'الإجمالي', className: 'font-semibold text-green-600', cell: (row) => formatCurrency(row.total) },
             // المحصَّل: ما دخل الصندوق فعلاً ذلك اليوم (دفعات الفواتير)، لا ما استُحق.
             { key: 'collected', header: 'المحصَّل', className: 'font-medium text-sky-600', cell: (row) => formatCurrency(row.collected) },
@@ -217,6 +219,7 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
                                     {detailed && <TableCell />}
                                     <TableCell className="font-bold">{formatCurrency(totals.products)}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.services)}</TableCell>
+                                    <TableCell className="font-bold">{formatCurrency(totals.shipping)}</TableCell>
                                     <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
                                     <TableCell className="font-bold text-sky-600">{formatCurrency(totals.collected)}</TableCell>
                                     <TableCell className="font-bold text-rose-600">{formatCurrency(totals.refunds)}</TableCell>

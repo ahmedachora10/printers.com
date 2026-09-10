@@ -97,7 +97,34 @@ class Customer extends Model
             'tierLabel' => $this->tier->label(),
             'tierDiscountPct' => $eligible ? $loyalty->discountPctForTier($this->tier) : 0.0,
             'loyaltyEligible' => $eligible,
+            // تاسك 93: دفتر العناوين يسافر مع بطاقة العميل، فاختياره في نقطة
+            // البيع لا يكلّف استعلاماً. تُقرأ من العلاقة المحمَّلة وحدها — بلا
+            // تحميلٍ مسبق تعود فارغة ولا تُطلق استعلاماً لكل عميل في القائمة.
+            'addresses' => $this->relationLoaded('addresses')
+                ? $this->addresses->map(fn (CustomerAddress $address) => [
+                    'id' => $address->id,
+                    'label' => $address->label,
+                    'address' => $address->address,
+                    'locationUrl' => $address->location_url,
+                    'displayLabel' => $address->displayLabel(),
+                    'deliveryZoneId' => $address->delivery_zone_id,
+                    'isDefault' => $address->is_default,
+                ])->values()->all()
+                : [],
         ];
+    }
+
+    /**
+     * دفتر عناوين العميل (تاسك 93) — الافتراضيّ أولاً فيقع عليه اختيار نقطة
+     * البيع بلا بحث.
+     *
+     * @return HasMany<CustomerAddress, $this>
+     */
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(CustomerAddress::class)
+            ->orderByDesc('is_default')
+            ->orderBy('id');
     }
 
     /** @return HasMany<ProductInvoice, $this> */

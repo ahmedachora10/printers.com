@@ -127,6 +127,12 @@ class CreateRefundAction
                 }
             }
 
+            // تاسك 93: كم من هذا المبلغ ردٌّ لقيمة التوصيل؟ قرارُ المحاسب لكل
+            // حالة — السائق قد يكون ذهب وتكبّد الوقود، وقد يكون الطلب لم يُشحن.
+            // ما زاد على ما بقي من رسم الشحن غير مردود يُقصّ، فلا يُردّ الشحن
+            // مرّتين بمرتجعَين جزئيين.
+            $shippingRefunded = $this->resolveShippingRefunded($invoice, $type, $data, $amount);
+
             $refund = Refund::create([
                 'branch_id' => $invoice->branch_id,
                 'user_id' => $actor->id,
@@ -134,6 +140,7 @@ class CreateRefundAction
                 'invoice_id' => $invoice->id,
                 'invoice_type' => $type->modelClass(),
                 'amount' => $amount,
+                'shipping_refunded' => $shippingRefunded,
                 'reason' => $data['reason'],
                 'stock_reversed' => $reverseStock,
             ]);
@@ -155,7 +162,7 @@ class CreateRefundAction
 
             // النقاط والإنفاق التراكمي يُفكّان بعد كتابة صفّ المرتجع، لأن الحساب
             // يقوم على مجموع ما استُرجع على الفاتورة شاملاً هذه الدفعة.
-            $this->reverseLoyalty->handle($invoice, $amount);
+            $this->reverseLoyalty->handle($invoice, $amount, $shippingRefunded);
 
             // استُرجع كل ما حُصِّل: الفاتورة مرتجعة. تسقط من الإيراد ومن العمولة
             // المستحقة (ExcludeReturnedCommission)، ولا مطالبة على العميل
@@ -168,6 +175,43 @@ class CreateRefundAction
 
             return $refund;
         });
+    }
+
+    /**
+     * تاسك 93 — كم من مبلغ هذا المرتجع ردٌّ لقيمة التوصيل.
+     *
+     * قرارُ المحاسب صريحٌ في الطلب (`refund_shipping`)، ويُكتب على صفّ المرتجع
+     * ليُقرأ لاحقاً في الولاء والتقارير — ولا يُستنتج نسبياً من المبلغ، فالاستنتاج
+     * يخالف قراره في كل مرّة: إمّا يطرح من إنفاق العميل شحناً لم يُردّ، أو يُبقي
+     * فيه شحناً رُدّ.
+     *
+     * وسقفان يحرسانه: ما بقي من رسم الشحن غير مردود (فلا يُردّ مرّتين بمرتجعَين
+     * جزئيين)، ومبلغُ هذا المرتجع نفسه (فالشحن جزءٌ منه لا إضافةٌ عليه).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    private function resolveShippingRefunded(
+        ProductInvoice|ServiceInvoice $invoice,
+        InvoiceTypeEnum $type,
+        array $data,
+        float $amount,
+    ): float {
+        if (! ($data['refund_shipping'] ?? false)) {
+            return 0.0;
+        }
+
+        $fee = $invoice->shippingFee();
+
+        if ($fee <= 0) {
+            return 0.0;
+        }
+
+        $alreadyReturned = (float) Refund::query()
+            ->where('invoice_type', $type->modelClass())
+            ->where('invoice_id', $invoice->id)
+            ->sum('shipping_refunded');
+
+        return max(0.0, round(min($fee - $alreadyReturned, $amount), 2));
     }
 
     /**

@@ -280,6 +280,16 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
                             </div>
                         ) : null,
                     )}
+                    {/* تاسك 93: التوصيل سطرٌ مستقلٌّ واضح فوق الإجمالي — إضافةٌ
+                        لا خصم، فيقرأه العميل مفصولاً عن قيمة خدماته. */}
+                    {invoice.shippingFee !== null && invoice.shippingFee !== undefined && (
+                        <div className="flex justify-between">
+                            <span className="text-neutral-500">
+                                التوصيل{invoice.shippingProviderName ? ` — ${invoice.shippingProviderName}` : ''}
+                            </span>
+                            <span dir="ltr">{invoice.shippingFee > 0 ? formatCurrency(totals.shipping) : 'مجاني'}</span>
+                        </div>
+                    )}
                     <div className="flex justify-between">
                         <span className="text-neutral-500">الضريبة ({invoice.vatPct}%)</span>
                         <span dir="ltr">{formatCurrency(totals.vatAmount)}</span>

@@ -15,6 +15,9 @@ use App\Models\Agent;
 use App\Models\BranchService;
 use App\Models\Coupon;
 use App\Models\Customer;
+use App\Models\CustomerAddress;
+use App\Models\DeliveryProvider;
+use App\Models\DeliveryZone;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\User;
@@ -270,14 +273,33 @@ class CalculateServiceInvoiceAction
         // كامل سلسلة الخصومات هو ما يدفعه العميل بالضبط، والضريبة تُستخرج من
         // داخله لا تُضاف فوقه. الضريبة تُحسب بالطرح (الإجمالي − الصافي) لا بالضرب
         // في الصافي، حتى يبقى net + vat = total بالقرش مهما كان التقريب.
-        $total = round($afterAgent - $pointsDiscount, 2);
+        $servicesTotal = round($afterAgent - $pointsDiscount, 2);
+
+        // تاسك 93 — وعاءان لا وعاء واحد، وهذا جوهر البند كلّه:
+        //
+        //   `$servicesNet`  = مال الخدمات صافياً من الضريبة → أساس كل عمولة ونقطة.
+        //   `$netBeforeVat` = الإجمالي كلّه صافياً من الضريبة → الضريبة ورمز ZATCA.
+        //
+        // العميل شدّد بالأحمر: «احتساب العمولات بعد خصم قيمة التوصيل». ورسمُ
+        // الشحن يُضاف **بعد** كامل سلسلة الخصومات، فلا يخصمه كوبونٌ ولا فئةٌ ولا
+        // نقاط: العميل يدفعه كاملاً مهما بلغ خصمُ خدماته.
+        //
+        // الشحن صفرٌ في كل فاتورة قائمة، فالوعاءان متطابقان تماماً وكلُّ رقمٍ
+        // منشورٍ اليوم يبقى بالحرف — لا هجرة بيانات ولا إعادة حساب.
+        $shipping = $this->resolveShipping($data, $branchId, $customerId);
+        $shippingFee = $shipping['fee'];
+
+        $servicesNet = round($servicesTotal / (1 + $vatPct / 100), 2);
+
+        $total = round($servicesTotal + $shippingFee, 2);
         $netBeforeVat = round($total / (1 + $vatPct / 100), 2);
         $vatAmount = round($total - $netBeforeVat, 2);
 
-        // Rebate is computed on that net value, independently per agent.
+        // Rebate is computed on that net value, independently per agent —
+        // وعلى **مال الخدمات وحده**: ريبيتٌ على أجرة السائق ليس عمولةَ مندوب.
         foreach ($agents as $i => $agent) {
             if ($agent['mode'] === AgentDiscountModeEnum::Rebate) {
-                $agentRows[$i]['rebate_amount'] = $this->agentAmount($agent['type'], $agent['rate'], $netBeforeVat);
+                $agentRows[$i]['rebate_amount'] = $this->agentAmount($agent['type'], $agent['rate'], $servicesNet);
             }
         }
 
@@ -333,7 +355,11 @@ class CalculateServiceInvoiceAction
         // cost that does not shrink because the customer was given a discount. A
         // heavily discounted line can therefore have its whole base eaten — the
         // clamp stops it at zero rather than letting commission go negative.
-        $commissionRatio = $subtotal > 0 ? $netBeforeVat / $subtotal : 0.0;
+        //
+        // تاسك 93: النسبة تُقاس على `$servicesNet` لا على إجمالي الفاتورة —
+        // رسم التوصيل خارج أساس العمولة بنصّ العميل، فرفعُه لا يزيد ريالاً
+        // واحداً لأحد.
+        $commissionRatio = $subtotal > 0 ? $servicesNet / $subtotal : 0.0;
         $totalCommission = 0.0;
 
         foreach ($lines as $i => $line) {
@@ -364,6 +390,14 @@ class CalculateServiceInvoiceAction
                 'vat_amount' => $vatAmount,
                 'total_amount' => $total,
                 'employee_commission' => $totalCommission,
+                // تاسك 93 — التوصيل. الرسم داخلٌ في `total_amount` أعلاه،
+                // وخارجٌ عن كل أساس عمولة ونقطة.
+                'shipping_fee' => $shippingFee,
+                'shipping_provider_id' => $shipping['provider_id'],
+                'shipping_zone_id' => $shipping['zone_id'],
+                'shipping_distance_km' => $shipping['distance_km'],
+                'customer_address_id' => $shipping['address_id'],
+                'shipping_address' => $shipping['address'],
                 // Invoice-level remark for the customer — carried through
                 // untouched, like the per-line detail.
                 'notes' => $this->normalizeNotes($data['notes'] ?? null),
@@ -408,6 +442,129 @@ class CalculateServiceInvoiceAction
             ->whereIn('id', $ids)
             ->get()
             ->keyBy('id');
+    }
+
+    /**
+     * تاسك 93 — يحلّ بيانات التوصيل ويحسم قيمته.
+     *
+     * **الشريحة هي مصدر السعر لا الواجهة.** ما يرسله العميل من قيمة يُقبل فقط
+     * ممّن يملك تعديلها يدوياً — سوبر أدمن أو مدير فرع أو محاسب — وإلا أُخذ سعر
+     * الشريحة كما هو. فموظفٌ يكتب رسماً أقلّ لا يُخفّض على العميل شيئاً.
+     *
+     * والقرار يُقرأ من **المستخدم الفاعل** لا من صاحب الفاتورة، على منوال
+     * `actorMayEditMaterials()` و`actorBoundByPriceCap()`: تعديل المحاسب لفاتورة
+     * موظف لا يرث قيد الموظف، وتعديل الموظف لفاتورته لا يرث حرّية المحاسب.
+     *
+     * التوصيل المجّاني مسموح: قيمة صفر مع بقاء المزوّد مسجّلاً، فلا يُشترط رسمٌ
+     * موجب لوجود سائق.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array{fee: float, provider_id: ?int, zone_id: ?int, distance_km: ?float, address_id: ?int, address: ?string}
+     */
+    private function resolveShipping(array $data, int $branchId, ?int $customerId): array
+    {
+        $providerId = (int) ($data['shipping_provider_id'] ?? 0) ?: null;
+        $zoneId = (int) ($data['shipping_zone_id'] ?? 0) ?: null;
+        $addressId = (int) ($data['customer_address_id'] ?? 0) ?: null;
+
+        $empty = [
+            'fee' => 0.0,
+            'provider_id' => null,
+            'zone_id' => null,
+            'distance_km' => null,
+            'address_id' => null,
+            'address' => null,
+        ];
+
+        // لا مزوّد ولا شريحة = لا توصيل على هذه الفاتورة إطلاقاً.
+        if ($providerId === null && $zoneId === null) {
+            return $empty;
+        }
+
+        if ($providerId !== null) {
+            $provider = DeliveryProvider::query()
+                ->where('branch_id', $branchId)
+                ->where('is_active', true)
+                ->find($providerId);
+
+            if (! $provider) {
+                throw ValidationException::withMessages([
+                    'shipping_provider_id' => 'مزوّد التوصيل المحدد غير متاح في هذا الفرع.',
+                ]);
+            }
+        }
+
+        $zone = null;
+
+        if ($zoneId !== null) {
+            $zone = DeliveryZone::query()
+                ->where('branch_id', $branchId)
+                ->where('is_active', true)
+                ->find($zoneId);
+
+            if (! $zone) {
+                throw ValidationException::withMessages([
+                    'shipping_zone_id' => 'شريحة التوصيل المحددة غير متاحة في هذا الفرع.',
+                ]);
+            }
+        }
+
+        $submitted = isset($data['shipping_fee']) && $data['shipping_fee'] !== ''
+            ? round((float) $data['shipping_fee'], 2)
+            : null;
+
+        if ($submitted !== null && $submitted < 0) {
+            throw ValidationException::withMessages([
+                'shipping_fee' => 'قيمة التوصيل لا تقبل رقماً سالباً.',
+            ]);
+        }
+
+        if ($this->actorMayEditShippingFee()) {
+            // المراجع يكتب ما يرى؛ وإن لم يكتب شيئاً فسعر الشريحة.
+            $fee = $submitted ?? ($zone !== null ? (float) $zone->price : 0.0);
+        } else {
+            // الموظف: سعر الشريحة وحده. وبلا شريحة لا رسم — لا يخترع رقماً.
+            $fee = $zone !== null ? (float) $zone->price : 0.0;
+        }
+
+        // العنوان لقطةٌ نصّية: يُقرأ من الدفتر إن اختير منه، وإلا فما كُتب في
+        // نقطة البيع — والعميل العابر بلا بطاقة يمرّ من هنا بلا صفٍّ في الدفتر.
+        $address = $this->normalizeNotes($data['shipping_address'] ?? null);
+
+        if ($addressId !== null) {
+            $saved = CustomerAddress::query()
+                ->when($customerId !== null, fn ($q) => $q->where('customer_id', $customerId))
+                ->find($addressId);
+
+            if (! $saved) {
+                throw ValidationException::withMessages([
+                    'customer_address_id' => 'العنوان المحدد لا يخصّ هذا العميل.',
+                ]);
+            }
+
+            $address ??= $saved->address;
+        }
+
+        return [
+            'fee' => round($fee, 2),
+            'provider_id' => $providerId,
+            'zone_id' => $zoneId,
+            'distance_km' => isset($data['shipping_distance_km']) && $data['shipping_distance_km'] !== ''
+                ? round((float) $data['shipping_distance_km'], 2)
+                : null,
+            'address_id' => $addressId,
+            'address' => $address,
+        ];
+    }
+
+    /**
+     * من يملك تعديل قيمة التوصيل يدوياً؟ العميل حسمها: مدير النظام ومدير الفرع
+     * والمحاسب — «الإدارة» — لا الموظف. والمنع في صميم الحساب لا في الشاشة، فلا
+     * يُلتفّ عليه بطلبٍ مباشر.
+     */
+    private function actorMayEditShippingFee(): bool
+    {
+        return ! (auth()->user()?->roleName?->isEmployee() ?? false);
     }
 
     /**

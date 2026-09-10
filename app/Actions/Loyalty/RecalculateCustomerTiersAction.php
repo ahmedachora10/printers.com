@@ -196,7 +196,12 @@ class RecalculateCustomerTiersAction
                 fn ($q) => $q->whereNull('agent_id'),
             )
             ->groupBy('customer_id')
-            ->selectRaw('customer_id, SUM(total_amount) as total')
+            // تاسك 93: رسم التوصيل خارج الإنفاق التراكمي، فيُطرح هنا بالمقياس
+            // نفسه الذي أُضيف به في `EarnLoyaltyPointsAction`. وفاتورة المنتجات
+            // بلا عمود شحن، فتُجمع كما كانت.
+            ->selectRaw($invoiceClass === ServiceInvoice::class
+                ? 'customer_id, SUM(total_amount - COALESCE(shipping_fee, 0)) as total'
+                : 'customer_id, SUM(total_amount) as total')
             ->pluck('total', 'customer_id');
     }
 
@@ -232,7 +237,11 @@ class RecalculateCustomerTiersAction
                 fn ($q) => $q->whereNull("{$table}.agent_id"),
             )
             ->groupBy("{$table}.customer_id")
-            ->selectRaw("{$table}.customer_id as customer_id, SUM(refunds.amount) as total")
+            // تاسك 93: ما رُدّ من الشحن لم يدخل الإنفاق أصلاً فلا يخرج منه —
+            // ويُقرأ من قرار المحاسب المكتوب على صفّ المرتجع لا نسبياً.
+            ->selectRaw($invoiceClass === ServiceInvoice::class
+                ? "{$table}.customer_id as customer_id, SUM(refunds.amount - COALESCE(refunds.shipping_refunded, 0)) as total"
+                : "{$table}.customer_id as customer_id, SUM(refunds.amount) as total")
             ->pluck('total', 'customer_id');
     }
 }

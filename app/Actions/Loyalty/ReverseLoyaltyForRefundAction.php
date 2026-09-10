@@ -33,8 +33,11 @@ class ReverseLoyaltyForRefundAction
 {
     /**
      * @param  float  $refundAmount  مبلغ هذه الدفعة من المرتجع، بعد كتابة صفّها
+     * @param  float  $shippingRefunded  ما كان من ذلك المبلغ ردّاً لقيمة التوصيل
+     *                                   بقرار المحاسب (تاسك 93) — جزءٌ من المبلغ
+     *                                   لا إضافةٌ عليه
      */
-    public function handle(ProductInvoice|ServiceInvoice $invoice, float $refundAmount): void
+    public function handle(ProductInvoice|ServiceInvoice $invoice, float $refundAmount, float $shippingRefunded = 0.0): void
     {
         $invoiceTotal = (float) $invoice->total_amount;
 
@@ -61,7 +64,13 @@ class ReverseLoyaltyForRefundAction
         // فوجود اكتسابٍ على الفاتورة هو بعينه شرطُ صحّة الخصم منه. والمبلغ
         // المسترجَع إجماليٌّ شامل الضريبة، وهو المقياس الذي أُضيف به الإنفاق،
         // فيُخصم كما هو بلا اقتطاع الضريبة منه.
-        $spendRollback = $earned > 0 ? round($refundAmount, 2) : 0.0;
+        //
+        // تاسك 93: إلا ما كان منه ردّاً لقيمة التوصيل — الشحن لم يدخل الإنفاق
+        // أصلاً فلا يخرج منه. والحصّة تُقرأ من قرار المحاسب المكتوب على صفّ
+        // المرتجع، لا تُستنتج نسبياً: الاستنتاج يخالف قراره في كل مرّة.
+        $spendRollback = $earned > 0
+            ? max(0.0, round($refundAmount - $shippingRefunded, 2))
+            : 0.0;
 
         if ($toClaw === 0 && $toRestore === 0 && $spendRollback <= 0) {
             return;

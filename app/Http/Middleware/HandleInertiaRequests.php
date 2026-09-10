@@ -312,6 +312,14 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
+                // تاسك 93 — السائقون وشرائح أسعار التوصيل.
+                'title' => 'التوصيل',
+                'url' => route('shipping.index'),
+                'icon' => 'Bike',
+                'group' => 'finance',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
                 'title' => 'الحوافز والمكافآت',
                 'url' => route('incentives.index'),
                 'icon' => 'Trophy',
@@ -366,6 +374,15 @@ class HandleInertiaRequests extends Middleware
                 'title' => 'الحوافز والخصومات',
                 'url' => route('reports.incentives'),
                 'icon' => 'Trophy',
+                'group' => 'reports',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
+                // تاسك 93 — كشف توصيلات اليوم لكل سائق. في مجموعة التقارير
+                // لأنه قراءةٌ ومتابعة، لا شاشةَ إدارةٍ كإدارة السائقين.
+                'title' => 'كشف التوصيل',
+                'url' => route('shipping.deliveries'),
+                'icon' => 'Bike',
                 'group' => 'reports',
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
