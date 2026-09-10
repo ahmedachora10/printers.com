@@ -40,6 +40,67 @@ describe('Expense Management', function () {
             ->assertInertia(fn ($page) => $page->component('expenses/index'));
     });
 
+    // ── تاسك 104: الشاشة تفتح على اليوم ───────────────────────────
+
+    it('opens on today\'s expenses', function () {
+        foreach ([today(), today()->subDay()] as $date) {
+            Expense::factory()->create([
+                'branch_id' => $this->branch->id,
+                'expense_category_id' => $this->category->id,
+                'user_id' => $this->branchAdmin->id,
+                'total' => $date->isToday() ? 40 : 900,
+                'date' => $date->toDateString(),
+            ]);
+        }
+
+        $this->get(route('expenses.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('items.data', 1)
+                ->where('periodTotal', 40)
+                ->where('filters.from', today()->toDateString())
+                ->where('filters.to', today()->toDateString())
+                ->where('filters.range', null)
+                ->where('defaultDate', today()->toDateString()));
+    });
+
+    it('shows every period on range=all, and honours an explicit range', function () {
+        foreach ([today(), today()->subDays(3)] as $date) {
+            Expense::factory()->create([
+                'branch_id' => $this->branch->id,
+                'expense_category_id' => $this->category->id,
+                'user_id' => $this->branchAdmin->id,
+                'date' => $date->toDateString(),
+            ]);
+        }
+
+        $this->get(route('expenses.index', ['range' => 'all']))
+            ->assertInertia(fn ($page) => $page
+                ->has('items.data', 2)
+                ->where('filters.from', null)
+                ->where('filters.range', 'all'));
+
+        // المدى الصريح يغلب range=all العالق في الرابط.
+        $day = today()->subDays(3)->toDateString();
+        $this->get(route('expenses.index', ['range' => 'all', 'from' => $day, 'to' => $day]))
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)->where('filters.range', null));
+    });
+
+    it('ends a range that only has a start at today, as the date bar sends «last 7 days»', function () {
+        foreach ([today()->subDays(3), today()->addDays(5)] as $date) {
+            Expense::factory()->create([
+                'branch_id' => $this->branch->id,
+                'expense_category_id' => $this->category->id,
+                'user_id' => $this->branchAdmin->id,
+                'date' => $date->toDateString(),
+            ]);
+        }
+
+        $this->get(route('expenses.index', ['from' => today()->subDays(6)->toDateString()]))
+            ->assertInertia(fn ($page) => $page
+                ->has('items.data', 1)
+                ->where('filters.to', today()->toDateString()));
+    });
+
     it('allows accountant to view expense list', function () {
         $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
         $accountant->addRole(Roles::ACCOUNTANT->value);

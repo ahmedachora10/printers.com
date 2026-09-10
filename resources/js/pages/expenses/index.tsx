@@ -30,9 +30,13 @@ interface Props {
     filters: {
         search?: string;
         expense_category_id?: string;
-        from?: string;
-        to?: string;
+        /** المدى المطبَّق فعلاً — اليوم حين تُفتح الشاشة بلا مدى (تاسك 104) */
+        from?: string | null;
+        to?: string | null;
+        /** 'all' = «كل الفترات» صراحةً؛ الفراغ صار يعني اليوم */
+        range?: 'all' | null;
     };
+    defaultDate: string;
 }
 
 function formatSar(value: number): string {
@@ -57,7 +61,7 @@ function rangeLabel(from: string, to: string): string {
     return from ? `من ${shortDate(from)}` : `حتى ${shortDate(to)}`;
 }
 
-export default function ExpensesIndex({ items, periodTotal, categories, branches, filters }: Props) {
+export default function ExpensesIndex({ items, periodTotal, categories, branches, filters, defaultDate }: Props) {
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Expense | null>(null);
     const [deleting, setDeleting] = useState<Expense | null>(null);
@@ -139,7 +143,14 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
     // المدى التاريخي يمرّ عبر useReportFilters (كبقية الشاشات) بينما يبقى البحث
     // والفئة على آليّة FilterBar المؤجَّلة. المفتاحان from/to يدعمهما الخادم أصلاً،
     // وbuildQuery أدناه يحملهما مع كل تنقّل فلا يضيع المدى عند البحث.
-    const dateDefaults = useMemo<FilterValues>(() => ({ search: '', expense_category_id: '', from: '', to: '' }), []);
+    //
+    // تاسك 104: اليوم هو القيمة الافتراضية للحقلين، فلا يُعدّ فلتراً مطبَّقاً.
+    // و`range` خارج مفاتيح الـhook عمداً: الـhook يُسقط ما ساوى افتراضيَّه، فلو
+    // حمل range=all لبقي عالقاً بعد اختيار «اليوم» من الشريط.
+    const dateDefaults = useMemo<FilterValues>(
+        () => ({ search: '', expense_category_id: '', from: defaultDate, to: defaultDate }),
+        [defaultDate],
+    );
     const applied: FilterValues = {
         search: filters.search ?? '',
         expense_category_id: filters.expense_category_id ?? '',
@@ -147,7 +158,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
         to: filters.to ?? '',
     };
     const dateFilters = useReportFilters(index.url(), applied, dateDefaults);
-    const hasRange = dateFilters.isActive('from') || dateFilters.isActive('to');
+    const showsAllPeriods = filters.range === 'all';
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
@@ -160,8 +171,9 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
         const merged = {
             search,
             expense_category_id: filterValues.expense_category_id,
-            from: filters.from,
-            to: filters.to,
+            from: filters.from ?? undefined,
+            to: filters.to ?? undefined,
+            range: filters.range ?? undefined,
             ...overrides,
         };
         Object.entries(merged).forEach(([key, value]) => {
@@ -207,8 +219,18 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
 
                 <Card className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-md px-4 py-3.5 sm:px-5">
                     <DateRangeBar filters={dateFilters} from={applied.from} to={applied.to} extended />
-                    {hasRange && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => dateFilters.replaceMany({ from: '', to: '' })}>
+                    {!showsAllPeriods && (
+                        <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() =>
+                                router.get(index.url(), buildQuery({ from: undefined, to: undefined, range: 'all' }), {
+                                    preserveState: true,
+                                    replace: true,
+                                })
+                            }
+                        >
                             <X className="size-3" /> كل الفترات
                         </Button>
                     )}
