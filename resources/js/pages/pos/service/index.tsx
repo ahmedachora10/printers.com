@@ -1695,7 +1695,7 @@ export default function ServicePos({
                                             type="number"
                                             step="0.01"
                                             min="0"
-                                            value={canEditShippingFee ? (shippingFee !== '' ? shippingFee : String(shippingAmount)) : String(shippingAmount)}
+                                            value={canEditShippingFee && shippingFee !== '' ? shippingFee : String(shippingAmount)}
                                             onChange={(e) => setShippingFee(e.target.value)}
                                             disabled={!canEditShippingFee}
                                         />

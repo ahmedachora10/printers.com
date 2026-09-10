@@ -44,8 +44,6 @@ use App\Policies\CityPolicy;
 use App\Policies\CommissionPaymentPolicy;
 use App\Policies\CouponPolicy;
 use App\Policies\CustomerPolicy;
-use App\Policies\DeliveryProviderPolicy;
-use App\Policies\DeliveryZonePolicy;
 use App\Policies\EmployeeDeductionPolicy;
 use App\Policies\ExpenseCategoryPolicy;
 use App\Policies\ExpensePolicy;
@@ -60,6 +58,7 @@ use App\Policies\RefundPolicy;
 use App\Policies\ServiceInvoicePolicy;
 use App\Policies\ServiceTemplatePolicy;
 use App\Policies\SettingPolicy;
+use App\Policies\ShippingPolicy;
 use App\Policies\StockMovementPolicy;
 use App\Policies\StockReconciliationPolicy;
 use App\Policies\SupplierPolicy;
@@ -131,8 +130,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(PurchaseRequest::class, PurchaseRequestPolicy::class);
         Gate::policy(Setting::class, SettingPolicy::class);
         Gate::policy(PaymentMethod::class, PaymentMethodPolicy::class);
-        Gate::policy(DeliveryProvider::class, DeliveryProviderPolicy::class);
-        Gate::policy(DeliveryZone::class, DeliveryZonePolicy::class);
+        Gate::policy(DeliveryProvider::class, ShippingPolicy::class);
+        Gate::policy(DeliveryZone::class, ShippingPolicy::class);
         Gate::policy(User::class, UserPolicy::class);
     }
 

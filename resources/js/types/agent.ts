@@ -50,7 +50,4 @@ export interface PaginatedAgent {
     meta: Record<string, unknown>;
 }
 
-export interface EnumOption {
-    value: string;
-    label: string;
-}
+export type { EnumOption } from '.';

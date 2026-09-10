@@ -28,7 +28,7 @@ interface Props {
     canManage: boolean;
     isSuperAdmin: boolean;
     branches: ShippingBranchOption[];
-    filters: { search?: string; branch_id?: string };
+    filters: { branch_id?: string };
 }
 
 function StatusBadge({ active, label }: { active: boolean; label: string }) {

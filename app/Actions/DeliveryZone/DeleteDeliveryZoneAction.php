@@ -4,12 +4,10 @@ namespace App\Actions\DeliveryZone;
 
 use App\Models\DeliveryZone;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 /**
- * الشريحة المذكورة على فاتورة لا تُحذف — الفاتورة تعرض شريحتها في بيان التوصيل.
- * العمودان يصلان في الكوميتين التاليين، فيبقى الحارس صامتاً حتى ذلك الحين.
+ * الشريحة المذكورة على فاتورة — أو على عنوانٍ في دفتر عميل — لا تُحذف.
  */
 class DeleteDeliveryZoneAction
 {
@@ -26,12 +24,10 @@ class DeleteDeliveryZoneAction
 
     private function isReferenced(DeliveryZone $zone): bool
     {
-        if (Schema::hasColumn('service_invoices', 'shipping_zone_id')
-            && DB::table('service_invoices')->where('shipping_zone_id', $zone->id)->exists()) {
+        if (DB::table('service_invoices')->where('shipping_zone_id', $zone->id)->exists()) {
             return true;
         }
 
-        return Schema::hasTable('customer_addresses')
-            && DB::table('customer_addresses')->where('delivery_zone_id', $zone->id)->exists();
+        return DB::table('customer_addresses')->where('delivery_zone_id', $zone->id)->exists();
     }
 }

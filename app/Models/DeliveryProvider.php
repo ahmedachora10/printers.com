@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use App\Enums\DeliveryProviderTypeEnum;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -39,21 +38,6 @@ class DeliveryProvider extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
-    }
-
-    /**
-     * شرائح فرعٍ بعينه. لا صفوفَ عامّة هنا — لكل فرع مزوّدوه — فالنطاق شرطُ
-     * مساواةٍ صريح لا `whereNull` كما في طرق الدفع.
-     *
-     * @param  Builder<DeliveryProvider>  $query
-     */
-    public function scopeForBranch($query, ?int $branchId)
-    {
-        if ($branchId === null) {
-            return $query;
-        }
-
-        return $query->where('branch_id', $branchId);
     }
 
     public function getActivitylogOptions(): LogOptions

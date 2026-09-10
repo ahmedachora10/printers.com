@@ -262,7 +262,7 @@ class ServiceInvoiceController extends Controller
             ->first();
 
         $paginator = $query
-            ->with(['lines', 'customer:id,full_name,phone,tax_number', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media', 'shippingProvider:id,name'])
+            ->with(['lines', 'customer:id,full_name,phone,tax_number', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media'])
             ->orderBy($request->sortColumn(), $request->sortDirection())
             // فارز ثانوي ثابت: صفّان بنفس اللحظة كانا يتبادلان الترتيب بين صفحة
             // وأخرى فيتكرّر أحدهما ويسقط الآخر.
@@ -317,11 +317,6 @@ class ServiceInvoiceController extends Controller
                     'subtotal' => (float) $invoice->subtotal,
                     'vatAmount' => (float) $invoice->vat_amount,
                     'totalAmount' => (float) $invoice->total_amount,
-                    // تاسك 93: المراجع يعتمد الفاتورة من هنا وهو صاحب صلاحية
-                    // تعديل قيمة التوصيل، فلا بدّ أن يقرأها قبل الاعتماد.
-                    'shippingFee' => (float) $invoice->shipping_fee,
-                    'shippingProviderName' => $invoice->shippingProvider?->name,
-                    'shippingAddress' => $invoice->shipping_address,
                     // سقف الدفعة الأولى (العربون). الطابور لا يحمل إلا فواتير آجلة
                     // لم يُقبض منها شيء، فالمتبقي هو الإجمالي — ويُرسل صراحةً لأن
                     // نافذة تسجيل الدفعة تحدّ به المبلغ.
@@ -768,7 +763,6 @@ class ServiceInvoiceController extends Controller
                 'id' => $provider->id,
                 'name' => $provider->name,
                 'typeLabel' => $provider->type->label(),
-                'phone' => $provider->phone,
             ]);
     }
 

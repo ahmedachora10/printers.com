@@ -47,20 +47,6 @@ class DeliveryZone extends Model
     }
 
     /**
-     * شرائح فرعٍ بعينه؛ `null` (السوبر أدمن بلا فرع مختار) يعني الكل.
-     *
-     * @param  Builder<DeliveryZone>  $query
-     */
-    public function scopeForBranch($query, ?int $branchId)
-    {
-        if ($branchId === null) {
-            return $query;
-        }
-
-        return $query->where('branch_id', $branchId);
-    }
-
-    /**
      * ترتيب العرض في المنتقي وفي شاشة الإدارة: الأحياء أولاً لأنها الطريق
      * الأغلب عملياً، ثم شرائح المسافة مرتّبةً تصاعدياً بحدّها الأدنى.
      *
@@ -82,13 +68,13 @@ class DeliveryZone extends Model
             return null;
         }
 
-        $from = rtrim(rtrim(number_format((float) $this->from_km, 2, '.', ''), '0'), '.');
+        $from = (float) $this->from_km;
 
         if ($this->to_km === null) {
             return "أكثر من {$from} كم";
         }
 
-        $to = rtrim(rtrim(number_format((float) $this->to_km, 2, '.', ''), '0'), '.');
+        $to = (float) $this->to_km;
 
         return "{$from} – {$to} كم";
     }

@@ -8,6 +8,7 @@ use App\Models\Branch;
 use App\Models\DeliveryProvider;
 use App\Models\ServiceInvoice;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -63,6 +64,10 @@ class DeliveryLogController extends Controller
             ->paginate(self::PER_PAGE)
             ->withQueryString();
 
+        // التجميع بالسائق على المدى كلّه لا على الصفحة المعروضة: كشفٌ يقول
+        // «لأبي محمد ثلاث رحلات» ثم يعرض اثنتين في الصفحة الأولى كشفٌ يكذب.
+        $byProvider = $this->byProvider(clone $base);
+
         return Inertia::render('shipping/deliveries', [
             'deliveries' => $this->pagedProp($rows, fn (ServiceInvoice $invoice) => [
                 'id' => $invoice->id,
@@ -79,10 +84,14 @@ class DeliveryLogController extends Controller
                 'branchName' => $invoice->branch?->name,
                 'statusLabel' => $invoice->status->label(),
             ]),
-            // التجميع بالسائق على المدى كلّه لا على الصفحة المعروضة: كشفٌ يقول
-            // «لأبي محمد ثلاث رحلات» ثم يعرض اثنتين في الصفحة الأولى كشفٌ يكذب.
-            'byProvider' => $this->byProvider(clone $base),
-            'totals' => $this->totals(clone $base),
+            'byProvider' => $byProvider,
+            // الجُمل مقروءةٌ من صفوف السائقين نفسها — استعلامٌ ثالثٌ يعيد جمع
+            // ما جُمع للتوّ.
+            'totals' => [
+                'deliveries' => array_sum(array_column($byProvider, 'deliveries')),
+                'fees' => round(array_sum(array_column($byProvider, 'fees')), 2),
+                'providers' => count($byProvider),
+            ],
             'providers' => $this->providerOptions($scope['branchId']),
             'branches' => $scope['isSuper']
                 ? Branch::query()->orderBy('name')->get(['id', 'name'])
@@ -128,40 +137,16 @@ class DeliveryLogController extends Controller
     }
 
     /**
-     * @param  Builder<ServiceInvoice>  $base
-     * @return array<string, float|int>
-     */
-    private function totals($base): array
-    {
-        $row = $base->first([
-            DB::raw('COUNT(*) as deliveries'),
-            DB::raw('COALESCE(SUM(service_invoices.shipping_fee), 0) as fees'),
-            DB::raw('COUNT(DISTINCT service_invoices.shipping_provider_id) as providers'),
-        ]);
-
-        return [
-            'deliveries' => (int) ($row->deliveries ?? 0),
-            'fees' => round((float) ($row->fees ?? 0), 2),
-            'providers' => (int) ($row->providers ?? 0),
-        ];
-    }
-
-    /**
      * مزوّدو الفرع للفلتر — النشط منهم وغيره، فكشفُ الأمس يبقى مقروءاً بعد
      * تعطيل سائقٍ اليوم.
      *
-     * @return array<int, array<string, mixed>>
+     * @return Collection<int, DeliveryProvider>
      */
-    private function providerOptions(?int $branchId): array
+    private function providerOptions(?int $branchId): Collection
     {
         return DeliveryProvider::query()
             ->when($branchId, fn ($q, $id) => $q->where('branch_id', $id))
             ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (DeliveryProvider $provider) => [
-                'id' => $provider->id,
-                'name' => $provider->name,
-            ])
-            ->all();
+            ->get(['id', 'name']);
     }
 }

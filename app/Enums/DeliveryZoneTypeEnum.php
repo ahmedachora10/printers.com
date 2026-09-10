@@ -26,10 +26,4 @@ enum DeliveryZoneTypeEnum: string
             self::Distance => 'مسافة',
         };
     }
-
-    /** هل يقيس هذا النوع مسافةً بالكيلومترات؟ */
-    public function isMeasured(): bool
-    {
-        return $this === self::Distance;
-    }
 }

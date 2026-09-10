@@ -1,12 +1,11 @@
 /** تاسك 93 — أنواع شاشة التوصيل: المزوّدون والشرائح. */
 
+import type { EnumOption } from '.';
+
 export type DeliveryProviderType = 'driver' | 'company';
 export type DeliveryZoneType = 'area' | 'distance';
 
-export interface EnumOption<T extends string = string> {
-    value: T;
-    label: string;
-}
+export type { EnumOption };
 
 export interface DeliveryProvider {
     id: number;

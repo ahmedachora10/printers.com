@@ -131,7 +131,6 @@ export interface PosShippingProvider {
     id: number;
     name: string;
     typeLabel: string;
-    phone: string | null;
 }
 
 /** شريحة سعر توصيل: حيٌّ باسمه أو مدىً بالكيلومترات. */

@@ -40,14 +40,13 @@ class ShippingController extends Controller
 
         $providers = DeliveryProvider::query()
             ->with('branch:id,name')
-            ->forBranch($branchId)
-            ->when($request->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$request->input('search').'%'))
+            ->when($branchId, fn ($q, $id) => $q->where('branch_id', $id))
             ->orderBy('name')
             ->get();
 
         $zones = DeliveryZone::query()
             ->with('branch:id,name')
-            ->forBranch($branchId)
+            ->when($branchId, fn ($q, $id) => $q->where('branch_id', $id))
             ->ordered()
             ->get();
 
@@ -64,7 +63,6 @@ class ShippingController extends Controller
                 ? Branch::query()->orderBy('name')->get(['id', 'name'])
                 : [],
             'filters' => [
-                'search' => $request->input('search'),
                 'branch_id' => $request->input('branch_id'),
             ],
         ]);

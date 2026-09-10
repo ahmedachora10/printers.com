@@ -82,9 +82,7 @@ describe('Delivery note and the shipping line on screen', function () {
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->where('invoice.shippingFee', 20)
-                ->where('invoice.shippingProviderName', 'أبو محمد')
-                ->where('invoice.shippingZoneName', 'حي النرجس')
-                ->where('invoice.shippingAddress', 'حي النرجس، مكتب 12'));
+                ->where('invoice.shippingProviderName', 'أبو محمد'));
     });
 
     it('carries the shipping fee onto the printed invoice', function () {

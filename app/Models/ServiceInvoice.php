@@ -160,7 +160,6 @@ class ServiceInvoice extends Model implements HasMedia
             ->withPivot(['discount_mode', 'discount_type', 'rate', 'discount_amount', 'rebate_amount', 'line_commission_amount', 'agent_payment_id']);
     }
 
-    /** @return BelongsTo<PaymentMethod, $this> */
     /** مزوّد التوصيل — سائق أو شركة (تاسك 93). */
     public function shippingProvider(): BelongsTo
     {
@@ -173,15 +172,7 @@ class ServiceInvoice extends Model implements HasMedia
         return $this->belongsTo(DeliveryZone::class, 'shipping_zone_id');
     }
 
-    /**
-     * العنوان المختار من دفتر العميل. مرجعٌ للتحليل وحده — اللقطة النصّية في
-     * `shipping_address` هي ما طُبع، ولا يغيّره تعديلُ الدفتر لاحقاً.
-     */
-    public function customerAddress(): BelongsTo
-    {
-        return $this->belongsTo(CustomerAddress::class, 'customer_address_id');
-    }
-
+    /** @return BelongsTo<PaymentMethod, $this> */
     public function paymentMethod(): BelongsTo
     {
         return $this->belongsTo(PaymentMethod::class);
