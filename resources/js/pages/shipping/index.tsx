@@ -249,29 +249,31 @@ export default function ShippingIndex({
                         </p>
                     </div>
 
-                    {/* تاسك 93: كشف المتابعة اليومية — قريباً من إدارة السائقين
-                        الذين يظهرون فيه. */}
-                    <Button variant="outline" asChild>
-                        <Link href={deliveriesIndex.url()}>
-                            <ClipboardList className="size-4" /> كشف التوصيل
-                        </Link>
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-3">
+                        {/* تاسك 93: كشف المتابعة اليومية — قريباً من إدارة السائقين
+                            الذين يظهرون فيه. */}
+                        <Button variant="outline" asChild>
+                            <Link href={deliveriesIndex.url()}>
+                                <ClipboardList className="size-4" /> كشف التوصيل
+                            </Link>
+                        </Button>
 
-                    {isSuperAdmin && (
-                        <Select value={branchFilter || 'all'} onValueChange={handleBranchFilter}>
-                            <SelectTrigger className="w-56">
-                                <SelectValue placeholder="كل الفروع" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">كل الفروع</SelectItem>
-                                {branches.map((branch) => (
-                                    <SelectItem key={branch.id} value={String(branch.id)}>
-                                        {branch.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
+                        {isSuperAdmin && (
+                            <Select value={branchFilter || 'all'} onValueChange={handleBranchFilter}>
+                                <SelectTrigger className="w-56">
+                                    <SelectValue placeholder="كل الفروع" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">كل الفروع</SelectItem>
+                                    {branches.map((branch) => (
+                                        <SelectItem key={branch.id} value={String(branch.id)}>
+                                            {branch.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                    </div>
                 </div>
 
                 <Tabs defaultValue="providers">

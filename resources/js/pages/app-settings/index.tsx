@@ -172,7 +172,7 @@ export default function AppSettingsIndex({
                     <h1 className="text-2xl font-bold">الإعدادات</h1>
                 </div>
 
-                <Tabs value={activeTab} onValueChange={handleTabChange} dir="rtl">
+                <Tabs value={activeTab} onValueChange={handleTabChange}>
                     <TabsList className="mb-6 w-full justify-start">
                         {isSuperAdmin && <TabsTrigger value="general">عام</TabsTrigger>}
                         {branchProfile && <TabsTrigger value="branch-profile">بيانات الفرع</TabsTrigger>}
