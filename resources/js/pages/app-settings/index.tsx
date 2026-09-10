@@ -35,7 +35,7 @@ import {
     type PaymentMethod,
 } from '@/types/payment-method';
 import { router, useForm } from '@inertiajs/react';
-import { CreditCard, Paperclip, Pencil, Plus, Trash2 } from 'lucide-react';
+import { Banknote, CreditCard, Paperclip, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 
@@ -286,6 +286,12 @@ export default function AppSettingsIndex({
                                                     <Badge variant="outline" className="gap-1.5 border-amber-200 bg-amber-50 text-amber-700">
                                                         <Paperclip className="size-3" />
                                                         تتطلب إيصال
+                                                    </Badge>
+                                                )}
+                                                {pm.isCash && (
+                                                    <Badge variant="outline" className="gap-1.5 border-emerald-200 bg-emerald-50 text-emerald-700">
+                                                        <Banknote className="size-3" />
+                                                        نقدية
                                                     </Badge>
                                                 )}
                                             </div>

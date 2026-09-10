@@ -28,6 +28,7 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
         name:                paymentMethod?.name ?? '',
         is_active:           paymentMethod?.isActive ?? true,
         requires_attachment: paymentMethod?.requiresAttachment ?? false,
+        is_cash:             paymentMethod?.isCash ?? false,
     });
 
     useEffect(() => {
@@ -36,6 +37,7 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
                 name: paymentMethod.name ?? '',
                 is_active: paymentMethod.isActive ?? true,
                 requires_attachment: paymentMethod.requiresAttachment ?? false,
+                is_cash: paymentMethod.isCash ?? false,
             });
         } else {
             reset();
@@ -101,6 +103,22 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
                             </Label>
                             <p className="text-muted-foreground text-xs">
                                 مثل التحويل البنكي — يُطلب رفع صورة أو ملف PDF للإيصال عند إصدار الفاتورة.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                        <Checkbox
+                            id="pm-is-cash"
+                            checked={data.is_cash}
+                            onCheckedChange={(checked) => setData('is_cash', checked === true)}
+                        />
+                        <div className="grid gap-0.5">
+                            <Label htmlFor="pm-is-cash" className="cursor-pointer">
+                                طريقة نقدية (كاش)
+                            </Label>
+                            <p className="text-muted-foreground text-xs">
+                                تقرير المبيعات يطرح المصروفات من المحصَّل بهذه الطريقة وحدها.
                             </p>
                         </div>
                     </div>

@@ -51,16 +51,38 @@ const breakdownColumns = (nameHeader: string): ColumnDef<BreakdownRow>[] => [
 ];
 
 /**
- * تاسك 87 — هذا التقرير يقيس **المحصَّل** لا المُفوتر، فـ«الإجمالي − المصروفات»
- * رقمُ تدفّقٍ نقدي لا ربحٍ محاسبي: لا يطرح تكلفة الخامات ولا العمولات ولا
- * الرواتب. يُقال ذلك صراحةً على رأس العمود فلا يُبنى قرارٌ على قراءةٍ خاطئة.
+ * تاسك 97 — المصروفات تُدفع من الدرج، فتُطرح من **النقد وحده** لا من كل
+ * المحصَّل. والرقم تدفّقٌ نقدي لا ربحٌ محاسبي: لا يطرح الخامات ولا العمولات.
  */
-const NET_HINT = 'المحصَّل ناقص المصروفات المسجّلة لليوم — ليس ربحاً صافياً (لا يطرح الخامات ولا العمولات).';
+const CASH_HINT = 'المحصَّل نقداً ناقص المصروفات المسجّلة — لا تُطرح المصروفات من الشبكة ولا التحويل. ليس ربحاً صافياً.';
+
+/** رأس عمودٍ يحمل تفسيره في tooltip. */
+function HintedHeader({ label, hint }: { label: string; hint: string }) {
+    return (
+        <TooltipProvider delayDuration={100}>
+            <Tooltip>
+                <TooltipTrigger asChild>
+                    <span className="inline-flex cursor-help items-center gap-1">
+                        {label}
+                        <Info className="text-muted-foreground size-3.5" aria-hidden />
+                        <span className="sr-only">{hint}</span>
+                    </span>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">{hint}</TooltipContent>
+            </Tooltip>
+        </TooltipProvider>
+    );
+}
+
+function Remaining({ value }: { value: number }) {
+    return <span className={value < 0 ? 'text-rose-600' : 'text-green-600'}>{formatCurrency(value)}</span>;
+}
 
 const dayColumns: ColumnDef<SalesReportDayRow>[] = [
     { key: 'date', header: 'التاريخ', cell: (row) => formatDate(row.date) },
     { key: 'count', header: 'عدد الفواتير', cell: (row) => row.count },
     { key: 'total', header: 'الإجمالي', className: 'font-medium', cell: (row) => formatCurrency(row.total) },
+    { key: 'cash', header: 'منها نقداً', cell: (row) => formatCurrency(row.cash) },
     {
         key: 'expenses',
         header: 'المصروفات',
@@ -68,23 +90,10 @@ const dayColumns: ColumnDef<SalesReportDayRow>[] = [
         cell: (row) => formatCurrency(row.expenses),
     },
     {
-        key: 'net',
-        header: (
-            <TooltipProvider delayDuration={100}>
-                <Tooltip>
-                    <TooltipTrigger asChild>
-                        <span className="inline-flex cursor-help items-center gap-1">
-                            الصافي
-                            <Info className="text-muted-foreground size-3.5" aria-hidden />
-                            <span className="sr-only">{NET_HINT}</span>
-                        </span>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">{NET_HINT}</TooltipContent>
-                </Tooltip>
-            </TooltipProvider>
-        ),
+        key: 'cashRemaining',
+        header: <HintedHeader label="المتبقي من النقد" hint={CASH_HINT} />,
         className: 'font-semibold',
-        cell: (row) => <span className={row.net < 0 ? 'text-rose-600' : 'text-green-600'}>{formatCurrency(row.net)}</span>,
+        cell: (row) => <Remaining value={row.cashRemaining} />,
     },
 ];
 
@@ -228,8 +237,8 @@ export default function SalesReportIndex({
                         value={formatCurrency(totals.total)}
                         valueClass="text-green-600"
                     />
-                    {/* تاسك 87: بطاقتان تقابلان العمودين الجديدين في جدول اليوم،
-                        فلا يقرأ المستخدم رقماً في الجدول لا يجد جملته أعلاه. */}
+                    {/* تاسك 87/97: بطاقتان تقابلان عمودَي المصروفات والمتبقي من
+                        النقد، فلا يقرأ المستخدم رقماً في الجدول لا يجد جملته أعلاه. */}
                     <SummaryCard
                         icon={<Receipt className="size-4" />}
                         label="المصروفات"
@@ -238,10 +247,10 @@ export default function SalesReportIndex({
                     />
                     <SummaryCard
                         icon={<PiggyBank className="size-4" />}
-                        label="الصافي بعد المصروفات"
-                        value={formatCurrency(totals.net)}
-                        valueClass={totals.net < 0 ? 'text-rose-600' : 'text-green-600'}
-                        hint={NET_HINT}
+                        label="المتبقي من النقد"
+                        value={formatCurrency(totals.cashRemaining)}
+                        valueClass={totals.cashRemaining < 0 ? 'text-rose-600' : 'text-green-600'}
+                        hint={CASH_HINT}
                     />
                 </div>
 
@@ -287,11 +296,7 @@ export default function SalesReportIndex({
                     rows={byEmployee.map((e) => ({ key: e.userId, name: e.userName, count: e.count, total: e.total }))}
                 />
 
-                <BreakdownCard
-                    title="المبيعات حسب طريقة الدفع"
-                    nameHeader="طريقة الدفع"
-                    rows={byPaymentMethod.map((m) => ({ key: m.methodId ?? 0, name: m.methodName, count: m.count, total: m.total }))}
-                />
+                <PaymentMethodCard rows={byPaymentMethod} totals={totals} />
 
                 {/* By day */}
                 <Card>
@@ -350,6 +355,69 @@ function SummaryCard({
             </CardHeader>
             <CardContent>
                 <p className={`truncate text-xl font-bold sm:text-2xl ${valueClass ?? ''}`}>{value}</p>
+            </CardContent>
+        </Card>
+    );
+}
+
+/**
+ * تاسك 97 — «المبيعات حسب طريقة الدفع» مع عمودَي المصروفات والمتبقي من النقد.
+ * الرقمان على صفّ النقد وحده؛ فإن تعدّدت صفوف النقد (سوبر أدمن عبر فروع لكلٍّ
+ * طريقته) فهما في صفّ الإجمالي وحده، إذ لا يُعرف أيّ درجٍ دفع أيّ مصروف.
+ */
+function PaymentMethodCard({ rows, totals }: { rows: SalesReportPaymentMethodRow[]; totals: SalesReportTotals }) {
+    const cashRows = rows.filter((r) => r.isCash).length;
+    const onRow = (row: SalesReportPaymentMethodRow) => row.isCash && cashRows === 1;
+    const total = rows.reduce((sum, r) => sum + r.total, 0);
+
+    const columns: ColumnDef<SalesReportPaymentMethodRow>[] = [
+        { key: 'name', header: 'طريقة الدفع', className: 'font-medium', cell: (row) => row.methodName },
+        { key: 'count', header: 'عدد الفواتير', cell: (row) => row.count },
+        { key: 'total', header: 'الإجمالي', className: 'font-medium', cell: (row) => formatCurrency(row.total) },
+        {
+            key: 'expenses',
+            header: 'المصروفات',
+            className: 'text-amber-600',
+            cell: (row) => (onRow(row) ? formatCurrency(totals.expenses) : '—'),
+        },
+        {
+            key: 'cashRemaining',
+            header: <HintedHeader label="المتبقي من النقد" hint={CASH_HINT} />,
+            className: 'font-semibold',
+            cell: (row) => (onRow(row) ? <Remaining value={totals.cashRemaining} /> : '—'),
+        },
+    ];
+
+    return (
+        <Card className="mb-6">
+            <CardHeader>
+                <CardTitle>المبيعات حسب طريقة الدفع</CardTitle>
+            </CardHeader>
+            <CardContent className="p-0">
+                {cashRows === 0 && totals.expenses > 0 && (
+                    <div className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                        <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+                        <span>لا تحصيل بطريقة دفع معلَّمة «نقدية» في هذه الفترة، فالمصروفات مطروحةٌ من صفر. تُعلَّم طريقة النقد من إعدادات طرق الدفع.</span>
+                    </div>
+                )}
+                <DataTable
+                    className="rounded-none bg-transparent shadow-none"
+                    columns={columns}
+                    data={rows}
+                    keyExtractor={(row) => row.methodId ?? 0}
+                    emptyState={EMPTY_STATE}
+                    footer={
+                        <TableRow>
+                            <TableCell className="font-bold">الإجمالي</TableCell>
+                            <TableCell />
+                            <TableCell className="font-bold text-green-600">{formatCurrency(total)}</TableCell>
+                            <TableCell className="font-bold text-amber-600">{formatCurrency(totals.expenses)}</TableCell>
+                            <TableCell className="font-bold">
+                                <Remaining value={totals.cashRemaining} />
+                            </TableCell>
+                        </TableRow>
+                    }
+                />
             </CardContent>
         </Card>
     );

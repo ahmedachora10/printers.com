@@ -37,6 +37,7 @@ class UpdatePaymentMethodRequest extends FormRequest
             ],
             'is_active' => ['boolean'],
             'requires_attachment' => ['boolean'],
+            'is_cash' => ['boolean'],
         ];
     }
 

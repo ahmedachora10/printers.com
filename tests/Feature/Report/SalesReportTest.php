@@ -5,6 +5,7 @@ use App\Enums\StockMovementTypeEnum;
 use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\InvoicePayment;
 use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\ProductCategory;
@@ -370,29 +371,85 @@ describe('Sales Report', function () {
                 ->where('byEmployee.0.total', 200));
     });
 
-    // ── EXPENSES & NET (تاسك 87) ───────────────────────────────────
+    // ── EXPENSES & CASH REMAINING (تاسكا 87 و97) ───────────────────
+    //
+    // المصروفات تُدفع من الدرج: تُطرح من المحصَّل نقداً وحده، لا من الشبكة
+    // ولا التحويل.
 
-    it('subtracts the day expenses from the day total', function () {
-        paidProductInvoice($this->branch, $this->branchAdmin); // 115
+    it('takes the expenses off the cash collected alone', function () {
+        $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد ( كاش)']);
+        $card = PaymentMethod::factory()->create(['name' => 'شبكة']);
+        paidProductInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $cash->id, 'total_amount' => 1000]);
+        paidProductInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $card->id, 'total_amount' => 500]);
         Expense::factory()->create([
             'branch_id' => $this->branch->id,
             'user_id' => $this->branchAdmin->id,
             'expense_category_id' => ExpenseCategory::factory(),
-            'total' => 40,
+            'total' => 300,
             'date' => today()->toDateString(),
         ]);
 
         $this->actingAs($this->branchAdmin)
             ->get(route('reports.sales'))
-            ->assertInertia(fn ($page) => $page
-                ->where('byDay.0.total', 115)
-                ->where('byDay.0.expenses', 40)
-                ->where('byDay.0.net', 75)
-                ->where('totals.expenses', 40)
-                ->where('totals.net', 75));
+            ->assertInertia(function ($page) {
+                $page->where('byDay.0.total', 1500)
+                    ->where('byDay.0.cash', 1000)
+                    ->where('byDay.0.expenses', 300)
+                    ->where('byDay.0.cashRemaining', 700)
+                    ->where('totals.cash', 1000)
+                    ->where('totals.expenses', 300)
+                    ->where('totals.cashRemaining', 700);
+
+                $methods = collect($page->toArray()['props']['byPaymentMethod']);
+                expect($methods->firstWhere('methodName', 'نقد ( كاش)')['isCash'])->toBeTrue();
+                expect($methods->firstWhere('methodName', 'شبكة')['isCash'])->toBeFalse();
+
+                return $page;
+            });
     });
 
-    it('shows a day with expenses and no sales, with a negative net', function () {
+    it('counts a cash deposit as cash even when the rest was paid by card', function () {
+        $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد']);
+        $card = PaymentMethod::factory()->create(['name' => 'شبكة']);
+        $invoice = paidServiceInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => null, 'total_amount' => 230]);
+
+        foreach ([[$cash, 50], [$card, 180]] as [$method, $amount]) {
+            InvoicePayment::create([
+                'invoice_id' => $invoice->id,
+                'invoice_type' => ServiceInvoice::class,
+                'branch_id' => $this->branch->id,
+                'payment_method_id' => $method->id,
+                'amount' => $amount,
+                'paid_at' => now(),
+                'recorded_by' => $this->branchAdmin->id,
+            ]);
+        }
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.total', 230)
+                ->where('totals.cash', 50)
+                ->where('totals.cashRemaining', 50));
+    });
+
+    it('takes a cash refund off the cash', function () {
+        $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد']);
+        $invoice = paidProductInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $cash->id]); // 115
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 15,
+            'reason' => 'مرتجع جزئي',
+        ])->assertRedirect();
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page->where('totals.cash', 100));
+    });
+
+    it('shows a day with expenses and no sales, with a negative remaining', function () {
         Expense::factory()->create([
             'branch_id' => $this->branch->id,
             'user_id' => $this->branchAdmin->id,
@@ -407,7 +464,7 @@ describe('Sales Report', function () {
                 ->has('byDay', 1)
                 ->where('byDay.0.total', 0)
                 ->where('byDay.0.expenses', 60)
-                ->where('byDay.0.net', -60));
+                ->where('byDay.0.cashRemaining', -60));
     });
 
     it('ignores a soft-deleted expense', function () {

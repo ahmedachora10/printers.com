@@ -21,11 +21,13 @@ class PaymentMethod extends Model
         'name',
         'is_active',
         'requires_attachment',
+        'is_cash',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'requires_attachment' => 'boolean',
+        'is_cash' => 'boolean',
     ];
 
     /** الفرع المالك — null = طريقة عامة يراها كل فرع (تاسك 59). */
