@@ -161,11 +161,19 @@ class InvoiceController extends Controller
 
         // الخدمة تُصفّى بمعرّف branch_service لا باسمها النصّي: الاسم لقطةٌ على
         // السطر وقد يتكرّر بين الفروع والقوالب.
+        // تاسك 101: للسوبر أدمن صفٌّ لكل فرع بالاسم نفسه — فيُلحق به اسم الفرع،
+        // وإلا ظهر «طباعة جاهزة» مرّاتٍ بعدد الفروع بلا ما يميّزها في البحث.
         $services = DB::table('branch_services')
             ->join('service_templates', 'service_templates.id', '=', 'branch_services.service_template_id')
+            ->leftJoin('branches', 'branches.id', '=', 'branch_services.branch_id')
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_services.branch_id', $branchId))
             ->orderBy('service_templates.name')
-            ->get(['branch_services.id', 'service_templates.name']);
+            ->orderBy('branches.name')
+            ->get(['branch_services.id', 'service_templates.name', 'branches.name as branch_name'])
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'name' => $isSuperAdmin && $s->branch_name ? "{$s->name} — {$s->branch_name}" : $s->name,
+            ]);
 
         return [
             'employees' => $employees,

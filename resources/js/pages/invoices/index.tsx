@@ -569,6 +569,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                             value={f.draft.user_id}
                             onChange={(v) => f.setField('user_id', v)}
                             allLabel="كل الموظفين"
+                            searchable
                             options={filterOptions.employees.map((e) => ({ value: e.id.toString(), label: e.name }))}
                         />
                         {/* الخدمة تخصّ فواتير الخدمات، فاختيارها يُقصي فواتير المنتجات. */}
@@ -577,6 +578,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                             value={f.draft.branch_service_id}
                             onChange={(v) => f.setField('branch_service_id', v)}
                             allLabel="كل الخدمات"
+                            searchable
                             options={filterOptions.services.map((s) => ({ value: s.id.toString(), label: s.name }))}
                         />
                         <FilterSelect

@@ -211,4 +211,28 @@ describe('Invoice list filters', function () {
                     && collect($rows)->pluck('name')->contains('أليس'),
             ));
     });
+
+    it('tells a super-admin which branch each same-named service belongs to (task 101)', function () {
+        $superAdmin = User::factory()->create();
+        $superAdmin->addRole(Roles::SUPER_ADMIN->value);
+        $this->branch->update(['name' => 'الفرع الأول']);
+        $template = ServiceTemplate::factory()->create(['name' => 'طباعة جاهزة']);
+        $template->branches()->attach($this->branch->id, ['base_commission_pct' => 10, 'is_active' => true]);
+        $template->branches()->attach(Branch::factory()->create(['name' => 'الفرع الثاني'])->id, ['base_commission_pct' => 10, 'is_active' => true]);
+
+        $this->actingAs($superAdmin)
+            ->get(route('invoices.index'))
+            ->assertInertia(fn ($page) => $page->where(
+                'filterOptions.services',
+                fn ($rows) => collect($rows)->pluck('name')->intersect(['طباعة جاهزة — الفرع الأول', 'طباعة جاهزة — الفرع الثاني'])->count() === 2,
+            ));
+
+        // ومدير الفرع يرى خدمات فرعه وحده، فلا لاحقة.
+        $this->actingAs($this->branchAdmin)
+            ->get(route('invoices.index'))
+            ->assertInertia(fn ($page) => $page->where(
+                'filterOptions.services',
+                fn ($rows) => collect($rows)->pluck('name')->contains('طباعة جاهزة'),
+            ));
+    });
 });
