@@ -3,16 +3,11 @@
 namespace App\Http\Requests\ExpenseCategory;
 
 use App\Models\ExpenseCategory;
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class UpdateExpenseCategoryRequest extends FormRequest
+/** رسائل الإنشاء نفسها؛ `branch_id` المدموج هناك لا قاعدة له هنا فلا يُحفظ. */
+class UpdateExpenseCategoryRequest extends StoreExpenseCategoryRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     /** @return array<string, mixed> */
     public function rules(): array
     {
@@ -34,14 +29,6 @@ class UpdateExpenseCategoryRequest extends FormRequest
                         : $q->where(fn ($w) => $w->whereNull('branch_id')->orWhere('branch_id', $branchId))),
             ],
             'is_active' => ['boolean'],
-        ];
-    }
-
-    /** @return array<string, string> */
-    public function messages(): array
-    {
-        return [
-            'name.unique' => 'يوجد فئة مصروف بهذا الاسم متاحة لهذا الفرع بالفعل.',
         ];
     }
 }

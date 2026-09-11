@@ -1,4 +1,5 @@
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
+import { FilterBar } from '@/components/filter-bar';
 import PrDetailModal from '@/components/purchase-requests/pr-detail-modal';
 import PrFormModal from '@/components/purchase-requests/pr-form-modal';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
@@ -7,12 +8,9 @@ import { FilterSelect } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
-import { cn, formatCurrency } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 import purchaseRequests from '@/routes/purchase-requests';
 import { type BreadcrumbItem } from '@/types';
 import {
@@ -24,7 +22,7 @@ import {
     type PurchaseRequest,
 } from '@/types/purchase-request';
 import { router } from '@inertiajs/react';
-import { Eye, Plus, Search, X } from 'lucide-react';
+import { Eye, Plus } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'طلبات الشراء', href: purchaseRequests.index().url }];
@@ -190,35 +188,15 @@ export default function PurchaseRequestsIndex({ items, products, suppliers, bran
                     </div>
                 </div>
 
-                <Card className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border px-4 py-3.5">
-                    <div className="space-y-1">
-                        <Label htmlFor="pr-search" className="text-muted-foreground text-xs">
-                            بحث
-                        </Label>
-                        <div className="relative">
-                            <Search className="text-muted-foreground pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2" />
-                            <Input
-                                id="pr-search"
-                                value={search}
-                                onChange={(e) => handleSearchChange(e.target.value)}
-                                placeholder="بحث باسم الصنف..."
-                                className={cn('h-8 w-full ps-9 pe-8 text-sm sm:w-72', search && 'border-primary/40 bg-primary/5')}
-                            />
-                            {search && (
-                                <button
-                                    type="button"
-                                    onClick={() => handleSearchChange('')}
-                                    className="text-muted-foreground hover:text-foreground absolute end-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 transition-colors"
-                                    aria-label="مسح البحث"
-                                >
-                                    <X className="size-3.5" />
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    <DateRangeBar filters={f} from={applied.date_from} to={applied.date_to} fromKey="date_from" toKey="date_to" extended />
-                </Card>
+                <FilterBar
+                    className="mb-6"
+                    searchable
+                    searchPlaceholder="بحث باسم الصنف..."
+                    searchValue={search}
+                    onSearchChange={handleSearchChange}
+                    onClearAll={handleReset}
+                    actions={<DateRangeBar filters={f} from={applied.date_from} to={applied.date_to} fromKey="date_from" toKey="date_to" extended />}
+                />
 
                 <ActiveFilterChips chips={chips} />
 

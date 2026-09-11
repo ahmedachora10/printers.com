@@ -49,22 +49,14 @@ class StoreIncentivePlanRequest extends FormRequest
                 return;
             }
 
-            $tiers = collect($this->input('tiers'))->sortBy(fn ($t) => (float) $t['threshold'])->values();
+            $rising = collect($this->input('tiers'))
+                ->sortBy(fn ($t) => (float) $t['threshold'])
+                ->sliding(2)
+                ->every(fn ($pair) => (float) $pair->last()['threshold'] > (float) $pair->first()['threshold']
+                    && (float) $pair->last()['value'] > (float) $pair->first()['value']);
 
-            foreach ($tiers->skip(1) as $i => $tier) {
-                $previous = $tiers[$i - 1];
-
-                if ((float) $tier['threshold'] === (float) $previous['threshold']) {
-                    $validator->errors()->add('tiers', 'لا يجوز تكرار عتبة الشريحة.');
-
-                    return;
-                }
-
-                if ((float) $tier['value'] <= (float) $previous['value']) {
-                    $validator->errors()->add('tiers', 'قيمة المكافأة يجب أن تزيد مع كل شريحة أعلى.');
-
-                    return;
-                }
+            if (! $rising) {
+                $validator->errors()->add('tiers', 'لا تتكرّر عتبة، وتزيد المكافأة مع كل شريحة أعلى.');
             }
         }];
     }
@@ -74,8 +66,6 @@ class StoreIncentivePlanRequest extends FormRequest
     {
         return [
             'user_id.unique' => 'يوجد بالفعل خطة حوافز لهذا الموظف في نفس الشهر.',
-            'tiers.required' => 'أضف شريحة واحدة على الأقل.',
-            'tiers.max' => 'الحد الأقصى 10 شرائح.',
             'tiers.*.threshold.required' => 'أدخل عتبة المبيعات لكل شريحة.',
             'tiers.*.threshold.min' => 'عتبة الشريحة يجب أن تكون أكبر من صفر.',
             'tiers.*.value.required' => 'أدخل قيمة المكافأة لكل شريحة.',

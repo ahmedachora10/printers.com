@@ -142,22 +142,6 @@ class IncentivePlan extends Model
         return $reached;
     }
 
-    /**
-     * أول شريحة لم تُبلغ بعد — ما يسعى إليه الموظف.
-     *
-     * @return array{number: int, threshold: float, value: float}|null
-     */
-    public function nextTier(): ?array
-    {
-        foreach ($this->tiers as $i => $tier) {
-            if ((float) $this->achieved_amount < (float) $tier['threshold']) {
-                return ['number' => $i + 1, 'threshold' => (float) $tier['threshold'], 'value' => (float) $tier['value']];
-            }
-        }
-
-        return null;
-    }
-
     public function isTargetMet(): bool
     {
         return $this->reachedTier() !== null;

@@ -18,7 +18,9 @@ class IncentivePlanResource extends JsonResource
         $achieved = (float) $this->achieved_amount;
         $payment = $this->whenLoaded('bonusPayments', fn () => $this->bonusPayments->first());
         $reached = $this->reachedTier();
-        $next = $this->nextTier();
+        // الشرائح مرتّبة، فالتالية هي التي بعد المبلوغة.
+        $nextNumber = ($reached['number'] ?? 0) + 1;
+        $next = $this->tiers[$nextNumber - 1] ?? null;
 
         return [
             'id' => $this->id,
@@ -46,7 +48,7 @@ class IncentivePlanResource extends JsonResource
                 'bonus' => $this->tierBonus($tier),
             ], $this->tiers),
             'reachedTier' => $reached['number'] ?? null,
-            'nextTier' => $next ? ['number' => $next['number'], 'threshold' => $next['threshold'], 'remaining' => round($next['threshold'] - $achieved, 2)] : null,
+            'nextTier' => $next ? ['number' => $nextNumber, 'threshold' => (float) $next['threshold'], 'remaining' => round((float) $next['threshold'] - $achieved, 2)] : null,
             // ذات الشرائح لا تُصرف قبل نهاية الشهر (PayBonusAction).
             'canPayNow' => $reached !== null && (! $this->isMultiTier() || $this->periodEnded()),
             'notes' => $this->notes,
