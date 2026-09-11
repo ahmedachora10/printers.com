@@ -70,6 +70,39 @@ export interface PaymentMethodChange {
     at: string | null;
 }
 
+/** رسالة في المحادثة الداخلية لفاتورة الخدمات (تاسك 100) — لا تصل أي ورقة للعميل. */
+export interface InvoiceMessage {
+    id: number;
+    /** null = ملاحظة التاسك 95 المُرحَّلة */
+    authorId: number | null;
+    authorName: string;
+    authorRole: string | null;
+    /** null للمحذوفة — تبقى في الخيط بلا نصّها */
+    body: string | null;
+    createdAt: string | null;
+    /** جديدة على هذا الناظر منذ آخر زيارة */
+    isNew: boolean;
+    /** قرأها أحدٌ غير مرسلها */
+    isRead: boolean;
+    actionedAt: string | null;
+    actionedByName: string | null;
+    editedAt: string | null;
+    deletedAt: string | null;
+    deletedByName: string | null;
+    attachments: { id: number; name: string; url: string; isImage: boolean }[];
+    canMarkActioned: boolean;
+}
+
+export interface InvoiceThread {
+    messages: InvoiceMessage[];
+    closedAt: string | null;
+    closedByName: string | null;
+    canPost: boolean;
+    canModerate: boolean;
+    /** `role:accountant` / `role:branch-admin` / `user:{id}` */
+    mentionables: { token: string; label: string }[];
+}
+
 export interface InvoiceAgent {
     name: string | null;
     mode: 'discount' | 'rebate';
@@ -88,7 +121,7 @@ export interface Invoice {
     paidAt: string | null;
     status: InvoiceStatus;
     statusLabel: string;
-    /** ملاحظة داخلية للموظفين والإدارة — null لمن لا يملك رؤيتها ولكل ورقة طباعة (تاسك 95) */
+    /** ملاحظة داخلية — فواتير المنتجات وحدها؛ الخدمات صارت محادثة (تاسك 100). null لمن لا يملك رؤيتها ولكل ورقة طباعة */
     internalNotes: string | null;
     canEditInternalNotes: boolean;
     /** Why a reviewer rejected the invoice — service invoices only. */
@@ -193,6 +226,8 @@ export interface InvoiceListItem {
     canApprove: boolean;
     /** ما ينقصها قبل الاعتماد: 'method' طريقة دفع، 'receipt' إيصال تحويل، أو null */
     approveBlockedReason: 'method' | 'receipt' | null;
+    /** رسائل المحادثة الداخلية غير المقروءة (تاسك 100) — صفر للمنتجات */
+    unreadMessages: number;
 }
 
 export interface PaginatedInvoice {

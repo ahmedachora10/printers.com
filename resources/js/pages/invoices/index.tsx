@@ -21,7 +21,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
 import { Link, router } from '@inertiajs/react';
-import { CheckCircle2, Eye, Info, Loader2, PackageCheck, Pencil, Printer, Search, Undo2, UserPlus, X } from 'lucide-react';
+import { CheckCircle2, Eye, Info, Loader2, MessageSquare, PackageCheck, Pencil, Printer, Search, Undo2, UserPlus, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -284,9 +284,21 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 key: 'invoiceNumber',
                 header: 'رقم الفاتورة',
                 cell: (item) => (
-                    <Link href={`/invoices/${item.type}/${item.id}`} className="text-foreground font-medium hover:underline" dir="ltr">
-                        {item.invoiceNumber}
-                    </Link>
+                    <span className="inline-flex items-center gap-1.5">
+                        <Link href={`/invoices/${item.type}/${item.id}`} className="text-foreground font-medium hover:underline" dir="ltr">
+                            {item.invoiceNumber}
+                        </Link>
+                        {/* تاسك 100: رسائل داخلية غير مقروءة على الفاتورة */}
+                        {item.unreadMessages > 0 && (
+                            <span
+                                className="inline-flex items-center gap-0.5 rounded-full bg-sky-100 px-1.5 text-xs font-medium text-sky-700 tabular-nums dark:bg-sky-950 dark:text-sky-300"
+                                title={`${item.unreadMessages} رسالة داخلية غير مقروءة`}
+                            >
+                                <MessageSquare className="size-3" aria-hidden />
+                                {item.unreadMessages}
+                            </span>
+                        )}
+                    </span>
                 ),
             },
             {

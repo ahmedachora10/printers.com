@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Invoice\GenerateZatcaQrAction;
+use App\Actions\InvoiceMessage\BuildInvoiceThreadAction;
 use App\Actions\InvoicePayment\ChangePaymentMethodAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
 use App\Models\Branch;
+use App\Models\InvoiceMessage;
 use App\Models\InvoicePayment;
 use App\Models\PaymentMethod;
 use App\Models\ProductInvoice;
@@ -70,6 +72,14 @@ class InvoiceController extends Controller
             ->withQueryString();
 
         $this->labelPaymentRowMethods($invoices->getCollection());
+
+        // تاسك 100: غير المقروء من المحادثة الداخلية، لصفوف الصفحة وحدها —
+        // استعلامٌ واحد بعد الترقيم لا عمودٌ في الاتحاد. كل من يرى القائمة يرى
+        // خيوط صفوفها: المراجعون فرعهم، والموظف فواتيره.
+        $unread = InvoiceMessage::unreadCounts($user, $invoices->getCollection()->where('type', InvoiceTypeEnum::SERVICE->value)->pluck('id')->map('intval')->all());
+        $invoices->getCollection()->each(fn ($row) => $row->unread_messages = $row->type === InvoiceTypeEnum::SERVICE->value
+            ? ($unread[(int) $row->id] ?? 0)
+            : 0);
 
         return Inertia::render('invoices/index', [
             'items' => InvoiceListResource::collection($invoices),
@@ -178,7 +188,7 @@ class InvoiceController extends Controller
         ];
     }
 
-    public function show(string $type, int $id): Response
+    public function show(string $type, int $id, BuildInvoiceThreadAction $threadBuilder): Response
     {
         $invoice = $this->resolveInvoice($type, $id);
         Gate::authorize('view', $invoice);
@@ -203,19 +213,22 @@ class InvoiceController extends Controller
             $invoice->load('agent:id,name');
         }
 
+        // تاسك 100: المحادثة الداخلية — لفاتورة الخدمات ولمن يراها وحده.
+        $hasThread = $invoice instanceof ServiceInvoice && Gate::allows('viewMessages', $invoice);
+
         return Inertia::render('invoices/show', [
             'invoice' => new InvoiceResource($invoice),
             // خيارات طريقة الدفع لنافذة «تسجيل دفعة» — دفعة واحدة قد تُقبض بطريقة
             // غير التي أُصدرت بها الفاتورة. requiresAttachment تُملي على النافذة
-            // إظهار حقل الإيصال وفرضه.
-            'paymentMethodOptions' => $invoice->branch
+            // إظهار حقل الإيصال وفرضه. داخل دالّة كي لا يُحسب مع كل استطلاع للخيط.
+            'paymentMethodOptions' => fn () => $invoice->branch
                 ? $invoice->branch->enabledPaymentMethods()
                     ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'requiresAttachment' => (bool) $m->requires_attachment])
                     ->values()
                 : [],
             // تاسك 99: تغيير الطريقة بعد الاعتماد يعيد كتابة نقد يومٍ مضى في
             // تقرير المبيعات، فأثرُه يُعرض على الفاتورة لا في السجلّ وحده.
-            'paymentMethodHistory' => Activity::query()
+            'paymentMethodHistory' => fn () => Activity::query()
                 ->forSubject($invoice)
                 ->where('description', ChangePaymentMethodAction::LOG_DESCRIPTION)
                 ->with('causer:id,name')
@@ -230,6 +243,12 @@ class InvoiceController extends Controller
                     'byName' => $a->causer?->name,
                     'at' => $a->created_at?->toIso8601String(),
                 ]),
+            'hasThread' => $hasThread,
+            // مؤجَّلة: الصفحة لا تنتظرها، والاستطلاع يطلبها وحدها. وقراءتها تقدّم
+            // موضع قراءة الناظر.
+            'thread' => $hasThread
+                ? Inertia::defer(fn () => $threadBuilder->handle($invoice, Auth::user()), 'thread')
+                : null,
         ]);
     }
 

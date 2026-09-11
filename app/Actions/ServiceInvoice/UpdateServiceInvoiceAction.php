@@ -2,6 +2,7 @@
 
 namespace App\Actions\ServiceInvoice;
 
+use App\Actions\InvoiceMessage\PostInvoiceMessageAction;
 use App\Actions\ServiceInvoice\Concerns\LogsAuthoredMaterialsCost;
 use App\Actions\ServiceInvoice\Concerns\ReversesServiceInvoiceAccruals;
 use App\Actions\ServiceInvoice\Concerns\SavesShippingAddress;
@@ -27,6 +28,7 @@ class UpdateServiceInvoiceAction
 
     public function __construct(
         private readonly CalculateServiceInvoiceAction $calculator,
+        private readonly PostInvoiceMessageAction $postMessage,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -69,6 +71,12 @@ class UpdateServiceInvoiceAction
                 'paid_at' => null,
                 ...$calc['attributes'],
             ]);
+
+            // تاسك 100: ما يُكتب في الخانة عند التعديل رسالةٌ جديدة ممّن يعدّل —
+            // لا استبدالٌ لما قيل قبلها.
+            if (filled($data['internal_notes'] ?? null)) {
+                $this->postMessage->handle($invoice, auth()->user(), $data['internal_notes']);
+            }
 
             if ($receipt !== null) {
                 $invoice->clearMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);

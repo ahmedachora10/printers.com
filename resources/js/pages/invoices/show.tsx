@@ -2,6 +2,7 @@ import { DataTable, type ColumnDef } from '@/components/data-table';
 import DeliveryBadge from '@/components/invoices/delivery-badge';
 import InternalNotesCard from '@/components/invoices/internal-notes-card';
 import InvoiceNotes from '@/components/invoices/invoice-notes';
+import InvoiceThread from '@/components/invoices/invoice-thread';
 import LineInternals from '@/components/invoices/line-internals';
 import MaterialsShortageDialog from '@/components/invoices/materials-shortage-dialog';
 import { ReceiptField } from '@/components/invoices/receipt-field';
@@ -15,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
 import { INVOICE_STATUS_COLORS, formatLineSize, formatLineUnitPrice, invoiceDocumentTitle, invoiceTotals } from '@/lib/invoice';
@@ -24,8 +26,8 @@ import { updatePaymentMethod as updateInvoicePaymentMethod } from '@/routes/invo
 import serviceInvoice from '@/routes/invoices/service';
 import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { type Invoice, type InvoicePayment, type PaymentMethodChange } from '@/types/invoice';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { type Invoice, type InvoiceThread as InvoiceThreadData, type InvoicePayment, type PaymentMethodChange } from '@/types/invoice';
+import { Deferred, Head, Link, router, usePage } from '@inertiajs/react';
 import { Ban, Bike, CheckCircle2, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
@@ -34,6 +36,9 @@ interface Props {
     invoice: Invoice;
     paymentMethodOptions: PaymentMethodOption[];
     paymentMethodHistory: PaymentMethodChange[];
+    /** تاسك 100: فاتورة خدمات ولمن يرى محادثتها */
+    hasThread: boolean;
+    thread?: InvoiceThreadData | null;
 }
 
 type InvoiceLine = Invoice['lines'][number];
@@ -115,7 +120,7 @@ function TotalRow({ label, value, strong = false }: { label: string; value: stri
     );
 }
 
-export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory }: Props) {
+export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory, hasThread, thread }: Props) {
     const { props } = usePage<SharedData>();
     const [refundOpen, setRefundOpen] = useState(false);
     const [paymentOpen, setPaymentOpen] = useState(false);
@@ -711,6 +716,13 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                         </CardContent>
                     </Card>
                 </div>
+
+                {/* تاسك 100: المحادثة الداخلية — مؤجَّلة فلا تنتظرها الصفحة. */}
+                {hasThread && (
+                    <Deferred data="thread" fallback={<Skeleton className="h-40 w-full" />}>
+                        <InvoiceThread invoiceId={invoice.id} thread={thread as InvoiceThreadData} />
+                    </Deferred>
+                )}
             </div>
 
             {invoice.canRecordPayment && (

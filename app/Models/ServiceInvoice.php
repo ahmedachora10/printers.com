@@ -57,6 +57,8 @@ class ServiceInvoice extends Model implements HasMedia
         'cancellation_reason',
         'cancelled_by',
         'cancelled_at',
+        'messages_closed_at',
+        'messages_closed_by',
     ];
 
     protected $casts = [
@@ -79,6 +81,7 @@ class ServiceInvoice extends Model implements HasMedia
         'cancelled_at' => 'datetime',
         'delivery_at' => 'datetime',
         'delivered_at' => 'datetime',
+        'messages_closed_at' => 'datetime',
     ];
 
     /**
@@ -188,5 +191,17 @@ class ServiceInvoice extends Model implements HasMedia
     public function refunds(): MorphMany
     {
         return $this->morphMany(Refund::class, 'invoice');
+    }
+
+    /** المحادثة الداخلية (تاسك 100). @return HasMany<InvoiceMessage, $this> */
+    public function messages(): HasMany
+    {
+        return $this->hasMany(InvoiceMessage::class, 'service_invoice_id');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function messagesClosedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'messages_closed_by');
     }
 }

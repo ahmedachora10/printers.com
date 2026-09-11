@@ -401,9 +401,8 @@ class CalculateServiceInvoiceAction
                 // Invoice-level remark for the customer — carried through
                 // untouched, like the per-line detail.
                 'notes' => $this->normalizeNotes($data['notes'] ?? null),
-                // تاسك 95: تعليمات التنفيذ والتنبيهات — للموظفين والإدارة،
-                // ولا تُطبع للعميل ولا تصل حمولة الطباعة أصلاً.
-                'internal_notes' => $this->normalizeNotes($data['internal_notes'] ?? null),
+                // تاسك 100: «ملاحظات داخلية» لم تعد عموداً — ينشرها فعلا
+                // الإنشاء والتعديل رسالةً في المحادثة الداخلية.
                 // موعد تسليم العمل، بدقّة الدقيقة كما اختاره الكاشير.
                 'delivery_at' => $this->normalizeDeliveryAt($data['delivery_at'] ?? null),
             ],
