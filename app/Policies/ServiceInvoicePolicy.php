@@ -57,7 +57,7 @@ class ServiceInvoicePolicy
     public function changePaymentMethod(User $user, ServiceInvoice $invoice): bool
     {
         return $this->updateStatus($user, $invoice)
-            && ! in_array($invoice->status, [InvoiceStatusEnum::CANCELLED, InvoiceStatusEnum::RETURNED], true);
+            && ! in_array($invoice->status->value, InvoiceStatusEnum::excludedFromRevenue(), true);
     }
 
     /**

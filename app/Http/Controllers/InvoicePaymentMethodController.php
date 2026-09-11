@@ -17,24 +17,14 @@ class InvoicePaymentMethodController extends Controller
 {
     public function update(UpdateInvoicePaymentMethodRequest $request, ChangePaymentMethodAction $action): RedirectResponse
     {
-        $invoice = $request->target();
-        Gate::authorize('changePaymentMethod', $invoice);
-
-        $action->handle($invoice, (int) $request->validated('payment_method_id'), $request->file('receipt'), $request->user());
-
-        return back(fallback: route('invoices.index'))
-            ->with('success', "تم تحديث طريقة الدفع للفاتورة {$invoice->invoice_number}");
-    }
-
-    public function updatePayment(UpdateInvoicePaymentMethodRequest $request, InvoicePayment $payment, ChangePaymentMethodAction $action): RedirectResponse
-    {
-        $invoice = $payment->invoice;
+        $target = $request->target();
+        $invoice = $target instanceof InvoicePayment ? $target->invoice : $target;
         abort_if($invoice === null, 404);
         Gate::authorize('changePaymentMethod', $invoice);
 
-        $action->handle($payment, (int) $request->validated('payment_method_id'), $request->file('receipt'), $request->user());
+        $action->handle($target, (int) $request->validated('payment_method_id'), $request->file('receipt'), $request->user());
 
         return back(fallback: route('invoices.index'))
-            ->with('success', "تم تحديث طريقة الدفعة على الفاتورة {$invoice->invoice_number}");
+            ->with('success', "تم تحديث طريقة الدفع للفاتورة {$invoice->invoice_number}");
     }
 }

@@ -9,6 +9,7 @@ use App\Enums\InvoiceTypeEnum;
 use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
 use App\Models\Branch;
+use App\Models\InvoicePayment;
 use App\Models\PaymentMethod;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
@@ -124,14 +125,9 @@ class InvoiceController extends Controller
                 ->groupBy('invoice_id');
 
             foreach ($ofType as $row) {
-                $paymentNames = $names->get($row->id);
-
-                if ($paymentNames === null) {
-                    continue;
+                if ($payments = $names->get($row->id)) {
+                    $row->payment_method_name = InvoicePayment::methodLabel($payments->pluck('name'), $row->payment_method_name);
                 }
-
-                $label = $paymentNames->map(fn ($p) => $p->name ?? $row->payment_method_name)->filter()->unique()->implode(' + ');
-                $row->payment_method_name = $label !== '' ? $label : $row->payment_method_name;
             }
         }
     }

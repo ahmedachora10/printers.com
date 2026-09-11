@@ -50,6 +50,6 @@ class ProductInvoicePolicy
     {
         return $this->create($user)
             && ($user->roleName->isSuperAdmin() || $user->branchId === $invoice->branch_id)
-            && ! in_array($invoice->status, [InvoiceStatusEnum::CANCELLED, InvoiceStatusEnum::RETURNED], true);
+            && ! in_array($invoice->status->value, InvoiceStatusEnum::excludedFromRevenue(), true);
     }
 }

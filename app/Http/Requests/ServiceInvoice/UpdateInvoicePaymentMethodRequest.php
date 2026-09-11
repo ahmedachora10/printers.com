@@ -16,8 +16,7 @@ use Illuminate\Validation\Validator;
  * تعديل طريقة الدفع — على الفاتورة (قبل الاعتماد أو بعده، تاسك 99) أو على صفّ
  * دفعةٍ بعينها (عربون أو دفعة لاحقة).
  *
- * الهدف يُقرأ من المسار: `{invoice}` (مسار فواتير الخدمات القديم في شاشة
- * المراجعة)، أو `{type}/{id}`، أو `{payment}`.
+ * الهدف يُقرأ من المسار: `{type}/{id}` أو `{payment}`.
  *
  * الإيصال إلزامي هنا كما هو إلزامي في نقطة البيع: كان هذا المسار ثغرةً تُبدَّل
  * منها الطريقة إلى «تحويل بنكي» بلا إثبات، فتُعتمد الفاتورة بعدها بلا مرفق —
@@ -26,8 +25,6 @@ use Illuminate\Validation\Validator;
  */
 class UpdateInvoicePaymentMethodRequest extends FormRequest
 {
-    private ServiceInvoice|ProductInvoice|InvoicePayment|null $resolvedTarget = null;
-
     public function authorize(): bool
     {
         return true;
@@ -36,19 +33,17 @@ class UpdateInvoicePaymentMethodRequest extends FormRequest
     /** الفاتورة أو صفّ الدفعة الذي تتغيّر طريقته. */
     public function target(): ServiceInvoice|ProductInvoice|InvoicePayment
     {
-        if ($this->resolvedTarget !== null) {
-            return $this->resolvedTarget;
-        }
+        return once(function () {
+            // المتحكّم لا يُلمّح لـ{payment}، فلا ربط ضمني — يُحمَّل هنا.
+            if ($paymentId = $this->route('payment')) {
+                return InvoicePayment::findOrFail((int) $paymentId);
+            }
 
-        $target = $this->route('payment') ?? $this->route('invoice');
-
-        if ($target === null) {
             $type = InvoiceTypeEnum::tryFrom((string) $this->route('type'));
             abort_if($type === null, 404);
-            $target = $type->modelClass()::findOrFail((int) $this->route('id'));
-        }
 
-        return $this->resolvedTarget = $target;
+            return $type->modelClass()::findOrFail((int) $this->route('id'));
+        });
     }
 
     /** @return array<string, mixed> */

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
+use Illuminate\Support\Collection;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
@@ -74,6 +75,18 @@ class InvoicePayment extends Model implements HasMedia
         return $this->receipt() === null
             ? null
             : route('invoices.payments.receipt', ['payment' => $this->id]);
+    }
+
+    /**
+     * طريقة الدفع كما يقرؤها تقرير المبيعات: فاتورةٌ سُدّدت بدفعات طريقتُها
+     * طرقُ دفعاتها (وطريقة الفاتورة لدفعةٍ قديمة بلا طريقة)، وإلا فطريقة
+     * الفاتورة. بغير هذا عرضت فاتورة العربون «طريقة الدفع: —» وهي مسدَّدة بالشبكة.
+     *
+     * @param  Collection<int, ?string>  $paymentNames  أسماء طرق الدفعات بترتيبها
+     */
+    public static function methodLabel(Collection $paymentNames, ?string $own): ?string
+    {
+        return $paymentNames->map(fn (?string $name) => $name ?? $own)->filter()->unique()->implode(' + ') ?: $own;
     }
 
     /** @return MorphTo<Model, $this> */

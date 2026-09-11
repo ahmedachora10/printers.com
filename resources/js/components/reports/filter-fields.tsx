@@ -66,7 +66,9 @@ export interface FilterOption {
  * and status filters. `value` is the raw string; the "all" sentinel is `all`.
  *
  * `searchable` swaps the Radix select for a type-to-filter list (تاسك 101) —
- * for long lists such as services.
+ * for long lists such as services. That list opens **inline** under the
+ * trigger rather than in a popover, for the reason given on FilterMultiSelect
+ * below: a portalled popover inside the filter Dialog is unclickable.
  */
 export function FilterSelect({
     label,
@@ -85,50 +87,29 @@ export function FilterSelect({
     placeholder?: string;
     searchable?: boolean;
 }) {
-    if (searchable) {
-        return <SearchableFilterSelect label={label} value={value} onChange={onChange} options={options} allLabel={allLabel} />;
+    const [open, setOpen] = React.useState(false);
+
+    if (!searchable) {
+        return (
+            <FilterField label={label}>
+                <Select value={value} onValueChange={onChange}>
+                    <SelectTrigger>
+                        <SelectValue placeholder={placeholder ?? allLabel} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">{allLabel}</SelectItem>
+                        {options.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </FilterField>
+        );
     }
 
-    return (
-        <FilterField label={label}>
-            <Select value={value} onValueChange={onChange}>
-                <SelectTrigger>
-                    <SelectValue placeholder={placeholder ?? allLabel} />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">{allLabel}</SelectItem>
-                    {options.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
-        </FilterField>
-    );
-}
-
-/**
- * Single-choice select with a search box. The list opens **inline** under the
- * trigger rather than in a popover, for the reason given on FilterMultiSelect
- * below: a portalled popover inside the filter Dialog is unclickable.
- */
-function SearchableFilterSelect({
-    label,
-    value,
-    onChange,
-    options,
-    allLabel,
-}: {
-    label: string;
-    value: string;
-    onChange: (value: string) => void;
-    options: FilterOption[];
-    allLabel: string;
-}) {
-    const [open, setOpen] = React.useState(false);
     const selected = options.find((option) => option.value === value);
-
     const choose = (next: string) => {
         onChange(next);
         setOpen(false);

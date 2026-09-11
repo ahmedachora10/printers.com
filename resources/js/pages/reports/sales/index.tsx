@@ -368,8 +368,6 @@ function SummaryCard({
 function PaymentMethodCard({ rows, totals }: { rows: SalesReportPaymentMethodRow[]; totals: SalesReportTotals }) {
     const cashRows = rows.filter((r) => r.isCash).length;
     const onRow = (row: SalesReportPaymentMethodRow) => row.isCash && cashRows === 1;
-    const total = rows.reduce((sum, r) => sum + r.total, 0);
-
     const columns: ColumnDef<SalesReportPaymentMethodRow>[] = [
         { key: 'name', header: 'طريقة الدفع', className: 'font-medium', cell: (row) => row.methodName },
         { key: 'count', header: 'عدد الفواتير', cell: (row) => row.count },
@@ -410,7 +408,7 @@ function PaymentMethodCard({ rows, totals }: { rows: SalesReportPaymentMethodRow
                         <TableRow>
                             <TableCell className="font-bold">الإجمالي</TableCell>
                             <TableCell />
-                            <TableCell className="font-bold text-green-600">{formatCurrency(total)}</TableCell>
+                            <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
                             <TableCell className="font-bold text-amber-600">{formatCurrency(totals.expenses)}</TableCell>
                             <TableCell className="font-bold">
                                 <Remaining value={totals.cashRemaining} />

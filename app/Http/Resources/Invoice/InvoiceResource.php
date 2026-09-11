@@ -167,7 +167,9 @@ class InvoiceResource extends JsonResource
             'customerName' => $this->customer?->full_name,
             'customerPhone' => $this->customer?->phone,
             'customerTaxNumber' => $this->customer?->tax_number ?? null,
-            'paymentMethod' => $this->paymentMethodLabel(),
+            'paymentMethod' => $this->relationLoaded('payments')
+                ? InvoicePayment::methodLabel($this->payments->map(fn (InvoicePayment $p) => $p->paymentMethod?->name), $this->paymentMethod?->name)
+                : $this->paymentMethod?->name,
             // يسبق اختيارَ نافذة «طريقة الدفع» في شاشة الفاتورة، ويحرس زرّ
             // الاعتماد — طريقة الفاتورة نفسها لا طريقة دفعاتها.
             'paymentMethodId' => $this->payment_method_id,
@@ -229,28 +231,6 @@ class InvoiceResource extends JsonResource
                 'logoUrl' => $this->branch?->getFirstMediaUrl('logo') ?: null,
             ],
         ];
-    }
-
-    /**
-     * طريقة الدفع كما يقرؤها تقرير المبيعات: فاتورةٌ سُدّدت بدفعات طريقتُها
-     * طرقُ دفعاتها (وطريقة الفاتورة لصفٍّ قديم بلا طريقة)، وإلا فطريقة الفاتورة.
-     * بغير هذا عرضت فاتورة العربون «طريقة الدفع: —» وهي مسدَّدة بالشبكة.
-     */
-    private function paymentMethodLabel(): ?string
-    {
-        $own = $this->paymentMethod?->name;
-
-        if (! $this->relationLoaded('payments') || $this->payments->isEmpty()) {
-            return $own;
-        }
-
-        $names = $this->payments
-            ->map(fn (InvoicePayment $payment) => $payment->paymentMethod?->name ?? $own)
-            ->filter()
-            ->unique()
-            ->values();
-
-        return $names->isEmpty() ? $own : $names->implode(' + ');
     }
 
     /**

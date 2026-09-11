@@ -260,7 +260,7 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('invoices/{type}/{id}/payment-method', [InvoicePaymentMethodController::class, 'update'])
             ->whereIn('type', ['product', 'service'])->whereNumber('id')
             ->name('invoices.update-payment-method');
-        Route::patch('invoice-payments/{payment}/payment-method', [InvoicePaymentMethodController::class, 'updatePayment'])
+        Route::patch('invoice-payments/{payment}/payment-method', [InvoicePaymentMethodController::class, 'update'])
             ->name('invoice-payments.update-payment-method');
 
         // دفعات الفاتورة (عربون + دفعات لاحقة) — لكلا نوعي الفواتير. من يعتمد
