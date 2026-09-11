@@ -78,7 +78,7 @@ class IncentiveReportExport implements WithMultipleSheets
 
         return new ReportSheet(
             'خطط الحوافز',
-            [...$headings, 'الفترة', 'المستهدف', 'المحقق', 'نسبة الإنجاز', 'المكافأة', 'المصروف', 'الحالة'],
+            [...$headings, 'الفترة', 'المستهدف', 'المحقق', 'نسبة الإنجاز', 'الشريحة المبلوغة', 'المكافأة', 'المصروف', 'الحالة'],
             $this->plans->map(fn(array $row) => [
                 $row['userName'] ?? '—',
                 ...($this->withBranch ? [$row['branchName'] ?? '—'] : []),
@@ -86,6 +86,7 @@ class IncentiveReportExport implements WithMultipleSheets
                 $this->money($row['target']),
                 $this->money($row['achieved']),
                 $row['progressPct'] . '%',
+                $row['reachedTier'] ?? '—',
                 $this->money($row['bonusAmount']),
                 $this->money($row['bonusPaid']),
                 $row['statusLabel'],

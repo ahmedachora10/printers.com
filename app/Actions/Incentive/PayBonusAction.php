@@ -24,6 +24,14 @@ class PayBonusAction
                 ]);
             }
 
+            // تاسك 105: الصرف يجمّد الخطة، فصرفُ خطةٍ ذات شرائح منتصف الشهر كان
+            // سيُضيع على الموظف ما فوق شريحته الحالية. ذات الشريحة الواحدة على حالها.
+            if ($plan->isMultiTier() && ! $plan->periodEnded()) {
+                throw ValidationException::withMessages([
+                    'incentive_plan_id' => 'خطة ذات شرائح تُصرف بعد نهاية الشهر.',
+                ]);
+            }
+
             // Settle on the latest sales figures before paying out.
             $this->recalculate->handle($plan);
 

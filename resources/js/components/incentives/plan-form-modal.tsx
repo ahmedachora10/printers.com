@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type EmployeeOption, type EnumOption, type IncentivePlan } from '@/types/incentive';
 import { useForm } from '@inertiajs/react';
+import { Plus, Trash2 } from 'lucide-react';
 import { useEffect } from 'react';
 import InputError from '../input-error';
 
@@ -19,6 +20,13 @@ const MONTHS = [
     'يناير', 'فبراير', 'مارس', 'أبريل', 'مايو', 'يونيو',
     'يوليو', 'أغسطس', 'سبتمبر', 'أكتوبر', 'نوفمبر', 'ديسمبر',
 ];
+
+type TierInput = { threshold: string; value: string };
+
+const EMPTY_TIER: TierInput = { threshold: '', value: '' };
+
+const toTierInputs = (plan: IncentivePlan): TierInput[] =>
+    plan.tiers.map((t) => ({ threshold: t.threshold.toString(), value: t.value.toString() }));
 
 interface Props {
     open: boolean;
@@ -36,9 +44,8 @@ export default function PlanFormModal({ open, onOpenChange, plan, employees, bon
         user_id: plan?.userId?.toString() ?? '',
         period_month: (plan?.periodMonth ?? now.getMonth() + 1).toString(),
         period_year: (plan?.periodYear ?? now.getFullYear()).toString(),
-        target_amount: plan?.targetAmount?.toString() ?? '',
         bonus_type: plan?.bonusType ?? 'fixed',
-        bonus_value: plan?.bonusValue?.toString() ?? '',
+        tiers: plan ? toTierInputs(plan) : [EMPTY_TIER],
         notes: plan?.notes ?? '',
     });
 
@@ -48,9 +55,8 @@ export default function PlanFormModal({ open, onOpenChange, plan, employees, bon
                 user_id: plan.userId?.toString() ?? '',
                 period_month: (plan.periodMonth ?? now.getMonth() + 1).toString(),
                 period_year: (plan.periodYear ?? now.getFullYear()).toString(),
-                target_amount: plan.targetAmount?.toString() ?? '',
                 bonus_type: plan.bonusType ?? 'fixed',
-                bonus_value: plan.bonusValue?.toString() ?? '',
+                tiers: toTierInputs(plan),
                 notes: plan.notes ?? '',
             });
         } else {
@@ -72,7 +78,18 @@ export default function PlanFormModal({ open, onOpenChange, plan, employees, bon
         }
     }
 
-    const bonusValueLabel = data.bonus_type === 'percentage' ? 'نسبة المكافأة (%)' : 'قيمة المكافأة (ر.س)';
+    const isPercentage = data.bonus_type === 'percentage';
+
+    const setTier = (index: number, key: keyof TierInput, value: string) =>
+        setData(
+            'tiers',
+            data.tiers.map((tier, i) => (i === index ? { ...tier, [key]: value } : tier)),
+        );
+
+    // أخطاء الشرائح تأتي بمفاتيح tiers.0.threshold… — تُجمع تحت القائمة.
+    const tierErrors = Object.entries(errors as Record<string, string>)
+        .filter(([key]) => key.startsWith('tiers'))
+        .map(([, message]) => message);
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
@@ -134,57 +151,77 @@ export default function PlanFormModal({ open, onOpenChange, plan, employees, bon
                     </div>
 
                     <div className="space-y-1">
-                        <Label htmlFor="incentive-target">هدف المبيعات (ر.س)</Label>
-                        <Input
-                            id="incentive-target"
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={data.target_amount}
-                            onChange={(e) => setData('target_amount', e.target.value)}
-                            placeholder="0.00"
-                            dir="ltr"
-                        />
-                        <InputError message={errors.target_amount} />
+                        <Label htmlFor="incentive-bonus-type">نوع المكافأة</Label>
+                        <Select value={data.bonus_type} onValueChange={(val) => setData('bonus_type', val)}>
+                            <SelectTrigger id="incentive-bonus-type">
+                                <SelectValue placeholder="النوع" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {bonusTypes.map((t) => (
+                                    <SelectItem key={t.value} value={t.value}>
+                                        {t.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <InputError message={errors.bonus_type} />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <Label htmlFor="incentive-bonus-type">نوع المكافأة</Label>
-                            <Select value={data.bonus_type} onValueChange={(val) => setData('bonus_type', val)}>
-                                <SelectTrigger id="incentive-bonus-type">
-                                    <SelectValue placeholder="النوع" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {bonusTypes.map((t) => (
-                                        <SelectItem key={t.value} value={t.value}>
-                                            {t.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <InputError message={errors.bonus_type} />
+                    {/* تاسك 105: شرائح — أعلى شريحة يبلغها الموظف هي وحدها ما يُصرف. */}
+                    <div className="space-y-2">
+                        <div className="grid grid-cols-[1fr_1fr_2.25rem] gap-2 text-sm font-medium">
+                            <span>عند تحقيق (ر.س)</span>
+                            <span>{isPercentage ? 'نسبة المكافأة (%)' : 'المكافأة (ر.س)'}</span>
                         </div>
-
-                        <div className="space-y-1">
-                            <Label htmlFor="incentive-bonus-value">{bonusValueLabel}</Label>
-                            <Input
-                                id="incentive-bonus-value"
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                value={data.bonus_value}
-                                onChange={(e) => setData('bonus_value', e.target.value)}
-                                placeholder="0.00"
-                                dir="ltr"
-                            />
-                            {data.bonus_type === 'percentage' && (
-                                <p className="text-muted-foreground text-xs">
-                                    تُحتسب من مبلغ الهدف — هدف 20,000 بنسبة 10% = 2,000 ر.س عند التحقيق.
-                                </p>
-                            )}
-                            <InputError message={errors.bonus_value} />
-                        </div>
+                        {data.tiers.map((tier, i) => (
+                            <div key={i} className="grid grid-cols-[1fr_1fr_2.25rem] gap-2">
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={tier.threshold}
+                                    onChange={(e) => setTier(i, 'threshold', e.target.value)}
+                                    placeholder="0.00"
+                                    aria-label={`عتبة الشريحة ${i + 1}`}
+                                    dir="ltr"
+                                />
+                                <Input
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    value={tier.value}
+                                    onChange={(e) => setTier(i, 'value', e.target.value)}
+                                    placeholder="0.00"
+                                    aria-label={`مكافأة الشريحة ${i + 1}`}
+                                    dir="ltr"
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="text-destructive hover:text-destructive"
+                                    disabled={data.tiers.length === 1}
+                                    onClick={() => setData('tiers', data.tiers.filter((_, j) => j !== i))}
+                                    aria-label={`حذف الشريحة ${i + 1}`}
+                                >
+                                    <Trash2 className="size-4" />
+                                </Button>
+                            </div>
+                        ))}
+                        {data.tiers.length < 10 && (
+                            <Button type="button" variant="outline" size="sm" onClick={() => setData('tiers', [...data.tiers, EMPTY_TIER])}>
+                                <Plus className="size-4" /> إضافة شريحة
+                            </Button>
+                        )}
+                        <p className="text-muted-foreground text-xs">
+                            {isPercentage
+                                ? 'النسبة من عتبة الشريحة المبلوغة — 1,000 بنسبة 1% و2,000 بنسبة 2%: من حقّق 2,900 يأخذ 40 ر.س.'
+                                : 'تُصرف مكافأة أعلى شريحة بلغها الموظف وحدها.'}{' '}
+                            {data.tiers.length > 1 && 'الخطة ذات الشرائح تُصرف بعد نهاية الشهر.'}
+                        </p>
+                        {[...new Set(tierErrors)].map((message) => (
+                            <InputError key={message} message={message} />
+                        ))}
                     </div>
 
                     <div className="space-y-1">

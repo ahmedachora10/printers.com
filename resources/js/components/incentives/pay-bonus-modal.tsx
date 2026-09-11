@@ -53,9 +53,16 @@ export default function PayBonusModal({ open, onOpenChange, plan }: Props) {
                             <span className="tabular-nums" dir="ltr">{plan?.periodLabel}</span>
                         </div>
                         {/* الهدف بجانب المحقّق: النسبة تُقاس على الهدف (تاسك 73)، فيرى الصارف من أين جاء الرقم. */}
+                        {/* ذات الشرائح: عتبة الشريحة المبلوغة هي ما تُقاس عليه النسبة (تاسك 105). */}
                         <div className="flex justify-between">
-                            <span className="text-muted-foreground">الهدف</span>
-                            <span className="tabular-nums">{formatCurrency(plan?.targetAmount ?? 0)}</span>
+                            <span className="text-muted-foreground">
+                                {plan && plan.tiers.length > 1 && plan.reachedTier
+                                    ? `الشريحة المبلوغة (${plan.reachedTier} من ${plan.tiers.length})`
+                                    : 'الهدف'}
+                            </span>
+                            <span className="tabular-nums">
+                                {formatCurrency(plan?.reachedTier ? plan.tiers[plan.reachedTier - 1].threshold : (plan?.targetAmount ?? 0))}
+                            </span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">المبيعات المحققة</span>

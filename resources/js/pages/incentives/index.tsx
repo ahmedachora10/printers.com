@@ -3,6 +3,7 @@ import { destroy as destroyDeduction } from '@/actions/App/Http/Controllers/Empl
 import DeductionFormModal from '@/components/incentives/deduction-form-modal';
 import PayBonusModal from '@/components/incentives/pay-bonus-modal';
 import PlanFormModal from '@/components/incentives/plan-form-modal';
+import TierProgress from '@/components/incentives/tier-progress';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
@@ -124,7 +125,23 @@ export default function IncentivesIndex({
                 header: 'الفترة',
                 cell: (p) => <span className="tabular-nums" dir="ltr">{p.periodLabel}</span>,
             },
-            { key: 'target', header: 'الهدف', cell: (p) => <span className="tabular-nums">{formatCurrency(p.targetAmount)}</span> },
+            {
+                key: 'target',
+                header: 'الهدف',
+                // ذات الشرائح: كل عتبة بمكافأتها، والمبلوغة بخطٍّ عريض.
+                cell: (p) =>
+                    p.tiers.length > 1 ? (
+                        <div className="space-y-0.5 text-xs tabular-nums">
+                            {p.tiers.map((t, i) => (
+                                <div key={t.threshold} className={p.reachedTier === i + 1 ? 'font-semibold' : 'text-muted-foreground'}>
+                                    {formatCurrency(t.threshold)} ← {formatCurrency(t.bonus)}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <span className="tabular-nums">{formatCurrency(p.targetAmount)}</span>
+                    ),
+            },
             {
                 key: 'achieved',
                 header: 'المحقق',
@@ -134,11 +151,8 @@ export default function IncentivesIndex({
                             <span className="tabular-nums">{formatCurrency(p.achievedAmount)}</span>
                             <span className="text-muted-foreground text-xs tabular-nums">{p.progressPct}%</span>
                         </div>
-                        <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                            <div
-                                className={`h-full rounded-full ${p.isTargetMet ? 'bg-emerald-500' : 'bg-primary'}`}
-                                style={{ width: `${Math.min(p.progressPct, 100)}%` }}
-                            />
+                        <div className="mt-1">
+                            <TierProgress plan={p} />
                         </div>
                     </div>
                 ),
@@ -165,7 +179,12 @@ export default function IncentivesIndex({
                 cell: (p) => (
                     <div className="flex items-center justify-end gap-2">
                         {p.status === 'achieved' && (
-                            <Button size="sm" onClick={() => setPaying(p)}>
+                            <Button
+                                size="sm"
+                                onClick={() => setPaying(p)}
+                                disabled={!p.canPayNow}
+                                title={p.canPayNow ? undefined : 'خطة ذات شرائح تُصرف بعد نهاية الشهر'}
+                            >
                                 <Wallet className="h-3.5 w-3.5" /> صرف
                             </Button>
                         )}

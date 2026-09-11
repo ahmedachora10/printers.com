@@ -89,6 +89,8 @@ export interface IncentiveReportPlanRow {
     target: number;
     achieved: number;
     progressPct: number;
+    /** «2 من 3» — null قبل بلوغ أدنى شريحة (تاسك 105). */
+    reachedTier: string | null;
     bonusAmount: number;
     bonusPaid: number;
     status: string;

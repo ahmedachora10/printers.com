@@ -49,14 +49,13 @@ class RecalculateIncentivePlanAction
 
     private function deriveStatus(IncentivePlan $plan, float $achieved): IncentivePlanStatusEnum
     {
+        // target_amount هو أدنى شريحة (تاسك 105) — بلوغه يكفي لـ«محقَّقة».
         if ($achieved >= (float) $plan->target_amount) {
             return IncentivePlanStatusEnum::Achieved;
         }
 
         // Target not met. Once the month is over the plan can no longer recover.
-        $periodEnd = CarbonImmutable::create($plan->period_year, $plan->period_month, 1)->endOfMonth();
-
-        return $periodEnd->isPast()
+        return $plan->periodEnded()
             ? IncentivePlanStatusEnum::Missed
             : IncentivePlanStatusEnum::Active;
     }
