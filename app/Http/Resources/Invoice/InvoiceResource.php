@@ -179,8 +179,10 @@ class InvoiceResource extends JsonResource
             // تاسك 95: الملاحظة الداخلية — تعليمات تنفيذ أو تنبيه، لا يراها
             // العميل. تُحجب عمّن لا يملكها بنفس قاعدة أرقام التكلفة، وتُحذف
             // من حمولة الطباعة كاملةً عبر withoutInternalCosts().
-            'internalNotes' => $this->showsInternalCostsTo($request) ? $this->internal_notes : null,
-            'canEditInternalNotes' => $this->canEditInternalNotes($request),
+            // تاسك 100: فاتورة الخدمات تركت الحقل إلى المحادثة الداخلية (prop
+            // `thread` مستقلّ على شاشة الفاتورة)، فيبقى للمنتجات وحدها.
+            'internalNotes' => ! $isServiceInvoice && $this->showsInternalCostsTo($request) ? $this->internal_notes : null,
+            'canEditInternalNotes' => ! $isServiceInvoice && $this->canEditInternalNotes($request),
             'receiptUrl' => $this->receiptUrl(),
             // تاسك 94: أرقام السطر الداخلية (تكلفة الخامات، عمولة الموظف،
             // الشريحة) تُحجب عمّن لا يملكها — قرارٌ واحد يُتخذ هنا ويُمرَّر

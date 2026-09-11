@@ -219,8 +219,8 @@ export interface EditServiceInvoice {
     hasReceipt: boolean;
     /** ملاحظات على مستوى الفاتورة كاملة — تختلف عن ملاحظات السطر */
     notes: string | null;
-    /** ملاحظة داخلية للموظفين والإدارة — لا تظهر للعميل ولا تُطبع (تاسك 95) */
-    internalNotes: string | null;
+    /** لم تعد تُعاد إلى شاشة التعديل (تاسك 100): ما يُكتب في الخانة رسالةٌ جديدة في المحادثة */
+    internalNotes?: string | null;
     /** موعد تسليم العمل بصيغة «YYYY-MM-DD HH:MM» كما يقرأه المنتقي */
     deliveryAt: string | null;
     /** التوصيل كما حُفظ (تاسك 93) — «التوصيل» غير «موعد التسليم» أعلاه */

@@ -16,6 +16,7 @@ import {
     ClipboardCheck,
     FileText,
     type LucideIcon,
+    MessageSquare,
     Package,
     ShieldAlert,
     ShoppingBasket,
@@ -41,6 +42,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
     TrendingDown,
     Trophy,
     ShieldAlert,
+    MessageSquare,
 };
 
 interface Props {

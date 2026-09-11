@@ -20,7 +20,7 @@ import posService from '@/routes/pos/service';
 import serviceInvoice from '@/routes/invoices/service';
 import { updatePaymentMethod as updateInvoicePaymentMethod } from '@/routes/invoices';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckCircle2, ChevronDown, ClipboardList, Lock, Paperclip, Pencil, Search, User, UserPlus, Wallet, X, XCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import LineInternals from '@/components/invoices/line-internals';
@@ -65,8 +65,9 @@ interface ReviewInvoice {
     remainingAmount: number;
     /** فتح شاشة التعديل الكاملة — لمدير الفرع لا للمحاسب */
     canEdit: boolean;
-    /** تعليمات الموظف للمحاسب — لا تظهر للعميل ولا تُطبع (تاسك 95) */
-    internalNotes: string | null;
+    /** آخر رسالة في المحادثة الداخلية وعدد غير المقروء (تاسك 100) — لا تظهر للعميل ولا تُطبع */
+    lastMessage: { authorName: string | null; excerpt: string; createdAt: string | null } | null;
+    unreadMessages: number;
     lines: ReviewLine[];
 }
 
@@ -547,16 +548,29 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                                                 keyExtractor={(line) => invoice.lines.indexOf(line)}
                                             />
 
-                                            {/* تاسك 95: تعليمات الموظف للمحاسب — تُقرأ قبل الاعتماد
-                                                ولا تظهر في أي ورقة تصل العميل. */}
-                                            {invoice.internalNotes && invoice.internalNotes.trim() !== '' && (
+                                            {/* تاسك 100: آخر رسالة داخلية تُقرأ قبل الاعتماد، والمحادثة
+                                                كاملةً في شاشة الفاتورة. لا تظهر في أي ورقة تصل العميل. */}
+                                            {invoice.lastMessage && (
                                                 <div className="rounded-md border border-amber-300 bg-amber-50/60 p-2.5 dark:border-amber-900 dark:bg-amber-950/30">
-                                                    <p className="mb-0.5 flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200">
-                                                        <Lock className="size-3" aria-hidden />
-                                                        ملاحظات داخلية — لا تظهر للعميل
-                                                    </p>
+                                                    <div className="mb-0.5 flex flex-wrap items-center justify-between gap-1.5">
+                                                        <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                                                            <Lock className="size-3" aria-hidden />
+                                                            المحادثة الداخلية — {invoice.lastMessage.authorName ?? '—'}
+                                                            {invoice.unreadMessages > 0 && (
+                                                                <span className="rounded-full bg-sky-100 px-1.5 font-medium text-sky-700 tabular-nums dark:bg-sky-950 dark:text-sky-300">
+                                                                    {invoice.unreadMessages} غير مقروءة
+                                                                </span>
+                                                            )}
+                                                        </p>
+                                                        <Link
+                                                            href={`/invoices/service/${invoice.id}`}
+                                                            className="text-xs text-amber-900 underline-offset-2 hover:underline dark:text-amber-200"
+                                                        >
+                                                            فتح المحادثة
+                                                        </Link>
+                                                    </div>
                                                     <p className="text-xs whitespace-pre-line text-amber-900 dark:text-amber-100">
-                                                        {invoice.internalNotes}
+                                                        {invoice.lastMessage.excerpt}
                                                     </p>
                                                 </div>
                                             )}

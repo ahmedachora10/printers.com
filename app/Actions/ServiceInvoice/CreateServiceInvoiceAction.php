@@ -2,6 +2,7 @@
 
 namespace App\Actions\ServiceInvoice;
 
+use App\Actions\InvoiceMessage\PostInvoiceMessageAction;
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
 use App\Actions\ServiceInvoice\Concerns\LogsAuthoredMaterialsCost;
@@ -23,6 +24,7 @@ class CreateServiceInvoiceAction
         private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
         private readonly ConsumeServiceMaterialsAction $consumeMaterials,
+        private readonly PostInvoiceMessageAction $postMessage,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -49,6 +51,11 @@ class CreateServiceInvoiceAction
 
             if ($receipt !== null) {
                 $invoice->addMedia($receipt)->toMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);
+            }
+
+            // تاسك 100: خانة «ملاحظات داخلية» تفتتح المحادثة الداخلية للفاتورة.
+            if (trim((string) ($data['internal_notes'] ?? '')) !== '') {
+                $this->postMessage->handle($invoice, $user, $data['internal_notes']);
             }
 
             $this->writeLines($invoice, $calc['lines']);

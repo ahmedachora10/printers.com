@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Enums\InvoiceStatusEnum;
+use App\Models\InvoiceMessage;
 use App\Models\ServiceInvoice;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
@@ -129,6 +130,41 @@ class ServiceInvoicePolicy
             && $invoice->delivered_at === null
             && $invoice->status !== InvoiceStatusEnum::CANCELLED
             && $invoice->status !== InvoiceStatusEnum::RETURNED;
+    }
+
+    /**
+     * تاسك 100 — من يرى المحادثة الداخلية: مَن يرى أرقام الفاتورة الداخلية
+     * (المراجعون وصاحبها، قاعدة InvoiceResource::showsInternalCostsTo)، ومعهم
+     * موظفٌ أُشير إليه في الخيط فصار مشاركاً. المندوب خارج `view` أصلاً.
+     */
+    public function viewMessages(User $user, ServiceInvoice $invoice): bool
+    {
+        if (! $this->view($user, $invoice)) {
+            return false;
+        }
+
+        return $this->review($user)
+            || $user->id === $invoice->user_id
+            || $invoice->participants()->whereKey($user->id)->exists();
+    }
+
+    /** المحادثة المغلقة تُقرأ ولا يُكتب فيها حتى يفتحها مدير الفرع. */
+    public function postMessage(User $user, ServiceInvoice $invoice): bool
+    {
+        return $invoice->messages_closed_at === null && $this->viewMessages($user, $invoice);
+    }
+
+    /** تعديل الرسائل وحذفها وإغلاق المحادثة: مدير فرع الفاتورة والسوبر أدمن. */
+    public function moderateMessages(User $user, ServiceInvoice $invoice): bool
+    {
+        return $user->roleName->isSuperAdmin()
+            || ($user->roleName->isBranchAdmin() && $user->branchId === $invoice->branch_id);
+    }
+
+    /** «تم الإجراء» يضعها من يرى الخيط على رسالةِ غيره — لا المرسل على رسالته. */
+    public function actionMessage(User $user, ServiceInvoice $invoice, InvoiceMessage $message): bool
+    {
+        return $message->user_id !== $user->id && $this->viewMessages($user, $invoice);
     }
 
     /**

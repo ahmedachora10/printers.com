@@ -30,6 +30,7 @@ use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\DeliveryProvider;
 use App\Models\DeliveryZone;
+use App\Models\InvoiceMessage;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\User;
@@ -44,6 +45,7 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -107,10 +109,8 @@ class ServiceInvoiceController extends Controller
                 'paymentMethodId' => $invoice->payment_method_id,
                 'hasReceipt' => $invoice->hasReceipt(),
                 'notes' => $invoice->notes,
-                // تاسك 95: الملاحظة الداخلية تُعاد إلى شاشة التعديل كما هي —
-                // من يفتح الشاشة يملك رؤيتها أصلاً (السياسة تحصرها في صاحب
-                // الفاتورة ومدير الفرع).
-                'internalNotes' => $invoice->internal_notes,
+                // تاسك 100: لا ملاحظة داخلية تُعاد — خانة التعديل تبدأ فارغة، وما
+                // يُكتب فيها رسالةٌ جديدة في المحادثة لا استبدالٌ لما سبق.
                 // «YYYY-MM-DD HH:MM» — الصيغة التي يقرأها منتقي الموعد في الواجهة.
                 'deliveryAt' => $invoice->delivery_at?->format('Y-m-d H:i'),
                 // تاسك 93 — التوصيل يعود إلى الشاشة كما حُفظ، فإعادة الحفظ لا
@@ -285,8 +285,23 @@ class ServiceInvoiceController extends Controller
                 : collect()];
         });
 
+        // تاسك 100: آخر رسالة في المحادثة الداخلية وعدد غير المقروء لكل فاتورة —
+        // استعلامان للصفحة كلّها لا لكل بطاقة.
+        $pageIds = $dueInvoices->pluck('id')->all();
+        $unread = InvoiceMessage::unreadCounts($user, $pageIds);
+        $lastMessages = InvoiceMessage::query()
+            ->whereIn('id', InvoiceMessage::query()
+                ->whereIn('service_invoice_id', $pageIds)
+                ->groupBy('service_invoice_id')
+                ->selectRaw('max(id)'))
+            ->with('author:id,name')
+            ->get()
+            ->keyBy('service_invoice_id');
+
         $invoices = $dueInvoices
-            ->map(function (ServiceInvoice $invoice) use ($methodsByBranch) {
+            ->map(function (ServiceInvoice $invoice) use ($methodsByBranch, $unread, $lastMessages) {
+                $lastMessage = $lastMessages->get($invoice->id);
+
                 $options = collect($methodsByBranch[$invoice->branch_id] ?? []);
 
                 // Keep the current method selectable even if it was later disabled.
@@ -322,9 +337,14 @@ class ServiceInvoiceController extends Controller
                     // زرّ تعديل الفاتورة في الطابور: لمدير الفرع لا للمحاسب —
                     // الصلاحية هي الفيصل، فلا يُكرَّر الدور في الواجهة.
                     'canEdit' => Gate::allows('update', $invoice),
-                    // تاسك 95: تعليمات الموظف للمحاسب تُقرأ في الطابور قبل
-                    // الاعتماد — الطابور مقصور على المراجعين، ولا يُطبع منه شيء.
-                    'internalNotes' => $invoice->internal_notes,
+                    // تاسك 100: مقتطف آخر رسالة داخلية يُقرأ قبل الاعتماد، والخيط
+                    // كاملاً في شاشة الفاتورة. الطابور مقصور على المراجعين.
+                    'lastMessage' => $lastMessage ? [
+                        'authorName' => $lastMessage->user_id === null ? 'ملاحظة سابقة' : $lastMessage->author?->name,
+                        'excerpt' => $lastMessage->body !== null ? Str::limit($lastMessage->body, 160) : 'مرفق',
+                        'createdAt' => $lastMessage->created_at?->toIso8601String(),
+                    ] : null,
+                    'unreadMessages' => $unread[$invoice->id] ?? 0,
                     'lines' => $invoice->lines->map(fn ($line) => [
                         'name' => $line->service_name,
                         'notes' => $line->notes,

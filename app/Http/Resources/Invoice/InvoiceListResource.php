@@ -35,6 +35,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string|null $payment_method_name
  * @property bool|int|null $payment_requires_attachment
  * @property int|string|null $receipt_count
+ * @property int|null $unread_messages
  */
 class InvoiceListResource extends JsonResource
 {
@@ -149,6 +150,8 @@ class InvoiceListResource extends JsonResource
             // تسمّي الناقص بدل أن يفشل الطلب صامتاً. عجز الخامات ليس منها: لا
             // يُعرف إلا بمحاولة الاعتماد، وله حوار إقرارٍ في شاشة الفاتورة.
             'approveBlockedReason' => $canApprove ? $this->approveBlockedReason() : null,
+            // تاسك 100: رسائل المحادثة الداخلية غير المقروءة — يضعها المتحكّم بعد الترقيم.
+            'unreadMessages' => (int) ($this->unread_messages ?? 0),
         ];
     }
 

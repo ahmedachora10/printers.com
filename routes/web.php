@@ -35,6 +35,7 @@ use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\IncentiveReportController;
 use App\Http\Controllers\InvoiceController;
+use App\Http\Controllers\InvoiceMessageController;
 use App\Http\Controllers\InvoicePaymentController;
 use App\Http\Controllers\InvoicePaymentMethodController;
 use App\Http\Controllers\InvoiceReceiptController;
@@ -345,8 +346,22 @@ Route::middleware(['auth'])->group(function () {
 
             // تاسك 95: الملاحظة الداخلية تُصحَّح بعد الاعتماد — تعليمات تنفيذٍ
             // لا رقمٌ مالي. من يملك تعديلها يُقرَّر داخل المتحكّم لكل فاتورة.
+            // فاتورة الخدمات تركتها إلى المحادثة الداخلية (تاسك 100).
             Route::patch('{type}/{id}/internal-notes', [InvoiceController::class, 'updateInternalNotes'])
-                ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('internal-notes');
+                ->whereIn('type', ['product'])->whereNumber('id')->name('internal-notes');
+
+            // تاسك 100 — المحادثة الداخلية على فاتورة الخدمات. الصلاحيات في
+            // ServiceInvoicePolicy (viewMessages / postMessage / moderateMessages).
+            Route::post('service/{invoice}/messages', [InvoiceMessageController::class, 'store'])
+                ->whereNumber('invoice')->name('messages.store');
+            Route::patch('service/{invoice}/messages/close', [InvoiceMessageController::class, 'toggleClosed'])
+                ->whereNumber('invoice')->name('messages.toggle-closed');
+            Route::patch('messages/{message}', [InvoiceMessageController::class, 'update'])->name('messages.update');
+            Route::delete('messages/{message}', [InvoiceMessageController::class, 'destroy'])->name('messages.destroy');
+            Route::patch('messages/{message}/actioned', [InvoiceMessageController::class, 'toggleActioned'])
+                ->name('messages.toggle-actioned');
+            Route::get('messages/{message}/attachments/{media}', [InvoiceMessageController::class, 'attachment'])
+                ->name('messages.attachment');
 
             // إيصال دفعة بعينها — الصلاحية مأخوذة من الفاتورة الأم داخل المتحكِّم.
             Route::get('payments/{payment}/receipt', [InvoiceReceiptController::class, 'payment'])
