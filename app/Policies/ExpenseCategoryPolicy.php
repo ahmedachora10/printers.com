@@ -6,6 +6,10 @@ use App\Models\ExpenseCategory;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
+/**
+ * تاسك 102 — قاعدة ملكية طرق الدفع (تاسك 59): مدير الفرع يكتب فئات فرعه وحدها،
+ * والفئة العامة — يراها كل فرع — للسوبر أدمن وحده.
+ */
 class ExpenseCategoryPolicy
 {
     use HandlesAuthorization;
@@ -15,33 +19,31 @@ class ExpenseCategoryPolicy
         return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
     }
 
-    public function view(User $user, ExpenseCategory $expenseCategory): bool
-    {
-        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
-    }
-
     public function create(User $user): bool
     {
-        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
+        // مدير بلا فرع كان سيكتب فئةً عامة؛ `branch_id` يُثبَّت في الـForm Request.
+        return $user->roleName->isSuperAdmin()
+            || ($user->roleName->isBranchAdmin() && $user->branchId !== null);
     }
 
     public function update(User $user, ExpenseCategory $expenseCategory): bool
     {
-        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
+        return $this->owns($user, $expenseCategory);
     }
 
     public function delete(User $user, ExpenseCategory $expenseCategory): bool
     {
-        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
+        return $this->owns($user, $expenseCategory);
     }
 
-    public function restore(User $user, ExpenseCategory $expenseCategory): bool
+    private function owns(User $user, ExpenseCategory $expenseCategory): bool
     {
-        return $user->roleName->isSuperAdmin();
-    }
+        if ($user->roleName->isSuperAdmin()) {
+            return true;
+        }
 
-    public function forceDelete(User $user, ExpenseCategory $expenseCategory): bool
-    {
-        return $user->roleName->isSuperAdmin();
+        return $user->roleName->isBranchAdmin()
+            && $expenseCategory->branch_id !== null
+            && $expenseCategory->branch_id === $user->branchId;
     }
 }

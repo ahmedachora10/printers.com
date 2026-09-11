@@ -18,6 +18,10 @@ class ExpenseCategoryResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'isActive' => $this->is_active,
+            // null = فئة عامة (تاسك 102).
+            'branchId' => $this->branch_id,
+            'branchName' => $this->whenLoaded('branch', fn () => $this->branch?->name),
+            'canEdit' => $request->user()?->can('update', $this->resource) ?? false,
         ];
     }
 }

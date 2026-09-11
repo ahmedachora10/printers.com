@@ -20,6 +20,7 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'المصروفات', href: '/ex
 interface Category {
     id: number;
     name: string;
+    branchId: number | null;
 }
 
 interface Props {

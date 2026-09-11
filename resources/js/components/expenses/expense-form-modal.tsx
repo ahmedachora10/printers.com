@@ -18,6 +18,8 @@ import InputError from '../input-error';
 interface Category {
     id: number;
     name: string;
+    /** null = فئة عامة (تاسك 102). */
+    branchId: number | null;
 }
 
 interface Branch {
@@ -69,6 +71,9 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         }
     }, [expense, open]);
 
+    // السوبر أدمن يستلم فئات كل الفروع؛ يُعرض منها العام وما يخصّ الفرع المختار.
+    const branchCategories = isSuperAdmin ? categories.filter((c) => c.branchId === null || c.branchId.toString() === data.branch_id) : categories;
+
     const total = (parseFloat(data.qty || '0') * parseFloat(data.unit_price || '0') || 0).toLocaleString('en-US', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
@@ -103,7 +108,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                             <Label htmlFor="exp-branch">الفرع</Label>
                             <Select
                                 value={data.branch_id}
-                                onValueChange={(val) => setData('branch_id', val)}
+                                onValueChange={(val) => setData((d) => ({ ...d, branch_id: val, expense_category_id: '' }))}
                                 disabled={isEdit}
                             >
                                 <SelectTrigger id="exp-branch">
@@ -132,7 +137,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                                     <SelectValue placeholder="اختر الفئة" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {categories.map((c) => (
+                                    {branchCategories.map((c) => (
                                         <SelectItem key={c.id} value={c.id.toString()}>
                                             {c.name}
                                         </SelectItem>
