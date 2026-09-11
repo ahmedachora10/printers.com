@@ -90,7 +90,6 @@ export interface InvoiceMessage {
     deletedAt: string | null;
     deletedByName: string | null;
     attachments: { id: number; name: string; url: string; isImage: boolean }[];
-    canModerate: boolean;
     canMarkActioned: boolean;
 }
 

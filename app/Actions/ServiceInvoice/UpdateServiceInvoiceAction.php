@@ -74,7 +74,7 @@ class UpdateServiceInvoiceAction
 
             // تاسك 100: ما يُكتب في الخانة عند التعديل رسالةٌ جديدة ممّن يعدّل —
             // لا استبدالٌ لما قيل قبلها.
-            if (trim((string) ($data['internal_notes'] ?? '')) !== '') {
+            if (filled($data['internal_notes'] ?? null)) {
                 $this->postMessage->handle($invoice, auth()->user(), $data['internal_notes']);
             }
 

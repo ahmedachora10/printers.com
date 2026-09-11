@@ -76,11 +76,7 @@ class InvoiceController extends Controller
         // تاسك 100: غير المقروء من المحادثة الداخلية، لصفوف الصفحة وحدها —
         // استعلامٌ واحد بعد الترقيم لا عمودٌ في الاتحاد. كل من يرى القائمة يرى
         // خيوط صفوفها: المراجعون فرعهم، والموظف فواتيره.
-        $unread = InvoiceMessage::unreadCounts($user, $invoices->getCollection()
-            ->where('type', InvoiceTypeEnum::SERVICE->value)
-            ->map(fn ($row) => (int) $row->id)
-            ->values()
-            ->all());
+        $unread = InvoiceMessage::unreadCounts($user, $invoices->getCollection()->where('type', InvoiceTypeEnum::SERVICE->value)->pluck('id')->map('intval')->all());
         $invoices->getCollection()->each(fn ($row) => $row->unread_messages = $row->type === InvoiceTypeEnum::SERVICE->value
             ? ($unread[(int) $row->id] ?? 0)
             : 0);

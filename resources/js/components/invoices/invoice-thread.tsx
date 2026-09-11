@@ -71,7 +71,7 @@ export default function InvoiceThread({ invoiceId, thread }: { invoiceId: number
                 ) : (
                     <ol ref={listRef} className="max-h-[32rem] space-y-3 overflow-y-auto">
                         {thread.messages.map((message) => (
-                            <MessageItem key={message.id} message={message} />
+                            <MessageItem key={message.id} message={message} canModerate={thread.canModerate && !message.deletedAt} />
                         ))}
                     </ol>
                 )}
@@ -116,7 +116,7 @@ function StatusBadge({ message }: { message: InvoiceMessage }) {
     );
 }
 
-function MessageItem({ message }: { message: InvoiceMessage }) {
+function MessageItem({ message, canModerate }: { message: InvoiceMessage; canModerate: boolean }) {
     const [editing, setEditing] = useState(false);
     const [draft, setDraft] = useState(message.body ?? '');
     const [saving, setSaving] = useState(false);
@@ -174,7 +174,7 @@ function MessageItem({ message }: { message: InvoiceMessage }) {
                                 <CheckCheck className="size-3.5" /> {message.actionedAt ? 'إلغاء «تم الإجراء»' : 'تم الإجراء'}
                             </Button>
                         )}
-                        {message.canModerate && (
+                        {canModerate && (
                             <>
                                 <Button
                                     variant="ghost"
@@ -319,9 +319,6 @@ function Composer({ invoiceId, mentionables }: { invoiceId: number; mentionables
                         onChange={(e) => {
                             setBody(e.target.value);
                             if ((e.nativeEvent as InputEvent).data === '@') setMentionOpen(true);
-                        }}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !empty) send();
                         }}
                     />
                 </PopoverAnchor>

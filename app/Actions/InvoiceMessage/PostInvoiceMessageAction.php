@@ -27,8 +27,7 @@ class PostInvoiceMessageAction
      */
     public function handle(ServiceInvoice $invoice, User $author, ?string $body, array $mentions = [], array $attachments = []): InvoiceMessage
     {
-        $body = trim((string) $body);
-        $body = $body === '' ? null : $body;
+        $body = filled($body) ? trim($body) : null;
 
         return DB::transaction(function () use ($invoice, $author, $body, $mentions, $attachments) {
             // المؤلفون قبل هذه الرسالة — يُنبَّهون بردٍّ في خيطٍ شاركوا فيه.

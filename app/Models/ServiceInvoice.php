@@ -199,18 +199,6 @@ class ServiceInvoice extends Model implements HasMedia
         return $this->hasMany(InvoiceMessage::class, 'service_invoice_id');
     }
 
-    /**
-     * من أرسل في الخيط أو أُشير إليه أو فتحه، ومعه موضع قراءته.
-     *
-     * @return BelongsToMany<User, $this>
-     */
-    public function participants(): BelongsToMany
-    {
-        return $this->belongsToMany(User::class, 'invoice_thread_participants', 'service_invoice_id', 'user_id')
-            ->withPivot('last_read_message_id')
-            ->withTimestamps();
-    }
-
     /** @return BelongsTo<User, $this> */
     public function messagesClosedBy(): BelongsTo
     {

@@ -7,6 +7,7 @@ use App\Models\InvoiceMessage;
 use App\Models\ServiceInvoice;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
+use Illuminate\Support\Facades\DB;
 
 class ServiceInvoicePolicy
 {
@@ -145,7 +146,7 @@ class ServiceInvoicePolicy
 
         return $this->review($user)
             || $user->id === $invoice->user_id
-            || $invoice->participants()->whereKey($user->id)->exists();
+            || DB::table('invoice_thread_participants')->where(['user_id' => $user->id, 'service_invoice_id' => $invoice->id])->exists();
     }
 
     /** المحادثة المغلقة تُقرأ ولا يُكتب فيها حتى يفتحها مدير الفرع. */

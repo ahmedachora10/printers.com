@@ -36,7 +36,6 @@ class InvoiceMessagePostedNotification extends Notification
             'body' => "{$this->authorName}: {$excerpt}",
             'url' => route('invoices.show', ['type' => InvoiceTypeEnum::SERVICE->value, 'id' => $this->invoiceId]),
             'icon' => 'MessageSquare',
-            'invoiceId' => $this->invoiceId,
         ];
     }
 }

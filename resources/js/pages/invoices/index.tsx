@@ -290,14 +290,13 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                         </Link>
                         {/* تاسك 100: رسائل داخلية غير مقروءة على الفاتورة */}
                         {item.unreadMessages > 0 && (
-                            <Link
-                                href={`/invoices/${item.type}/${item.id}`}
+                            <span
                                 className="inline-flex items-center gap-0.5 rounded-full bg-sky-100 px-1.5 text-xs font-medium text-sky-700 tabular-nums dark:bg-sky-950 dark:text-sky-300"
                                 title={`${item.unreadMessages} رسالة داخلية غير مقروءة`}
                             >
                                 <MessageSquare className="size-3" aria-hidden />
                                 {item.unreadMessages}
-                            </Link>
+                            </span>
                         )}
                     </span>
                 ),

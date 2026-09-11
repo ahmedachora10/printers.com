@@ -54,7 +54,7 @@ class CreateServiceInvoiceAction
             }
 
             // تاسك 100: خانة «ملاحظات داخلية» تفتتح المحادثة الداخلية للفاتورة.
-            if (trim((string) ($data['internal_notes'] ?? '')) !== '') {
+            if (filled($data['internal_notes'] ?? null)) {
                 $this->postMessage->handle($invoice, $user, $data['internal_notes']);
             }
 

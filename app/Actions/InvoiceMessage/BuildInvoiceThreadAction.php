@@ -73,7 +73,6 @@ class BuildInvoiceThreadAction
                     'url' => route('invoices.messages.attachment', ['message' => $m->id, 'media' => $media->id]),
                     'isImage' => str_starts_with((string) $media->mime_type, 'image/'),
                 ])->values(),
-                'canModerate' => $canModerate && ! $m->trashed(),
                 'canMarkActioned' => ! $m->trashed() && $m->user_id !== $viewer->id,
             ])->values(),
             'closedAt' => $invoice->messages_closed_at?->toIso8601String(),
