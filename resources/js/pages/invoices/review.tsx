@@ -18,6 +18,7 @@ import { formatLineSize, formatLineUnitPrice, type LineUnitPriceBasis } from '@/
 import { formatCurrency, formatQty } from '@/lib/utils';
 import posService from '@/routes/pos/service';
 import serviceInvoice from '@/routes/invoices/service';
+import { updatePaymentMethod as updateInvoicePaymentMethod } from '@/routes/invoices';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
 import { ArrowDownWideNarrow, ArrowUpNarrowWide, CheckCircle2, ChevronDown, ClipboardList, Lock, Paperclip, Pencil, Search, User, UserPlus, Wallet, X, XCircle } from 'lucide-react';
@@ -225,7 +226,7 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
         setSavingPaymentId(invoiceId);
         // POST مع `_method` لأن رفع ملف عبر PATCH لا يمرّ في multipart.
         router.post(
-            serviceInvoice.updatePaymentMethod(invoiceId).url,
+            updateInvoicePaymentMethod({ type: 'service', id: invoiceId }).url,
             { _method: 'patch', payment_method_id: methodId, ...(receipt ? { receipt } : {}) },
             {
                 forceFormData: true,

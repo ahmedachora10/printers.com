@@ -3,22 +3,26 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Invoice\GenerateZatcaQrAction;
+use App\Actions\InvoicePayment\ChangePaymentMethodAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
 use App\Models\Branch;
+use App\Models\InvoicePayment;
 use App\Models\PaymentMethod;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use Spatie\Activitylog\Models\Activity;
 
 class InvoiceController extends Controller
 {
@@ -65,6 +69,8 @@ class InvoiceController extends Controller
             ->paginate(20)
             ->withQueryString();
 
+        $this->labelPaymentRowMethods($invoices->getCollection());
+
         return Inertia::render('invoices/index', [
             'items' => InvoiceListResource::collection($invoices),
             'isSuperAdmin' => $isSuperAdmin,
@@ -95,6 +101,38 @@ class InvoiceController extends Controller
     }
 
     /**
+     * تاسك 99 — عمود «طريقة الدفع» لفاتورةٍ سُدّدت بدفعات: طرقُ دفعاتها لا
+     * عمودُ الفاتورة (الفارغ غالباً)، كما في شاشتها وفي تقرير المبيعات. استعلامٌ
+     * واحد لكل نوع على صفوف الصفحة وحدها، لا اتحادٌ أعقد.
+     *
+     * @param  Collection<int, object>  $rows
+     */
+    private function labelPaymentRowMethods($rows): void
+    {
+        foreach (InvoiceTypeEnum::cases() as $type) {
+            $ofType = $rows->where('type', $type->value);
+
+            if ($ofType->isEmpty()) {
+                continue;
+            }
+
+            $names = DB::table('invoice_payments')
+                ->leftJoin('payment_methods', 'payment_methods.id', '=', 'invoice_payments.payment_method_id')
+                ->where('invoice_payments.invoice_type', $type->modelClass())
+                ->whereIn('invoice_payments.invoice_id', $ofType->pluck('id'))
+                ->orderBy('invoice_payments.id')
+                ->get(['invoice_payments.invoice_id', 'payment_methods.name'])
+                ->groupBy('invoice_id');
+
+            foreach ($ofType as $row) {
+                if ($payments = $names->get($row->id)) {
+                    $row->payment_method_name = InvoicePayment::methodLabel($payments->pluck('name'), $row->payment_method_name);
+                }
+            }
+        }
+    }
+
+    /**
      * قوائم التصفية (تاسك 92): موظفو الفرع، وطرق الدفع، وخدمات الفرع. كلّها
      * مقيَّدة بفرع المستخدم ما لم يكن سوبر أدمن — وإلا رأى مدير الفرع أسماء
      * موظفي فرعٍ آخر في قائمته.
@@ -119,11 +157,19 @@ class InvoiceController extends Controller
 
         // الخدمة تُصفّى بمعرّف branch_service لا باسمها النصّي: الاسم لقطةٌ على
         // السطر وقد يتكرّر بين الفروع والقوالب.
+        // تاسك 101: للسوبر أدمن صفٌّ لكل فرع بالاسم نفسه — فيُلحق به اسم الفرع،
+        // وإلا ظهر «طباعة جاهزة» مرّاتٍ بعدد الفروع بلا ما يميّزها في البحث.
         $services = DB::table('branch_services')
             ->join('service_templates', 'service_templates.id', '=', 'branch_services.service_template_id')
+            ->leftJoin('branches', 'branches.id', '=', 'branch_services.branch_id')
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_services.branch_id', $branchId))
             ->orderBy('service_templates.name')
-            ->get(['branch_services.id', 'service_templates.name']);
+            ->orderBy('branches.name')
+            ->get(['branch_services.id', 'service_templates.name', 'branches.name as branch_name'])
+            ->map(fn ($s) => [
+                'id' => $s->id,
+                'name' => $isSuperAdmin && $s->branch_name ? "{$s->name} — {$s->branch_name}" : $s->name,
+            ]);
 
         return [
             'employees' => $employees,
@@ -167,6 +213,23 @@ class InvoiceController extends Controller
                     ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'requiresAttachment' => (bool) $m->requires_attachment])
                     ->values()
                 : [],
+            // تاسك 99: تغيير الطريقة بعد الاعتماد يعيد كتابة نقد يومٍ مضى في
+            // تقرير المبيعات، فأثرُه يُعرض على الفاتورة لا في السجلّ وحده.
+            'paymentMethodHistory' => Activity::query()
+                ->forSubject($invoice)
+                ->where('description', ChangePaymentMethodAction::LOG_DESCRIPTION)
+                ->with('causer:id,name')
+                ->latest('id')
+                ->limit(10)
+                ->get()
+                ->map(fn (Activity $a) => [
+                    'id' => $a->id,
+                    'old' => $a->properties['old'] ?? null,
+                    'new' => $a->properties['new'] ?? null,
+                    'isPayment' => ($a->properties['payment_id'] ?? null) !== null,
+                    'byName' => $a->causer?->name,
+                    'at' => $a->created_at?->toIso8601String(),
+                ]),
         ]);
     }
 
@@ -388,8 +451,20 @@ class InvoiceController extends Controller
             ]))
             // منشئ الفاتورة — فلترٌ صريح بدل البحث النصّي في اسم الموظف.
             ->when($request->filled('user_id'), fn ($q) => $q->where("{$table}.user_id", (int) $request->input('user_id')))
-            ->when($request->filled('payment_method_id'),
-                fn ($q) => $q->where("{$table}.payment_method_id", (int) $request->input('payment_method_id')))
+            // تاسك 99: بقاعدة تقرير المبيعات — فاتورةٌ سُدّدت بدفعات تُطابَق بطريقة
+            // دفعاتها (وبطريقتها هي لدفعةٍ قديمة بلا طريقة)، وإلا بطريقتها. كانت
+            // تُطابَق بعمود الفاتورة وحده، ففاتورة العربون بلا طريقةٍ عليه تهرب.
+            ->when($request->filled('payment_method_id'), function ($q) use ($table, $type, $request) {
+                $methodId = (int) $request->input('payment_method_id');
+                $payments = fn ($sub) => $sub->from('invoice_payments')
+                    ->where('invoice_payments.invoice_type', $type->modelClass())
+                    ->whereColumn('invoice_payments.invoice_id', "{$table}.id");
+
+                return $q->where(fn ($w) => $w
+                    ->where(fn ($own) => $own->where("{$table}.payment_method_id", $methodId)->whereNotExists($payments))
+                    ->orWhereExists(fn ($sub) => $payments($sub)
+                        ->whereRaw("COALESCE(invoice_payments.payment_method_id, {$table}.payment_method_id) = ?", [$methodId])));
+            })
             // نوع الخدمة يخصّ فواتير الخدمات وحدها، فاختياره يُقصي فرع المنتجات
             // من الاتحاد كاملاً — تماماً كما يفعل فلتر موعد التسليم أدناه.
             ->when($request->filled('branch_service_id'), function ($q) use ($table, $type, $request) {

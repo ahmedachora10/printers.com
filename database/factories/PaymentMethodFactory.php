@@ -26,4 +26,12 @@ class PaymentMethodFactory extends Factory
     {
         return $this->state(fn () => ['requires_attachment' => true]);
     }
+
+    /**
+     * A cash method — the sales report takes expenses off these alone (تاسك 97).
+     */
+    public function cash(): static
+    {
+        return $this->state(fn () => ['is_cash' => true]);
+    }
 }

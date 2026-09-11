@@ -8,10 +8,12 @@ export interface SalesReportTotals {
     /** جملة ما رُدّ للعملاء، موجبةً — و`total` صافٍ منها */
     refunds: number;
     total: number;
+    /** ما حُصِّل بطرقٍ نقدية (is_cash) — صافٍ من المرتجعات النقدية (تاسك 97) */
+    cash: number;
     /** مصروفات المدى من جدول expenses وحده — لا تشمل قيمة المخزون الوارد (تاسك 87) */
     expenses: number;
-    /** total − expenses: تدفّقٌ نقدي لا ربحٌ محاسبي */
-    net: number;
+    /** cash − expenses: المصروفات تُطرح من النقد وحده (تاسك 97) */
+    cashRemaining: number;
 }
 
 export interface SalesReportTypeRow {
@@ -31,10 +33,12 @@ export interface SalesReportDayRow {
     date: string;
     count: number;
     total: number;
+    /** ما حُصِّل نقداً في اليوم (تاسك 97) */
+    cash: number;
     /** مصروفات اليوم من جدول expenses وحده (تاسك 87) */
     expenses: number;
-    /** total − expenses — قد يكون سالباً في يومٍ فيه مصروف بلا مبيعات */
-    net: number;
+    /** cash − expenses — قد يكون سالباً في يومٍ فيه مصروف بلا تحصيل نقدي */
+    cashRemaining: number;
 }
 
 export interface SalesReportEmployeeRow {
@@ -47,6 +51,8 @@ export interface SalesReportEmployeeRow {
 export interface SalesReportPaymentMethodRow {
     methodId: number | null;
     methodName: string;
+    /** طريقة نقدية — عليها تُطرح المصروفات (تاسك 97) */
+    isCash: boolean;
     count: number;
     total: number;
 }

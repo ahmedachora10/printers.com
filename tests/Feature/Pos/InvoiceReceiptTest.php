@@ -162,7 +162,7 @@ describe('Invoice payment receipt', function () {
         $invoice = ServiceInvoice::firstOrFail();
 
         $this->actingAs($this->branchAdmin)
-            ->patch(route('invoices.service.update-payment-method', $invoice), [
+            ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $this->transferMethod->id,
             ])
             ->assertSessionHasErrors('receipt');
@@ -178,7 +178,7 @@ describe('Invoice payment receipt', function () {
         $invoice = ServiceInvoice::firstOrFail();
 
         $this->actingAs($this->branchAdmin)
-            ->patch(route('invoices.service.update-payment-method', $invoice), [
+            ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $this->transferMethod->id,
                 'receipt' => UploadedFile::fake()->image('transfer.jpg'),
             ])
@@ -203,7 +203,7 @@ describe('Invoice payment receipt', function () {
         $invoice = ServiceInvoice::firstOrFail();
 
         $this->actingAs($this->branchAdmin)
-            ->post(route('invoices.service.update-payment-method', $invoice), [
+            ->post(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 '_method' => 'patch',
                 'payment_method_id' => $this->transferMethod->id,
                 'receipt' => UploadedFile::fake()->image('transfer.jpg'),
@@ -227,7 +227,7 @@ describe('Invoice payment receipt', function () {
         $other = PaymentMethod::factory()->requiresAttachment()->create();
 
         $this->actingAs($this->branchAdmin)
-            ->patch(route('invoices.service.update-payment-method', $invoice), [
+            ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $other->id,
             ])
             ->assertSessionHasNoErrors();

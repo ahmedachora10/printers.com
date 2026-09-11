@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\InvoiceStatusEnum;
 use App\Models\ProductInvoice;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
@@ -39,5 +40,16 @@ class ProductInvoicePolicy
         return $this->create($user)
             && ($user->roleName->isSuperAdmin() || $user->branchId === $invoice->branch_id)
             && $invoice->status->acceptsPayment();
+    }
+
+    /**
+     * تاسك 99 — تغيير طريقة الدفع بعد البيع: من يصدر فاتورة المنتجات في فرعها،
+     * ما لم تكن ملغاة أو مرتجعة.
+     */
+    public function changePaymentMethod(User $user, ProductInvoice $invoice): bool
+    {
+        return $this->create($user)
+            && ($user->roleName->isSuperAdmin() || $user->branchId === $invoice->branch_id)
+            && ! in_array($invoice->status->value, InvoiceStatusEnum::excludedFromRevenue(), true);
     }
 }

@@ -12,9 +12,9 @@ use Maatwebsite\Excel\Concerns\WithMultipleSheets;
  * تصدير تقرير المبيعات: ورقة الفواتير (حدثُ تحصيلٍ لكل صفّ) ثم ورقة «المبيعات
  * اليومية».
  *
- * الثانية أُضيفت مع تاسك 87: عمودا «المصروفات» و«الصافي» يُقرآن على الشاشة في
- * جدول اليوم لا في قائمة الفواتير، فبغير ورقةٍ تقابله يصدّر المستخدم ملفاً
- * ينقصه نصفُ ما رآه.
+ * الثانية أُضيفت مع تاسك 87: «المصروفات» و«المتبقي من النقد» (تاسك 97) تُقرأ على
+ * الشاشة في جدول اليوم لا في قائمة الفواتير، فبغير ورقةٍ تقابله يصدّر المستخدم
+ * ملفاً ينقصه نصفُ ما رآه.
  */
 class SalesReportExport implements WithMultipleSheets
 {
@@ -64,13 +64,14 @@ class SalesReportExport implements WithMultipleSheets
     {
         return new ReportSheet(
             'المبيعات اليومية',
-            ['التاريخ', 'عدد الفواتير', 'الإجمالي', 'المصروفات', 'الصافي'],
+            ['التاريخ', 'عدد الفواتير', 'الإجمالي', 'منها نقداً', 'المصروفات', 'المتبقي من النقد'],
             collect($this->byDay)->map(fn (array $day) => [
                 Carbon::parse($day['date'])->format('d/m/Y'),
                 $day['count'],
                 $this->money($day['total']),
+                $this->money($day['cash'] ?? 0),
                 $this->money($day['expenses'] ?? 0),
-                $this->money($day['net'] ?? 0),
+                $this->money($day['cashRemaining'] ?? 0),
             ]),
         );
     }

@@ -50,6 +50,17 @@ class ServiceInvoicePolicy
     }
 
     /**
+     * تاسك 99 — تغيير طريقة الدفع، قبل الاعتماد وبعده: خطأ الكاشير في الطريقة
+     * يُكتشف غالباً بعد إقفال الفاتورة. نفس سلطة الاعتماد، ولا يمسّ الملغاة ولا
+     * المرتجعة — قصّتهما أُغلقت.
+     */
+    public function changePaymentMethod(User $user, ServiceInvoice $invoice): bool
+    {
+        return $this->updateStatus($user, $invoice)
+            && ! in_array($invoice->status->value, InvoiceStatusEnum::excludedFromRevenue(), true);
+    }
+
+    /**
      * Recording a deposit or an instalment is the same authority as settling the
      * invoice outright — an accountant or branch admin in the invoice's branch —
      * and only while the invoice still awaits money.

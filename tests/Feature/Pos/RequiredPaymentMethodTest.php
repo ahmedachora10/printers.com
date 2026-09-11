@@ -219,7 +219,7 @@ describe('Payment method: optional for the employee, required of whoever settles
         expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::DUE);
 
         $this->actingAs($this->accountant)
-            ->patch(route('invoices.service.update-payment-method', $invoice), [
+            ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $this->cash->id,
             ])->assertRedirect();
 

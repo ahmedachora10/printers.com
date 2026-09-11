@@ -36,6 +36,17 @@ describe('PaymentMethod Management', function () {
         $this->assertDatabaseHas('payment_methods', ['name' => 'نقد']);
     });
 
+    it('saves the cash flag the sales report subtracts expenses from', function () {
+        $this->actingAs($this->superAdmin);
+
+        $this->post(route('payment-methods.store'), ['name' => 'كاش', 'is_cash' => true])->assertRedirect();
+        $pm = PaymentMethod::firstWhere('name', 'كاش');
+        expect($pm->is_cash)->toBeTrue();
+
+        $this->put(route('payment-methods.update', $pm), ['name' => 'كاش', 'is_cash' => false])->assertRedirect();
+        expect($pm->fresh()->is_cash)->toBeFalse();
+    });
+
     it('fails to create a payment method without a name', function () {
         $this->actingAs($this->superAdmin);
 

@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
-import { Check, X } from 'lucide-react';
+import { Check, ChevronDown, X } from 'lucide-react';
 import * as React from 'react';
 
 /** Labeled wrapper matching the report filter field layout. */
@@ -64,6 +64,11 @@ export interface FilterOption {
 /**
  * Labeled select with a leading "all" option. Used for branch, employee, type
  * and status filters. `value` is the raw string; the "all" sentinel is `all`.
+ *
+ * `searchable` swaps the Radix select for a type-to-filter list (تاسك 101) —
+ * for long lists such as services. That list opens **inline** under the
+ * trigger rather than in a popover, for the reason given on FilterMultiSelect
+ * below: a portalled popover inside the filter Dialog is unclickable.
  */
 export function FilterSelect({
     label,
@@ -72,6 +77,7 @@ export function FilterSelect({
     options,
     allLabel = 'الكل',
     placeholder,
+    searchable = false,
 }: {
     label: string;
     value: string;
@@ -79,22 +85,75 @@ export function FilterSelect({
     options: FilterOption[];
     allLabel?: string;
     placeholder?: string;
+    searchable?: boolean;
 }) {
+    const [open, setOpen] = React.useState(false);
+
+    if (!searchable) {
+        return (
+            <FilterField label={label}>
+                <Select value={value} onValueChange={onChange}>
+                    <SelectTrigger>
+                        <SelectValue placeholder={placeholder ?? allLabel} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="all">{allLabel}</SelectItem>
+                        {options.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                                {option.label}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </FilterField>
+        );
+    }
+
+    const selected = options.find((option) => option.value === value);
+    const choose = (next: string) => {
+        onChange(next);
+        setOpen(false);
+    };
+
     return (
         <FilterField label={label}>
-            <Select value={value} onValueChange={onChange}>
-                <SelectTrigger>
-                    <SelectValue placeholder={placeholder ?? allLabel} />
-                </SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">{allLabel}</SelectItem>
-                    {options.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+            <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-between font-normal"
+                aria-expanded={open}
+                onClick={() => setOpen((o) => !o)}
+            >
+                <span className="truncate">{selected?.label ?? allLabel}</span>
+                <ChevronDown className="size-4 shrink-0 opacity-50" />
+            </Button>
+
+            {open && (
+                <Command className="rounded-md border">
+                    <CommandInput placeholder="اكتب للبحث..." autoFocus />
+                    <CommandList className="max-h-48">
+                        <CommandEmpty>لا توجد نتائج</CommandEmpty>
+                        <CommandGroup>
+                            <CommandItem value={`${allLabel} all`} onSelect={() => choose('all')} className="cursor-pointer">
+                                <Check className={cn('size-4', value === 'all' ? 'opacity-100' : 'opacity-0')} />
+                                {allLabel}
+                            </CommandItem>
+                            {options.map((option) => (
+                                <CommandItem
+                                    key={option.value}
+                                    /* Value carries the id too so duplicate names stay distinct to cmdk. */
+                                    value={`${option.label} ${option.value}`}
+                                    onSelect={() => choose(option.value)}
+                                    className="cursor-pointer"
+                                >
+                                    <Check className={cn('size-4', value === option.value ? 'opacity-100' : 'opacity-0')} />
+                                    {option.label}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            )}
         </FilterField>
     );
 }

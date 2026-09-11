@@ -424,9 +424,10 @@ describe('Service invoice review', function () {
 
         $invoice = makeDueInvoice(['payment_method_id' => $card->id]);
 
-        $this->patch(route('invoices.service.update-payment-method', $invoice), [
-            'payment_method_id' => $mada->id,
-        ])
+        $this->from(route('invoices.service.review'))
+            ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
+                'payment_method_id' => $mada->id,
+            ])
             ->assertRedirect(route('invoices.service.review'))
             ->assertSessionHas('success');
 
@@ -439,7 +440,7 @@ describe('Service invoice review', function () {
 
         $invoice = makeDueInvoice(['payment_method_id' => $card->id]);
 
-        $this->patch(route('invoices.service.update-payment-method', $invoice), [
+        $this->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
             'payment_method_id' => $disabled->id,
         ])->assertSessionHasErrors('payment_method_id');
 
@@ -451,7 +452,7 @@ describe('Service invoice review', function () {
         $method = PaymentMethod::factory()->create();
         $invoice = makeDueInvoice(['branch_id' => $otherBranch->id]);
 
-        $this->patch(route('invoices.service.update-payment-method', $invoice), [
+        $this->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
             'payment_method_id' => $method->id,
         ])->assertForbidden();
     });
@@ -530,7 +531,7 @@ describe('Service invoice review', function () {
     it('approves once a payment method is set', function () {
         $invoice = makeDueInvoice(['payment_method_id' => null]);
 
-        $this->patch(route('invoices.service.update-payment-method', $invoice), [
+        $this->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
             'payment_method_id' => $this->paymentMethod->id,
         ])->assertSessionHasNoErrors();
 

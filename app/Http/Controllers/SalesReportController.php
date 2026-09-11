@@ -295,9 +295,10 @@ class SalesReportController extends Controller
             $refunds += (float) $row->refunds;
         }
 
-        // تاسك 87: مصروفات المدى كلّه، وصافيه بعدها — بطاقةُ ملخّصٍ تقابل
-        // العمودين، فلا يصدّر المستخدم ملفاً ينقصه نصف ما رآه على الشاشة.
+        // تاسك 97: المصروفات تُطرح من **النقد وحده** — ما دخل الدرج فعلاً —
+        // لا من كل المحصَّل (تاسك 87 كان يطرحها من الشبكة والتحويل كذلك).
         $expenses = round(array_sum($this->expensesDaily($scope)), 2);
+        $cash = round(array_sum($this->cashDaily($scope, $type)), 2);
 
         return [
             'invoiceCount' => $count,
@@ -309,8 +310,9 @@ class SalesReportController extends Controller
             'shipping' => round($shipping, 2),
             'refunds' => $refunds,
             'total' => $total,
+            'cash' => $cash,
             'expenses' => $expenses,
-            'net' => round($total - $expenses, 2),
+            'cashRemaining' => round($cash - $expenses, 2),
         ];
     }
 
@@ -355,7 +357,7 @@ class SalesReportController extends Controller
     private function byDay(array $scope, string $type): array
     {
         $days = [];
-        $blank = ['count' => 0, 'total' => 0.0, 'expenses' => 0.0, 'net' => 0.0];
+        $blank = ['count' => 0, 'total' => 0.0, 'cash' => 0.0, 'expenses' => 0.0, 'cashRemaining' => 0.0];
 
         foreach ($this->dayRange->handle($scope) as $day) {
             $days[$day] = ['date' => $day, ...$blank];
@@ -378,15 +380,21 @@ class SalesReportController extends Controller
             }
         }
 
+        foreach ($this->cashDaily($scope, $type) as $day => $amount) {
+            $days[$day] ??= ['date' => $day, ...$blank];
+            $days[$day]['cash'] += $amount;
+        }
+
         // تاسك 87: يومٌ فيه مصروف بلا مبيعات موجودٌ في الحلقة أصلاً (المدى يأتي
-        // من BuildReportDayRange)، فيظهر بصافٍ سالب — وهو صحيح.
+        // من BuildReportDayRange)، فيظهر بمتبقٍّ سالب — وهو صحيح.
         foreach ($this->expensesDaily($scope) as $day => $amount) {
             $days[$day] ??= ['date' => $day, ...$blank];
             $days[$day]['expenses'] += $amount;
         }
 
+        // تاسك 97: المتبقي من النقد لا من كل المحصَّل.
         foreach ($days as $day => $row) {
-            $days[$day]['net'] = round($row['total'] - $row['expenses'], 2);
+            $days[$day]['cashRemaining'] = round($row['cash'] - $row['expenses'], 2);
         }
 
         ksort($days);
@@ -428,6 +436,38 @@ class SalesReportController extends Controller
         foreach ($rows as $row) {
             $day = (string) $row->day;
             $daily[$day] = ($daily[$day] ?? 0.0) + (float) $row->amount;
+        }
+
+        return $daily;
+    }
+
+    /**
+     * تاسك 97 — المحصَّل بطرقٍ نقدية (`payment_methods.is_cash`) لكل يوم.
+     *
+     * طريقة كل حدث تحصيل هي طريقته هو (العربون نقداً نقدٌ ولو سُدّد الباقي
+     * بالشبكة)، والمرتجع حدثٌ سالب بطريقة فاتورته — فمرتجعٌ نقدي يُنقص النقد.
+     *
+     * @param  array<string, mixed>  $scope
+     * @return array<string, float>
+     */
+    private function cashDaily(array $scope, string $type): array
+    {
+        $daily = [];
+
+        foreach ($this->tablesForType($type) as $table) {
+            $rows = $this->baseQuery($table, $scope)
+                ->join('payment_methods', 'payment_methods.id', '=', 'events.payment_method_id')
+                ->where('payment_methods.is_cash', true)
+                ->groupBy(DB::raw('DATE(events.realized_at)'))
+                ->get([
+                    DB::raw('DATE(events.realized_at) as day'),
+                    DB::raw('COALESCE(SUM(events.realized), 0) as total'),
+                ]);
+
+            foreach ($rows as $row) {
+                $day = (string) $row->day;
+                $daily[$day] = ($daily[$day] ?? 0.0) + (float) $row->total;
+            }
         }
 
         return $daily;
@@ -478,10 +518,11 @@ class SalesReportController extends Controller
         foreach ($this->tablesForType($type) as $table) {
             $rows = $this->baseQuery($table, $scope)
                 ->leftJoin('payment_methods', 'payment_methods.id', '=', 'events.payment_method_id')
-                ->groupBy('events.payment_method_id', 'payment_methods.name')
+                ->groupBy('events.payment_method_id', 'payment_methods.name', 'payment_methods.is_cash')
                 ->get([
                     DB::raw('events.payment_method_id as method_id'),
                     'payment_methods.name as method_name',
+                    'payment_methods.is_cash as is_cash',
                     DB::raw(self::COUNT_EXPR.' as c'),
                     DB::raw('COALESCE(SUM(events.realized), 0) as total'),
                 ]);
@@ -491,6 +532,7 @@ class SalesReportController extends Controller
                 $methods[$key] ??= [
                     'methodId' => $row->method_id !== null ? (int) $row->method_id : null,
                     'methodName' => $row->method_name ?? 'غير محدد',
+                    'isCash' => (bool) $row->is_cash,
                     'count' => 0,
                     'total' => 0.0,
                 ];

@@ -20,12 +20,12 @@ use App\Http\Controllers\CustomerActivityController;
 use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DeployController;
-use App\Http\Controllers\DeploymentController;
-use App\Http\Controllers\DeploymentTaskController;
 use App\Http\Controllers\DeliveryLogController;
 use App\Http\Controllers\DeliveryProviderController;
 use App\Http\Controllers\DeliveryZoneController;
+use App\Http\Controllers\DeployController;
+use App\Http\Controllers\DeploymentController;
+use App\Http\Controllers\DeploymentTaskController;
 use App\Http\Controllers\EmployeeDeductionController;
 use App\Http\Controllers\ExpenseCategoryController;
 use App\Http\Controllers\ExpenseController;
@@ -36,6 +36,7 @@ use App\Http\Controllers\IncentiveController;
 use App\Http\Controllers\IncentiveReportController;
 use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\InvoicePaymentController;
+use App\Http\Controllers\InvoicePaymentMethodController;
 use App\Http\Controllers\InvoiceReceiptController;
 use App\Http\Controllers\LoyaltyController;
 use App\Http\Controllers\MaterialsReportController;
@@ -251,9 +252,16 @@ Route::middleware(['auth'])->group(function () {
             Route::get('review', [ServiceInvoiceController::class, 'review'])->name('review');
             Route::patch('{invoice}/pay', [ServiceInvoiceController::class, 'markPaid'])->name('pay');
             Route::patch('{invoice}/cancel', [ServiceInvoiceController::class, 'cancel'])->name('cancel');
-            Route::patch('{invoice}/payment-method', [ServiceInvoiceController::class, 'updatePaymentMethod'])->name('update-payment-method');
             Route::post('{invoice}/receipt', [InvoiceReceiptController::class, 'store'])->name('receipt');
         });
+
+        // طريقة الدفع — على الفاتورة أو على دفعةٍ منها، لكلا النوعين، قبل الاعتماد
+        // وبعده (تاسك 99). من يملكها يُقرَّر لكل فاتورة في changePaymentMethod.
+        Route::patch('invoices/{type}/{id}/payment-method', [InvoicePaymentMethodController::class, 'update'])
+            ->whereIn('type', ['product', 'service'])->whereNumber('id')
+            ->name('invoices.update-payment-method');
+        Route::patch('invoice-payments/{payment}/payment-method', [InvoicePaymentMethodController::class, 'update'])
+            ->name('invoice-payments.update-payment-method');
 
         // دفعات الفاتورة (عربون + دفعات لاحقة) — لكلا نوعي الفواتير. من يعتمد
         // الفاتورة هو من يسجّل تحصيلها؛ التحقق النهائي في InvoicePaymentController.

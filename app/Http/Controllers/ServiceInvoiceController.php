@@ -22,7 +22,6 @@ use App\Http\Requests\ServiceInvoice\ReturnServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\ReviewQueueFilterRequest;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
-use App\Http\Requests\ServiceInvoice\UpdateInvoicePaymentMethodRequest;
 use App\Http\Requests\ServiceInvoice\UpdateServiceInvoiceRequest;
 use App\Models\Branch;
 use App\Models\BranchService;
@@ -43,7 +42,6 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\ValidationException;
@@ -499,32 +497,6 @@ class ServiceInvoiceController extends Controller
         return Gate::allows('updateStatus', $invoice)
             ? route('invoices.service.review')
             : route('invoices.index');
-    }
-
-    /**
-     * Correct the payment method (transfer, card, mada, …) of a due invoice —
-     * from the review queue or from the invoice itself, which is the accountant's
-     * only way to name it now that the POS edit screen is closed to him. Hence
-     * back() rather than a fixed redirect: whoever asked stays where they were.
-     * Restricted to the branch's enabled methods by the request.
-     */
-    public function updatePaymentMethod(UpdateInvoicePaymentMethodRequest $request, ServiceInvoice $invoice): RedirectResponse
-    {
-        Gate::authorize('updateStatus', $invoice);
-
-        // الطريقة وإيصالها يُحفظان معاً أو لا يُحفظ أيّهما: طريقةٌ تشترط مرفقاً
-        // حُفظت بلا مرفقه تترك الفاتورة في الحال الذي مُنع أصلاً.
-        DB::transaction(function () use ($request, $invoice) {
-            $invoice->update(['payment_method_id' => $request->validated('payment_method_id')]);
-
-            if ($request->hasFile('receipt')) {
-                $invoice->addMedia($request->file('receipt'))
-                    ->toMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);
-            }
-        });
-
-        return redirect()->back(fallback: route('invoices.service.review'))
-            ->with('success', "تم تحديث طريقة الدفع للفاتورة {$invoice->invoice_number}");
     }
 
     public function cancel(CancelServiceInvoiceRequest $request, ServiceInvoice $invoice, CancelServiceInvoiceAction $action): RedirectResponse
