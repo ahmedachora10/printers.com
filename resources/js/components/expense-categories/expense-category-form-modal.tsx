@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type ExpenseCategory } from '@/types/expense-category';
 import { useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
@@ -19,21 +20,27 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     expenseCategory?: ExpenseCategory;
+    /** للسوبر أدمن وحده: يختار فرع الفئة أو يتركها عامة. */
+    branches?: { id: number; name: string }[] | null;
 }
 
-export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCategory }: Props) {
+export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCategory, branches }: Props) {
     const isEdit = !!expenseCategory;
 
-    const { data, setData, post, put, processing, errors, reset } = useForm({
+    const { data, setData, post, put, processing, errors, reset, transform } = useForm({
         name: expenseCategory?.name ?? '',
         is_active: expenseCategory?.isActive ?? true,
+        branch_id: 'global',
     });
+
+    transform((d) => ({ ...d, branch_id: d.branch_id === 'global' ? null : d.branch_id }));
 
     useEffect(() => {
         if (expenseCategory) {
             setData({
                 name: expenseCategory.name ?? '',
                 is_active: expenseCategory.isActive ?? true,
+                branch_id: 'global',
             });
         } else {
             reset();
@@ -64,6 +71,27 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
                 </DialogHeader>
 
                 <form id="expense-category-form" onSubmit={handleSubmit} className="space-y-4 py-2">
+                    {/* النطاق لا يُنقل بالتعديل — يُختار عند الإضافة وحدها. */}
+                    {branches && !isEdit && (
+                        <div className="space-y-1">
+                            <Label htmlFor="ec-branch">النطاق</Label>
+                            <Select value={data.branch_id} onValueChange={(val) => setData('branch_id', val)}>
+                                <SelectTrigger id="ec-branch">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="global">عامة (كل الفروع)</SelectItem>
+                                    {branches.map((b) => (
+                                        <SelectItem key={b.id} value={b.id.toString()}>
+                                            {b.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            <InputError message={errors.branch_id} />
+                        </div>
+                    )}
+
                     <div className="space-y-1">
                         <Label htmlFor="ec-name">اسم الفئة</Label>
                         <Input

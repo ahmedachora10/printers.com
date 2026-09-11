@@ -46,10 +46,7 @@ class ExpenseController extends Controller
 
         $periodTotal = (float) (clone $base)->sum('total');
 
-        $categories = ExpenseCategory::query()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $categories = ExpenseCategory::activeOptionsFor($branchId);
 
         return Inertia::render('expenses/index', [
             'items' => ExpenseResource::collection($items),

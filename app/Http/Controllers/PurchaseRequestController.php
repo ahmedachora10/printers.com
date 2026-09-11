@@ -17,6 +17,7 @@ use App\Models\Branch;
 use App\Models\Product;
 use App\Models\PurchaseRequest;
 use App\Models\Supplier;
+use App\Models\User;
 use App\Notifications\PurchaseRequestDecidedNotification;
 use App\Notifications\PurchaseRequestSubmittedNotification;
 use App\Support\BranchNotifiables;
@@ -35,8 +36,15 @@ class PurchaseRequestController extends Controller
     {
         Gate::authorize('viewAny', PurchaseRequest::class);
 
-        $items = PurchaseRequest::query()
-            ->visibleTo(Auth::user())
+        $user = Auth::user();
+        $visible = PurchaseRequest::query()->visibleTo($user);
+
+        $items = (clone $visible)
+            // تاسك 103. الفرع للسوبر أدمن وحده — غيره مقيَّدٌ بـvisibleTo أصلاً.
+            ->when($request->filled('requested_by'), fn ($q) => $q->where('requested_by', (int) $request->input('requested_by')))
+            ->when($user->roleName?->isSuperAdmin() && $request->filled('branch_id'), fn ($q) => $q->where('branch_id', (int) $request->input('branch_id')))
+            ->when($request->filled('date_from'), fn ($q) => $q->whereDate('created_at', '>=', $request->input('date_from')))
+            ->when($request->filled('date_to'), fn ($q) => $q->whereDate('created_at', '<=', $request->input('date_to')))
             ->with([
                 'branch:id,name',
                 'requestedBy:id,name',
@@ -64,9 +72,21 @@ class PurchaseRequestController extends Controller
             'suppliers' => $this->supplierOptions(),
             'branches' => $this->branchOptions(),
             'statuses' => $this->statusOptions(),
+            // مقدّمو الطلبات المرئية وحدها. الموظف والمحاسب يريان طلباتهما فقط،
+            // فالقائمة لهما بلا معنى.
+            'requesters' => $user->roleName?->isSuperAdmin() || $user->roleName?->isBranchAdmin()
+                ? User::query()
+                    ->whereIn('id', (clone $visible)->select('requested_by'))
+                    ->orderBy('name')
+                    ->get(['id', 'name'])
+                : [],
             'filters' => [
                 'search' => $request->input('search'),
                 'status' => $request->input('status'),
+                'requested_by' => $request->input('requested_by'),
+                'branch_id' => $request->input('branch_id'),
+                'date_from' => $request->input('date_from'),
+                'date_to' => $request->input('date_to'),
             ],
         ]);
     }
@@ -77,8 +97,10 @@ class PurchaseRequestController extends Controller
 
         $purchaseRequest = $action->handle($request->validated());
 
+        // مدير الفرع وحده: هو من يعتمد، والمحاسب لا يرى إلا طلباته فكان يُنبَّه
+        // بطلبٍ لا يستطيع فتحه (تاسك 102).
         Notification::send(
-            BranchNotifiables::forBranch($purchaseRequest->branch_id, [Roles::BRANCH_ADMIN->value, Roles::ACCOUNTANT->value])
+            BranchNotifiables::forBranch($purchaseRequest->branch_id, [Roles::BRANCH_ADMIN->value])
                 ->reject(fn ($user) => $user->id === Auth::id()),
             new PurchaseRequestSubmittedNotification(
                 $purchaseRequest->id,

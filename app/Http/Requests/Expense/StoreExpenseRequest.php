@@ -4,6 +4,7 @@ namespace App\Http\Requests\Expense;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 class StoreExpenseRequest extends FormRequest
 {
@@ -28,7 +29,9 @@ class StoreExpenseRequest extends FormRequest
     {
         return [
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
-            'expense_category_id' => ['required', 'integer', 'exists:expense_categories,id'],
+            // تاسك 102: فئةٌ عامة أو فئة فرع المصروف — لا فئةَ فرعٍ آخر ولو أُرسل معرّفها.
+            'expense_category_id' => ['required', 'integer', Rule::exists('expense_categories', 'id')
+                ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $this->input('branch_id')))],
             'qty' => ['required', 'numeric', 'min:0.01'],
             'unit_price' => ['required', 'numeric', 'min:0'],
             'supplier_name' => ['nullable', 'string', 'max:255'],

@@ -25,13 +25,16 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 interface Props {
     items: PaginatedExpenseCategory;
+    /** للسوبر أدمن وحده — عمود «النطاق» وفلتر الفرع ومنتقي الفرع عند الإضافة. */
+    branches: { id: number; name: string }[] | null;
     filters: {
         search?: string;
         status?: string;
+        branch_id?: string;
     };
 }
 
-export default function ExpenseCategoriesIndex({ items, filters }: Props) {
+export default function ExpenseCategoriesIndex({ items, branches, filters }: Props) {
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<ExpenseCategory | null>(null);
     const [deleting, setDeleting] = useState<ExpenseCategory | null>(null);
@@ -63,82 +66,102 @@ export default function ExpenseCategoriesIndex({ items, filters }: Props) {
                 key: 'name',
                 header: 'اسم الفئة',
                 sortable: true,
-                cell: (item) => <span className="font-medium">{item.name}</span>,
+                cell: (item) => (
+                    <span className="flex items-center gap-2 font-medium">
+                        {item.name}
+                        {/* مدير الفرع يرى الفئة العامة ولا يملكها. */}
+                        {!branches && item.branchId === null && (
+                            <Badge variant="outline" className="text-muted-foreground font-normal">
+                                عامة
+                            </Badge>
+                        )}
+                    </span>
+                ),
             },
+            ...(branches
+                ? [
+                      {
+                          key: 'branchName',
+                          header: 'النطاق',
+                          cell: (item: ExpenseCategory) => item.branchName ?? 'عامة',
+                      },
+                  ]
+                : []),
             {
                 key: 'isActive',
                 header: 'الحالة',
-                cell: (item) => (
-                    <button onClick={() => handleToggleStatus(item)} className="cursor-pointer">
-                        {item.isActive ? (
-                            <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
-                                <span className="inline-block size-1.5 rounded-full bg-green-500" />
-                                نشطة
-                            </Badge>
-                        ) : (
-                            <Badge variant="outline" className="gap-1.5 border-border bg-muted/60 text-muted-foreground">
-                                <span className="inline-block size-1.5 rounded-full bg-muted-foreground/50" />
-                                غير نشطة
-                            </Badge>
-                        )}
-                    </button>
-                ),
+                cell: (item) => {
+                    const badge = item.isActive ? (
+                        <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
+                            <span className="inline-block size-1.5 rounded-full bg-green-500" />
+                            نشطة
+                        </Badge>
+                    ) : (
+                        <Badge variant="outline" className="gap-1.5 border-border bg-muted/60 text-muted-foreground">
+                            <span className="inline-block size-1.5 rounded-full bg-muted-foreground/50" />
+                            غير نشطة
+                        </Badge>
+                    );
+
+                    return item.canEdit ? (
+                        <button onClick={() => handleToggleStatus(item)} className="cursor-pointer">
+                            {badge}
+                        </button>
+                    ) : (
+                        badge
+                    );
+                },
             },
             {
                 key: 'actions',
                 header: '',
                 headerClassName: 'w-24',
-                cell: (item) => (
-                    <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => setDeleting(item)}
-                        >
-                            <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                    </div>
-                ),
+                cell: (item) =>
+                    item.canEdit && (
+                        <div className="flex items-center gap-2">
+                            <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setDeleting(item)}
+                            >
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                        </div>
+                    ),
             },
         ],
-        [],
+        [branches],
     );
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
         status: filters.status ?? '',
+        branch_id: filters.branch_id ?? '',
     });
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
+
+    const reload = (values: Record<string, string>) =>
+        router.get(index.url(), Object.fromEntries(Object.entries(values).filter(([, v]) => v)), { preserveState: true, replace: true });
 
     const handleSearchChange = (value: string) => {
         setSearch(value);
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        searchTimeout.current = setTimeout(() => {
-            router.get(
-                index.url(),
-                { ...(value && { search: value }), ...(filterValues.status && { status: filterValues.status }) },
-                { preserveState: true, replace: true },
-            );
-        }, 400);
+        searchTimeout.current = setTimeout(() => reload({ ...filterValues, search: value }), 400);
     };
 
     const handleFilterChange = (key: string, val: string) => {
         const next = { ...filterValues, [key]: val };
         setFilterValues(next);
-        router.get(
-            index.url(),
-            { ...(search && { search }), ...(next.status && { status: next.status }) },
-            { preserveState: true, replace: true },
-        );
+        reload({ ...next, search });
     };
 
     const handleClearAll = () => {
         setSearch('');
-        setFilterValues({ status: '' });
+        setFilterValues({ status: '', branch_id: '' });
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         router.get(index.url(), {}, { preserveState: true, replace: true });
     };
@@ -165,6 +188,18 @@ export default function ExpenseCategoriesIndex({ items, filters }: Props) {
                                     { value: '0', label: 'غير نشطة' },
                                 ],
                             },
+                            ...(branches
+                                ? [
+                                      {
+                                          key: 'branch_id',
+                                          placeholder: 'النطاق',
+                                          options: [
+                                              { value: 'global', label: 'عامة' },
+                                              ...branches.map((b) => ({ value: b.id.toString(), label: b.name })),
+                                          ],
+                                      },
+                                  ]
+                                : []),
                         ]}
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
@@ -219,6 +254,7 @@ export default function ExpenseCategoriesIndex({ items, filters }: Props) {
                 open={formOpen}
                 onOpenChange={setFormOpen}
                 expenseCategory={editing ?? undefined}
+                branches={branches}
             />
         </AppLayout>
     );

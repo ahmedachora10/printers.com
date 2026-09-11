@@ -8,6 +8,13 @@ export interface EmployeeOption {
     branchName?: string | null;
 }
 
+export interface IncentiveTier {
+    threshold: number;
+    value: number;
+    /** مكافأة هذه الشريحة بالريال. */
+    bonus: number;
+}
+
 export interface IncentivePlan {
     id: number;
     userId: number;
@@ -27,6 +34,13 @@ export interface IncentivePlan {
     status: string;
     statusLabel: string;
     isTargetMet: boolean;
+    /** تاسك 105: الشرائح مرتّبة بالعتبة — أدناها هي targetAmount/bonusValue. */
+    tiers: IncentiveTier[];
+    /** رقم أعلى شريحة مبلوغة (من 1)، أو null. */
+    reachedTier: number | null;
+    nextTier: { number: number; threshold: number; remaining: number } | null;
+    /** ذات الشرائح لا تُصرف قبل نهاية الشهر. */
+    canPayNow: boolean;
     notes: string | null;
     paidAmount: number | null;
     paidAt: string | null;

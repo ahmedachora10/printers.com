@@ -266,6 +266,8 @@ class IncentiveReportController extends Controller
             'achieved' => round($achieved, 2),
             'progressPct' => $target > 0 ? round($achieved / $target * 100, 1) : 0.0,
             'bonusAmount' => $plan->bonusAmount(),
+            // تاسك 105: «2 من 3»، أو null إن لم تُبلغ أدنى شريحة.
+            'reachedTier' => ($reached = $plan->reachedTier()) ? $reached['number'].' من '.count($plan->tiers) : null,
             'bonusPaid' => round((float) $plan->bonusPayments->sum('amount'), 2),
             'status' => $plan->status->value,
             'statusLabel' => $plan->status->label(),

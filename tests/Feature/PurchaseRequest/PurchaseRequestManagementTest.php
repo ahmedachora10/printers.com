@@ -70,7 +70,7 @@ describe('Internal purchase requests', function () {
         ])->all()];
     };
 
-    it('lets an employee raise a request for their own branch and notifies the branch admin and accountant', function () use ($submit) {
+    it('lets an employee raise a request for their own branch and notifies the branch admin', function () use ($submit) {
         Notification::fake();
         $this->actingAs($this->employee);
 
@@ -89,7 +89,74 @@ describe('Internal purchase requests', function () {
         expect($request->lines->last()->product_id)->toBeNull();
         expect($request->estimatedTotal())->toBe(60.0);
 
-        Notification::assertSentTo([$this->admin, $this->accountant], PurchaseRequestSubmittedNotification::class);
+        Notification::assertSentTo($this->admin, PurchaseRequestSubmittedNotification::class);
+        // تاسك 102: المحاسب لا يرى إلا طلباته، فلا يُنبَّه بطلبٍ لا يستطيع فتحه.
+        Notification::assertNotSentTo($this->accountant, PurchaseRequestSubmittedNotification::class);
+        expect($this->admin->can('view', $request))->toBeTrue();
+    });
+
+    // ── تاسك 103: فلاتر القائمة ───────────────────────────────────
+
+    it('filters by requester, branch, status and date for a super-admin', function () use ($submit) {
+        $this->actingAs($this->employee);
+        $match = $submit();
+        $this->travel(-5)->days();
+        $submit();
+        $this->travelBack();
+
+        $this->actingAs($this->accountant);
+        $submit();
+
+        $otherBranch = Branch::factory()->create();
+        $foreign = PurchaseRequest::factory()->create(['branch_id' => $otherBranch->id]);
+
+        $super = User::factory()->create();
+        $super->addRole(Roles::SUPER_ADMIN->value);
+
+        $this->actingAs($super)
+            ->get(route('purchase-requests.index', [
+                'branch_id' => $this->branch->id,
+                'status' => PurchaseRequestStatusEnum::PENDING->value,
+                'requested_by' => $this->employee->id,
+                'date_from' => today()->subDay()->toDateString(),
+                'date_to' => today()->toDateString(),
+            ]))
+            ->assertInertia(fn ($page) => $page
+                ->has('items.data', 1)
+                ->where('items.data.0.id', $match->id)
+                ->where('filters.requested_by', (string) $this->employee->id)
+                ->where('requesters', fn ($r) => collect($r)->pluck('id')->sort()->values()->all()
+                    === collect([$this->employee->id, $this->accountant->id, $foreign->requested_by])->sort()->values()->all()));
+
+        $this->get(route('purchase-requests.index', ['branch_id' => $otherBranch->id]))
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)->where('items.data.0.id', $foreign->id));
+
+        // بلا فلاتر: الأربعة كلها، ومنها القديم وطلب المحاسب.
+        $this->get(route('purchase-requests.index'))
+            ->assertInertia(fn ($page) => $page->has('items.data', 4));
+    });
+
+    it('ignores a branch filter from a branch admin and keeps other branches out of the requesters', function () use ($submit) {
+        $this->actingAs($this->employee);
+        $submit();
+
+        $otherBranch = Branch::factory()->create();
+        $foreign = PurchaseRequest::factory()->create(['branch_id' => $otherBranch->id]);
+
+        $this->actingAs($this->admin)
+            ->get(route('purchase-requests.index', ['branch_id' => $otherBranch->id]))
+            ->assertInertia(fn ($page) => $page
+                ->has('items.data', 1)
+                ->where('items.data.0.branchName', $this->branch->name)
+                ->has('requesters', 1)
+                ->where('requesters.0.id', $this->employee->id));
+
+        $this->get(route('purchase-requests.index', ['requested_by' => $foreign->requested_by]))
+            ->assertInertia(fn ($page) => $page->has('items.data', 0));
+
+        $this->actingAs($this->employee)
+            ->get(route('purchase-requests.index'))
+            ->assertInertia(fn ($page) => $page->has('requesters', 0));
     });
 
     it('shows an employee only their own requests while the branch admin sees them all', function () use ($submit) {

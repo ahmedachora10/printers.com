@@ -282,6 +282,7 @@ const planColumns: ColumnDef<IncentiveReportPlanRow>[] = [
     { key: 'periodLabel', header: 'الفترة', className: 'font-medium', cell: (row) => <span dir="ltr">{row.periodLabel}</span> },
     { key: 'target', header: 'المستهدف', cell: (row) => formatCurrency(row.target) },
     { key: 'achieved', header: 'المحقق', cell: (row) => `${formatCurrency(row.achieved)} (${row.progressPct}%)` },
+    { key: 'reachedTier', header: 'الشريحة المبلوغة', cell: (row) => row.reachedTier ?? '—' },
     { key: 'bonusAmount', header: 'المكافأة', cell: (row) => formatCurrency(row.bonusAmount) },
     { key: 'bonusPaid', header: 'المصروف', className: 'text-green-600', cell: (row) => formatCurrency(row.bonusPaid) },
     { key: 'status', header: 'الحالة', cell: (row) => <Badge variant={STATUS_VARIANT[row.status] ?? 'secondary'}>{row.statusLabel}</Badge> },

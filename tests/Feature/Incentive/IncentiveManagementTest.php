@@ -21,7 +21,7 @@ function salesInvoice(int $branchId, int $userId, float $total, ?int $year = nul
 {
     $date = ($year && $month) ? now()->setDate($year, $month, 15) : now();
 
-    return ServiceInvoice::create([
+    $invoice = ServiceInvoice::create([
         'invoice_number' => 'SINV-'.fake()->unique()->numerify('######'),
         'branch_id' => $branchId,
         'user_id' => $userId,
@@ -34,8 +34,13 @@ function salesInvoice(int $branchId, int $userId, float $total, ?int $year = nul
         'employee_commission' => 0,
         'status' => 'paid',
         'paid_at' => $date,
-        'created_at' => $date,
     ]);
+
+    // created_at ليس قابلاً للإسناد الجماعي — يُثبَّت هنا وإلا وقعت كل فاتورة في الشهر الجاري.
+    $invoice->created_at = $date;
+    $invoice->save();
+
+    return $invoice;
 }
 
 describe('Incentives', function () {
@@ -80,9 +85,8 @@ describe('Incentives', function () {
             'user_id' => $this->employee->id,
             'period_month' => now()->month,
             'period_year' => now()->year,
-            'target_amount' => 1000,
             'bonus_type' => 'fixed',
-            'bonus_value' => 200,
+            'tiers' => [['threshold' => 1000, 'value' => 200]],
         ])->assertRedirect(route('incentives.index'));
 
         $plan = IncentivePlan::firstOrFail();
@@ -103,9 +107,8 @@ describe('Incentives', function () {
             'user_id' => $this->employee->id,
             'period_month' => 5,
             'period_year' => 2026,
-            'target_amount' => 1000,
             'bonus_type' => 'fixed',
-            'bonus_value' => 100,
+            'tiers' => [['threshold' => 1000, 'value' => 100]],
         ])->assertSessionHasErrors('user_id');
 
         expect(IncentivePlan::count())->toBe(1);
@@ -116,9 +119,8 @@ describe('Incentives', function () {
             'user_id' => $this->employee->id,
             'period_month' => 1,
             'period_year' => 2025,
-            'target_amount' => 5000,
             'bonus_type' => 'fixed',
-            'bonus_value' => 100,
+            'tiers' => [['threshold' => 5000, 'value' => 100]],
         ])->assertRedirect();
 
         expect(IncentivePlan::firstOrFail()->status)->toBe(IncentivePlanStatusEnum::Missed);
@@ -261,9 +263,8 @@ describe('Incentives', function () {
             'user_id' => $this->employee->id,
             'period_month' => $plan->period_month,
             'period_year' => $plan->period_year,
-            'target_amount' => 999,
             'bonus_type' => 'fixed',
-            'bonus_value' => 1,
+            'tiers' => [['threshold' => 999, 'value' => 1]],
         ])->assertForbidden();
     });
 
@@ -276,9 +277,8 @@ describe('Incentives', function () {
             'user_id' => $otherEmployee->id,
             'period_month' => now()->month,
             'period_year' => now()->year,
-            'target_amount' => 1000,
             'bonus_type' => 'fixed',
-            'bonus_value' => 100,
+            'tiers' => [['threshold' => 1000, 'value' => 100]],
         ])->assertForbidden();
 
         expect(IncentivePlan::count())->toBe(0);
@@ -367,5 +367,95 @@ describe('Incentives', function () {
             ->assertInertia(fn ($page) => $page
                 ->has('deductions.data', 1)
                 ->where('deductionsTotal', 100));
+    });
+
+    // ── تاسك 105: شرائح متعددة ─────────────────────────────────────
+
+    describe('tiers', function () {
+        $tieredPlan = function (int $year, int $month, array $tiers = [['threshold' => 2000, 'value' => 2], ['threshold' => 1000, 'value' => 1]]): IncentivePlan {
+            test()->post(route('incentives.store'), [
+                'user_id' => test()->employee->id,
+                'period_month' => $month,
+                'period_year' => $year,
+                'bonus_type' => 'percentage',
+                'tiers' => $tiers,
+            ])->assertSessionHasNoErrors();
+
+            return IncentivePlan::latest('id')->firstOrFail();
+        };
+
+        it('pays the highest tier reached, as a percentage of its own threshold', function () use ($tieredPlan) {
+            $last = now()->subMonthNoOverflow();
+            salesInvoice($this->branch->id, $this->employee->id, 2900, $last->year, $last->month);
+
+            $plan = $tieredPlan($last->year, $last->month);
+
+            // الإدخال غير مرتّب؛ النموذج يرتّب، وأدنى شريحة هي «الهدف».
+            expect((float) $plan->target_amount)->toBe(1000.0)
+                ->and((float) $plan->bonus_value)->toBe(1.0)
+                ->and($plan->reachedTier()['number'])->toBe(2)
+                ->and($plan->bonusAmount())->toBe(40.0)
+                ->and($plan->status)->toBe(IncentivePlanStatusEnum::Achieved);
+
+            $this->post(route('incentives.pay', $plan))->assertRedirect();
+
+            expect((float) BonusPayment::firstOrFail()->amount)->toBe(40.0);
+        });
+
+        it('misses a tiered plan below its lowest tier once the month is over', function () use ($tieredPlan) {
+            $last = now()->subMonthNoOverflow();
+            salesInvoice($this->branch->id, $this->employee->id, 900, $last->year, $last->month);
+
+            expect($tieredPlan($last->year, $last->month)->status)->toBe(IncentivePlanStatusEnum::Missed);
+        });
+
+        it('refuses to pay a tiered plan before the month ends, and says what is left to the next tier', function () use ($tieredPlan) {
+            salesInvoice($this->branch->id, $this->employee->id, 1200, now()->year, now()->month);
+
+            $plan = $tieredPlan(now()->year, now()->month);
+
+            $this->get(route('incentives.index'))
+                ->assertInertia(fn ($page) => $page
+                    ->where('plans.data.0.reachedTier', 1)
+                    ->where('plans.data.0.nextTier.number', 2)
+                    ->where('plans.data.0.nextTier.remaining', 800)
+                    ->where('plans.data.0.canPayNow', false));
+
+            $this->post(route('incentives.pay', $plan))->assertSessionHasErrors('incentive_plan_id');
+            expect(BonusPayment::count())->toBe(0);
+        });
+
+        it('rejects duplicate thresholds and a bonus that does not rise with the tier', function (array $tiers) {
+            $this->post(route('incentives.store'), [
+                'user_id' => $this->employee->id,
+                'period_month' => now()->month,
+                'period_year' => now()->year,
+                'bonus_type' => 'fixed',
+                'tiers' => $tiers,
+            ])->assertSessionHasErrors('tiers');
+
+            expect(IncentivePlan::count())->toBe(0);
+        })->with([
+            'duplicate threshold' => [[['threshold' => 1000, 'value' => 10], ['threshold' => 1000, 'value' => 20]]],
+            'bonus does not rise' => [[['threshold' => 1000, 'value' => 50], ['threshold' => 2000, 'value' => 50]]],
+            'bonus falls' => [[['threshold' => 2000, 'value' => 10], ['threshold' => 1000, 'value' => 20]]],
+        ]);
+
+        it('replaces the tiers on update', function () use ($tieredPlan) {
+            $plan = $tieredPlan(now()->year, now()->month);
+
+            $this->put(route('incentives.update', $plan), [
+                'user_id' => $this->employee->id,
+                'period_month' => $plan->period_month,
+                'period_year' => $plan->period_year,
+                'bonus_type' => 'fixed',
+                'tiers' => [['threshold' => 5000, 'value' => 300]],
+            ])->assertSessionHasNoErrors();
+
+            $plan->refresh();
+            expect($plan->isMultiTier())->toBeFalse()
+                ->and((float) $plan->target_amount)->toBe(5000.0)
+                ->and($plan->bonusAmount())->toBe(300.0);
+        });
     });
 });

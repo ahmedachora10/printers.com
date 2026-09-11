@@ -57,12 +57,7 @@ class ExpenseReportController extends Controller
             'branches' => $scope['isSuper']
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
-            // فئات المصروفات جدول عام بلا branch_id — تُعرض كاملةً لكل فرع، تماماً
-            // كما تفعل شاشة الإدخال /expenses.
-            'categories' => ExpenseCategory::query()
-                ->where('is_active', true)
-                ->orderBy('name')
-                ->get(['id', 'name']),
+            'categories' => ExpenseCategory::activeOptionsFor($scope['branchId']),
             'isSuperAdmin' => $scope['isSuper'],
         ]);
     }

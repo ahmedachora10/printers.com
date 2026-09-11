@@ -1,4 +1,5 @@
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
+import TierProgress from '@/components/incentives/tier-progress';
 import { SummaryCard } from '@/components/reports/summary-card';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,7 +45,7 @@ const planColumns: ColumnDef<IncentivePlan>[] = [
                     <span className="tabular-nums">{formatCurrency(p.achievedAmount)}</span>
                     <span className="text-muted-foreground text-xs tabular-nums">{p.progressPct}%</span>
                 </div>
-                <ProgressBar pct={p.progressPct} />
+                <TierProgress plan={p} />
             </div>
         ),
     },
@@ -119,7 +120,16 @@ export default function MyIncentives({ plans, deductions, currentPlan, totals }:
                                 <span className="text-muted-foreground">نسبة الإنجاز</span>
                                 <span className={`font-semibold tabular-nums ${currentPlan.isTargetMet ? 'text-green-600' : ''}`}>{currentPlan.progressPct}%</span>
                             </div>
-                            <ProgressBar pct={currentPlan.progressPct} />
+                            <TierProgress plan={currentPlan} />
+                            {currentPlan.tiers.length > 1 && (
+                                <div className="flex flex-wrap gap-2 text-xs">
+                                    {currentPlan.tiers.map((t, i) => (
+                                        <Badge key={t.threshold} variant={currentPlan.reachedTier === i + 1 ? 'default' : 'outline'} className="tabular-nums">
+                                            {formatCurrency(t.threshold)} ← {formatCurrency(t.bonus)}
+                                        </Badge>
+                                    ))}
+                                </div>
+                            )}
                             <div className="grid grid-cols-2 gap-4 pt-1 text-sm sm:grid-cols-4">
                                 <Figure label="المحقق" value={formatCurrency(currentPlan.achievedAmount)} />
                                 <Figure label="المستهدف" value={formatCurrency(currentPlan.targetAmount)} />
@@ -186,14 +196,6 @@ function Figure({ label, value, valueClass }: { label: string; value: string; va
         <div>
             <p className="text-muted-foreground text-xs">{label}</p>
             <p className={`font-semibold tabular-nums ${valueClass ?? ''}`}>{value}</p>
-        </div>
-    );
-}
-
-function ProgressBar({ pct }: { pct: number }) {
-    return (
-        <div className="bg-muted h-1.5 w-full overflow-hidden rounded-full">
-            <div className={`h-full rounded-full ${pct >= 100 ? 'bg-green-600' : 'bg-primary'}`} style={{ width: `${Math.min(100, pct)}%` }} />
         </div>
     );
 }
