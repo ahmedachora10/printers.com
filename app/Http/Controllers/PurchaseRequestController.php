@@ -72,9 +72,9 @@ class PurchaseRequestController extends Controller
             'suppliers' => $this->supplierOptions(),
             'branches' => $this->branchOptions(),
             'statuses' => $this->statusOptions(),
-            // مقدّمو الطلبات المرئية وحدها. الموظف والمحاسب يريان طلباتهما فقط،
-            // فالقائمة لهما بلا معنى.
-            'requesters' => $user->roleName?->isSuperAdmin() || $user->roleName?->isBranchAdmin()
+            // مقدّمو الطلبات المرئية وحدها. الموظف يرى طلباته فقط، فالقائمة له
+            // بلا معنى.
+            'requesters' => ! $user->roleName?->isEmployee()
                 ? User::query()
                     ->whereIn('id', (clone $visible)->select('requested_by'))
                     ->orderBy('name')
@@ -97,10 +97,9 @@ class PurchaseRequestController extends Controller
 
         $purchaseRequest = $action->handle($request->validated());
 
-        // مدير الفرع وحده: هو من يعتمد، والمحاسب لا يرى إلا طلباته فكان يُنبَّه
-        // بطلبٍ لا يستطيع فتحه (تاسك 102).
+        // مدير الفرع يعتمد، والمحاسب يرى طلبات فرعه ويُنبَّه بها (تاسك 108).
         Notification::send(
-            BranchNotifiables::forBranch($purchaseRequest->branch_id, [Roles::BRANCH_ADMIN->value])
+            BranchNotifiables::forBranch($purchaseRequest->branch_id, [Roles::BRANCH_ADMIN->value, Roles::ACCOUNTANT->value])
                 ->reject(fn ($user) => $user->id === Auth::id()),
             new PurchaseRequestSubmittedNotification(
                 $purchaseRequest->id,

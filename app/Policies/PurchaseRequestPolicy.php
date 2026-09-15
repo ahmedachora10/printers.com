@@ -20,8 +20,9 @@ class PurchaseRequestPolicy
     }
 
     /**
-     * Admins see every request in their scope; an accountant or employee only
-     * ever sees the requests they raised themselves.
+     * Admins and the accountant see every request in their scope — the
+     * accountant sees without deciding (تاسك 108); an employee only ever sees
+     * the requests they raised themselves.
      */
     public function view(User $user, PurchaseRequest $purchaseRequest): bool
     {
@@ -29,12 +30,11 @@ class PurchaseRequestPolicy
             return true;
         }
 
-        if ($user->roleName->isBranchAdmin()) {
+        if ($user->roleName->isBranchAdmin() || $user->roleName->isAccountant()) {
             return $user->branchId === $purchaseRequest->branch_id;
         }
 
-        return ($user->roleName->isAccountant() || $user->roleName->isEmployee())
-            && $user->id === $purchaseRequest->requested_by;
+        return $user->roleName->isEmployee() && $user->id === $purchaseRequest->requested_by;
     }
 
     public function create(User $user): bool

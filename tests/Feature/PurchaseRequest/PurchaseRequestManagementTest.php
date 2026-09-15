@@ -90,9 +90,28 @@ describe('Internal purchase requests', function () {
         expect($request->estimatedTotal())->toBe(60.0);
 
         Notification::assertSentTo($this->admin, PurchaseRequestSubmittedNotification::class);
-        // تاسك 102: المحاسب لا يرى إلا طلباته، فلا يُنبَّه بطلبٍ لا يستطيع فتحه.
-        Notification::assertNotSentTo($this->accountant, PurchaseRequestSubmittedNotification::class);
+        // تاسك 108: المحاسب يُنبَّه بطلب موظف فرعه ويستطيع فتحه.
+        Notification::assertSentTo($this->accountant, PurchaseRequestSubmittedNotification::class);
         expect($this->admin->can('view', $request))->toBeTrue();
+        expect($this->accountant->can('view', $request))->toBeTrue();
+    });
+
+    it('lets the accountant see every request in their branch without deciding (task 108)', function () use ($submit) {
+        $this->actingAs($this->employee);
+        $request = $submit();
+
+        PurchaseRequest::factory()->create(['branch_id' => Branch::factory()->create()->id]);
+
+        $this->actingAs($this->accountant)
+            ->get(route('purchase-requests.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('items.data', 1)
+                ->where('items.data.0.id', $request->id)
+                ->where('items.data.0.canDecide', false)
+                ->has('requesters', 1)
+                ->where('requesters.0.id', $this->employee->id));
+
+        $this->patch(route('purchase-requests.approve', $request))->assertForbidden();
     });
 
     // ── تاسك 103: فلاتر القائمة ───────────────────────────────────

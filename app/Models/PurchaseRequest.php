@@ -115,7 +115,8 @@ class PurchaseRequest extends Model
     /**
      * Narrows the query to what the given user is allowed to see, mirroring
      * PurchaseRequestPolicy::view: super-admin sees everything, a branch admin
-     * their own branch, and an accountant/employee only their own requests.
+     * or accountant their own branch (تاسك 108), and an employee only their own
+     * requests.
      *
      * @param  Builder<$this>  $query
      * @return Builder<$this>
@@ -126,7 +127,7 @@ class PurchaseRequest extends Model
             return $query;
         }
 
-        if ($user->roleName?->isBranchAdmin()) {
+        if ($user->roleName?->isBranchAdmin() || $user->roleName?->isAccountant()) {
             return $query->where('branch_id', $user->branchId);
         }
 
