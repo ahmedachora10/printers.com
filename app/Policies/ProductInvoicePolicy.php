@@ -43,6 +43,20 @@ class ProductInvoicePolicy
     }
 
     /**
+     * تعديل الفاتورة كاملةً — لمدير الفرع في فرعه ولمدير النظام، آجلةً كانت أو
+     * مدفوعة. لا الملغاة ولا المرتجعة، ولا ما عليها مرتجعٌ جزئي (كميات المخزون
+     * المُعادة ومبالغه لا تُطابَق مع تعديلٍ لاحق)، ولا ما دخل عائدُ مندوبها دفعةً.
+     */
+    public function update(User $user, ProductInvoice $invoice): bool
+    {
+        return ($user->roleName->isSuperAdmin()
+                || ($user->roleName->isBranchAdmin() && $user->branchId === $invoice->branch_id))
+            && ! in_array($invoice->status->value, InvoiceStatusEnum::excludedFromRevenue(), true)
+            && $invoice->agent_payment_id === null
+            && ! $invoice->refunds()->exists();
+    }
+
+    /**
      * تاسك 99 — تغيير طريقة الدفع بعد البيع: من يصدر فاتورة المنتجات في فرعها،
      * ما لم تكن ملغاة أو مرتجعة.
      */

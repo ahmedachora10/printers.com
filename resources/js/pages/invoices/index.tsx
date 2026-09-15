@@ -17,6 +17,7 @@ import AppLayout from '@/layouts/app-layout';
 import { INVOICE_STATUS_COLORS } from '@/lib/invoice';
 import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
+import posProduct from '@/routes/pos/product';
 import posService from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
@@ -509,7 +510,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                         )}
                         {item.canEdit && (
                             <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
-                                <Link href={posService.edit(item.id).url} aria-label="تعديل">
+                                <Link href={(item.type === 'product' ? posProduct : posService).edit(item.id).url} aria-label="تعديل">
                                     <Pencil className="h-3.5 w-3.5" />
                                 </Link>
                             </Button>

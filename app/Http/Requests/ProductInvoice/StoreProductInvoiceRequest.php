@@ -60,7 +60,7 @@ class StoreProductInvoiceRequest extends FormRequest
      *
      * @return array<int, int>
      */
-    private function enabledPaymentMethodIds(): array
+    protected function enabledPaymentMethodIds(): array
     {
         $branch = Branch::find($this->user()?->branchId);
 
@@ -70,7 +70,7 @@ class StoreProductInvoiceRequest extends FormRequest
     /**
      * Whether the chosen payment method mandates a receipt upload.
      */
-    private function paymentMethodRequiresAttachment(): bool
+    protected function paymentMethodRequiresAttachment(): bool
     {
         $id = $this->input('payment_method_id');
 

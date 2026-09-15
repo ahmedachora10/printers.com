@@ -45,150 +45,217 @@ class CreateProductInvoiceAction
         $vatPct = (float) $branch->vat_rate_override;
 
         return DB::transaction(function () use ($data, $user, $branchId, $vatPct, $receipt) {
-            $customerId = $this->resolveCustomerId($data, $branchId);
-
-            // Lock the branch's products that are being sold to keep stock checks
-            // and the sale movements consistent under concurrent sales.
-            $productIds = collect((array) $data['lines'])
-                ->pluck('product_id')
-                ->filter()
-                ->unique();
-
-            $products = $productIds->isNotEmpty()
-                ? Product::query()
-                    ->where('branch_id', $branchId)
-                    ->whereIn('id', $productIds)
-                    ->lockForUpdate()
-                    ->get()
-                    ->keyBy('id')
-                : collect();
-
-            $lines = [];
-            $subtotal = 0.0;
-
-            foreach ($data['lines'] as $line) {
-                $unitPrice = (float) $line['unit_price'];
-                $discountPct = (float) ($line['discount_pct'] ?? 0);
-
-                // Manual line — no linked product, no stock movement, and no
-                // dimensions: its quantity is whatever the cashier typed.
-                if (empty($line['product_id'])) {
-                    $qty = round((float) $line['qty'], 2);
-                    $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
-                    $subtotal += $lineSubtotal;
-
-                    $lines[] = [
-                        'product' => null,
-                        'product_name' => $line['name'],
-                        'sku' => null,
-                        'qty' => $qty,
-                        'width_cm' => null,
-                        'height_cm' => null,
-                        'pieces' => null,
-                        'unit_price' => $unitPrice,
-                        'discount_pct' => $discountPct,
-                        'subtotal' => $lineSubtotal,
-                    ];
-
-                    continue;
-                }
-
-                $product = $products->get($line['product_id']);
-
-                if (! $product) {
-                    throw ValidationException::withMessages([
-                        'lines' => 'أحد المنتجات غير موجود في هذا الفرع.',
-                    ]);
-                }
-
-                // تاسك 51: كمية المنتج المسعّر بالمتر المربع تُشتقّ هنا من المقاس
-                // وعدد القطع — لا تُؤخذ مما أرسلته الواجهة، فالسعر والمخزون معاً
-                // يقومان عليها. أما منتج القطعة فكميته هي المُرسَلة كما كانت.
-                [$qty, $widthCm, $heightCm, $pieces] = $this->resolveLineQuantity($line, $product);
-
-                $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
-                $subtotal += $lineSubtotal;
-
-                if ($qty > (float) $product->current_stock) {
-                    $available = Quantity::format($product->current_stock);
-
-                    throw ValidationException::withMessages([
-                        'lines' => "الكمية المطلوبة من \"{$product->name}\" تتجاوز المخزون المتاح ({$available}).",
-                    ]);
-                }
-
-                $lines[] = [
-                    'product' => $product,
-                    'product_name' => $product->name,
-                    'sku' => $product->sku,
-                    'qty' => $qty,
-                    'width_cm' => $widthCm,
-                    'height_cm' => $heightCm,
-                    'pieces' => $pieces,
-                    'unit_price' => $unitPrice,
-                    'discount_pct' => $discountPct,
-                    'subtotal' => $lineSubtotal,
-                ];
-            }
-
-            $subtotal = round($subtotal, 2);
-
-            $customer = $customerId !== null ? Customer::find($customerId) : null;
-            $config = LoyaltyConfig::forBranch($branchId);
-
-            [$agentId, $agentMode, $agentType, $agentRate] = $this->resolveAgent->handle(
-                isset($data['agent_id']) ? (int) $data['agent_id'] : null,
-                $branchId,
-            );
-
-            // Loyalty benefits (tier discount, redemption) apply only to
-            // eligible customers: individual, not agent-linked, on a non-agent
-            // invoice — B2B sales are settled via agent terms instead.
-            $loyaltyEligible = $agentId === null
-                && $customer !== null
-                && $customer->customer_type === CustomerTypeEnum::Individual
-                && $customer->agent_id === null;
-
-            // Discount pipeline: subtotal → tier → coupon → agent → points → VAT.
-            [$tierPct, $tierDiscount] = $this->loyalty->tierDiscount($customer, $loyaltyEligible, $config, $subtotal);
-            $afterTier = round($subtotal - $tierDiscount, 2);
-
-            [$coupon, $couponDiscount] = $this->resolveCoupon($data, $branchId, $afterTier);
-            $afterCoupon = round($afterTier - $couponDiscount, 2);
-
-            // discount mode reduces the taxable base; rebate is recorded on the
-            // invoice after the total but never deducted from it. The rate is
-            // read as a percentage or a flat SAR amount per the discount type.
-            $agentDiscount = $agentMode === AgentDiscountModeEnum::Discount
-                ? $this->agentAmount($agentType, $agentRate, $afterCoupon)
-                : 0.0;
-            $afterAgent = round($afterCoupon - $agentDiscount, 2);
-
-            $requestedPoints = (int) ($data['redeem_points'] ?? 0);
-
-            // الرصيد المتاح لا المسجَّل: ما حُجز على فواتير هذا العميل التي لم
-            // تُعتمد بعد ليس له أن يُستبدل مرة أخرى.
-            $available = $customer !== null ? $this->availablePoints->handle($customer) : null;
-
-            [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($customer, $loyaltyEligible, $config, $requestedPoints, $afterAgent, $available);
-
-            // الأسعار المُدخلة في نقطة البيع شاملة لضريبة القيمة المضافة: ما يبقى
-            // بعد كامل سلسلة الخصومات هو ما يدفعه العميل بالضبط، والضريبة تُستخرج
-            // من داخله بالطرح لا بالضرب. مطابق لفاتورة الخدمة تماماً.
-            $total = round($afterAgent - $pointsDiscount, 2);
-            $netBeforeVat = round($total / (1 + $vatPct / 100), 2);
-            $vatAmount = round($total - $netBeforeVat, 2);
-
-            $agentRebate = $agentMode === AgentDiscountModeEnum::Rebate
-                ? $this->agentAmount($agentType, $agentRate, $netBeforeVat)
-                : 0.0;
-
+            $calc = $this->calculate($data, $branchId, $vatPct);
             $status = InvoiceStatusEnum::from($data['status']);
 
             $invoice = ProductInvoice::create([
                 'invoice_number' => $this->generateInvoiceNumber($branchId),
                 'branch_id' => $branchId,
                 'user_id' => $user->id,
+                ...$calc['attributes'],
+                'status' => $status,
+                'paid_at' => $status === InvoiceStatusEnum::PAID ? now() : null,
+            ]);
+
+            if ($receipt !== null) {
+                $invoice->addMedia($receipt)->toMediaCollection(ProductInvoice::RECEIPT_COLLECTION);
+            }
+
+            $this->writeLines($invoice, $calc['lines']);
+
+            foreach ($calc['lines'] as $line) {
+                if (! $line['product']) {
+                    continue;
+                }
+
+                $this->recordStockMovement->handle(
+                    $line['product'],
+                    StockMovementTypeEnum::SALE_OUT,
+                    $line['qty'],
+                    [
+                        'unit_cost' => $line['product']->cost_price,
+                        'reference_id' => $invoice->id,
+                        'reference_type' => ProductInvoice::class,
+                        'created_by' => $user->id,
+                    ],
+                );
+            }
+
+            if ($calc['coupon']) {
+                $calc['coupon']->increment('used_count');
+            }
+
+            // النقاط لا تُخصم من رصيد العميل إلا عند اعتماد الفاتورة: المدفوعة
+            // تُخصم نقاطها الآن، والآجلة تبقى نقاطها محجوزةً عليها حتى يكتمل
+            // سدادها. ثم يأتي الاكتساب، ولا يقع إلا على فاتورة مدفوعة.
+            if ($status === InvoiceStatusEnum::PAID) {
+                $this->redeemLoyaltyPoints->handle($invoice);
+            }
+
+            $this->earnLoyaltyPoints->handle($invoice);
+
+            return $invoice;
+        });
+    }
+
+    /**
+     * Prices a product invoice from the submitted form: lines, the discount
+     * cascade and VAT. Shared by create and edit (UpdateProductInvoiceAction).
+     * Call inside a transaction — it locks the products being sold.
+     *
+     * @param  array<string, mixed>  $data
+     * @param  ?ProductInvoice  $invoice  the invoice being edited: its own points
+     *                                    reservation and its coupon stay valid for it
+     * @param  array<int, float>  $heldQty  product_id => qty the edited invoice already
+     *                                      took out of stock, available to it again
+     * @return array{attributes: array<string, mixed>, lines: list<array<string, mixed>>, coupon: ?Coupon}
+     */
+    public function calculate(array $data, int $branchId, float $vatPct, ?ProductInvoice $invoice = null, array $heldQty = []): array
+    {
+        $customerId = $this->resolveCustomerId($data, $branchId);
+
+        // Lock the branch's products that are being sold to keep stock checks
+        // and the sale movements consistent under concurrent sales.
+        $productIds = collect((array) $data['lines'])
+            ->pluck('product_id')
+            ->filter()
+            ->unique();
+
+        $products = $productIds->isNotEmpty()
+            ? Product::query()
+                ->where('branch_id', $branchId)
+                ->whereIn('id', $productIds)
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id')
+            : collect();
+
+        $lines = [];
+        $subtotal = 0.0;
+
+        foreach ($data['lines'] as $line) {
+            $unitPrice = (float) $line['unit_price'];
+            $discountPct = (float) ($line['discount_pct'] ?? 0);
+
+            // Manual line — no linked product, no stock movement, and no
+            // dimensions: its quantity is whatever the cashier typed.
+            if (empty($line['product_id'])) {
+                $qty = round((float) $line['qty'], 2);
+                $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
+                $subtotal += $lineSubtotal;
+
+                $lines[] = [
+                    'product' => null,
+                    'product_name' => $line['name'],
+                    'sku' => null,
+                    'qty' => $qty,
+                    'width_cm' => null,
+                    'height_cm' => null,
+                    'pieces' => null,
+                    'unit_price' => $unitPrice,
+                    'discount_pct' => $discountPct,
+                    'subtotal' => $lineSubtotal,
+                ];
+
+                continue;
+            }
+
+            $product = $products->get($line['product_id']);
+
+            if (! $product) {
+                throw ValidationException::withMessages([
+                    'lines' => 'أحد المنتجات غير موجود في هذا الفرع.',
+                ]);
+            }
+
+            // تاسك 51: كمية المنتج المسعّر بالمتر المربع تُشتقّ هنا من المقاس
+            // وعدد القطع — لا تُؤخذ مما أرسلته الواجهة، فالسعر والمخزون معاً
+            // يقومان عليها. أما منتج القطعة فكميته هي المُرسَلة كما كانت.
+            [$qty, $widthCm, $heightCm, $pieces] = $this->resolveLineQuantity($line, $product);
+
+            $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
+            $subtotal += $lineSubtotal;
+
+            $stockAvailable = (float) $product->current_stock + ($heldQty[$product->id] ?? 0);
+
+            if ($qty > $stockAvailable) {
+                $available = Quantity::format($stockAvailable);
+
+                throw ValidationException::withMessages([
+                    'lines' => "الكمية المطلوبة من \"{$product->name}\" تتجاوز المخزون المتاح ({$available}).",
+                ]);
+            }
+
+            $lines[] = [
+                'product' => $product,
+                'product_name' => $product->name,
+                'sku' => $product->sku,
+                'qty' => $qty,
+                'width_cm' => $widthCm,
+                'height_cm' => $heightCm,
+                'pieces' => $pieces,
+                'unit_price' => $unitPrice,
+                'discount_pct' => $discountPct,
+                'subtotal' => $lineSubtotal,
+            ];
+        }
+
+        $subtotal = round($subtotal, 2);
+
+        $customer = $customerId !== null ? Customer::find($customerId) : null;
+        $config = LoyaltyConfig::forBranch($branchId);
+
+        [$agentId, $agentMode, $agentType, $agentRate] = $this->resolveAgent->handle(
+            isset($data['agent_id']) ? (int) $data['agent_id'] : null,
+            $branchId,
+        );
+
+        // Loyalty benefits (tier discount, redemption) apply only to
+        // eligible customers: individual, not agent-linked, on a non-agent
+        // invoice — B2B sales are settled via agent terms instead.
+        $loyaltyEligible = $agentId === null
+            && $customer !== null
+            && $customer->customer_type === CustomerTypeEnum::Individual
+            && $customer->agent_id === null;
+
+        // Discount pipeline: subtotal → tier → coupon → agent → points → VAT.
+        [$tierPct, $tierDiscount] = $this->loyalty->tierDiscount($customer, $loyaltyEligible, $config, $subtotal);
+        $afterTier = round($subtotal - $tierDiscount, 2);
+
+        [$coupon, $couponDiscount] = $this->resolveCoupon($data, $branchId, $afterTier, $invoice);
+        $afterCoupon = round($afterTier - $couponDiscount, 2);
+
+        // discount mode reduces the taxable base; rebate is recorded on the
+        // invoice after the total but never deducted from it. The rate is
+        // read as a percentage or a flat SAR amount per the discount type.
+        $agentDiscount = $agentMode === AgentDiscountModeEnum::Discount
+            ? $this->agentAmount($agentType, $agentRate, $afterCoupon)
+            : 0.0;
+        $afterAgent = round($afterCoupon - $agentDiscount, 2);
+
+        $requestedPoints = (int) ($data['redeem_points'] ?? 0);
+
+        // الرصيد المتاح لا المسجَّل: ما حُجز على فواتير هذا العميل التي لم
+        // تُعتمد بعد ليس له أن يُستبدل مرة أخرى.
+        $available = $customer !== null ? $this->availablePoints->handle($customer, $invoice) : null;
+
+        [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($customer, $loyaltyEligible, $config, $requestedPoints, $afterAgent, $available);
+
+        // الأسعار المُدخلة في نقطة البيع شاملة لضريبة القيمة المضافة: ما يبقى
+        // بعد كامل سلسلة الخصومات هو ما يدفعه العميل بالضبط، والضريبة تُستخرج
+        // من داخله بالطرح لا بالضرب. مطابق لفاتورة الخدمة تماماً.
+        $total = round($afterAgent - $pointsDiscount, 2);
+        $netBeforeVat = round($total / (1 + $vatPct / 100), 2);
+        $vatAmount = round($total - $netBeforeVat, 2);
+
+        $agentRebate = $agentMode === AgentDiscountModeEnum::Rebate
+            ? $this->agentAmount($agentType, $agentRate, $netBeforeVat)
+            : 0.0;
+
+        return [
+            'coupon' => $coupon,
+            'lines' => $lines,
+            'attributes' => [
                 'customer_id' => $customerId,
                 'agent_id' => $agentId,
                 'coupon_id' => $coupon?->id,
@@ -208,62 +275,27 @@ class CreateProductInvoiceAction
                 'notes' => $this->normalizeNotes($data['notes'] ?? null),
                 // تاسك 95: ملاحظة داخلية لا تُطبع للعميل.
                 'internal_notes' => $this->normalizeNotes($data['internal_notes'] ?? null),
-                'status' => $status,
-                'paid_at' => $status === InvoiceStatusEnum::PAID ? now() : null,
+            ],
+        ];
+    }
+
+    /** @param list<array<string, mixed>> $lines */
+    public function writeLines(ProductInvoice $invoice, array $lines): void
+    {
+        foreach ($lines as $line) {
+            $invoice->lines()->create([
+                'product_id' => $line['product']?->id,
+                'product_name' => $line['product_name'],
+                'sku' => $line['sku'],
+                'qty' => $line['qty'],
+                'width_cm' => $line['width_cm'],
+                'height_cm' => $line['height_cm'],
+                'pieces' => $line['pieces'],
+                'unit_price' => $line['unit_price'],
+                'discount_pct' => $line['discount_pct'],
+                'subtotal' => $line['subtotal'],
             ]);
-
-            if ($receipt !== null) {
-                $invoice->addMedia($receipt)->toMediaCollection(ProductInvoice::RECEIPT_COLLECTION);
-            }
-
-            foreach ($lines as $line) {
-                $invoice->lines()->create([
-                    'product_id' => $line['product']?->id,
-                    'product_name' => $line['product_name'],
-                    'sku' => $line['sku'],
-                    'qty' => $line['qty'],
-                    'width_cm' => $line['width_cm'],
-                    'height_cm' => $line['height_cm'],
-                    'pieces' => $line['pieces'],
-                    'unit_price' => $line['unit_price'],
-                    'discount_pct' => $line['discount_pct'],
-                    'subtotal' => $line['subtotal'],
-                ]);
-
-                if (! $line['product']) {
-                    continue;
-                }
-
-                $product = $line['product'];
-
-                $this->recordStockMovement->handle(
-                    $product,
-                    StockMovementTypeEnum::SALE_OUT,
-                    $line['qty'],
-                    [
-                        'unit_cost' => $product->cost_price,
-                        'reference_id' => $invoice->id,
-                        'reference_type' => ProductInvoice::class,
-                        'created_by' => $user->id,
-                    ],
-                );
-            }
-
-            if ($coupon) {
-                $coupon->increment('used_count');
-            }
-
-            // النقاط لا تُخصم من رصيد العميل إلا عند اعتماد الفاتورة: المدفوعة
-            // تُخصم نقاطها الآن، والآجلة تبقى نقاطها محجوزةً عليها حتى يكتمل
-            // سدادها. ثم يأتي الاكتساب، ولا يقع إلا على فاتورة مدفوعة.
-            if ($status === InvoiceStatusEnum::PAID) {
-                $this->redeemLoyaltyPoints->handle($invoice);
-            }
-
-            $this->earnLoyaltyPoints->handle($invoice);
-
-            return $invoice;
-        });
+        }
     }
 
     /**
@@ -373,7 +405,7 @@ class CreateProductInvoiceAction
      * @param  array<string, mixed>  $data
      * @return array{0: ?Coupon, 1: float}
      */
-    private function resolveCoupon(array $data, int $branchId, float $base): array
+    private function resolveCoupon(array $data, int $branchId, float $base, ?ProductInvoice $invoice = null): array
     {
         $code = trim((string) ($data['coupon_code'] ?? ''));
 
@@ -386,9 +418,12 @@ class CreateProductInvoiceAction
             ->whereRaw('LOWER(code) = ?', [mb_strtolower($code)])
             ->first();
 
+        // الفاتورة المعدَّلة تحتفظ بكوبونها ولو عُطّل أو انتهت صلاحيته بعد البيع.
+        $isOwnCoupon = $coupon !== null && $invoice?->coupon_id === $coupon->id;
+
         if (! $coupon
-            || ! $coupon->is_active
-            || ($coupon->expires_at !== null && $coupon->expires_at->isPast())
+            || (! $isOwnCoupon && ! $coupon->is_active)
+            || (! $isOwnCoupon && $coupon->expires_at !== null && $coupon->expires_at->isPast())
             || ($coupon->capacity !== null && $coupon->used_count >= $coupon->capacity)
         ) {
             throw ValidationException::withMessages([

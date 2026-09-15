@@ -124,7 +124,11 @@ class MaterialsReportController extends Controller
                 // الخدمات — الاستهلاك لا يُعدّ إلا بعد اعتماد الفاتورة.
                 ->orWhere(fn (Builder $p) => $p
                     ->where('stock_movements.reference_type', ProductInvoice::class)
-                    ->where('stock_movements.type', StockMovementTypeEnum::SALE_OUT->value)
+                    // والإرجاع تحت الفاتورة نفسها: تعديلٌ أنقص كميتها.
+                    ->whereIn('stock_movements.type', [
+                        StockMovementTypeEnum::SALE_OUT->value,
+                        StockMovementTypeEnum::RETURN_IN->value,
+                    ])
                     ->whereIn('stock_movements.reference_id', $this->settledProductInvoices()))
                 // ومرتجعاتها — وهي مكتوبة تحت Refund لا تحت الفاتورة — مقيَّدةً
                 // بنفس مجموعة الفواتير: لولا ذلك لظهر إرجاعٌ يتيم بلا صرفٍ يقابله

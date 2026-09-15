@@ -5,6 +5,7 @@ namespace App\Http\Resources\Invoice;
 use App\Enums\DeliveryStatusEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -135,7 +136,8 @@ class InvoiceListResource extends JsonResource
             // تاسك 70: يعدّل الفاتورة المعلّقة صاحبُها الموظف أو مدير الفرع —
             // مرآةً لـServiceInvoicePolicy::update. والمحاسب يبقى له تعديل بيانات
             // العميل هنا (canEditCustomer) لا الفاتورة نفسها.
-            'canEdit' => ($isOwnerEmployee || $isFullEditor) && $status === InvoiceStatusEnum::DUE,
+            'canEdit' => (($isOwnerEmployee || $isFullEditor) && $status === InvoiceStatusEnum::DUE)
+                || $this->canEditProductInvoice($user, $type, $status),
             'canReturn' => $isOwnerEmployee
                 && $status !== InvoiceStatusEnum::CANCELLED
                 && $status !== InvoiceStatusEnum::RETURNED,
@@ -153,6 +155,19 @@ class InvoiceListResource extends JsonResource
             // تاسك 100: رسائل المحادثة الداخلية غير المقروءة — يضعها المتحكّم بعد الترقيم.
             'unreadMessages' => (int) ($this->unread_messages ?? 0),
         ];
+    }
+
+    /**
+     * مرآةُ ProductInvoicePolicy::update بما يُقرأ من صفّ القائمة؛ حارس دفعة
+     * المندوب لا يُرى هنا فيبقى للخادم.
+     */
+    private function canEditProductInvoice(?User $user, InvoiceTypeEnum $type, InvoiceStatusEnum $status): bool
+    {
+        return $user !== null
+            && $type === InvoiceTypeEnum::PRODUCT
+            && ($user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin())
+            && ! in_array($status->value, InvoiceStatusEnum::excludedFromRevenue(), true)
+            && (float) $this->refunded_amount <= 0;
     }
 
     /**

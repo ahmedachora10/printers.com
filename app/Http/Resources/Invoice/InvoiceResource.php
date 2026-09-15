@@ -104,7 +104,7 @@ class InvoiceResource extends JsonResource
         // والمرتجعة، فلا شرط مكرَّر في الواجهة (تاسك 31).
         $canDeliver = $user !== null && $isServiceInvoice && $user->can('deliver', $this->resource);
 
-        $canEdit = $user !== null && $isServiceInvoice && $user->can('update', $this->resource);
+        $canEdit = $user !== null && $user->can('update', $this->resource);
 
         // ما بقي للمحاسب على فاتورة الموظف بعد إغلاق شاشة التعديل في وجهه:
         // بيانات العميل وطريقة الدفع. الزرّان يظهران هنا لمن تسمح له الصلاحية —

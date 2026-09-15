@@ -235,6 +235,15 @@ Route::middleware(['auth'])->group(function () {
         });
     });
 
+    // تعديل فاتورة منتجات — مدير الفرع ومدير النظام؛ الحارس الكامل في
+    // ProductInvoicePolicy::update.
+    Route::middleware('role:branch-admin|super-admin')->group(function () {
+        Route::prefix('pos')->name('pos.')->group(function () {
+            Route::get('product/{invoice}/edit', [ProductInvoiceController::class, 'edit'])->name('product.edit');
+            Route::put('product/{invoice}', [ProductInvoiceController::class, 'update'])->name('product.update');
+        });
+    });
+
     // تاسك 70: تعديل فاتورة خدمة معلّقة — صاحبُها الموظف، أو مدير الفرع يصحّح
     // تكلفة الخامات قبل الاعتماد. والمحاسب خارج الباب: يصحّح بيانات العميل
     // ويحدّد طريقة الدفع من مساريهما وحدهما، لا خدمةً ولا سعراً. الصلاحية

@@ -233,6 +233,22 @@ export interface EditServiceInvoice {
     lines: EditServiceInvoiceLine[];
 }
 
+/** فاتورة منتجات يعيد فتحها مدير الفرع أو مدير النظام للتعديل. */
+export interface EditProductInvoice {
+    id: number;
+    invoiceNumber: string;
+    statusLabel: string;
+    customer: PosCustomer | null;
+    agentId: number | null;
+    coupon: { code: string; type: 'percentage' | 'fixed'; value: number } | null;
+    pointsRedeemed: number;
+    paymentMethodId: number | null;
+    hasReceipt: boolean;
+    notes: string | null;
+    internalNotes: string | null;
+    lines: CartLine[];
+}
+
 export interface CartLine {
     key: string;
     productId: number | null;

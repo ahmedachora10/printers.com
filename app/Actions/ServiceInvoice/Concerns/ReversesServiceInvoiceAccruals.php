@@ -9,6 +9,7 @@ use App\Models\CommissionLedger;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
+use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 
@@ -62,7 +63,7 @@ trait ReversesServiceInvoiceAccruals
      * بـ points_redeemed_at — المعتمَدة، وكذلك كل فاتورة أُنشئت قبل هذا التغيير —
      * فتُردّ نقاطها بتعديل يدوي موجب، ويُرفع الختم فلا تُردّ مرتين.
      */
-    protected function restoreRedeemedPoints(ServiceInvoice $invoice): void
+    protected function restoreRedeemedPoints(ProductInvoice|ServiceInvoice $invoice): void
     {
         $points = (int) $invoice->points_redeemed;
 
@@ -103,7 +104,7 @@ trait ReversesServiceInvoiceAccruals
      * below a threshold drops the tier with it. The reversal is recorded as an
      * immutable negative manual adjustment.
      */
-    protected function clawBackEarnedPoints(ServiceInvoice $invoice): void
+    protected function clawBackEarnedPoints(ProductInvoice|ServiceInvoice $invoice): void
     {
         if ($invoice->customer_id === null) {
             return;
@@ -112,7 +113,10 @@ trait ReversesServiceInvoiceAccruals
         $earned = (int) LoyaltyTransaction::query()
             ->where('invoice_id', $invoice->id)
             ->where('invoice_type', $invoice->getMorphClass())
-            ->where('type', LoyaltyTransactionTypeEnum::Earn)
+            // صافي المكتسب: ما سُحب قبلُ (مرتجعٌ جزئي، أو تعديلٌ سابق لفاتورة
+            // منتجات) لا يُسحب مرة ثانية.
+            ->where(fn ($q) => $q->where('type', LoyaltyTransactionTypeEnum::Earn)
+                ->orWhere(fn ($q) => $q->where('type', LoyaltyTransactionTypeEnum::ManualAdjust)->where('points', '<', 0)))
             ->sum('points');
 
         if ($earned <= 0) {
@@ -157,7 +161,7 @@ trait ReversesServiceInvoiceAccruals
      * Give back a coupon's capacity when its invoice is unwound. القاعدة نفسها
      * يستدعيها مرتجع المحاسب، فتعيش في ReleaseCouponCapacity لا هنا.
      */
-    protected function releaseCoupon(ServiceInvoice $invoice): void
+    protected function releaseCoupon(ProductInvoice|ServiceInvoice $invoice): void
     {
         ReleaseCouponCapacity::apply($invoice);
     }

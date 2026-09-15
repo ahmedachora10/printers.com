@@ -15,7 +15,7 @@ import { invoiceTotals } from '@/lib/invoice';
 import { formatCurrency, formatQty } from '@/lib/utils';
 import product from '@/routes/pos/product';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { type CartLine, type PosAgent, type PosCustomer, type PosLoyalty, type PosPaymentMethod, type PosProduct } from '@/types/pos';
+import { type CartLine, type EditProductInvoice, type PosAgent, type PosCustomer, type PosLoyalty, type PosPaymentMethod, type PosProduct } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
 import { Award, Lock, Printer, Ruler, Save, Search, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -33,17 +33,14 @@ async function fetchCustomerOptions(query: string): Promise<AsyncOption<PosCusto
 
 const CUSTOMER_SENTINEL: AsyncOption<PosCustomer> = { value: 'none', label: '— عميل عابر —' };
 
-const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'نقطة البيع', href: product.create().url },
-    { title: 'فاتورة منتجات', href: product.create().url },
-];
-
 interface Props {
     products: PosProduct[];
     agents: PosAgent[];
     paymentMethods: PosPaymentMethod[];
     vatPct: number;
     loyalty: PosLoyalty;
+    /** موجودة حين يعيد مدير الفرع أو مدير النظام فتح فاتورة قائمة للتعديل. */
+    invoice?: EditProductInvoice;
 }
 
 type InvoiceStatus = 'paid' | 'due';
@@ -68,31 +65,37 @@ const pieceAreaSqm = (line: CartLine) => ((line.widthCm ?? 0) / 100) * ((line.he
 const derivedQty = (line: CartLine) => (line.isSqm ? round2(pieceAreaSqm(line) * line.pieces) : line.qty);
 
 
-export default function ProductPos({ products, agents, paymentMethods, vatPct, loyalty }: Props) {
+export default function ProductPos({ products, agents, paymentMethods, vatPct, loyalty, invoice }: Props) {
+    const breadcrumbs: BreadcrumbItem[] = [
+        { title: 'نقطة البيع', href: product.create().url },
+        invoice
+            ? { title: `تعديل ${invoice.invoiceNumber}`, href: product.edit(invoice.id).url }
+            : { title: 'فاتورة منتجات', href: product.create().url },
+    ];
     const { props } = usePage<SharedData>();
     const [search, setSearch] = useState('');
     const [searchFocused, setSearchFocused] = useState(false);
-    const [cart, setCart] = useState<CartLine[]>([]);
+    const [cart, setCart] = useState<CartLine[]>(invoice?.lines ?? []);
     // The chosen customer is held in full (fetched on demand) rather than looked up
     // from a preloaded list, so 10k+ customers never ship to the browser.
-    const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(null);
+    const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(invoice?.customer ?? null);
     const customerId = selectedCustomer ? String(selectedCustomer.id) : 'none';
     // No agent picker on this screen — the agent comes from the customer's own
     // link and still drives the invoice discount / rebate.
-    const [agentId, setAgentId] = useState<string>('none');
+    const [agentId, setAgentId] = useState<string>(invoice?.agentId ? String(invoice.agentId) : 'none');
     const [walkinName, setWalkinName] = useState('');
     const [walkinPhone, setWalkinPhone] = useState('');
     const [status, setStatus] = useState<InvoiceStatus>('paid');
-    const [paymentMethodId, setPaymentMethodId] = useState<number | null>(null);
+    const [paymentMethodId, setPaymentMethodId] = useState<number | null>(invoice?.paymentMethodId ?? null);
     const [receipt, setReceipt] = useState<File | null>(null);
-    const [couponCode, setCouponCode] = useState('');
-    const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
+    const [couponCode, setCouponCode] = useState(invoice?.coupon?.code ?? '');
+    const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(invoice?.coupon ?? null);
     const [couponLoading, setCouponLoading] = useState(false);
-    const [redeemPoints, setRedeemPoints] = useState('');
+    const [redeemPoints, setRedeemPoints] = useState(invoice?.pointsRedeemed ? String(invoice.pointsRedeemed) : '');
     // Remark about the whole order, printed under the lines table.
-    const [notes, setNotes] = useState('');
+    const [notes, setNotes] = useState(invoice?.notes ?? '');
     // تاسك 95: ملاحظة داخلية للموظفين والإدارة — لا تصل العميل ولا تُطبع.
-    const [internalNotes, setInternalNotes] = useState('');
+    const [internalNotes, setInternalNotes] = useState(invoice?.internalNotes ?? '');
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
     const manualSeq = useRef(0);
@@ -104,8 +107,14 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
     }, [props.success]);
 
     // Auto-fill the agent from the chosen customer's link; the cashier can still
-    // change or clear it afterwards.
+    // change or clear it afterwards. Not on the first render of an edit, where
+    // both are already seeded from the invoice.
+    const skipCustomerEffect = useRef(!!invoice);
     useEffect(() => {
+        if (skipCustomerEffect.current) {
+            skipCustomerEffect.current = false;
+            return;
+        }
         setRedeemPoints('');
         setAgentId(selectedCustomer?.agentId ? String(selectedCustomer.agentId) : 'none');
     }, [selectedCustomer]);
@@ -376,15 +385,18 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
             toast.error('اختر طريقة الدفع قبل حفظ الفاتورة');
             return;
         }
-        if (requiresReceipt && !receipt) {
+        // الفاتورة المعدَّلة التي تحمل إيصالاً بالطريقة نفسها لا تطلبه مرة ثانية.
+        if (requiresReceipt && !receipt && !(invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
             toast.error('يجب إرفاق إيصال التحويل لطريقة الدفع المحددة');
             return;
         }
         setSubmitting(true);
         setErrors({});
         router.post(
-            product.store().url,
+            invoice ? product.update(invoice.id).url : product.store().url,
             {
+                // التعديل لا يغيّر الحالة، ويُرسَل PUT مموّهاً لأن الإيصال ملف.
+                ...(invoice ? { _method: 'put' } : { status }),
                 customer_id: customerId === 'none' ? null : Number(customerId),
                 agent_id: agentId === 'none' ? null : Number(agentId),
                 walkin_name: customerId === 'none' ? walkinName.trim() || null : null,
@@ -393,7 +405,6 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                 redeem_points: loyaltyOn && Number(redeemPoints) > 0 ? Number(redeemPoints) : null,
                 payment_method_id: paymentMethodId,
                 receipt,
-                status,
                 print,
                 notes: notes.trim() || null,
                 internal_notes: internalNotes.trim() || null,
@@ -413,7 +424,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
             {
                 forceFormData: true,
                 preserveScroll: true,
-                onSuccess: () => resetForm(),
+                onSuccess: () => !invoice && resetForm(),
                 onError: (e) => setErrors(e as Record<string, string>),
                 onFinish: () => setSubmitting(false),
             },
@@ -424,7 +435,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title="نقطة البيع — فاتورة منتجات" />
+            <Head title={invoice ? `تعديل الفاتورة ${invoice.invoiceNumber}` : 'نقطة البيع — فاتورة منتجات'} />
             <Toaster position="top-center" richColors />
 
             {/* pb-24 below lg clears the fixed total bar at the bottom. */}
@@ -467,7 +478,8 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                         </CardContent>
                     </Card>
 
-                    {/* Status */}
+                    {/* Status — fixed while editing an existing invoice. */}
+                    {!invoice && (
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base">حالة الفاتورة</CardTitle>
@@ -483,6 +495,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                             </div>
                         </CardContent>
                     </Card>
+                    )}
 
                     {/* Coupon */}
                     <Card>
@@ -785,14 +798,14 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                     </Select>
                                 )}
                                 renderLineMeta={(line) => (line.isSqm ? `${line.sku} • بالمتر المربع` : line.sku)}
-                                isPriceEditable={(line) => line.isManual}
+                                isPriceEditable={(line) => !!invoice || line.isManual}
                                 getMaxDiscount={() => 100}
                                 getLineTotal={lineTotal}
                                 onTotalChange={setLineTotal}
                                 // سعر سطر المنتج من بطاقة المنتج لا من الكاشير، فلا يُحرَّر
                                 // إجماليه أيضاً — تحريره تحريرٌ للسعر بطريقٍ آخر. ويبقى
                                 // السطر اليدوي، وله كميةٌ يُقسم عليها.
-                                isTotalEditable={(line) => line.isManual && line.qty > 0}
+                                isTotalEditable={(line) => (!!invoice || line.isManual) && line.qty > 0}
                                 // كمية سطر المتر المربع مشتقّة من المقاس، فلا مِعداد لها.
                                 renderQtyControl={(line) =>
                                     line.isSqm ? (

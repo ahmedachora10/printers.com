@@ -24,6 +24,7 @@ import { formatCurrency, formatDateTime, formatQty } from '@/lib/utils';
 import { updatePaymentMethod as updatePaymentRowMethod } from '@/routes/invoice-payments';
 import { updatePaymentMethod as updateInvoicePaymentMethod } from '@/routes/invoices';
 import serviceInvoice from '@/routes/invoices/service';
+import posProduct from '@/routes/pos/product';
 import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice, type InvoiceThread as InvoiceThreadData, type InvoicePayment, type PaymentMethodChange } from '@/types/invoice';
@@ -362,7 +363,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                         )}
                         {invoice.canEdit && (
                             <Button variant="outline" asChild>
-                                <Link href={posService.edit(invoice.id).url}>
+                                <Link href={(invoice.type === 'product' ? posProduct : posService).edit(invoice.id).url}>
                                     <Pencil className="size-4" /> تعديل
                                 </Link>
                             </Button>
