@@ -63,10 +63,10 @@ describe('Change payment method (task 99)', function () {
         $this->card = PaymentMethod::factory()->create(['name' => 'شبكة']);
     });
 
-    it('lets the accountant correct the method of an approved invoice, and logs it', function () {
+    it('lets the branch admin correct the method of an approved invoice, and logs it', function () {
         $invoice = methodChangeServiceInvoice($this->branch, $this->employee, ['payment_method_id' => $this->card->id]);
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->from(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
             ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $this->cash->id,
@@ -79,7 +79,7 @@ describe('Change payment method (task 99)', function () {
         $log = Activity::query()->forSubject($invoice)->where('description', 'payment method changed')->sole();
         expect($log->properties['old'])->toBe('شبكة')
             ->and($log->properties['new'])->toBe('نقد')
-            ->and($log->causer_id)->toBe($this->accountant->id);
+            ->and($log->causer_id)->toBe($this->branchAdmin->id);
 
         // والمبلغ ينتقل في تقرير المبيعات إلى النقد.
         $this->actingAs($this->accountant)
@@ -87,15 +87,56 @@ describe('Change payment method (task 99)', function () {
             ->assertInertia(fn ($page) => $page->where('totals.cash', 230));
     });
 
+    // ── تاسك 107: بعد الاعتماد لمدير الفرع والسوبر أدمن وحدهما ──────────
+
+    it('keeps the accountant on a due invoice but out once it is approved', function () {
+        $due = methodChangeServiceInvoice($this->branch, $this->employee, ['status' => 'due', 'paid_at' => null, 'payment_method_id' => $this->card->id]);
+        $paid = methodChangeServiceInvoice($this->branch, $this->employee, ['payment_method_id' => $this->card->id]);
+        $deposit = methodChangeServiceInvoice($this->branch, $this->employee, ['status' => 'partially_paid', 'payment_method_id' => null]);
+        $row = methodChangePayment($deposit, $this->card, 50, $this->accountant);
+
+        $this->actingAs($this->accountant)
+            ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $due->id]), ['payment_method_id' => $this->cash->id])
+            ->assertSessionHasNoErrors();
+        expect($due->refresh()->payment_method_id)->toBe($this->cash->id);
+
+        $this->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $paid->id]), ['payment_method_id' => $this->cash->id])
+            ->assertForbidden();
+        $this->patch(route('invoice-payments.update-payment-method', $row), ['payment_method_id' => $this->cash->id])
+            ->assertForbidden();
+        $this->get(route('invoices.show', ['type' => 'service', 'id' => $deposit->id]))
+            ->assertInertia(fn ($page) => $page->where('invoice.canEditPaymentRows', false));
+
+        expect($paid->refresh()->payment_method_id)->toBe($this->card->id)
+            ->and($row->refresh()->payment_method_id)->toBe($this->card->id);
+
+        $this->actingAs($this->branchAdmin)
+            ->patch(route('invoice-payments.update-payment-method', $row), ['payment_method_id' => $this->cash->id])
+            ->assertSessionHasNoErrors();
+        expect($row->refresh()->payment_method_id)->toBe($this->cash->id);
+    });
+
+    it('keeps another branch admin out of an approved invoice', function () {
+        $invoice = methodChangeServiceInvoice($this->branch, $this->employee, ['payment_method_id' => $this->card->id]);
+
+        $otherAdmin = User::factory()->create();
+        $otherAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        $otherAdmin->update(['branch_id' => Branch::factory()->create(['owner_id' => $otherAdmin->id])->id]);
+
+        $this->actingAs($otherAdmin)
+            ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), ['payment_method_id' => $this->cash->id])
+            ->assertForbidden();
+    });
+
     it('shows the edit button and the change history on an approved invoice', function () {
         $invoice = methodChangeServiceInvoice($this->branch, $this->employee, ['payment_method_id' => $this->card->id]);
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $this->cash->id,
             ]);
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->get(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
             ->assertInertia(fn ($page) => $page
                 ->where('invoice.canEditPaymentMethod', true)
@@ -134,7 +175,7 @@ describe('Change payment method (task 99)', function () {
         $transfer = PaymentMethod::factory()->requiresAttachment()->create(['name' => 'تحويل بنكي']);
         $invoice = methodChangeServiceInvoice($this->branch, $this->employee, ['payment_method_id' => $this->card->id]);
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $transfer->id,
             ])
@@ -143,7 +184,7 @@ describe('Change payment method (task 99)', function () {
         expect($invoice->refresh()->payment_method_id)->toBe($this->card->id);
     });
 
-    it('lets the accountant correct a product invoice too', function () {
+    it('lets the branch admin, not the accountant, correct a paid product invoice', function () {
         $invoice = ProductInvoice::create([
             'invoice_number' => 'INV-PM-1',
             'branch_id' => $this->branch->id,
@@ -161,6 +202,12 @@ describe('Change payment method (task 99)', function () {
             ->patch(route('invoices.update-payment-method', ['type' => 'product', 'id' => $invoice->id]), [
                 'payment_method_id' => $this->cash->id,
             ])
+            ->assertForbidden();
+
+        $this->actingAs($this->branchAdmin)
+            ->patch(route('invoices.update-payment-method', ['type' => 'product', 'id' => $invoice->id]), [
+                'payment_method_id' => $this->cash->id,
+            ])
             ->assertSessionHasNoErrors();
 
         expect($invoice->refresh()->payment_method_id)->toBe($this->cash->id);
@@ -173,7 +220,7 @@ describe('Change payment method (task 99)', function () {
         $payment = methodChangePayment($invoice, $this->card, 230, $this->accountant);
         $paidAt = $payment->paid_at->toDateTimeString();
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->patch(route('invoice-payments.update-payment-method', $payment), [
                 'payment_method_id' => $this->cash->id,
             ])
@@ -193,13 +240,13 @@ describe('Change payment method (task 99)', function () {
         $invoice = methodChangeServiceInvoice($this->branch, $this->employee, ['payment_method_id' => null]);
         methodChangePayment($invoice, $this->card, 230, $this->accountant);
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $this->cash->id,
             ])
             ->assertSessionHasErrors('payment_method_id');
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->get(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
             ->assertInertia(fn ($page) => $page
                 ->where('invoice.canEditPaymentMethod', false)

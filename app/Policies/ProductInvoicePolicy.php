@@ -57,13 +57,21 @@ class ProductInvoicePolicy
     }
 
     /**
-     * تاسك 99 — تغيير طريقة الدفع بعد البيع: من يصدر فاتورة المنتجات في فرعها،
-     * ما لم تكن ملغاة أو مرتجعة.
+     * تاسك 99 — تغيير طريقة الدفع بعد البيع، ما لم تكن ملغاة أو مرتجعة. تاسك 107:
+     * الآجلة لمن يصدر فاتورة المنتجات في فرعها، وغيرها لمدير الفرع والسوبر أدمن.
      */
     public function changePaymentMethod(User $user, ProductInvoice $invoice): bool
     {
-        return $this->create($user)
-            && ($user->roleName->isSuperAdmin() || $user->branchId === $invoice->branch_id)
-            && ! in_array($invoice->status->value, InvoiceStatusEnum::excludedFromRevenue(), true);
+        if (in_array($invoice->status->value, InvoiceStatusEnum::excludedFromRevenue(), true)) {
+            return false;
+        }
+
+        if ($invoice->status === InvoiceStatusEnum::DUE) {
+            return $this->create($user)
+                && ($user->roleName->isSuperAdmin() || $user->branchId === $invoice->branch_id);
+        }
+
+        return $user->roleName->isSuperAdmin()
+            || ($user->roleName->isBranchAdmin() && $user->branchId === $invoice->branch_id);
     }
 }
