@@ -128,7 +128,7 @@ class SalesReportController extends Controller
     public function receipts(SalesReportFilterRequest $request, ResolveReportScope $resolveScope): BinaryFileResponse|RedirectResponse
     {
         $scope = $resolveScope->handle($request);
-        $methodId = $request->integer('payment_method') ?: null;
+        $methodId = $request->integer('payment_method');
         $files = [];
 
         foreach ($this->tablesForType($request->input('type', 'all')) as $table) {
@@ -171,7 +171,7 @@ class SalesReportController extends Controller
 
         $path = tempnam(sys_get_temp_dir(), 'receipts');
         $zip = new ZipArchive;
-        abort_unless($zip->open($path, ZipArchive::OVERWRITE) === true, 500);
+        $zip->open($path, ZipArchive::OVERWRITE);
 
         $used = [];
         foreach ($files as [$media, $name]) {

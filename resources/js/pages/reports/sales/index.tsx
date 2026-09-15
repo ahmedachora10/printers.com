@@ -203,15 +203,7 @@ export default function SalesReportIndex({
                 <ActiveFilterChips chips={chips} />
 
                 {/* تنزيل الإيصالات يعود إلى هنا برسالة حين لا ملفات أو تزيد عن الحدّ. */}
-                {typeof error === 'string' && (
-                    <div
-                        role="alert"
-                        className="mb-6 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"
-                    >
-                        <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
-                        <span>{error}</span>
-                    </div>
-                )}
+                {typeof error === 'string' && <p role="alert" className="mb-6 text-sm text-rose-600">{error}</p>}
 
                 {/* Summary tiles */}
                 {/* Five tracks would squeeze the currency figures at lg, where the
@@ -418,7 +410,7 @@ function PaymentMethodCard({
             cell: (row) =>
                 row.methodId !== null && (
                     <Button asChild variant="ghost" size="icon" title={`تنزيل إيصالات ${row.methodName}`}>
-                        <a href={receiptsUrl(row.methodId)} aria-label={`تنزيل إيصالات ${row.methodName}`}>
+                        <a href={receiptsUrl(row.methodId)}>
                             <FileArchive className="size-4" />
                         </a>
                     </Button>
