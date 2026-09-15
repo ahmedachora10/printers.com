@@ -30,11 +30,9 @@ class UpdateInvoicePaymentMethodRequest extends FormRequest
         return true;
     }
 
-    /** الفاتورة أو صفّ الدفعة الذي تتغيّر طريقته. */
     public function target(): ServiceInvoice|ProductInvoice|InvoicePayment
     {
         return once(function () {
-            // المتحكّم لا يُلمّح لـ{payment}، فلا ربط ضمني — يُحمَّل هنا.
             if ($paymentId = $this->route('payment')) {
                 return InvoicePayment::findOrFail((int) $paymentId);
             }
