@@ -61,7 +61,6 @@ class ProductInvoiceController extends Controller
             'invoice' => [
                 'id' => $invoice->id,
                 'invoiceNumber' => $invoice->invoice_number,
-                'statusLabel' => $invoice->status->label(),
                 // حجز الفاتورة نفسها لا يُطرح من رصيد عميلها، وما خُصم عليها فعلاً
                 // يُضاف إليه: التعديل يردّه قبل أن يعيد الخصم.
                 'customer' => $invoice->customer?->toPosArray(

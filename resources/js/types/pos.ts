@@ -237,7 +237,6 @@ export interface EditServiceInvoice {
 export interface EditProductInvoice {
     id: number;
     invoiceNumber: string;
-    statusLabel: string;
     customer: PosCustomer | null;
     agentId: number | null;
     coupon: { code: string; type: 'percentage' | 'fixed'; value: number } | null;

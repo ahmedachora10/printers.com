@@ -46,11 +46,10 @@ class UpdateProductInvoiceAction
         return DB::transaction(function () use ($invoice, $data, $actor, $receipt) {
             $invoice = ProductInvoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
 
-            $heldQty = $this->quantitiesByProduct(
-                $invoice->lines()->whereNotNull('product_id')->get(['product_id', 'qty'])
-                    ->map(fn ($line) => ['product_id' => (int) $line->product_id, 'qty' => (float) $line->qty])
-                    ->all(),
-            );
+            $heldQty = $invoice->lines()->whereNotNull('product_id')->get()
+                ->groupBy('product_id')
+                ->map(fn ($lines) => round((float) $lines->sum('qty'), 2))
+                ->all();
 
             $this->restoreRedeemedPoints($invoice);
             $this->clawBackEarnedPoints($invoice);
@@ -119,10 +118,10 @@ class UpdateProductInvoiceAction
      */
     private function moveStockByDifference(ProductInvoice $invoice, array $heldQty, array $lines, User $actor): void
     {
-        $newQty = $this->quantitiesByProduct(array_map(
-            fn ($line) => ['product_id' => $line['product']?->id, 'qty' => $line['qty']],
-            $lines,
-        ));
+        $newQty = collect($lines)->filter(fn ($line) => $line['product'])
+            ->groupBy(fn ($line) => $line['product']->id)
+            ->map(fn ($group) => round($group->sum('qty'), 2))
+            ->all();
 
         foreach (array_unique([...array_keys($heldQty), ...array_keys($newQty)]) as $productId) {
             $delta = round(($newQty[$productId] ?? 0) - ($heldQty[$productId] ?? 0), 2);
@@ -146,22 +145,5 @@ class UpdateProductInvoiceAction
                 ],
             );
         }
-    }
-
-    /**
-     * @param  list<array{product_id: ?int, qty: float}>  $lines
-     * @return array<int, float>
-     */
-    private function quantitiesByProduct(array $lines): array
-    {
-        $totals = [];
-
-        foreach ($lines as $line) {
-            if ($line['product_id'] !== null) {
-                $totals[$line['product_id']] = round(($totals[$line['product_id']] ?? 0) + $line['qty'], 2);
-            }
-        }
-
-        return $totals;
     }
 }
