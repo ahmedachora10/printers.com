@@ -227,6 +227,14 @@ describe('Invoice list filters', function () {
                 fn ($rows) => collect($rows)->pluck('name')->intersect(['طباعة جاهزة — الفرع الأول', 'طباعة جاهزة — الفرع الثاني'])->count() === 2,
             ));
 
+        // وكل خيار يحمل فرعه ليُضيّق الفلترُ القوائمَ عند اختيار الفرع — ومدير الفرع
+        // فرعه من owner_id لا من عموده.
+        $this->actingAs($superAdmin)
+            ->get(route('invoices.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('filterOptions.employees', fn ($rows) => collect($rows)->firstWhere('id', $this->branchAdmin->id)['branchId'] == $this->branch->id)
+                ->where('filterOptions.services', fn ($rows) => collect($rows)->firstWhere('name', 'طباعة جاهزة — الفرع الأول')['branchId'] == $this->branch->id));
+
         // ومدير الفرع يرى خدمات فرعه وحده، فلا لاحقة.
         $this->actingAs($this->branchAdmin)
             ->get(route('invoices.index'))

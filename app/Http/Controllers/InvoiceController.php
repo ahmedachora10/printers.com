@@ -155,7 +155,10 @@ class InvoiceController extends Controller
             ->whereNull('users.deleted_at')
             ->when(! $isSuperAdmin, fn ($q) => $q->where('users.branch_id', $branchId))
             ->orderBy('users.name')
-            ->get(['users.id', 'users.name']);
+            // مدير الفرع فرعُه من branches.owner_id لا من عموده — كمُحوِّل User::branchId.
+            ->get(['users.id', 'users.name', DB::raw(
+                'COALESCE((SELECT b.id FROM branches b WHERE b.owner_id = users.id AND b.deleted_at IS NULL LIMIT 1), users.branch_id) AS branchId'
+            )]);
 
         // الطرق العامة وما أضافه الفرع — نفس نطاق PaymentMethod::visibleToBranch
         // الذي تقرأه شاشة الفاتورة، فلا يفترق الفلتر عن مصدره.
@@ -163,7 +166,8 @@ class InvoiceController extends Controller
             ->where('is_active', true)
             ->visibleToBranch($isSuperAdmin ? null : $branchId)
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'branch_id'])
+            ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'branchId' => $m->branch_id]);
 
         // الخدمة تُصفّى بمعرّف branch_service لا باسمها النصّي: الاسم لقطةٌ على
         // السطر وقد يتكرّر بين الفروع والقوالب.
@@ -175,10 +179,14 @@ class InvoiceController extends Controller
             ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_services.branch_id', $branchId))
             ->orderBy('service_templates.name')
             ->orderBy('branches.name')
-            ->get(['branch_services.id', 'service_templates.name', 'branches.name as branch_name'])
+            ->get(['branch_services.id', 'branch_services.branch_id', 'service_templates.name', 'branches.name as branch_name'])
             ->map(fn ($s) => [
                 'id' => $s->id,
+                // يُضيِّق به الفلترُ قائمةَ الخدمات على الفرع المختار.
+                'branchId' => $s->branch_id,
                 'name' => $isSuperAdmin && $s->branch_name ? "{$s->name} — {$s->branch_name}" : $s->name,
+                // بعد اختيار الفرع تُعرض بلا لاحقة، فالفرع معروف.
+                'serviceName' => $s->name,
             ]);
 
         return [

@@ -52,6 +52,8 @@ const MODAL_KEYS = ['type', 'branch_id', 'status', 'delivery', 'user_id', 'payme
 interface NamedOption {
     id: number;
     name: string;
+    /** null = عامّ لكل الفروع (طرق الدفع) أو بلا فرع (السوبر أدمن). */
+    branchId: number | null;
 }
 
 interface Props {
@@ -61,7 +63,7 @@ interface Props {
     branches: { id: number; name: string }[] | null;
     /** خيارات الحالة من الخادم — لا نسخة يدوية تتخلّف عن InvoiceStatusEnum */
     statusOptions: { value: string; label: string }[];
-    filterOptions: { employees: NamedOption[]; paymentMethods: NamedOption[]; services: NamedOption[] };
+    filterOptions: { employees: NamedOption[]; paymentMethods: NamedOption[]; services: (NamedOption & { serviceName: string })[] };
     filters: InvoiceFilters;
 }
 
@@ -99,6 +101,28 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         date_to: filters.date_to ?? '',
     };
     const f = useReportFilters(INVOICES_URL, applied, defaults);
+
+    // اختيار السوبر أدمن فرعاً يُضيّق الموظفين والخدمات وطرق الدفع على ذلك الفرع —
+    // كما يراها مدير الفرع. طرق الدفع العامة (بلا فرع) تبقى لكل فرع.
+    const belongsTo = (branch: string, o: NamedOption, globalOk = false) =>
+        branch === 'all' || o.branchId?.toString() === branch || (globalOk && o.branchId === null);
+    const branchEmployees = filterOptions.employees.filter((e) => belongsTo(f.draft.branch_id, e));
+    const branchPaymentMethods = filterOptions.paymentMethods.filter((m) => belongsTo(f.draft.branch_id, m, true));
+    const branchServices = filterOptions.services.filter((s) => belongsTo(f.draft.branch_id, s));
+    const changeBranch = (branch: string) => {
+        f.setField('branch_id', branch);
+        // اختيارٌ من فرعٍ آخر كان سيُفرغ النتيجة بصمت — فيُمسح.
+        (
+            [
+                ['user_id', filterOptions.employees, false],
+                ['payment_method_id', filterOptions.paymentMethods, true],
+                ['branch_service_id', filterOptions.services, false],
+            ] as const
+        ).forEach(([key, rows, globalOk]) => {
+            const row = rows.find((r) => r.id.toString() === f.draft[key]);
+            if (row && !belongsTo(branch, row, globalOk)) f.setField(key, 'all');
+        });
+    };
 
     const [search, setSearch] = useState(applied.search);
     const [returnItem, setReturnItem] = useState<InvoiceListItem | null>(null);
@@ -565,7 +589,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                             <FilterSelect
                                 label="الفرع"
                                 value={f.draft.branch_id}
-                                onChange={(v) => f.setField('branch_id', v)}
+                                onChange={changeBranch}
                                 allLabel="كل الفروع"
                                 options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
                             />
@@ -583,7 +607,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                             onChange={(v) => f.setField('user_id', v)}
                             allLabel="كل الموظفين"
                             searchable
-                            options={filterOptions.employees.map((e) => ({ value: e.id.toString(), label: e.name }))}
+                            options={branchEmployees.map((e) => ({ value: e.id.toString(), label: e.name }))}
                         />
                         {/* الخدمة تخصّ فواتير الخدمات، فاختيارها يُقصي فواتير المنتجات. */}
                         <FilterSelect
@@ -592,14 +616,17 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                             onChange={(v) => f.setField('branch_service_id', v)}
                             allLabel="كل الخدمات"
                             searchable
-                            options={filterOptions.services.map((s) => ({ value: s.id.toString(), label: s.name }))}
+                            options={branchServices.map((s) => ({
+                                value: s.id.toString(),
+                                label: f.draft.branch_id === 'all' ? s.name : s.serviceName,
+                            }))}
                         />
                         <FilterSelect
                             label="طريقة الدفع"
                             value={f.draft.payment_method_id}
                             onChange={(v) => f.setField('payment_method_id', v)}
                             allLabel="كل الطرق"
-                            options={filterOptions.paymentMethods.map((m) => ({ value: m.id.toString(), label: m.name }))}
+                            options={branchPaymentMethods.map((m) => ({ value: m.id.toString(), label: m.name }))}
                         />
                         <FilterSelect
                             label="موعد التسليم"
