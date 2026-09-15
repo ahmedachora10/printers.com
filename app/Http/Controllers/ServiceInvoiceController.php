@@ -646,8 +646,8 @@ class ServiceInvoiceController extends Controller
                 'vatPct' => (float) $invoice->vat_pct,
                 'vatAmount' => (float) $invoice->vat_amount,
                 'totalAmount' => (float) $invoice->total_amount,
-                // تاسك 93: سطر التوصيل يُطبع مستقلاً فوق الإجمالي.
-                'shippingFee' => (float) $invoice->shipping_fee,
+                // تاسك 93: سطر التوصيل يُطبع مستقلاً فوق الإجمالي — لطلبٍ له توصيل (تاسك 109).
+                'shippingFee' => $invoice->hasShipping() ? (float) $invoice->shipping_fee : null,
                 // العربون وما بقي على العميل — يُطبعان تحت الإجمالي متى قُبضت دفعة.
                 'hasPayments' => $invoice->payments->isNotEmpty(),
                 'paidAmount' => $invoice->paidAmount(),

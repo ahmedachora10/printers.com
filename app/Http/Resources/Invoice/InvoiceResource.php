@@ -155,9 +155,17 @@ class InvoiceResource extends JsonResource
             'totalAmount' => (float) $this->total_amount,
             // تاسك 93 — التوصيل. المورد متعدّد الأشكال يخدم فاتورة المنتجات
             // أيضاً وهي بلا أعمدة شحن، فيُحرس كلُّ حقلٍ بنوع الفاتورة و`null`
-            // فيها يعني «لا شحن على هذا النوع» فلا يُطبع له سطر.
-            'shippingFee' => $isServiceInvoice ? (float) $this->resource->shipping_fee : null,
+            // فيها يعني «لا شحن» فلا يُطبع له سطر — ولا على فاتورة خدمات بلا
+            // توصيل: shipping_fee افتراضيّه 0 لا NULL (تاسك 109).
+            'shippingFee' => $isServiceInvoice && $this->resource->hasShipping() ? (float) $this->resource->shipping_fee : null,
             'shippingProviderName' => $isServiceInvoice ? $this->resource->shippingProvider?->name : null,
+            // تاسك 109: بيانات التوصيل في بطاقة «التفاصيل».
+            'shipping' => $isServiceInvoice && $this->resource->hasShipping() ? [
+                'providerPhone' => $this->resource->shippingProvider?->phone,
+                'zoneName' => $this->resource->shippingZone?->name,
+                'distanceKm' => $this->resource->shipping_distance_km !== null ? (float) $this->resource->shipping_distance_km : null,
+                'address' => $this->resource->shipping_address,
+            ] : null,
             'employeeCommission' => $this->resource instanceof ServiceInvoice
                 ? (float) $this->resource->employee_commission
                 : null,

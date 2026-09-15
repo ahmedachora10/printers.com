@@ -707,6 +707,41 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                     }
                                 />
                             )}
+                            {/* تاسك 109: بيانات التوصيل لطلبٍ له توصيل. */}
+                            {invoice.shipping && (
+                                <>
+                                    <Separator className="my-3" />
+                                    <p className="mb-1 text-sm font-semibold">التوصيل</p>
+                                    {invoice.shippingProviderName && (
+                                        <MetaRow
+                                            label="السائق"
+                                            value={
+                                                <span>
+                                                    {invoice.shippingProviderName}
+                                                    {invoice.shipping.providerPhone && (
+                                                        <>
+                                                            {' — '}
+                                                            <a href={`tel:${invoice.shipping.providerPhone}`} dir="ltr" className="text-primary hover:underline">
+                                                                {invoice.shipping.providerPhone}
+                                                            </a>
+                                                        </>
+                                                    )}
+                                                </span>
+                                            }
+                                        />
+                                    )}
+                                    {invoice.shipping.zoneName && <MetaRow label="المنطقة" value={invoice.shipping.zoneName} />}
+                                    {invoice.shipping.distanceKm !== null && <MetaRow label="المسافة" value={`${invoice.shipping.distanceKm} كم`} />}
+                                    {invoice.shipping.address && (
+                                        <MetaRow label="العنوان" value={<span className="whitespace-pre-line">{invoice.shipping.address}</span>} />
+                                    )}
+                                    <MetaRow
+                                        label="رسم التوصيل"
+                                        value={invoice.shippingFee ? formatCurrency(invoice.shippingFee) : 'مجاني'}
+                                    />
+                                    <Separator className="my-3" />
+                                </>
+                            )}
                             {invoice.paidAt && <MetaRow label="تاريخ الدفع" value={formatDateTime(invoice.paidAt)} />}
                             {invoice.employeeCommission !== null && (
                                 <MetaRow label="عمولة الموظف" value={<span dir="ltr">{formatCurrency(invoice.employeeCommission)}</span>} />

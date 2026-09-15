@@ -93,6 +93,15 @@ class ServiceInvoice extends Model implements HasMedia
         return DeliveryStatusEnum::forInvoice($this->delivered_at, $this->delivery_at, $this->status);
     }
 
+    /**
+     * تاسك 109 — هل على الفاتورة توصيل؟ مزوّدٌ أو شريحة، كما يقرّر
+     * CalculateServiceInvoiceAction::resolveShipping — لا shipping_fee، فافتراضيّه 0.
+     */
+    public function hasShipping(): bool
+    {
+        return $this->shipping_provider_id !== null || $this->shipping_zone_id !== null;
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()->logFillable()->useLogName('sales');

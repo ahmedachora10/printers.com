@@ -85,6 +85,36 @@ describe('Delivery note and the shipping line on screen', function () {
                 ->where('invoice.shippingProviderName', 'أبو محمد'));
     });
 
+    it('sends the delivery details for the details card (task 109)', function () {
+        $this->get(route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]))
+            ->assertInertia(fn ($page) => $page
+                ->where('invoice.shipping.providerPhone', '0509998887')
+                ->where('invoice.shipping.zoneName', 'حي النرجس')
+                ->where('invoice.shipping.distanceKm', 3.5)
+                ->where('invoice.shipping.address', 'حي النرجس، مكتب 12'));
+    });
+
+    it('draws no shipping line on a service invoice without delivery (task 109)', function () {
+        // shipping_fee افتراضيّه 0 — كان يُرسم «التوصيل: مجاني» على كل فاتورة خدمات.
+        $plain = ServiceInvoice::create([
+            'invoice_number' => 'SINV-001-00003',
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->admin->id,
+            'subtotal' => 100,
+            'vat_pct' => 15,
+            'vat_amount' => 13.04,
+            'total_amount' => 100,
+            'employee_commission' => 0,
+            'status' => InvoiceStatusEnum::PAID,
+        ]);
+
+        $this->get(route('invoices.show', ['type' => 'service', 'id' => $plain->id]))
+            ->assertInertia(fn ($page) => $page->where('invoice.shippingFee', null)->where('invoice.shipping', null));
+
+        $this->get(route('pos.service.print', $plain))
+            ->assertInertia(fn ($page) => $page->where('invoice.shippingFee', null));
+    });
+
     it('carries the shipping fee onto the printed invoice', function () {
         $this->get(route('invoices.print', ['type' => 'service', 'id' => $this->invoice->id]))
             ->assertOk()

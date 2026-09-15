@@ -146,9 +146,16 @@ export interface Invoice {
     vatPct: number;
     vatAmount: number;
     totalAmount: number;
-    /** تاسك 93 — التوصيل. null على فواتير المنتجات: لا شحن على هذا النوع. */
+    /** تاسك 93 — التوصيل. null على فواتير المنتجات وعلى فاتورة خدمات بلا توصيل (تاسك 109). */
     shippingFee: number | null;
     shippingProviderName: string | null;
+    /** تاسك 109 — بيانات التوصيل لبطاقة «التفاصيل»، null حيث shippingFee null. */
+    shipping: {
+        providerPhone: string | null;
+        zoneName: string | null;
+        distanceKm: number | null;
+        address: string | null;
+    } | null;
     employeeCommission: number | null;
     /** الموظف صاحب الفاتورة — مَن أنشأها، لا مَن يطبعها */
     userName: string | null;
