@@ -735,10 +735,6 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                     {invoice.shipping.address && (
                                         <MetaRow label="العنوان" value={<span className="whitespace-pre-line">{invoice.shipping.address}</span>} />
                                     )}
-                                    <MetaRow
-                                        label="رسم التوصيل"
-                                        value={invoice.shippingFee ? formatCurrency(invoice.shippingFee) : 'مجاني'}
-                                    />
                                     <Separator className="my-3" />
                                 </>
                             )}
