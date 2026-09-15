@@ -8,9 +8,11 @@ use App\Enums\InvoiceStatusEnum;
 use App\Exports\SalesReportExport;
 use App\Http\Requests\Report\SalesReportFilterRequest;
 use App\Models\Branch;
+use App\Models\InvoicePayment;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -19,6 +21,7 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use ZipArchive;
 
 /**
  * Realized-revenue sales report (M17).
@@ -116,6 +119,74 @@ class SalesReportController extends Controller
     }
 
     /**
+     * تاسك 106 — إيصالات أحداث التحصيل في المدى، في ملف ZIP واحد.
+     *
+     * الأحداث نفسها التي يعدّها التقرير (baseQuery) بلا المرتجعات، وطريقة كل
+     * حدث طريقتُه هو — فيطابق الملف صفَّ «حسب طريقة الدفع». الدفعة تحمل إيصالها،
+     * والفاتورة المسدَّدة دفعةً واحدة تحمله عليها.
+     */
+    public function receipts(SalesReportFilterRequest $request, ResolveReportScope $resolveScope): BinaryFileResponse|RedirectResponse
+    {
+        $scope = $resolveScope->handle($request);
+        $methodId = $request->integer('payment_method') ?: null;
+        $files = [];
+
+        foreach ($this->tablesForType($request->input('type', 'all')) as $table) {
+            $events = $this->baseQuery($table, $scope)
+                ->where('events.realized', '>', 0)
+                ->when($methodId, fn ($q) => $q->where('events.payment_method_id', $methodId))
+                ->leftJoin('payment_methods', 'payment_methods.id', '=', 'events.payment_method_id')
+                ->get(['events.invoice_id', 'events.payment_id', 'events.invoice_number', 'events.realized_at', 'payment_methods.name as method_name']);
+
+            $invoices = $this->morphClassFor($table)::with(['media', 'customer'])
+                ->findMany($events->pluck('invoice_id')->unique())->keyBy('id');
+            $payments = InvoicePayment::with('media')
+                ->findMany($events->pluck('payment_id')->filter())->keyBy('id');
+
+            foreach ($events as $e) {
+                $invoice = $invoices[$e->invoice_id];
+                $media = $e->payment_id ? $payments[$e->payment_id]->receipt() : $invoice->receipt();
+
+                if ($media === null || ! is_file($media->getPath())) {
+                    continue;
+                }
+
+                $files[] = [$media, implode(' - ', [
+                    $e->invoice_number,
+                    $invoice->customer?->full_name ?? 'عميل نقدي',
+                    $e->method_name ?? 'غير محدد',
+                    Carbon::parse($e->realized_at)->format('Y-m-d'),
+                ])];
+            }
+        }
+
+        if ($files === []) {
+            return back()->with('error', 'لا توجد إيصالات في هذه الفترة');
+        }
+
+        // ponytail: يُبنى متزامناً بحدّ 500 إيصال؛ طابورٌ إن وقع الحدّ فعلاً.
+        if (count($files) > 500) {
+            return back()->with('error', 'عدد الإيصالات '.count($files).' — ضيّق المدى');
+        }
+
+        $path = tempnam(sys_get_temp_dir(), 'receipts');
+        $zip = new ZipArchive;
+        abort_unless($zip->open($path, ZipArchive::OVERWRITE) === true, 500);
+
+        $used = [];
+        foreach ($files as [$media, $name]) {
+            $name = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $name);
+            $n = $used[$name] = ($used[$name] ?? 0) + 1;
+            $zip->addFile($media->getPath(), $name.($n > 1 ? " ({$n})" : '').'.'.$media->extension);
+        }
+        $zip->close();
+
+        return response()
+            ->download($path, "إيصالات-{$scope['from']->toDateString()}-{$scope['to']->toDateString()}.zip")
+            ->deleteFileAfterSend();
+    }
+
+    /**
      * Tables to aggregate for the requested invoice type.
      *
      * @return array<int, string>
@@ -163,6 +234,8 @@ class SalesReportController extends Controller
             ->whereIn('i.status', self::COLLECTED_STATUSES)
             ->select([
                 DB::raw('i.id as invoice_id'),
+                // تاسك 106: الدفعة تحمل إيصالها، فيُعرف الحدث بها.
+                DB::raw('p.id as payment_id'),
                 DB::raw('i.invoice_number as invoice_number'),
                 DB::raw('i.branch_id as branch_id'),
                 DB::raw('i.user_id as user_id'),
@@ -185,6 +258,7 @@ class SalesReportController extends Controller
                 ->whereColumn('p.invoice_id', 'i.id'))
             ->select([
                 DB::raw('i.id as invoice_id'),
+                DB::raw('NULL as payment_id'),
                 DB::raw('i.invoice_number as invoice_number'),
                 DB::raw('i.branch_id as branch_id'),
                 DB::raw('i.user_id as user_id'),
@@ -210,6 +284,7 @@ class SalesReportController extends Controller
             ->whereIn('i.status', self::COLLECTED_STATUSES)
             ->select([
                 DB::raw('i.id as invoice_id'),
+                DB::raw('NULL as payment_id'),
                 DB::raw('i.invoice_number as invoice_number'),
                 DB::raw('i.branch_id as branch_id'),
                 // يُنسب المرتجع إلى منشئ الفاتورة لا إلى من سجّله: الأثر على

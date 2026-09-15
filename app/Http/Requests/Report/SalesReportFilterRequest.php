@@ -21,6 +21,8 @@ class SalesReportFilterRequest extends FormRequest
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'branch' => ['nullable', 'integer', 'exists:branches,id'],
             'type' => ['nullable', 'in:all,product,service'],
+            // تاسك 106: يقرؤه تنزيل الإيصالات وحده.
+            'payment_method' => ['nullable', 'integer', 'exists:payment_methods,id'],
         ];
     }
 }

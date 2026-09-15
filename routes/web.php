@@ -405,6 +405,8 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
         Route::get('reports/sales/export', [SalesReportController::class, 'export'])
             ->name('reports.sales.export');
+        Route::get('reports/sales/receipts', [SalesReportController::class, 'receipts'])
+            ->name('reports.sales.receipts');
         Route::get('reports/sales', [SalesReportController::class, 'index'])
             ->name('reports.sales');
 

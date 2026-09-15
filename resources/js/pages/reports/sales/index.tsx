@@ -10,7 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import {
     type SalesReportBranchRow,
     type SalesReportDayRow,
@@ -20,8 +20,8 @@ import {
     type SalesReportTotals,
     type SalesReportTypeRow,
 } from '@/types/sales-report';
-import { Head } from '@inertiajs/react';
-import { Bike, CreditCard, Download, Info, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Wallet } from 'lucide-react';
+import { Head, usePage } from '@inertiajs/react';
+import { Bike, CreditCard, Download, FileArchive, Info, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير المبيعات', href: '/reports/sales' }];
@@ -142,6 +142,10 @@ export default function SalesReportIndex({
 
     const qs = new URLSearchParams(f.appliedQuery).toString();
     const exportUrl = `${REPORT_URL}/export${qs ? `?${qs}` : ''}`;
+    // تاسك 106: إيصالات الفترة بالفلاتر نفسها، ولصفّ طريقة الدفع طريقتُه.
+    const receiptsUrl = (methodId?: number) =>
+        `${REPORT_URL}/receipts?${new URLSearchParams({ ...f.appliedQuery, ...(methodId ? { payment_method: String(methodId) } : {}) })}`;
+    const { error } = usePage<SharedData>().props;
 
     // No chips for from/to — the range is always visible in the bar above.
     const chips: FilterChip[] = [];
@@ -184,6 +188,11 @@ export default function SalesReportIndex({
                                 <Download className="size-4" /> تصدير Excel
                             </a>
                         </Button>
+                        <Button asChild variant="outline" disabled={totals.invoiceCount === 0}>
+                            <a href={receiptsUrl()}>
+                                <FileArchive className="size-4" /> تنزيل جميع الإيصالات
+                            </a>
+                        </Button>
                     </div>
                 </div>
 
@@ -192,6 +201,17 @@ export default function SalesReportIndex({
                 </div>
 
                 <ActiveFilterChips chips={chips} />
+
+                {/* تنزيل الإيصالات يعود إلى هنا برسالة حين لا ملفات أو تزيد عن الحدّ. */}
+                {typeof error === 'string' && (
+                    <div
+                        role="alert"
+                        className="mb-6 flex items-start gap-2 rounded-md border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-300"
+                    >
+                        <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+                        <span>{error}</span>
+                    </div>
+                )}
 
                 {/* Summary tiles */}
                 {/* Five tracks would squeeze the currency figures at lg, where the
@@ -296,7 +316,7 @@ export default function SalesReportIndex({
                     rows={byEmployee.map((e) => ({ key: e.userId, name: e.userName, count: e.count, total: e.total }))}
                 />
 
-                <PaymentMethodCard rows={byPaymentMethod} totals={totals} />
+                <PaymentMethodCard rows={byPaymentMethod} totals={totals} receiptsUrl={receiptsUrl} />
 
                 {/* By day */}
                 <Card>
@@ -365,7 +385,15 @@ function SummaryCard({
  * الرقمان على صفّ النقد وحده؛ فإن تعدّدت صفوف النقد (سوبر أدمن عبر فروع لكلٍّ
  * طريقته) فهما في صفّ الإجمالي وحده، إذ لا يُعرف أيّ درجٍ دفع أيّ مصروف.
  */
-function PaymentMethodCard({ rows, totals }: { rows: SalesReportPaymentMethodRow[]; totals: SalesReportTotals }) {
+function PaymentMethodCard({
+    rows,
+    totals,
+    receiptsUrl,
+}: {
+    rows: SalesReportPaymentMethodRow[];
+    totals: SalesReportTotals;
+    receiptsUrl: (methodId?: number) => string;
+}) {
     const cashRows = rows.filter((r) => r.isCash).length;
     const onRow = (row: SalesReportPaymentMethodRow) => row.isCash && cashRows === 1;
     const columns: ColumnDef<SalesReportPaymentMethodRow>[] = [
@@ -383,6 +411,18 @@ function PaymentMethodCard({ rows, totals }: { rows: SalesReportPaymentMethodRow
             header: <HintedHeader label="المتبقي من النقد" hint={CASH_HINT} />,
             className: 'font-semibold',
             cell: (row) => (onRow(row) ? <Remaining value={totals.cashRemaining} /> : '—'),
+        },
+        {
+            key: 'receipts',
+            header: <span className="sr-only">الإيصالات</span>,
+            cell: (row) =>
+                row.methodId !== null && (
+                    <Button asChild variant="ghost" size="icon" title={`تنزيل إيصالات ${row.methodName}`}>
+                        <a href={receiptsUrl(row.methodId)} aria-label={`تنزيل إيصالات ${row.methodName}`}>
+                            <FileArchive className="size-4" />
+                        </a>
+                    </Button>
+                ),
         },
     ];
 
@@ -413,6 +453,7 @@ function PaymentMethodCard({ rows, totals }: { rows: SalesReportPaymentMethodRow
                             <TableCell className="font-bold">
                                 <Remaining value={totals.cashRemaining} />
                             </TableCell>
+                            <TableCell />
                         </TableRow>
                     }
                 />
