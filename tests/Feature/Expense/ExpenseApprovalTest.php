@@ -35,6 +35,7 @@ describe('Expense approval', function () {
             'expense_category_id' => $this->category->id,
             'user_id' => $this->accountant->id,
             'date' => today()->toDateString(),
+            'approved_at' => null,
             ...$overrides,
         ]);
 
@@ -64,10 +65,11 @@ describe('Expense approval', function () {
 
     it('lets the branch admin edit an approved expense and logs old and new values', function () {
         $expense = ($this->makeExpense)(['qty' => 1, 'unit_price' => 10, 'total' => 10]);
+        $rent = ExpenseCategory::factory()->create(['name' => 'إيجار']);
         $this->actingAs($this->branchAdmin)->post(route('expenses.approve', $expense));
 
         $this->actingAs($this->branchAdmin)
-            ->put(route('expenses.update', $expense), [...$this->payload, 'qty' => 3])
+            ->put(route('expenses.update', $expense), [...$this->payload, 'qty' => 3, 'expense_category_id' => $rent->id])
             ->assertSessionHasNoErrors();
 
         $log = Activity::query()->forSubject($expense)->where('event', 'updated')->latest('id')->firstOrFail();
@@ -76,7 +78,32 @@ describe('Expense approval', function () {
             ->and($log->causer_id)->toBe($this->branchAdmin->id);
 
         $this->actingAs($this->branchAdmin)->get(route('expenses.index'))
-            ->assertInertia(fn ($page) => $page->has('items.data.0.history', 1));
+            ->assertInertia(fn ($page) => $page
+                ->has('items.data.0.history', 1)
+                ->where('items.data.0.history.0.old.expense_category_id', $this->category->name)
+                ->where('items.data.0.history.0.new.expense_category_id', 'إيجار'));
+    });
+
+    it('lets the branch admin unapprove, handing the expense back to the accountant', function () {
+        $expense = ($this->makeExpense)(['approved_at' => now(), 'approved_by' => $this->branchAdmin->id]);
+
+        $this->actingAs($this->accountant)->post(route('expenses.unapprove', $expense))->assertForbidden();
+        $this->actingAs($this->branchAdmin)->post(route('expenses.unapprove', $expense))->assertRedirect();
+
+        expect($expense->fresh()->isApproved())->toBeFalse();
+        $this->actingAs($this->accountant)->put(route('expenses.update', $expense), $this->payload)->assertSessionHasNoErrors();
+    });
+
+    it('leaves unapproved expenses out of the reports', function () {
+        ($this->makeExpense)(['total' => 40]);
+        ($this->makeExpense)(['total' => 60, 'approved_at' => now()]);
+
+        $this->actingAs($this->branchAdmin)->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page->where('totals.expenses', 60));
+        $this->actingAs($this->branchAdmin)->get(route('reports.expenses'))
+            ->assertInertia(fn ($page) => $page->where('totals.total', 60));
+        $this->actingAs($this->branchAdmin)->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page->where('totals.purchases', 60));
     });
 
     it('approves every pending expense under the current filters and nothing else', function () {

@@ -99,6 +99,8 @@ class ExpenseReportController extends Controller
     {
         return DB::table('expenses')
             ->whereNull('expenses.deleted_at')
+            // المعتمد وحده: غير المعتمد قد يُعدَّل أو يُحذف بعد، فلا يدخل التقرير.
+            ->whereNotNull('expenses.approved_at')
             ->when($scope['branchId'], fn ($q) => $q->where('expenses.branch_id', $scope['branchId']))
             ->when($scope['categoryId'], fn ($q) => $q->where('expenses.expense_category_id', $scope['categoryId']))
             ->when($scope['from'], fn ($q) => $q->whereDate('expenses.date', '>=', $scope['from']->toDateString()))

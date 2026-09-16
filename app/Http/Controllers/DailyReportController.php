@@ -522,6 +522,8 @@ class DailyReportController extends Controller
 
         $expenses = DB::table('expenses')
             ->whereNull('deleted_at')
+            // المعتمد وحده: غير المعتمد قد يُعدَّل أو يُحذف بعد، فلا يدخل التقرير.
+            ->whereNotNull('approved_at')
             ->when($scope['branchId'], fn ($q) => $q->where('branch_id', $scope['branchId']))
             ->when($scope['from'], fn ($q) => $q->where('date', '>=', $scope['from']))
             ->when($scope['to'], fn ($q) => $q->where('date', '<=', $scope['to']))

@@ -25,6 +25,7 @@ export interface Expense {
     approvedAt: string | null;
     approvedByName: string | null;
     canApprove: boolean;
+    canUnapprove: boolean;
     canUpdate: boolean;
     canDelete: boolean;
     /** تعديلات ما بعد الاعتماد، الأحدث أولاً */

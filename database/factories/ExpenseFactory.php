@@ -29,6 +29,8 @@ class ExpenseFactory extends Factory
             'supplier_name' => fake()->company(),
             'receipt_reference' => fake()->bothify('REF-####'),
             'comment' => fake()->optional()->sentence(),
+            // تاسك 113: المصروف المعتاد في الاختبارات معتمد — التقارير تحسب المعتمد وحده.
+            'approved_at' => now(),
             'date' => fake()->dateTimeBetween('-3 months', 'now')->format('Y-m-d'),
         ];
     }

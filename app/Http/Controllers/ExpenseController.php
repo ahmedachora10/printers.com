@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Expense\ApproveExpensesAction;
 use App\Actions\Expense\CreateExpenseAction;
 use App\Actions\Expense\DeleteExpenseAction;
+use App\Actions\Expense\UnapproveExpenseAction;
 use App\Actions\Expense\UpdateExpenseAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Http\Requests\Expense\StoreExpenseRequest;
@@ -102,6 +103,15 @@ class ExpenseController extends Controller
         $action->handle(Expense::whereKey($expense->id));
 
         return back()->with('success', 'تم اعتماد المصروف');
+    }
+
+    public function unapprove(Expense $expense, UnapproveExpenseAction $action): RedirectResponse
+    {
+        Gate::authorize('unapprove', $expense);
+
+        $action->handle($expense);
+
+        return back()->with('success', 'تم إلغاء اعتماد المصروف');
     }
 
     /** تاسك 113 — اعتماد كل غير المعتمد تحت الفلاتر الحالية (لا معرّفات الصفحة المعروضة). */

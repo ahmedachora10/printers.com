@@ -219,6 +219,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('expenses/{expense}/attachment', [ExpenseController::class, 'attachment'])->name('expenses.attachment');
         Route::post('expenses/approve-all', [ExpenseController::class, 'approveAll'])->name('expenses.approve-all');
         Route::post('expenses/{expense}/approve', [ExpenseController::class, 'approve'])->name('expenses.approve');
+        Route::post('expenses/{expense}/unapprove', [ExpenseController::class, 'unapprove'])->name('expenses.unapprove');
         Route::resource('expenses', ExpenseController::class)
             ->only(['index', 'store', 'update', 'destroy']);
     });

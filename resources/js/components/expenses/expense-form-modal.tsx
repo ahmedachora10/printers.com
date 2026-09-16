@@ -42,7 +42,7 @@ const SOURCES: { value: ExpenseSource; label: string }[] = [
 ];
 
 const FIELD_LABELS: Record<string, string> = {
-    expense_category_id: 'الفئة (رقم)',
+    expense_category_id: 'الفئة',
     qty: 'الكمية',
     unit_price: 'سعر الوحدة',
     total: 'الإجمالي',
@@ -51,7 +51,7 @@ const FIELD_LABELS: Record<string, string> = {
     receipt_reference: 'مرجع الإيصال',
     comment: 'الملاحظات',
     date: 'التاريخ',
-    service_invoice_id: 'الفاتورة المربوطة (رقم)',
+    service_invoice_id: 'الفاتورة المربوطة',
 };
 
 const NO_INVOICE: AsyncOption = { value: 'none', label: '— بلا ربط —' };

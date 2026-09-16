@@ -50,6 +50,11 @@ class ExpensePolicy
         return $this->approveAny($user) && $this->view($user, $expense) && ! $expense->isApproved();
     }
 
+    public function unapprove(User $user, Expense $expense): bool
+    {
+        return $this->approveAny($user) && $this->view($user, $expense) && $expense->isApproved();
+    }
+
     public function approveAny(User $user): bool
     {
         return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();

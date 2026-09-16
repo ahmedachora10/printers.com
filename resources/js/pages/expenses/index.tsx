@@ -1,4 +1,4 @@
-import { approve, approveAll, destroy, index } from '@/actions/App/Http/Controllers/ExpenseController';
+import { approve, approveAll, destroy, index, unapprove } from '@/actions/App/Http/Controllers/ExpenseController';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import ExpenseFormModal from '@/components/expenses/expense-form-modal';
 import { FilterBar } from '@/components/filter-bar';
@@ -13,7 +13,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type Expense, type PaginatedExpense } from '@/types/expense';
 import { Link, router } from '@inertiajs/react';
-import { CheckCheck, CheckCircle2, Paperclip, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { CheckCheck, CheckCircle2, Paperclip, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'المصروفات', href: '/expenses' }];
@@ -180,6 +180,16 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                         {item.canApprove && (
                             <Button variant="outline" size="sm" onClick={() => router.post(approve.url(item), {}, { preserveScroll: true })}>
                                 <CheckCircle2 className="h-3.5 w-3.5" /> اعتماد
+                            </Button>
+                        )}
+                        {item.canUnapprove && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                title="إلغاء الاعتماد"
+                                onClick={() => router.post(unapprove.url(item), {}, { preserveScroll: true })}
+                            >
+                                <Undo2 className="h-3.5 w-3.5" />
                             </Button>
                         )}
                         {item.canUpdate && (
