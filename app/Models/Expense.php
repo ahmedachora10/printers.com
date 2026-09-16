@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ExpenseSourceEnum;
 use Database\Factories\ExpenseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -22,6 +23,7 @@ class Expense extends Model
         'qty',
         'unit_price',
         'total',
+        'paid_from',
         'supplier_name',
         'receipt_reference',
         'receipt_path',
@@ -33,6 +35,7 @@ class Expense extends Model
         'qty' => 'decimal:2',
         'unit_price' => 'decimal:2',
         'total' => 'decimal:2',
+        'paid_from' => ExpenseSourceEnum::class,
         'date' => 'date',
     ];
 

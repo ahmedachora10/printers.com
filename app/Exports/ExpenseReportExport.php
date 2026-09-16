@@ -20,7 +20,7 @@ class ExpenseReportExport implements FromCollection, ShouldAutoSize, WithHeading
     /** @return array<int, string> */
     public function headings(): array
     {
-        return ['التاريخ', 'الفئة', 'الفرع', 'المورّد', 'الكمية', 'سعر الوحدة', 'الإجمالي', 'المرجع', 'مَن سجّلها'];
+        return ['التاريخ', 'الفئة', 'الفرع', 'المورّد', 'الكمية', 'سعر الوحدة', 'الإجمالي', 'مصدر الدفع', 'المرجع', 'مَن سجّلها'];
     }
 
     /** @return Collection<int, mixed> */
@@ -34,6 +34,7 @@ class ExpenseReportExport implements FromCollection, ShouldAutoSize, WithHeading
             number_format((float) $expense['qty'], 2),
             number_format((float) $expense['unitPrice'], 2),
             number_format((float) $expense['total'], 2),
+            $expense['paidFromLabel'],
             $expense['receiptReference'] ?? '—',
             $expense['userName'] ?? '—',
         ]);

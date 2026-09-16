@@ -12,7 +12,9 @@ export interface SalesReportTotals {
     cash: number;
     /** مصروفات المدى من جدول expenses وحده — لا تشمل قيمة المخزون الوارد (تاسك 87) */
     expenses: number;
-    /** cash − expenses: المصروفات تُطرح من النقد وحده (تاسك 97) */
+    /** ما دُفع منها من درج الكاشير — التحويل البنكي خارجه (تاسك 110) */
+    cashExpenses: number;
+    /** cash − cashExpenses: النقد المتوقَّع في الدرج (تاسكا 97 و110) */
     cashRemaining: number;
 }
 
@@ -37,7 +39,9 @@ export interface SalesReportDayRow {
     cash: number;
     /** مصروفات اليوم من جدول expenses وحده (تاسك 87) */
     expenses: number;
-    /** cash − expenses — قد يكون سالباً في يومٍ فيه مصروف بلا تحصيل نقدي */
+    /** ما دُفع منها من درج الكاشير (تاسك 110) */
+    cashExpenses: number;
+    /** cash − cashExpenses — قد يكون سالباً في يومٍ فيه مصروف نقدي بلا تحصيل نقدي */
     cashRemaining: number;
 }
 

@@ -1,3 +1,5 @@
+export type ExpenseSource = 'cash_drawer' | 'company_transfer';
+
 export interface Expense {
     id: number;
     branchId: number;
@@ -6,6 +8,9 @@ export interface Expense {
     qty: number;
     unitPrice: number;
     total: number;
+    /** تاسك 110 — النقدي وحده يُطرح من «المتبقي من النقد» */
+    paidFrom: ExpenseSource;
+    paidFromLabel: string;
     supplierName: string | null;
     receiptReference: string | null;
     comment: string | null;

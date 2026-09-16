@@ -187,7 +187,7 @@ describe('ExpenseCategory Management', function () {
         it('rejects an expense booked under another branch\'s category', function () {
             $theirs = ExpenseCategory::factory()->create(['branch_id' => $this->otherBranch->id]);
             $mine = ExpenseCategory::factory()->create(['branch_id' => $this->branch->id]);
-            $payload = ['qty' => 1, 'unit_price' => 50, 'date' => today()->toDateString()];
+            $payload = ['qty' => 1, 'unit_price' => 50, 'paid_from' => 'cash_drawer', 'date' => today()->toDateString()];
 
             $this->post(route('expenses.store'), [...$payload, 'expense_category_id' => $theirs->id])
                 ->assertSessionHasErrors('expense_category_id');

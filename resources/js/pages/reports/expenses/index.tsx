@@ -109,6 +109,7 @@ export default function ExpenseReportIndex({
             },
             { key: 'unitPrice', header: 'سعر الوحدة', cell: (row) => formatCurrency(row.unitPrice) },
             { key: 'total', header: 'الإجمالي', className: 'font-semibold', cell: (row) => formatCurrency(row.total) },
+            { key: 'paidFrom', header: 'مصدر الدفع', cell: (row) => row.paidFromLabel },
             { key: 'receiptReference', header: 'المرجع', cell: (row) => row.receiptReference ?? dash },
             { key: 'userName', header: 'مَن سجّلها', cell: (row) => row.userName ?? dash },
         ],
@@ -171,6 +172,7 @@ export default function ExpenseReportIndex({
                         label="إجمالي المصروفات"
                         value={formatCurrency(totals.total)}
                         valueClass="text-amber-600"
+                        hint={`من الكاشير ${formatCurrency(totals.cashTotal)} · بتحويل ${formatCurrency(totals.transferTotal)}`}
                     />
                     <SummaryCard icon={<Receipt className="size-4" />} label="عدد العمليات" value={totals.expenseCount.toLocaleString('ar')} />
                     <SummaryCard icon={<Sigma className="size-4" />} label="متوسط العملية" value={formatCurrency(totals.average)} />

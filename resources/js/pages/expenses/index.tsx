@@ -3,6 +3,7 @@ import { DataTable, TablePagination, type ColumnDef } from '@/components/data-ta
 import ExpenseFormModal from '@/components/expenses/expense-form-modal';
 import { FilterBar } from '@/components/filter-bar';
 import DateRangeBar from '@/components/reports/date-range-bar';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -116,6 +117,15 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                 key: 'total',
                 header: 'الإجمالي',
                 cell: (item) => <span className="font-semibold tabular-nums">{formatSar(item.total)}</span>,
+            },
+            {
+                key: 'paidFrom',
+                header: 'المصدر',
+                cell: (item) => (
+                    <Badge variant={item.paidFrom === 'cash_drawer' ? 'secondary' : 'outline'} className="whitespace-nowrap">
+                        {item.paidFrom === 'cash_drawer' ? 'نقد' : 'تحويل'}
+                    </Badge>
+                ),
             },
             {
                 key: 'user',
@@ -278,6 +288,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                             <TableCell />
                             <TableCell />
                             <TableCell className="font-bold tabular-nums">{formatSar(periodTotal)}</TableCell>
+                            <TableCell />
                             <TableCell />
                             <TableCell />
                         </TableRow>

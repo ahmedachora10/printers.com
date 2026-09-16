@@ -10,7 +10,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type Expense } from '@/types/expense';
+import { type Expense, type ExpenseSource } from '@/types/expense';
 import { useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
 import InputError from '../input-error';
@@ -35,6 +35,11 @@ interface Props {
     branches?: Branch[] | null;
 }
 
+const SOURCES: { value: ExpenseSource; label: string }[] = [
+    { value: 'cash_drawer', label: 'نقد من الكاشير' },
+    { value: 'company_transfer', label: 'تحويل بنكي من حساب الشركة' },
+];
+
 function todayIso(): string {
     return new Date().toISOString().slice(0, 10);
 }
@@ -48,6 +53,8 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         expense_category_id: expense?.expenseCategoryId?.toString() ?? '',
         qty:                 expense?.qty?.toString() ?? '1',
         unit_price:          expense?.unitPrice?.toString() ?? '',
+        // تاسك 110: بلا اختيار مسبق — المستخدم يحدّد المصدر صراحةً.
+        paid_from:           expense?.paidFrom ?? '',
         supplier_name:       expense?.supplierName ?? '',
         receipt_reference:   expense?.receiptReference ?? '',
         comment:             expense?.comment ?? '',
@@ -61,6 +68,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                 expense_category_id: expense.expenseCategoryId?.toString() ?? '',
                 qty:                 expense.qty?.toString() ?? '1',
                 unit_price:          expense.unitPrice?.toString() ?? '',
+                paid_from:           expense.paidFrom,
                 supplier_name:       expense.supplierName ?? '',
                 receipt_reference:   expense.receiptReference ?? '',
                 comment:             expense.comment ?? '',
@@ -202,6 +210,24 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                                 className="font-medium"
                             />
                         </div>
+                    </div>
+
+                    <div className="space-y-1">
+                        <Label>مصدر الدفع</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {SOURCES.map((s) => (
+                                <Button
+                                    key={s.value}
+                                    type="button"
+                                    variant={data.paid_from === s.value ? 'default' : 'outline'}
+                                    aria-pressed={data.paid_from === s.value}
+                                    onClick={() => setData('paid_from', s.value)}
+                                >
+                                    {s.label}
+                                </Button>
+                            ))}
+                        </div>
+                        <InputError message={errors.paid_from} />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">

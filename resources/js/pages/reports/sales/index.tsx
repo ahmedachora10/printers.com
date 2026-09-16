@@ -51,10 +51,10 @@ const breakdownColumns = (nameHeader: string): ColumnDef<BreakdownRow>[] => [
 ];
 
 /**
- * تاسك 97 — المصروفات تُدفع من الدرج، فتُطرح من **النقد وحده** لا من كل
- * المحصَّل. والرقم تدفّقٌ نقدي لا ربحٌ محاسبي: لا يطرح الخامات ولا العمولات.
+ * تاسكا 97 و110 — يُطرح من **النقد وحده** ما دُفع **من درج الكاشير** وحده؛
+ * المصروف المحوَّل من حساب الشركة لا يمسّه. والرقم تدفّقٌ نقدي لا ربحٌ محاسبي.
  */
-const CASH_HINT = 'المحصَّل نقداً ناقص المصروفات المسجّلة — لا تُطرح المصروفات من الشبكة ولا التحويل. ليس ربحاً صافياً.';
+const CASH_HINT = 'المحصَّل نقداً ناقص المصروفات المدفوعة من الكاشير — مصروفات التحويل البنكي لا تُخصم من النقد. ليس ربحاً صافياً.';
 
 /** رأس عمودٍ يحمل تفسيره في tooltip. */
 function HintedHeader({ label, hint }: { label: string; hint: string }) {
@@ -396,7 +396,7 @@ function PaymentMethodCard({
             key: 'expenses',
             header: 'المصروفات',
             className: 'text-amber-600',
-            cell: (row) => (onRow(row) ? formatCurrency(totals.expenses) : '—'),
+            cell: (row) => (onRow(row) ? formatCurrency(totals.cashExpenses) : '—'),
         },
         {
             key: 'cashRemaining',
@@ -424,7 +424,7 @@ function PaymentMethodCard({
                 <CardTitle>المبيعات حسب طريقة الدفع</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-                {cashRows === 0 && totals.expenses > 0 && (
+                {cashRows === 0 && totals.cashExpenses > 0 && (
                     <div className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
                         <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
                         <span>لا تحصيل بطريقة دفع معلَّمة «نقدية» في هذه الفترة، فالمصروفات مطروحةٌ من صفر. تُعلَّم طريقة النقد من إعدادات طرق الدفع.</span>
@@ -441,7 +441,7 @@ function PaymentMethodCard({
                             <TableCell className="font-bold">الإجمالي</TableCell>
                             <TableCell />
                             <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
-                            <TableCell className="font-bold text-amber-600">{formatCurrency(totals.expenses)}</TableCell>
+                            <TableCell className="font-bold text-amber-600">{formatCurrency(totals.cashExpenses)}</TableCell>
                             <TableCell className="font-bold">
                                 <Remaining value={totals.cashRemaining} />
                             </TableCell>
@@ -449,6 +449,11 @@ function PaymentMethodCard({
                         </TableRow>
                     }
                 />
+                {totals.expenses > totals.cashExpenses && (
+                    <p className="text-muted-foreground border-t px-4 py-2.5 text-sm">
+                        مصروفات بتحويل بنكي: {formatCurrency(totals.expenses - totals.cashExpenses)} — لا تُخصم من النقد.
+                    </p>
+                )}
             </CardContent>
         </Card>
     );

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Report\BuildReportDayRange;
 use App\Actions\Report\ResolveReportScope;
+use App\Enums\ExpenseSourceEnum;
 use App\Exports\ExpenseReportExport;
 use App\Http\Requests\Report\ExpenseReportFilterRequest;
 use App\Models\Branch;
@@ -113,10 +114,10 @@ class ExpenseReportController extends Controller
      */
     private function totals(array $scope): array
     {
-        $row = $this->baseQuery($scope)->first([
-            DB::raw('COUNT(*) as c'),
-            DB::raw('COALESCE(SUM(expenses.total), 0) as total'),
-        ]);
+        $row = $this->baseQuery($scope)
+            ->selectRaw('COUNT(*) as c, COALESCE(SUM(expenses.total), 0) as total')
+            ->selectRaw('COALESCE(SUM(CASE WHEN expenses.paid_from = ? THEN expenses.total ELSE 0 END), 0) as cash_total', [ExpenseSourceEnum::CashDrawer->value])
+            ->first();
 
         $count = (int) $row->c;
         $total = (float) $row->total;
@@ -124,6 +125,9 @@ class ExpenseReportController extends Controller
         return [
             'expenseCount' => $count,
             'total' => $total,
+            // تاسك 110: ما خرج من درج الكاشير، والباقي تحويلٌ من حساب الشركة.
+            'cashTotal' => (float) $row->cash_total,
+            'transferTotal' => round($total - (float) $row->cash_total, 2),
             'average' => $count > 0 ? round($total / $count, 2) : 0.0,
         ];
     }
@@ -215,6 +219,7 @@ class ExpenseReportController extends Controller
                 'expenses.qty as qty',
                 'expenses.unit_price as unit_price',
                 'expenses.total as total',
+                'expenses.paid_from as paid_from',
                 'expenses.receipt_reference as receipt_reference',
                 'users.name as user_name',
             ])
@@ -227,6 +232,7 @@ class ExpenseReportController extends Controller
                 'qty' => (float) $row->qty,
                 'unitPrice' => (float) $row->unit_price,
                 'total' => (float) $row->total,
+                'paidFromLabel' => ExpenseSourceEnum::from($row->paid_from)->label(),
                 'receiptReference' => $row->receipt_reference,
                 'userName' => $row->user_name,
             ])

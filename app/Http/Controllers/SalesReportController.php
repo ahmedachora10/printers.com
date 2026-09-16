@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Report\BuildReportDayRange;
 use App\Actions\Report\ResolveReportScope;
+use App\Enums\ExpenseSourceEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Exports\SalesReportExport;
 use App\Http\Requests\Report\SalesReportFilterRequest;
@@ -372,7 +373,10 @@ class SalesReportController extends Controller
 
         // تاسك 97: المصروفات تُطرح من **النقد وحده** — ما دخل الدرج فعلاً —
         // لا من كل المحصَّل (تاسك 87 كان يطرحها من الشبكة والتحويل كذلك).
-        $expenses = round(array_sum($this->expensesDaily($scope)), 2);
+        // تاسك 110: ومن المصروفات ما دُفع من الدرج وحده؛ التحويل البنكي لا يمسّ النقد.
+        $expensesDaily = $this->expensesDaily($scope);
+        $expenses = round(array_sum(array_column($expensesDaily, 'all')), 2);
+        $cashExpenses = round(array_sum(array_column($expensesDaily, 'cash')), 2);
         $cash = round(array_sum($this->cashDaily($scope, $type)), 2);
 
         return [
@@ -387,7 +391,8 @@ class SalesReportController extends Controller
             'total' => $total,
             'cash' => $cash,
             'expenses' => $expenses,
-            'cashRemaining' => round($cash - $expenses, 2),
+            'cashExpenses' => $cashExpenses,
+            'cashRemaining' => round($cash - $cashExpenses, 2),
         ];
     }
 
@@ -432,7 +437,7 @@ class SalesReportController extends Controller
     private function byDay(array $scope, string $type): array
     {
         $days = [];
-        $blank = ['count' => 0, 'total' => 0.0, 'cash' => 0.0, 'expenses' => 0.0, 'cashRemaining' => 0.0];
+        $blank = ['count' => 0, 'total' => 0.0, 'cash' => 0.0, 'expenses' => 0.0, 'cashExpenses' => 0.0, 'cashRemaining' => 0.0];
 
         foreach ($this->dayRange->handle($scope) as $day) {
             $days[$day] = ['date' => $day, ...$blank];
@@ -464,12 +469,14 @@ class SalesReportController extends Controller
         // من BuildReportDayRange)، فيظهر بمتبقٍّ سالب — وهو صحيح.
         foreach ($this->expensesDaily($scope) as $day => $amount) {
             $days[$day] ??= ['date' => $day, ...$blank];
-            $days[$day]['expenses'] += $amount;
+            $days[$day]['expenses'] += $amount['all'];
+            $days[$day]['cashExpenses'] += $amount['cash'];
         }
 
-        // تاسك 97: المتبقي من النقد لا من كل المحصَّل.
+        // تاسك 97: المتبقي من النقد لا من كل المحصَّل. وتاسك 110: ناقص ما دُفع
+        // من الدرج وحده — عمود «المصروفات» يبقى الإجمالي (نصّ العميل).
         foreach ($days as $day => $row) {
-            $days[$day]['cashRemaining'] = round($row['cash'] - $row['expenses'], 2);
+            $days[$day]['cashRemaining'] = round($row['cash'] - $row['cashExpenses'], 2);
         }
 
         ksort($days);
@@ -488,8 +495,10 @@ class SalesReportController extends Controller
      * والمصروف لا نوع له، فلا يتأثّر بفلتر «منتجات/خدمات» — العمود يعرض مصروف
      * اليوم كاملاً في الحالات الثلاث.
      *
+     * تاسك 110: `all` كل المصروفات، و`cash` ما دُفع منها من درج الكاشير.
+     *
      * @param  array<string, mixed>  $scope
-     * @return array<string, float>
+     * @return array<string, array{all: float, cash: float}>
      */
     private function expensesDaily(array $scope): array
     {
@@ -503,14 +512,12 @@ class SalesReportController extends Controller
             ->when($scope['from'], fn ($q) => $q->where('date', '>=', $scope['from']))
             ->when($scope['to'], fn ($q) => $q->where('date', '<=', $scope['to']))
             ->groupBy(DB::raw('DATE(date)'))
-            ->get([
-                DB::raw('DATE(date) as day'),
-                DB::raw('COALESCE(SUM(total), 0) as amount'),
-            ]);
+            ->selectRaw('DATE(date) as day, COALESCE(SUM(total), 0) as amount')
+            ->selectRaw('COALESCE(SUM(CASE WHEN paid_from = ? THEN total ELSE 0 END), 0) as cash_amount', [ExpenseSourceEnum::CashDrawer->value])
+            ->get();
 
         foreach ($rows as $row) {
-            $day = (string) $row->day;
-            $daily[$day] = ($daily[$day] ?? 0.0) + (float) $row->amount;
+            $daily[(string) $row->day] = ['all' => (float) $row->amount, 'cash' => (float) $row->cash_amount];
         }
 
         return $daily;

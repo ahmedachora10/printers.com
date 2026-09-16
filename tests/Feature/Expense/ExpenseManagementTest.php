@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ExpenseSourceEnum;
 use App\Enums\Roles;
 use App\Models\Branch;
 use App\Models\Expense;
@@ -124,6 +125,7 @@ describe('Expense Management', function () {
             'expense_category_id' => $this->category->id,
             'qty' => 3,
             'unit_price' => 25.50,
+            'paid_from' => 'cash_drawer',
             'supplier_name' => 'مكتبة الرياض',
             'receipt_reference' => 'REF-100',
             'date' => '2026-06-10',
@@ -135,6 +137,7 @@ describe('Expense Management', function () {
             'user_id' => $this->branchAdmin->id,
             'qty' => 3,
             'unit_price' => 25.50,
+            'paid_from' => 'cash_drawer',
             'total' => 76.50,
             'supplier_name' => 'مكتبة الرياض',
         ]);
@@ -144,6 +147,7 @@ describe('Expense Management', function () {
         $this->post(route('expenses.store'), [
             'qty' => 1,
             'unit_price' => 10,
+            'paid_from' => 'cash_drawer',
             'date' => '2026-06-10',
         ])->assertSessionHasErrors(['expense_category_id']);
     });
@@ -153,6 +157,7 @@ describe('Expense Management', function () {
             'expense_category_id' => $this->category->id,
             'qty' => 1,
             'unit_price' => 10,
+            'paid_from' => 'cash_drawer',
         ])->assertSessionHasErrors(['date']);
     });
 
@@ -166,6 +171,7 @@ describe('Expense Management', function () {
             'expense_category_id' => $this->category->id,
             'qty' => 2,
             'unit_price' => 30,
+            'paid_from' => 'cash_drawer',
             'date' => '2026-06-10',
         ])->assertRedirect(route('expenses.index'));
 
@@ -185,8 +191,25 @@ describe('Expense Management', function () {
             'expense_category_id' => $this->category->id,
             'qty' => 1,
             'unit_price' => 10,
+            'paid_from' => 'cash_drawer',
             'date' => '2026-06-10',
         ])->assertSessionHasErrors(['branch_id']);
+    });
+
+    it('requires the expense source and stores a bank transfer', function () {
+        $payload = [
+            'expense_category_id' => $this->category->id,
+            'qty' => 1,
+            'unit_price' => 20,
+            'date' => '2026-06-10',
+        ];
+
+        $this->post(route('expenses.store'), $payload)->assertSessionHasErrors(['paid_from']);
+
+        $this->post(route('expenses.store'), [...$payload, 'paid_from' => 'company_transfer'])
+            ->assertSessionHasNoErrors();
+
+        expect(Expense::firstOrFail()->paid_from)->toBe(ExpenseSourceEnum::CompanyTransfer);
     });
 
     // ── UPDATE ─────────────────────────────────────────────────────
@@ -202,6 +225,7 @@ describe('Expense Management', function () {
             'expense_category_id' => $this->category->id,
             'qty' => 4,
             'unit_price' => 10,
+            'paid_from' => 'cash_drawer',
             'date' => '2026-06-11',
         ])->assertRedirect(route('expenses.index'));
 
@@ -238,6 +262,7 @@ describe('Expense Management', function () {
             'expense_category_id' => $this->category->id,
             'qty' => 1,
             'unit_price' => 10,
+            'paid_from' => 'cash_drawer',
             'date' => '2026-06-10',
         ])->assertForbidden();
     });

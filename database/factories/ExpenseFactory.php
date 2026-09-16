@@ -25,6 +25,7 @@ class ExpenseFactory extends Factory
             'qty' => $qty,
             'unit_price' => $unitPrice,
             'total' => round($qty * $unitPrice, 2),
+            'paid_from' => 'cash_drawer',
             'supplier_name' => fake()->company(),
             'receipt_reference' => fake()->bothify('REF-####'),
             'receipt_path' => null,

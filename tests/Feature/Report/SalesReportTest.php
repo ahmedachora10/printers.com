@@ -408,6 +408,33 @@ describe('Sales Report', function () {
             });
     });
 
+    // تاسك 110 — مثالا العميل حرفياً: النقدي وحده يُطرح من النقد.
+    it('takes only cash-drawer expenses off the cash', function (string $source, int $cashExpenses, int $remaining) {
+        $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد']);
+        paidProductInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $cash->id, 'total_amount' => 100]);
+        Expense::factory()->create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'expense_category_id' => ExpenseCategory::factory(),
+            'total' => 20,
+            'paid_from' => $source,
+            'date' => today()->toDateString(),
+        ]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.cash', 100)
+                ->where('totals.expenses', 20)
+                ->where('totals.cashExpenses', $cashExpenses)
+                ->where('totals.cashRemaining', $remaining)
+                ->where('byDay.0.expenses', 20)
+                ->where('byDay.0.cashRemaining', $remaining));
+    })->with([
+        'نقد من الكاشير' => ['cash_drawer', 20, 80],
+        'تحويل بنكي' => ['company_transfer', 0, 100],
+    ]);
+
     it('counts a cash deposit as cash even when the rest was paid by card', function () {
         $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد']);
         $card = PaymentMethod::factory()->create(['name' => 'شبكة']);

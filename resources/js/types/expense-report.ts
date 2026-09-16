@@ -3,6 +3,10 @@
 export interface ExpenseReportTotals {
     expenseCount: number;
     total: number;
+    /** ما دُفع من درج الكاشير (تاسك 110) */
+    cashTotal: number;
+    /** ما حُوِّل من حساب الشركة (تاسك 110) */
+    transferTotal: number;
     average: number;
     topCategoryName: string | null;
     topCategoryTotal: number;
@@ -32,6 +36,7 @@ export interface ExpenseReportRow {
     qty: number;
     unitPrice: number;
     total: number;
+    paidFromLabel: string;
     receiptReference: string | null;
     userName: string | null;
 }
