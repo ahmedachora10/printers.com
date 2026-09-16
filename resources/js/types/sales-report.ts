@@ -39,9 +39,7 @@ export interface SalesReportDayRow {
     cash: number;
     /** مصروفات اليوم من جدول expenses وحده (تاسك 87) */
     expenses: number;
-    /** ما دُفع منها من درج الكاشير (تاسك 110) */
-    cashExpenses: number;
-    /** cash − cashExpenses — قد يكون سالباً في يومٍ فيه مصروف نقدي بلا تحصيل نقدي */
+    /** cash − ما دُفع من درج الكاشير (تاسك 110) — قد يكون سالباً في يومٍ فيه مصروف نقدي بلا تحصيل نقدي */
     cashRemaining: number;
 }
 

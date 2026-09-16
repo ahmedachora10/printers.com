@@ -23,7 +23,6 @@ class ExpenseResource extends JsonResource
             'unitPrice' => (float) $this->unit_price,
             'total' => (float) $this->total,
             'paidFrom' => $this->paid_from->value,
-            'paidFromLabel' => $this->paid_from->label(),
             'supplierName' => $this->supplier_name,
             'receiptReference' => $this->receipt_reference,
             'comment' => $this->comment,

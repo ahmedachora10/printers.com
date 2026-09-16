@@ -127,7 +127,6 @@ class ExpenseReportController extends Controller
             'total' => $total,
             // تاسك 110: ما خرج من درج الكاشير، والباقي تحويلٌ من حساب الشركة.
             'cashTotal' => (float) $row->cash_total,
-            'transferTotal' => round($total - (float) $row->cash_total, 2),
             'average' => $count > 0 ? round($total / $count, 2) : 0.0,
         ];
     }

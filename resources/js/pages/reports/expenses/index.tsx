@@ -172,7 +172,7 @@ export default function ExpenseReportIndex({
                         label="إجمالي المصروفات"
                         value={formatCurrency(totals.total)}
                         valueClass="text-amber-600"
-                        hint={`من الكاشير ${formatCurrency(totals.cashTotal)} · بتحويل ${formatCurrency(totals.transferTotal)}`}
+                        hint={`من الكاشير ${formatCurrency(totals.cashTotal)} · بتحويل ${formatCurrency(totals.total - totals.cashTotal)}`}
                     />
                     <SummaryCard icon={<Receipt className="size-4" />} label="عدد العمليات" value={totals.expenseCount.toLocaleString('ar')} />
                     <SummaryCard icon={<Sigma className="size-4" />} label="متوسط العملية" value={formatCurrency(totals.average)} />

@@ -162,6 +162,8 @@ return [
         ],
     ],
 
-    'attributes' => [],
+    'attributes' => [
+        'paid_from' => 'مصدر دفع المصروف',
+    ],
 
 ];

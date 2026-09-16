@@ -25,12 +25,6 @@ class StoreExpenseRequest extends FormRequest
         }
     }
 
-    /** @return array<string, string> */
-    public function messages(): array
-    {
-        return ['paid_from.required' => 'حدّد مصدر دفع المصروف'];
-    }
-
     /** @return array<string, mixed> */
     public function rules(): array
     {
