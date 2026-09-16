@@ -6,6 +6,7 @@ use App\Actions\Report\ResolveReportScope;
 use App\Http\Controllers\Concerns\BuildsPagedProps;
 use App\Models\Branch;
 use App\Models\DeliveryProvider;
+use App\Models\ExpenseCategory;
 use App\Models\ServiceInvoice;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -20,9 +21,9 @@ use Inertia\Response;
  *
  * طلبه العميل ليعرف كل صباحٍ ما على كل سائق: كم طلباً، وإلى أين، وبكم.
  *
- * **قراءةٌ خالصة**: لا دفعات ولا أرصدة ولا حالة «سُدِّد». تسوية مستحقّات
- * السائقين استُثنيت صراحةً من هذه الدفعة، وأيّ عمودٍ يوحي بها هنا يفتح باباً
- * لنظام مناديب ثانٍ كامل (M26) من حيث لا يُقصد.
+ * تاسك 111: تسوية أجر السائق **لكل طلب** (DeliverySettlementController) — مصروفٌ
+ * مربوطٌ بالطلب لا رصيدٌ للسائق. ما زال خارج الكشف: أرصدة السائقين والدفعات
+ * المجمَّعة، وأيّ منهما يفتح باباً لنظام مناديب ثانٍ (M26).
  *
  * والاستعلام واحدٌ على `service_invoices` — التوصيل على الخدمات وحدها في هذه
  * المرحلة، فلا اتحاد مع جدول المنتجات ولا حاجة لأعمدة صفرية مقابلة.
@@ -40,6 +41,7 @@ class DeliveryLogController extends Controller
         $scope = $resolveScope->handle($request);
 
         $providerId = $request->filled('provider') ? (int) $request->input('provider') : null;
+        $settlement = $request->input('settlement');
 
         // ⚠️ كل عمودٍ مؤهَّلٌ باسم جدوله: `byProvider()` تضمّ `delivery_providers`
         // وفيه `branch_id` كذلك، فعمودٌ مجرَّد يجعل الاستعلام ملتبساً ويسقط.
@@ -50,6 +52,8 @@ class DeliveryLogController extends Controller
             ->whereNotIn('service_invoices.status', ['cancelled', 'returned'])
             ->when($scope['branchId'], fn ($q, $branchId) => $q->where('service_invoices.branch_id', $branchId))
             ->when($providerId, fn ($q, $id) => $q->where('service_invoices.shipping_provider_id', $id))
+            ->when($settlement === 'settled', fn ($q) => $q->whereHas('deliverySettlement'))
+            ->when($settlement === 'unsettled', fn ($q) => $q->whereDoesntHave('deliverySettlement'))
             // التاريخ بيوم إنشاء الطلب: الرحلة تتبع الطلب لا تحصيله.
             ->whereBetween('service_invoices.created_at', [$scope['from'], $scope['to']]);
 
@@ -59,6 +63,7 @@ class DeliveryLogController extends Controller
                 'shippingProvider:id,name,phone',
                 'shippingZone:id,name',
                 'branch:id,name',
+                'deliverySettlement.user:id,name',
             ])
             ->latest('service_invoices.created_at')
             ->paginate(self::PER_PAGE)
@@ -83,6 +88,15 @@ class DeliveryLogController extends Controller
                 'shippingFee' => (float) $invoice->shipping_fee,
                 'branchName' => $invoice->branch?->name,
                 'statusLabel' => $invoice->status->label(),
+                'branchId' => $invoice->branch_id,
+                // تاسك 111 — تسوية أجر السائق، مستقلةٌ عن حالة سداد العميل أعلاه.
+                'settlement' => $invoice->deliverySettlement ? [
+                    'expenseId' => $invoice->deliverySettlement->id,
+                    'amount' => (float) $invoice->deliverySettlement->total,
+                    'paidFromLabel' => $invoice->deliverySettlement->paid_from->label(),
+                    'settledByName' => $invoice->deliverySettlement->user?->name,
+                    'settledAt' => $invoice->deliverySettlement->created_at?->toIso8601String(),
+                ] : null,
             ]),
             'byProvider' => $byProvider,
             // الجُمل مقروءةٌ من صفوف السائقين نفسها — استعلامٌ ثالثٌ يعيد جمع
@@ -97,12 +111,14 @@ class DeliveryLogController extends Controller
                 ? Branch::query()->orderBy('name')->get(['id', 'name'])
                 : [],
             'isSuperAdmin' => $scope['isSuper'],
+            'expenseCategories' => ExpenseCategory::activeOptionsFor($scope['branchId']),
             'defaultDate' => now()->toDateString(),
             'filters' => [
                 'from' => $scope['from']->toDateString(),
                 'to' => $scope['to']->toDateString(),
                 'branch' => $scope['isSuper'] && $scope['branchId'] ? (string) $scope['branchId'] : null,
                 'provider' => $providerId ? (string) $providerId : null,
+                'settlement' => in_array($settlement, ['settled', 'unsettled'], true) ? $settlement : null,
             ],
         ]);
     }

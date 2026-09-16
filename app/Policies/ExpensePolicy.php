@@ -35,7 +35,9 @@ class ExpensePolicy
      */
     public function update(User $user, Expense $expense): bool
     {
-        return $this->view($user, $expense)
+        // تاسك 111: مصروف تسوية التوصيل يُدار من كشف التوصيل وحده.
+        return $expense->delivery_provider_id === null
+            && $this->view($user, $expense)
             && ($user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin() || ! $expense->isApproved());
     }
 
@@ -52,7 +54,8 @@ class ExpensePolicy
 
     public function unapprove(User $user, Expense $expense): bool
     {
-        return $this->approveAny($user) && $this->view($user, $expense) && $expense->isApproved();
+        return $expense->delivery_provider_id === null
+            && $this->approveAny($user) && $this->view($user, $expense) && $expense->isApproved();
     }
 
     public function approveAny(User $user): bool

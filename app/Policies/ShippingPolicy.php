@@ -41,6 +41,13 @@ class ShippingPolicy
         return $this->owns($user, $model);
     }
 
+    /** تاسك 111 — تسوية أجر السائق وإلغاؤها: من يرى كشف التوصيل، في فرع الطلب. */
+    public function settle(User $user, int $branchId): bool
+    {
+        return $user->roleName->isSuperAdmin()
+            || ($user->roleName->isBranchAdmin() && $user->branchId === $branchId);
+    }
+
     private function owns(User $user, DeliveryProvider|DeliveryZone $model): bool
     {
         if ($user->roleName->isSuperAdmin()) {

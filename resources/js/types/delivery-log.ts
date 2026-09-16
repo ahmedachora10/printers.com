@@ -1,4 +1,4 @@
-/** تاسك 93 — كشف توصيلات اليوم: متابعةٌ قراءةً فقط، بلا مستحقّات ولا تسوية. */
+/** تاسك 93 — كشف توصيلات اليوم. تاسك 111: وتسوية أجر السائق لكل طلب. */
 
 export interface DeliveryLogRow {
     id: number;
@@ -15,6 +15,15 @@ export interface DeliveryLogRow {
     shippingFee: number;
     branchName: string | null;
     statusLabel: string;
+    branchId: number;
+    /** تاسك 111 — null = غير مسوّاة. مستقلةٌ عن statusLabel (سداد العميل). */
+    settlement: {
+        expenseId: number;
+        amount: number;
+        paidFromLabel: string;
+        settledByName: string | null;
+        settledAt: string | null;
+    } | null;
 }
 
 /** صفٌّ لكل سائق على المدى كلّه — لا على الصفحة المعروضة. */
@@ -37,4 +46,5 @@ export interface DeliveryLogFilters {
     to: string | null;
     branch: string | null;
     provider: string | null;
+    settlement: 'settled' | 'unsettled' | null;
 }

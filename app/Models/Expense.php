@@ -26,6 +26,7 @@ class Expense extends Model implements HasMedia
         'expense_category_id',
         'branch_id',
         'service_invoice_id',
+        'delivery_provider_id',
         'user_id',
         'qty',
         'unit_price',

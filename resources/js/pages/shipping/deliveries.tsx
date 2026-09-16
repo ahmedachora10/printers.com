@@ -4,7 +4,14 @@ import DateRangeBar from '@/components/reports/date-range-bar';
 import { FilterSelect } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
 import { SummaryCard } from '@/components/reports/summary-card';
+import InputError from '@/components/input-error';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
@@ -15,9 +22,9 @@ import {
     type DeliveryLogRow,
     type DeliveryLogTotals,
 } from '@/types/delivery-log';
-import { Head, router } from '@inertiajs/react';
-import { Bike, Coins, Users } from 'lucide-react';
-import { useMemo } from 'react';
+import { Head, router, useForm } from '@inertiajs/react';
+import { Bike, Coins, HandCoins, Users, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'كشف التوصيل', href: '/shipping/deliveries' }];
 
@@ -30,33 +37,44 @@ interface Props {
     byProvider: DeliveryLogProviderRow[];
     totals: DeliveryLogTotals;
     providers: { id: number; name: string }[];
+    /** تاسك 111 — فئة مصروف التسوية؛ branchId null = عامة */
+    expenseCategories: { id: number; name: string; branchId: number | null }[];
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
     defaultDate: string;
     filters: DeliveryLogFilters;
 }
 
+const CATEGORY_KEY = 'delivery-settlement-category';
+
+const SOURCES = [
+    { value: 'cash_drawer', label: 'نقداً لدى المحاسب' },
+    { value: 'company_transfer', label: 'تحويل من حساب الشركة' },
+];
+
 /**
  * تاسك 93 — ما على كل سائق اليوم: كم رحلة، وإلى أين، وبكم.
  *
- * **متابعةٌ تشغيلية قراءةً فقط.** لا دفعات ولا أرصدة ولا زرّ «سُدِّد»: تسوية
- * مستحقّات السائقين استُثنيت من هذه الدفعة صراحةً، وزرٌّ واحد يوحي بها هنا
- * يفتح باباً لنظام مناديب ثانٍ كامل.
+ * تاسك 111: «استلام مبلغ التوصيل» لكل طلب — مصروفٌ مربوطٌ بالطلب. لا أرصدة
+ * للسائقين ولا دفعات مجمَّعة.
  */
 export default function DeliveriesIndex({
     deliveries,
     byProvider,
     totals,
     providers,
+    expenseCategories,
     branches,
     isSuperAdmin,
     defaultDate,
     filters,
 }: Props) {
     const canPickBranch = isSuperAdmin && branches.length > 0;
+    const [settling, setSettling] = useState<DeliveryLogRow | null>(null);
+    const [cancelling, setCancelling] = useState<DeliveryLogRow | null>(null);
 
     const defaults = useMemo<FilterValues>(
-        () => ({ from: defaultDate, to: defaultDate, branch: 'all', provider: 'all' }),
+        () => ({ from: defaultDate, to: defaultDate, branch: 'all', provider: 'all', settlement: 'all' }),
         [defaultDate],
     );
 
@@ -65,6 +83,7 @@ export default function DeliveriesIndex({
         to: filters.to ?? defaultDate,
         branch: filters.branch ?? 'all',
         provider: filters.provider ?? 'all',
+        settlement: filters.settlement ?? 'all',
     };
     const f = useReportFilters(REPORT_URL, applied, defaults);
 
@@ -76,6 +95,10 @@ export default function DeliveriesIndex({
     if (f.isActive('provider')) {
         const name = providers.find((p) => p.id.toString() === applied.provider)?.name ?? applied.provider;
         chips.push({ key: 'provider', label: `السائق: ${name}`, onRemove: () => f.remove('provider') });
+    }
+    if (f.isActive('settlement')) {
+        const label = applied.settlement === 'settled' ? 'مسوّاة' : 'غير مسوّاة';
+        chips.push({ key: 'settlement', label: `التسوية: ${label}`, onRemove: () => f.remove('settlement') });
     }
 
     const providerColumns = useMemo<ColumnDef<DeliveryLogProviderRow>[]>(
@@ -152,6 +175,31 @@ export default function DeliveriesIndex({
                 className: 'font-semibold',
                 cell: (row) => (row.shippingFee > 0 ? formatCurrency(row.shippingFee) : 'مجاني'),
             },
+            {
+                key: 'settlement',
+                header: 'تسوية السائق',
+                cell: (row) =>
+                    row.settlement ? (
+                        <div className="flex items-start gap-1">
+                            <div className="text-xs">
+                                <Badge variant="secondary" className="text-green-700">
+                                    مسوّاة — {formatCurrency(row.settlement.amount)}
+                                </Badge>
+                                <p className="text-muted-foreground mt-1">
+                                    {row.settlement.paidFromLabel} — {row.settlement.settledByName ?? '—'}
+                                    {row.settlement.settledAt && <> — {formatDateTime(row.settlement.settledAt)}</>}
+                                </p>
+                            </div>
+                            <Button variant="ghost" size="icon" className="size-7" title="إلغاء التسوية" onClick={() => setCancelling(row)}>
+                                <X className="size-3.5" />
+                            </Button>
+                        </div>
+                    ) : (
+                        <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setSettling(row)}>
+                            <HandCoins className="size-4" /> استلام مبلغ التوصيل
+                        </Button>
+                    ),
+            },
         ],
         [isSuperAdmin],
     );
@@ -181,6 +229,16 @@ export default function DeliveriesIndex({
                             onChange={(v) => f.setField('provider', v)}
                             allLabel="كل السائقين"
                             options={providers.map((p) => ({ value: p.id.toString(), label: p.name }))}
+                        />
+                        <FilterSelect
+                            label="تسوية السائق"
+                            value={f.draft.settlement}
+                            onChange={(v) => f.setField('settlement', v)}
+                            allLabel="الكل"
+                            options={[
+                                { value: 'unsettled', label: 'غير مسوّاة' },
+                                { value: 'settled', label: 'مسوّاة' },
+                            ]}
                         />
                     </FilterModal>
                 </div>
@@ -236,6 +294,136 @@ export default function DeliveriesIndex({
                     </CardContent>
                 </Card>
             </div>
+
+            {settling && (
+                <SettleDialog
+                    row={settling}
+                    categories={expenseCategories.filter((c) => c.branchId === null || c.branchId === settling.branchId)}
+                    onClose={() => setSettling(null)}
+                />
+            )}
+            {cancelling?.settlement && <CancelDialog row={cancelling} onClose={() => setCancelling(null)} />}
         </AppLayout>
+    );
+}
+
+function SettleDialog({ row, categories, onClose }: { row: DeliveryLogRow; categories: Props['expenseCategories']; onClose: () => void }) {
+    // آخر فئةٍ اختارها هذا المستخدم — تيسيرٌ محليّ لا يُعتمد عليه.
+    const remembered = (() => {
+        try {
+            return localStorage.getItem(CATEGORY_KEY) ?? '';
+        } catch {
+            return '';
+        }
+    })();
+    const { data, setData, post, processing, errors } = useForm({
+        amount: row.shippingFee > 0 ? String(row.shippingFee) : '',
+        paid_from: '',
+        expense_category_id: categories.some((c) => String(c.id) === remembered) ? remembered : '',
+    });
+
+    function submit(e: React.FormEvent) {
+        e.preventDefault();
+        try {
+            localStorage.setItem(CATEGORY_KEY, data.expense_category_id);
+        } catch {
+            /* التخزين المحلي غير متاح */
+        }
+        post(`/shipping/deliveries/${row.id}/settle`, { preserveScroll: true, onSuccess: onClose });
+    }
+
+    return (
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>
+                        استلام مبلغ التوصيل — <span dir="ltr">{row.invoiceNumber}</span>
+                    </DialogTitle>
+                </DialogHeader>
+                <form id="settle-form" onSubmit={submit} className="space-y-4">
+                    <p className="text-muted-foreground text-sm">السائق: {row.providerName ?? '—'}</p>
+                    <div className="space-y-1">
+                        <Label htmlFor="settle-amount">المبلغ (ر.س)</Label>
+                        <Input id="settle-amount" type="number" min="0.01" step="0.01" dir="ltr" value={data.amount} onChange={(e) => setData('amount', e.target.value)} />
+                        <InputError message={errors.amount} />
+                    </div>
+                    <div className="space-y-1">
+                        <Label>طريقة التسوية</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                            {SOURCES.map((s) => (
+                                <Button
+                                    key={s.value}
+                                    type="button"
+                                    variant={data.paid_from === s.value ? 'default' : 'outline'}
+                                    aria-pressed={data.paid_from === s.value}
+                                    onClick={() => setData('paid_from', s.value)}
+                                >
+                                    {s.label}
+                                </Button>
+                            ))}
+                        </div>
+                        <InputError message={errors.paid_from} />
+                    </div>
+                    <div className="space-y-1">
+                        <Label>فئة المصروف</Label>
+                        <Select value={data.expense_category_id} onValueChange={(v) => setData('expense_category_id', v)}>
+                            <SelectTrigger>
+                                <SelectValue placeholder="اختر الفئة" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {categories.map((c) => (
+                                    <SelectItem key={c.id} value={String(c.id)}>
+                                        {c.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <InputError message={errors.expense_category_id} />
+                    </div>
+                </form>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose} disabled={processing}>
+                        إلغاء
+                    </Button>
+                    <Button type="submit" form="settle-form" disabled={processing}>
+                        تسجيل الاستلام
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function CancelDialog({ row, onClose }: { row: DeliveryLogRow; onClose: () => void }) {
+    const form = useForm({ reason: '' });
+
+    return (
+        <Dialog open onOpenChange={(open) => !open && onClose()}>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>
+                        إلغاء تسوية <span dir="ltr">{row.invoiceNumber}</span>
+                    </DialogTitle>
+                </DialogHeader>
+                <p className="text-muted-foreground text-sm">يُحذف مصروف التسوية ويُتاح تسجيل الاستلام من جديد. السبب يُحفظ في السجلّ.</p>
+                <div className="space-y-1">
+                    <Label htmlFor="cancel-reason">السبب</Label>
+                    <Input id="cancel-reason" value={form.data.reason} onChange={(e) => form.setData('reason', e.target.value)} />
+                    <InputError message={form.errors.reason} />
+                </div>
+                <DialogFooter>
+                    <Button variant="outline" onClick={onClose} disabled={form.processing}>
+                        تراجع
+                    </Button>
+                    <Button
+                        variant="destructive"
+                        disabled={form.processing}
+                        onClick={() => form.delete(`/shipping/settlements/${row.settlement!.expenseId}`, { preserveScroll: true, onSuccess: onClose })}
+                    >
+                        إلغاء التسوية
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }

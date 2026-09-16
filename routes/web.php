@@ -21,6 +21,7 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryLogController;
+use App\Http\Controllers\DeliverySettlementController;
 use App\Http\Controllers\DeliveryProviderController;
 use App\Http\Controllers\DeliveryZoneController;
 use App\Http\Controllers\DeployController;
@@ -543,6 +544,11 @@ Route::middleware(['auth'])->group(function () {
         // تاسك 93 — كشف توصيلات اليوم: متابعةٌ تشغيلية قراءةً فقط.
         Route::get('shipping/deliveries', [DeliveryLogController::class, 'index'])
             ->name('shipping.deliveries');
+        // تاسك 111 — تسوية أجر السائق لكل طلب.
+        Route::post('shipping/deliveries/{invoice}/settle', [DeliverySettlementController::class, 'store'])
+            ->name('shipping.deliveries.settle');
+        Route::delete('shipping/settlements/{expense}', [DeliverySettlementController::class, 'destroy'])
+            ->name('shipping.settlements.destroy');
 
         Route::patch('delivery-providers/{deliveryProvider}/toggle-status', [DeliveryProviderController::class, 'toggleStatus'])
             ->name('delivery-providers.toggle-status');

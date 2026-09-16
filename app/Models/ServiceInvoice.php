@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
@@ -198,6 +199,17 @@ class ServiceInvoice extends Model implements HasMedia
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class);
+    }
+
+    /**
+     * تاسك 111 — تسوية أجر السائق السارية: مصروفٌ يحمل مزوّد التوصيل (المحذوف
+     * ناعماً = ملغاة).
+     *
+     * @return HasOne<Expense, $this>
+     */
+    public function deliverySettlement(): HasOne
+    {
+        return $this->hasOne(Expense::class)->whereNotNull('delivery_provider_id');
     }
 
     /** @return HasMany<ServiceInvoiceLine, $this> */
