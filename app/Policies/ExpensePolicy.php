@@ -17,9 +17,11 @@ class ExpensePolicy
             || $user->roleName->isAccountant();
     }
 
+    /** تاسك 112: المرفق يُفتح بهذه الصلاحية، فلا يصل مستخدمُ فرعٍ آخر إلى مستند فرعٍ غيره. */
     public function view(User $user, Expense $expense): bool
     {
-        return $this->viewAny($user);
+        return $this->viewAny($user)
+            && ($user->roleName->isSuperAdmin() || $user->branchId === $expense->branch_id);
     }
 
     public function create(User $user): bool

@@ -14,7 +14,17 @@ class CreateExpenseAction
         // non super-admins, chosen branch for super-admin).
         $data['user_id'] = auth()->id();
         $data['total'] = bcmul((string) $data['qty'], (string) $data['unit_price'], 2);
+        $attachment = $data['attachment'] ?? null;
+        unset($data['attachment'], $data['remove_attachment']);
 
-        return DB::transaction(fn () => Expense::create($data));
+        return DB::transaction(function () use ($data, $attachment) {
+            $expense = Expense::create($data);
+
+            if ($attachment) {
+                $expense->addMedia($attachment)->toMediaCollection(Expense::ATTACHMENT);
+            }
+
+            return $expense;
+        });
     }
 }

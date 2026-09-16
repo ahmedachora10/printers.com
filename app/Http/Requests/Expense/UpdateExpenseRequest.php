@@ -29,6 +29,10 @@ class UpdateExpenseRequest extends FormRequest
             'supplier_name' => ['nullable', 'string', 'max:255'],
             'receipt_reference' => ['nullable', 'string', 'max:255'],
             'comment' => ['nullable', 'string', 'max:1000'],
+            // تاسك 112: مستند إثبات + ربطٌ اختياري بطلبٍ من فرع المصروف نفسه.
+            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
+            'remove_attachment' => ['boolean'],
+            'service_invoice_id' => ['nullable', 'integer', Rule::exists('service_invoices', 'id')->where('branch_id', $branchId)->whereNull('deleted_at')],
             'date' => ['required', 'date'],
         ];
     }

@@ -190,6 +190,16 @@ class ServiceInvoice extends Model implements HasMedia
         return $this->belongsTo(PaymentMethod::class);
     }
 
+    /**
+     * تاسك 112 — المصروفات المربوطة بهذا الطلب (توصيل، خامات، مشتريات).
+     *
+     * @return HasMany<Expense, $this>
+     */
+    public function expenses(): HasMany
+    {
+        return $this->hasMany(Expense::class);
+    }
+
     /** @return HasMany<ServiceInvoiceLine, $this> */
     public function lines(): HasMany
     {

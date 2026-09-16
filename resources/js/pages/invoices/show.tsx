@@ -749,6 +749,45 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                     </Card>
                 </div>
 
+                {/* تاسك 112: المصروفات المربوطة بالطلب — داخلية، لمن يدير المصروفات. */}
+                {invoice.linkedExpenses.length > 0 && (
+                    <Card className="mt-6">
+                        <CardHeader>
+                            <CardTitle className="flex items-center justify-between gap-2 text-base">
+                                <span>مصروفات مرتبطة</span>
+                                <span className="text-amber-600" dir="ltr">
+                                    {formatCurrency(invoice.linkedExpenses.reduce((sum, e) => sum + e.total, 0))}
+                                </span>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="divide-y">
+                            {invoice.linkedExpenses.map((expense) => (
+                                <div key={expense.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                                    <span className="font-medium">{expense.categoryName ?? '—'}</span>
+                                    <span className="text-muted-foreground">
+                                        {expense.date} — {expense.paidFromLabel}
+                                    </span>
+                                    <span className="flex items-center gap-3">
+                                        {expense.attachmentUrl && (
+                                            <a
+                                                href={expense.attachmentUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-primary inline-flex items-center gap-1 hover:underline"
+                                            >
+                                                <Paperclip className="size-3.5" /> المرفق
+                                            </a>
+                                        )}
+                                        <span className="font-semibold" dir="ltr">
+                                            {formatCurrency(expense.total)}
+                                        </span>
+                                    </span>
+                                </div>
+                            ))}
+                        </CardContent>
+                    </Card>
+                )}
+
                 {/* تاسك 100: المحادثة الداخلية — مؤجَّلة فلا تنتظرها الصفحة. */}
                 {hasThread && (
                     <Deferred data="thread" fallback={<Skeleton className="h-40 w-full" />}>

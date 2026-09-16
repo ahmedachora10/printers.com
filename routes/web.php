@@ -215,6 +215,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('refunds', [RefundController::class, 'index'])->name('refunds.index');
         Route::post('refunds', [RefundController::class, 'store'])->name('refunds.store');
 
+        Route::get('expenses/invoice-options', [ExpenseController::class, 'invoiceOptions'])->name('expenses.invoice-options');
+        Route::get('expenses/{expense}/attachment', [ExpenseController::class, 'attachment'])->name('expenses.attachment');
         Route::resource('expenses', ExpenseController::class)
             ->only(['index', 'store', 'update', 'destroy']);
     });

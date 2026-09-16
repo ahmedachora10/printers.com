@@ -123,6 +123,15 @@ export interface Invoice {
     statusLabel: string;
     /** ملاحظة داخلية — فواتير المنتجات وحدها؛ الخدمات صارت محادثة (تاسك 100). null لمن لا يملك رؤيتها ولكل ورقة طباعة */
     internalNotes: string | null;
+    /** تاسك 112 — المصروفات المربوطة؛ فارغة لمن لا يدير المصروفات وفي الطباعة */
+    linkedExpenses: {
+        id: number;
+        categoryName: string | null;
+        total: number;
+        date: string;
+        paidFromLabel: string;
+        attachmentUrl: string | null;
+    }[];
     canEditInternalNotes: boolean;
     /** Why a reviewer rejected the invoice — service invoices only. */
     cancellationReason: string | null;

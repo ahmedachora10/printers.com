@@ -10,6 +10,7 @@ use App\Enums\InvoiceTypeEnum;
 use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
 use App\Models\Branch;
+use App\Models\Expense;
 use App\Models\InvoiceMessage;
 use App\Models\InvoicePayment;
 use App\Models\PaymentMethod;
@@ -217,6 +218,11 @@ class InvoiceController extends Controller
         // several via the pivot, plus the per-line commission owners.
         if ($invoice instanceof ServiceInvoice) {
             $invoice->load('invoiceAgents.agent:id,name', 'lines.lineAgent:id,name', 'cancelledBy:id,name', 'deliveredBy:id,name', 'shippingProvider:id,name,phone', 'shippingZone:id,name');
+
+            // تاسك 112: المصروفات المربوطة — لمن يدير المصروفات وحده (لا الموظف ولا المندوب).
+            if (Gate::allows('viewAny', Expense::class)) {
+                $invoice->load(['expenses' => fn ($q) => $q->with(['category:id,name', 'media'])->oldest('date')]);
+            }
         } else {
             $invoice->load('agent:id,name');
         }

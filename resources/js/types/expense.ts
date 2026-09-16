@@ -13,6 +13,11 @@ export interface Expense {
     supplierName: string | null;
     receiptReference: string | null;
     comment: string | null;
+    /** تاسك 112 — المرفق عبر مسارٍ مفوَّض، والطلب المربوط */
+    attachmentName: string | null;
+    attachmentUrl: string | null;
+    serviceInvoiceId: number | null;
+    invoiceNumber: string | null;
     date: string;
     dateLabel: string;
     userName: string | null;

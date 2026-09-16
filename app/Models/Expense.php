@@ -10,15 +10,22 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
-class Expense extends Model
+class Expense extends Model implements HasMedia
 {
     /** @use HasFactory<ExpenseFactory> */
-    use HasFactory, LogsActivity, SoftDeletes;
+    use HasFactory, InteractsWithMedia, LogsActivity, SoftDeletes;
+
+    /** تاسك 112 — مستند إثبات المصروف، ملفٌّ واحد على القرص الخاص. */
+    public const ATTACHMENT = 'attachment';
 
     protected $fillable = [
         'expense_category_id',
         'branch_id',
+        'service_invoice_id',
         'user_id',
         'qty',
         'unit_price',
@@ -26,7 +33,6 @@ class Expense extends Model
         'paid_from',
         'supplier_name',
         'receipt_reference',
-        'receipt_path',
         'comment',
         'date',
     ];
@@ -42,6 +48,25 @@ class Expense extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()->logFillable()->useLogName('expenses');
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection(self::ATTACHMENT)
+            ->singleFile()
+            ->useDisk('local')
+            ->acceptsMimeTypes(ServiceInvoice::RECEIPT_MIME_TYPES);
+    }
+
+    public function attachment(): ?Media
+    {
+        return $this->getFirstMedia(self::ATTACHMENT);
+    }
+
+    /** @return BelongsTo<ServiceInvoice, $this> */
+    public function invoice(): BelongsTo
+    {
+        return $this->belongsTo(ServiceInvoice::class, 'service_invoice_id');
     }
 
     /** @return BelongsTo<ExpenseCategory, $this> */

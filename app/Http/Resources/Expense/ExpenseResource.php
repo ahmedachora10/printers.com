@@ -26,6 +26,11 @@ class ExpenseResource extends JsonResource
             'supplierName' => $this->supplier_name,
             'receiptReference' => $this->receipt_reference,
             'comment' => $this->comment,
+            // تاسك 112: المرفق عبر مسارٍ مفوَّض لا رابطٍ عام، والطلب المربوط.
+            'attachmentName' => $this->attachment()?->file_name,
+            'attachmentUrl' => $this->attachment() ? route('expenses.attachment', $this->id) : null,
+            'serviceInvoiceId' => $this->service_invoice_id,
+            'invoiceNumber' => $this->invoice?->invoice_number,
             'date' => $this->date->format('Y-m-d'),
             'dateLabel' => $this->date->format('d/m/Y'),
             'userName' => $this->user?->name,

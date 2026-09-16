@@ -5,18 +5,22 @@ namespace App\Http\Controllers;
 use App\Actions\Expense\CreateExpenseAction;
 use App\Actions\Expense\DeleteExpenseAction;
 use App\Actions\Expense\UpdateExpenseAction;
+use App\Enums\InvoiceStatusEnum;
 use App\Http\Requests\Expense\StoreExpenseRequest;
 use App\Http\Requests\Expense\UpdateExpenseRequest;
 use App\Http\Resources\Expense\ExpenseResource;
 use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\ServiceInvoice;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as FileResponse;
 
 class ExpenseController extends Controller
 {
@@ -38,7 +42,7 @@ class ExpenseController extends Controller
             ->when($to, fn ($q) => $q->whereDate('date', '<=', $to));
 
         $items = (clone $base)
-            ->with(['category', 'user'])
+            ->with(['category', 'user', 'media', 'invoice:id,invoice_number'])
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->paginate(15)
@@ -90,6 +94,49 @@ class ExpenseController extends Controller
         $today = Carbon::today()->toDateString();
 
         return [$request->input('from') ?: $today, $request->input('to') ?: $today];
+    }
+
+    /** تاسك 112 — مرفق المصروف من القرص الخاص، مفوَّضاً بصلاحية العرض (فرع المصروف). */
+    public function attachment(Expense $expense, Request $request): FileResponse
+    {
+        Gate::authorize('view', $expense);
+
+        $media = $expense->attachment();
+        abort_if($media === null, 404);
+
+        return $media->toInlineResponse($request);
+    }
+
+    /**
+     * تاسك 112 — بحث «ربط بفاتورة/طلب»: فواتير خدمات فرع المصروف برقمها أو
+     * اسم عميلها. السوبر أدمن يمرّر فرع النافذة، وغيره مقيَّدٌ بفرعه.
+     */
+    public function invoiceOptions(Request $request): JsonResponse
+    {
+        Gate::authorize('create', Expense::class);
+
+        $user = $request->user();
+        $branchId = $user->roleName->isSuperAdmin() ? $request->integer('branch_id') : $user->branchId;
+        $q = (string) $request->query('q', '');
+
+        $invoices = ServiceInvoice::query()
+            ->with('customer:id,full_name')
+            ->where('branch_id', $branchId)
+            ->where('status', '!=', InvoiceStatusEnum::CANCELLED)
+            ->when($q !== '', fn ($query) => $query->where(fn ($w) => $w
+                ->where('invoice_number', 'like', "%{$q}%")
+                ->orWhereHas('customer', fn ($c) => $c->where('full_name', 'like', "%{$q}%"))))
+            ->latest('id')
+            ->limit(20)
+            ->get(['id', 'invoice_number', 'customer_id', 'total_amount', 'created_at']);
+
+        return response()->json(['data' => $invoices->map(fn (ServiceInvoice $invoice) => [
+            'id' => $invoice->id,
+            'invoiceNumber' => $invoice->invoice_number,
+            'customerName' => $invoice->customer?->full_name,
+            'total' => (float) $invoice->total_amount,
+            'date' => $invoice->created_at->format('d/m/Y'),
+        ])]);
     }
 
     public function store(StoreExpenseRequest $request, CreateExpenseAction $action): RedirectResponse

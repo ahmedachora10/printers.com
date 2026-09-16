@@ -1,5 +1,7 @@
 import { store, update } from '@/actions/App/Http/Controllers/ExpenseController';
+import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -12,7 +14,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Expense, type ExpenseSource } from '@/types/expense';
 import { useForm } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import InputError from '../input-error';
 
 interface Category {
@@ -40,6 +42,8 @@ const SOURCES: { value: ExpenseSource; label: string }[] = [
     { value: 'company_transfer', label: 'تحويل بنكي من حساب الشركة' },
 ];
 
+const NO_INVOICE: AsyncOption = { value: 'none', label: '— بلا ربط —' };
+
 function todayIso(): string {
     return new Date().toISOString().slice(0, 10);
 }
@@ -48,7 +52,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
     const isEdit = !!expense;
     const isSuperAdmin = Array.isArray(branches);
 
-    const { data, setData, post, put, processing, errors, reset } = useForm({
+    const { data, setData, post, transform, processing, errors, reset } = useForm({
         branch_id: expense?.branchId?.toString() ?? (branches?.[0]?.id?.toString() ?? ''),
         expense_category_id: expense?.expenseCategoryId?.toString() ?? '',
         qty:                 expense?.qty?.toString() ?? '1',
@@ -59,7 +63,12 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         receipt_reference:   expense?.receiptReference ?? '',
         comment:             expense?.comment ?? '',
         date:                expense?.date ?? todayIso(),
+        // تاسك 112
+        service_invoice_id:  expense?.serviceInvoiceId?.toString() ?? '',
+        attachment:          null as File | null,
+        remove_attachment:   false as boolean,
     });
+    const [invoiceLabel, setInvoiceLabel] = useState(expense?.invoiceNumber ?? '');
 
     useEffect(() => {
         if (expense) {
@@ -73,7 +82,11 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                 receipt_reference:   expense.receiptReference ?? '',
                 comment:             expense.comment ?? '',
                 date:                expense.date ?? todayIso(),
+                service_invoice_id:  expense.serviceInvoiceId?.toString() ?? '',
+                attachment:          null,
+                remove_attachment:   false,
             });
+            setInvoiceLabel(expense.invoiceNumber ?? '');
         } else {
             reset();
         }
@@ -81,6 +94,20 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
 
     // السوبر أدمن يستلم فئات كل الفروع؛ يُعرض منها العام وما يخصّ الفرع المختار.
     const branchCategories = isSuperAdmin ? categories.filter((c) => c.branchId === null || c.branchId.toString() === data.branch_id) : categories;
+
+    // فواتير خدمات فرع المصروف — السوبر أدمن يمرّر الفرع المختار في النافذة.
+    const fetchInvoices = useCallback(
+        async (q: string): Promise<AsyncOption[]> => {
+            const params = new URLSearchParams({ q, branch_id: data.branch_id });
+            const res = await fetch(`/expenses/invoice-options?${params}`, {
+                headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            });
+            if (!res.ok) return [];
+            const json = (await res.json()) as { data: { id: number; invoiceNumber: string; customerName: string | null; date: string }[] };
+            return json.data.map((i) => ({ value: String(i.id), label: `${i.invoiceNumber} — ${i.customerName ?? 'عميل نقدي'} — ${i.date}`, data: i }));
+        },
+        [data.branch_id],
+    );
 
     const total = (parseFloat(data.qty || '0') * parseFloat(data.unit_price || '0') || 0).toLocaleString('en-US', {
         minimumFractionDigits: 2,
@@ -91,7 +118,9 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         e.preventDefault();
 
         if (isEdit) {
-            put(update.url(expense), {
+            // الملفّ multipart، وPHP لا يقرأ ملفات PUT — فـPOST بـ_method.
+            transform((d) => ({ ...d, _method: 'put' }));
+            post(update.url(expense), {
                 preserveScroll: true,
                 onSuccess: () => { onOpenChange(false); reset(); },
             });
@@ -252,6 +281,47 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                                 dir="ltr"
                             />
                             <InputError message={errors.receipt_reference} />
+                        </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="space-y-1">
+                            <Label>ربط بفاتورة/طلب</Label>
+                            <AsyncCombobox
+                                fetcher={fetchInvoices}
+                                value={data.service_invoice_id || NO_INVOICE.value}
+                                selectedLabel={invoiceLabel}
+                                onChange={(value, option) => {
+                                    setData('service_invoice_id', value === NO_INVOICE.value ? '' : value);
+                                    setInvoiceLabel(option?.label.split(' — ')[0] ?? '');
+                                }}
+                                sentinel={NO_INVOICE}
+                                searchPlaceholder="رقم الفاتورة أو اسم العميل"
+                                emptyText="لا توجد فاتورة مطابقة"
+                                triggerClassName="w-full"
+                                className="w-[var(--radix-popover-trigger-width)] min-w-64"
+                            />
+                            <InputError message={errors.service_invoice_id} />
+                        </div>
+
+                        <div className="space-y-1">
+                            <Label htmlFor="exp-attachment">المرفق</Label>
+                            <Input
+                                id="exp-attachment"
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp,application/pdf"
+                                onChange={(e) => setData('attachment', e.target.files?.[0] ?? null)}
+                            />
+                            {expense?.attachmentUrl && !data.attachment && (
+                                <label className="text-muted-foreground flex items-center gap-2 text-xs">
+                                    <Checkbox
+                                        checked={data.remove_attachment}
+                                        onCheckedChange={(v) => setData('remove_attachment', v === true)}
+                                    />
+                                    إزالة المرفق الحالي ({expense.attachmentName})
+                                </label>
+                            )}
+                            <InputError message={errors.attachment} />
                         </div>
                     </div>
 

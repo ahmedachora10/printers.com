@@ -12,8 +12,8 @@ import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters'
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type Expense, type PaginatedExpense } from '@/types/expense';
-import { router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Link, router } from '@inertiajs/react';
+import { Paperclip, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'المصروفات', href: '/expenses' }];
@@ -117,6 +117,26 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                 key: 'total',
                 header: 'الإجمالي',
                 cell: (item) => <span className="font-semibold tabular-nums">{formatSar(item.total)}</span>,
+            },
+            {
+                key: 'links',
+                header: 'المرفق / الطلب',
+                cell: (item) => (
+                    <div className="flex items-center gap-2 whitespace-nowrap">
+                        {/* وسمٌ عارٍ لا Link: الوجهة ملفٌ من القرص الخاص لا صفحة Inertia. */}
+                        {item.attachmentUrl && (
+                            <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" title={item.attachmentName ?? 'المرفق'} className="text-primary">
+                                <Paperclip className="size-4" />
+                            </a>
+                        )}
+                        {item.serviceInvoiceId && (
+                            <Link href={`/invoices/service/${item.serviceInvoiceId}`} className="text-primary hover:underline" dir="ltr">
+                                {item.invoiceNumber}
+                            </Link>
+                        )}
+                        {!item.attachmentUrl && !item.serviceInvoiceId && '—'}
+                    </div>
+                ),
             },
             {
                 key: 'paidFrom',
@@ -288,6 +308,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                             <TableCell />
                             <TableCell />
                             <TableCell className="font-bold tabular-nums">{formatSar(periodTotal)}</TableCell>
+                            <TableCell />
                             <TableCell />
                             <TableCell />
                             <TableCell />

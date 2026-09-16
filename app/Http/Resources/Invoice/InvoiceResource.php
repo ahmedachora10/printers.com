@@ -4,6 +4,7 @@ namespace App\Http\Resources\Invoice;
 
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
+use App\Models\Expense;
 use App\Models\InvoicePayment;
 use App\Models\ProductInvoice;
 use App\Models\Refund;
@@ -198,6 +199,18 @@ class InvoiceResource extends JsonResource
             'lines' => $this->whenLoaded('lines', fn () => $this->lines->map(
                 fn ($line) => (new InvoiceLineResource($line))->showingInternalCosts($this->showsInternalCostsTo($request)),
             )->values()),
+            // تاسك 112: تُحمَّل في InvoiceController::show() لمن يدير المصروفات
+            // وحده، ولا تصل الطباعة.
+            'linkedExpenses' => ! $this->hidesInternalCosts && $this->relationLoaded('expenses')
+                ? $this->expenses->map(fn (Expense $expense) => [
+                    'id' => $expense->id,
+                    'categoryName' => $expense->category?->name,
+                    'total' => (float) $expense->total,
+                    'date' => $expense->date->format('d/m/Y'),
+                    'paidFromLabel' => $expense->paid_from->label(),
+                    'attachmentUrl' => $expense->attachment() ? route('expenses.attachment', $expense->id) : null,
+                ])->values()->all()
+                : [],
             'refundedTotal' => $refundedTotal,
             'refundableRemaining' => $refundableRemaining,
             'isFullyRefunded' => $refundedTotal > 0 && $refundableRemaining <= 0,

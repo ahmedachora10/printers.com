@@ -28,7 +28,6 @@ class ExpenseFactory extends Factory
             'paid_from' => 'cash_drawer',
             'supplier_name' => fake()->company(),
             'receipt_reference' => fake()->bothify('REF-####'),
-            'receipt_path' => null,
             'comment' => fake()->optional()->sentence(),
             'date' => fake()->dateTimeBetween('-3 months', 'now')->format('Y-m-d'),
         ];
