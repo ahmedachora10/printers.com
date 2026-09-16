@@ -46,5 +46,4 @@ export interface DeliveryLogFilters {
     to: string | null;
     branch: string | null;
     provider: string | null;
-    settlement: 'settled' | 'unsettled' | null;
 }

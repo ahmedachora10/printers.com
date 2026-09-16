@@ -41,7 +41,6 @@ class DeliveryLogController extends Controller
         $scope = $resolveScope->handle($request);
 
         $providerId = $request->filled('provider') ? (int) $request->input('provider') : null;
-        $settlement = $request->input('settlement');
 
         // ⚠️ كل عمودٍ مؤهَّلٌ باسم جدوله: `byProvider()` تضمّ `delivery_providers`
         // وفيه `branch_id` كذلك، فعمودٌ مجرَّد يجعل الاستعلام ملتبساً ويسقط.
@@ -52,8 +51,6 @@ class DeliveryLogController extends Controller
             ->whereNotIn('service_invoices.status', ['cancelled', 'returned'])
             ->when($scope['branchId'], fn ($q, $branchId) => $q->where('service_invoices.branch_id', $branchId))
             ->when($providerId, fn ($q, $id) => $q->where('service_invoices.shipping_provider_id', $id))
-            ->when($settlement === 'settled', fn ($q) => $q->whereHas('deliverySettlement'))
-            ->when($settlement === 'unsettled', fn ($q) => $q->whereDoesntHave('deliverySettlement'))
             // التاريخ بيوم إنشاء الطلب: الرحلة تتبع الطلب لا تحصيله.
             ->whereBetween('service_invoices.created_at', [$scope['from'], $scope['to']]);
 
@@ -118,7 +115,6 @@ class DeliveryLogController extends Controller
                 'to' => $scope['to']->toDateString(),
                 'branch' => $scope['isSuper'] && $scope['branchId'] ? (string) $scope['branchId'] : null,
                 'provider' => $providerId ? (string) $providerId : null,
-                'settlement' => in_array($settlement, ['settled', 'unsettled'], true) ? $settlement : null,
             ],
         ]);
     }
