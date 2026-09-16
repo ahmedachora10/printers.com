@@ -15,7 +15,7 @@ class CreateExpenseAction
         $data['user_id'] = auth()->id();
         $data['total'] = bcmul((string) $data['qty'], (string) $data['unit_price'], 2);
         $attachment = $data['attachment'] ?? null;
-        unset($data['attachment'], $data['remove_attachment']);
+        unset($data['attachment']);
 
         return DB::transaction(function () use ($data, $attachment) {
             $expense = Expense::create($data);

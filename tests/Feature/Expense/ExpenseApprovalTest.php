@@ -1,0 +1,105 @@
+<?php
+
+use App\Enums\Roles;
+use App\Models\Branch;
+use App\Models\Expense;
+use App\Models\ExpenseCategory;
+use App\Models\User;
+use Database\Seeders\RolesAndPermissionsSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Spatie\Activitylog\Models\Activity;
+
+uses(RefreshDatabase::class);
+
+/**
+ * تاسك 113 — المحاسب يسجّل ويعدّل ويحذف قبل الاعتماد وحده؛ مدير الفرع يعتمد
+ * (فردياً أو كل ما تحت الفلاتر) ويعدّل المعتمد بسجلّ القديم والجديد.
+ */
+describe('Expense approval', function () {
+    beforeEach(function () {
+        $this->withoutVite();
+        $this->seed(RolesAndPermissionsSeeder::class);
+
+        $this->branchAdmin = User::factory()->create();
+        $this->branchAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        $this->branch = Branch::factory()->create(['owner_id' => $this->branchAdmin->id]);
+        $this->branchAdmin->update(['branch_id' => $this->branch->id]);
+
+        $this->accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $this->accountant->addRole(Roles::ACCOUNTANT->value);
+
+        $this->category = ExpenseCategory::factory()->create();
+
+        $this->makeExpense = fn (array $overrides = []) => Expense::factory()->create([
+            'branch_id' => $this->branch->id,
+            'expense_category_id' => $this->category->id,
+            'user_id' => $this->accountant->id,
+            'date' => today()->toDateString(),
+            ...$overrides,
+        ]);
+
+        $this->payload = [
+            'expense_category_id' => $this->category->id,
+            'qty' => 2,
+            'unit_price' => 10,
+            'paid_from' => 'cash_drawer',
+            'date' => today()->toDateString(),
+        ];
+    });
+
+    it('lets the accountant edit and delete until the expense is approved', function () {
+        $expense = ($this->makeExpense)();
+
+        $this->actingAs($this->accountant)->put(route('expenses.update', $expense), $this->payload)->assertSessionHasNoErrors();
+        $this->actingAs($this->accountant)->post(route('expenses.approve', $expense))->assertForbidden();
+
+        $this->actingAs($this->branchAdmin)->post(route('expenses.approve', $expense))->assertRedirect();
+        expect($expense->fresh())
+            ->isApproved()->toBeTrue()
+            ->approved_by->toBe($this->branchAdmin->id);
+
+        $this->actingAs($this->accountant)->put(route('expenses.update', $expense), $this->payload)->assertForbidden();
+        $this->actingAs($this->accountant)->delete(route('expenses.destroy', $expense))->assertForbidden();
+    });
+
+    it('lets the branch admin edit an approved expense and logs old and new values', function () {
+        $expense = ($this->makeExpense)(['qty' => 1, 'unit_price' => 10, 'total' => 10]);
+        $this->actingAs($this->branchAdmin)->post(route('expenses.approve', $expense));
+
+        $this->actingAs($this->branchAdmin)
+            ->put(route('expenses.update', $expense), [...$this->payload, 'qty' => 3])
+            ->assertSessionHasNoErrors();
+
+        $log = Activity::query()->forSubject($expense)->where('event', 'updated')->latest('id')->firstOrFail();
+        expect((float) $log->properties['old']['total'])->toBe(10.0)
+            ->and((float) $log->properties['attributes']['total'])->toBe(30.0)
+            ->and($log->causer_id)->toBe($this->branchAdmin->id);
+
+        $this->actingAs($this->branchAdmin)->get(route('expenses.index'))
+            ->assertInertia(fn ($page) => $page->has('items.data.0.history', 1));
+    });
+
+    it('approves every pending expense under the current filters and nothing else', function () {
+        $today = ($this->makeExpense)();
+        $yesterday = ($this->makeExpense)(['date' => today()->subDay()->toDateString()]);
+
+        $otherAdmin = User::factory()->create();
+        $otherAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        $otherBranch = Branch::factory()->create(['owner_id' => $otherAdmin->id]);
+        $foreign = ($this->makeExpense)(['branch_id' => $otherBranch->id]);
+
+        $this->actingAs($this->accountant)->post(route('expenses.approve-all'))->assertForbidden();
+
+        $this->actingAs($this->branchAdmin)->get(route('expenses.index'))
+            ->assertInertia(fn ($page) => $page->where('pendingSummary.count', 1));
+
+        $this->actingAs($this->branchAdmin)->post(route('expenses.approve-all'))->assertRedirect();
+
+        expect($today->fresh()->isApproved())->toBeTrue()
+            ->and($yesterday->fresh()->isApproved())->toBeFalse()
+            ->and($foreign->fresh()->isApproved())->toBeFalse();
+
+        $this->actingAs($this->branchAdmin)->get(route('expenses.index', ['approval' => 'pending', 'range' => 'all']))
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)->where('items.data.0.id', $yesterday->id));
+    });
+});

@@ -1,7 +1,6 @@
 import { store, update } from '@/actions/App/Http/Controllers/ExpenseController';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
     Dialog,
     DialogContent,
@@ -42,6 +41,19 @@ const SOURCES: { value: ExpenseSource; label: string }[] = [
     { value: 'company_transfer', label: 'تحويل بنكي من حساب الشركة' },
 ];
 
+const FIELD_LABELS: Record<string, string> = {
+    expense_category_id: 'الفئة (رقم)',
+    qty: 'الكمية',
+    unit_price: 'سعر الوحدة',
+    total: 'الإجمالي',
+    paid_from: 'مصدر الدفع',
+    supplier_name: 'المورّد',
+    receipt_reference: 'مرجع الإيصال',
+    comment: 'الملاحظات',
+    date: 'التاريخ',
+    service_invoice_id: 'الفاتورة المربوطة (رقم)',
+};
+
 const NO_INVOICE: AsyncOption = { value: 'none', label: '— بلا ربط —' };
 
 function todayIso(): string {
@@ -66,7 +78,6 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         // تاسك 112
         service_invoice_id:  expense?.serviceInvoiceId?.toString() ?? '',
         attachment:          null as File | null,
-        remove_attachment:   false as boolean,
     });
     const [invoiceLabel, setInvoiceLabel] = useState(expense?.invoiceNumber ?? '');
 
@@ -84,7 +95,6 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                 date:                expense.date ?? todayIso(),
                 service_invoice_id:  expense.serviceInvoiceId?.toString() ?? '',
                 attachment:          null,
-                remove_attachment:   false,
             });
             setInvoiceLabel(expense.invoiceNumber ?? '');
         } else {
@@ -312,15 +322,6 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                                 accept="image/jpeg,image/png,image/webp,application/pdf"
                                 onChange={(e) => setData('attachment', e.target.files?.[0] ?? null)}
                             />
-                            {expense?.attachmentUrl && !data.attachment && (
-                                <label className="text-muted-foreground flex items-center gap-2 text-xs">
-                                    <Checkbox
-                                        checked={data.remove_attachment}
-                                        onCheckedChange={(v) => setData('remove_attachment', v === true)}
-                                    />
-                                    إزالة المرفق الحالي ({expense.attachmentName})
-                                </label>
-                            )}
                             <InputError message={errors.attachment} />
                         </div>
                     </div>
@@ -337,6 +338,24 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                         />
                         <InputError message={errors.comment} />
                     </div>
+                    {/* تاسك 113: تعديلات ما بعد الاعتماد — القديم ⇒ الجديد، من ومتى. */}
+                    {expense && expense.history.length > 0 && (
+                        <div className="space-y-2 border-t pt-3">
+                            <p className="text-sm font-semibold">سجلّ التعديلات بعد الاعتماد</p>
+                            {expense.history.map((entry) => (
+                                <div key={entry.id} className="text-muted-foreground text-xs">
+                                    <p className="font-medium">
+                                        {entry.byName ?? '—'} — {entry.at}
+                                    </p>
+                                    {Object.keys(entry.new).map((field) => (
+                                        <p key={field}>
+                                            {FIELD_LABELS[field] ?? field}: {String(entry.old[field] ?? '—')} ⇐ {String(entry.new[field] ?? '—')}
+                                        </p>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </form>
 
                 <DialogFooter>

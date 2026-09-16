@@ -14,7 +14,6 @@ export interface Expense {
     receiptReference: string | null;
     comment: string | null;
     /** تاسك 112 — المرفق عبر مسارٍ مفوَّض، والطلب المربوط */
-    attachmentName: string | null;
     attachmentUrl: string | null;
     serviceInvoiceId: number | null;
     invoiceNumber: string | null;
@@ -22,6 +21,14 @@ export interface Expense {
     dateLabel: string;
     userName: string | null;
     createdAt: string;
+    /** تاسك 113 — null = غير معتمد */
+    approvedAt: string | null;
+    approvedByName: string | null;
+    canApprove: boolean;
+    canUpdate: boolean;
+    canDelete: boolean;
+    /** تعديلات ما بعد الاعتماد، الأحدث أولاً */
+    history: { id: number; byName: string | null; at: string; old: Record<string, unknown>; new: Record<string, unknown> }[];
 }
 
 export interface PaginatedExpense {

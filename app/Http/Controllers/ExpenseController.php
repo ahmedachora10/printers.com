@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Expense\ApproveExpensesAction;
 use App\Actions\Expense\CreateExpenseAction;
 use App\Actions\Expense\DeleteExpenseAction;
 use App\Actions\Expense\UpdateExpenseAction;
@@ -13,6 +14,7 @@ use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\ServiceInvoice;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,31 +32,26 @@ class ExpenseController extends Controller
 
         $branchId = auth()->user()->branchId ?? null;
         [$from, $to] = $this->dateRange($request);
-
-        $base = Expense::query()
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
-                $q->where('supplier_name', 'like', '%'.$request->input('search').'%')
-                    ->orWhere('receipt_reference', 'like', '%'.$request->input('search').'%');
-            }))
-            ->when($request->filled('expense_category_id'), fn ($q) => $q->where('expense_category_id', (int) $request->input('expense_category_id')))
-            ->when($from, fn ($q) => $q->whereDate('date', '>=', $from))
-            ->when($to, fn ($q) => $q->whereDate('date', '<=', $to));
+        $base = $this->filteredQuery($request);
 
         $items = (clone $base)
-            ->with(['category', 'user', 'media', 'invoice:id,invoice_number'])
+            ->with(['category', 'user', 'media', 'invoice:id,invoice_number', 'approvedBy:id,name', 'activities.causer:id,name'])
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
 
         $periodTotal = (float) (clone $base)->sum('total');
+        $pending = (clone $base)->whereNull('approved_at');
 
         $categories = ExpenseCategory::activeOptionsFor($branchId);
 
         return Inertia::render('expenses/index', [
             'items' => ExpenseResource::collection($items),
             'periodTotal' => $periodTotal,
+            // تاسك 113: لنافذة تأكيد «اعتماد جميع المصروفات».
+            'pendingSummary' => ['count' => (clone $pending)->count(), 'total' => (float) $pending->sum('total')],
+            'canApproveAll' => Gate::allows('approveAny', Expense::class),
             'categories' => $categories,
             'branches' => auth()->user()->roleName?->isSuperAdmin()
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
@@ -62,6 +59,7 @@ class ExpenseController extends Controller
             'filters' => [
                 'search' => $request->input('search'),
                 'expense_category_id' => $request->input('expense_category_id'),
+                'approval' => $request->input('approval'),
                 // المدى المطبَّق فعلاً لا المُرسَل — فيُضيء زرّ «اليوم» حين
                 // تُفتح الشاشة بلا مدى.
                 'from' => $from,
@@ -70,6 +68,50 @@ class ExpenseController extends Controller
             ],
             'defaultDate' => Carbon::today()->toDateString(),
         ]);
+    }
+
+    /**
+     * فلاتر الشاشة كلّها في استعلامٍ واحد — يقرؤه الجدول و«اعتماد جميع المصروفات»
+     * (تاسك 113)، فلا يعتمد الزرّ غير ما يراه المستخدم.
+     *
+     * @return Builder<Expense>
+     */
+    private function filteredQuery(Request $request): Builder
+    {
+        $branchId = auth()->user()->branchId ?? null;
+        [$from, $to] = $this->dateRange($request);
+
+        return Expense::query()
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
+                $q->where('supplier_name', 'like', '%'.$request->input('search').'%')
+                    ->orWhere('receipt_reference', 'like', '%'.$request->input('search').'%');
+            }))
+            ->when($request->filled('expense_category_id'), fn ($q) => $q->where('expense_category_id', (int) $request->input('expense_category_id')))
+            ->when($request->input('approval') === 'approved', fn ($q) => $q->whereNotNull('approved_at'))
+            ->when($request->input('approval') === 'pending', fn ($q) => $q->whereNull('approved_at'))
+            ->when($from, fn ($q) => $q->whereDate('date', '>=', $from))
+            ->when($to, fn ($q) => $q->whereDate('date', '<=', $to));
+    }
+
+    /** تاسك 113 — اعتماد مصروفٍ واحد. */
+    public function approve(Expense $expense, ApproveExpensesAction $action): RedirectResponse
+    {
+        Gate::authorize('approve', $expense);
+
+        $action->handle(Expense::whereKey($expense->id));
+
+        return back()->with('success', 'تم اعتماد المصروف');
+    }
+
+    /** تاسك 113 — اعتماد كل غير المعتمد تحت الفلاتر الحالية (لا معرّفات الصفحة المعروضة). */
+    public function approveAll(Request $request, ApproveExpensesAction $action): RedirectResponse
+    {
+        Gate::authorize('approveAny', Expense::class);
+
+        $count = $action->handle($this->filteredQuery($request));
+
+        return back()->with('success', "تم اعتماد {$count} مصروف");
     }
 
     /**
@@ -128,13 +170,12 @@ class ExpenseController extends Controller
                 ->orWhereHas('customer', fn ($c) => $c->where('full_name', 'like', "%{$q}%"))))
             ->latest('id')
             ->limit(20)
-            ->get(['id', 'invoice_number', 'customer_id', 'total_amount', 'created_at']);
+            ->get(['id', 'invoice_number', 'customer_id', 'created_at']);
 
         return response()->json(['data' => $invoices->map(fn (ServiceInvoice $invoice) => [
             'id' => $invoice->id,
             'invoiceNumber' => $invoice->invoice_number,
             'customerName' => $invoice->customer?->full_name,
-            'total' => (float) $invoice->total_amount,
             'date' => $invoice->created_at->format('d/m/Y'),
         ])]);
     }

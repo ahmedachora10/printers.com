@@ -209,7 +209,7 @@ class InvoiceResource extends JsonResource
                     'date' => $expense->date->format('d/m/Y'),
                     'paidFromLabel' => $expense->paid_from->label(),
                     'attachmentUrl' => $expense->attachment() ? route('expenses.attachment', $expense->id) : null,
-                ])->values()->all()
+                ])->all()
                 : [],
             'refundedTotal' => $refundedTotal,
             'refundableRemaining' => $refundableRemaining,

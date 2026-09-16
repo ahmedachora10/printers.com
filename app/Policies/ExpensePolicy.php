@@ -29,14 +29,30 @@ class ExpensePolicy
         return $this->viewAny($user);
     }
 
+    /**
+     * تاسك 113 — المحاسب يعدّل ويحذف قبل الاعتماد وحده؛ مدير الفرع والسوبر أدمن
+     * دائماً (والتعديل مسجَّلٌ في activity_log). وكلاهما في فرع المصروف.
+     */
     public function update(User $user, Expense $expense): bool
     {
-        return $this->viewAny($user);
+        return $this->view($user, $expense)
+            && ($user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin() || ! $expense->isApproved());
     }
 
     public function delete(User $user, Expense $expense): bool
     {
-        return $this->viewAny($user);
+        return $this->update($user, $expense);
+    }
+
+    /** تاسك 113 — الاعتماد لمدير الفرع (فرعه) والسوبر أدمن. */
+    public function approve(User $user, Expense $expense): bool
+    {
+        return $this->approveAny($user) && $this->view($user, $expense) && ! $expense->isApproved();
+    }
+
+    public function approveAny(User $user): bool
+    {
+        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
     }
 
     public function restore(User $user, Expense $expense): bool

@@ -91,20 +91,6 @@ describe('Expense attachment & invoice link', function () {
             ->assertSessionHasErrors('service_invoice_id');
     });
 
-    it('removes the attachment on update', function () {
-        $this->actingAs($this->accountant)->post(route('expenses.store'), [
-            ...$this->payload,
-            'attachment' => UploadedFile::fake()->image('receipt.jpg'),
-        ]);
-        $expense = Expense::firstOrFail();
-
-        $this->actingAs($this->accountant)
-            ->post(route('expenses.update', $expense), [...$this->payload, '_method' => 'put', 'remove_attachment' => true])
-            ->assertSessionHasNoErrors();
-
-        expect($expense->fresh()->attachment())->toBeNull();
-    });
-
     it('searches only the branch invoices', function () {
         linkableInvoice($this->otherBranch, $this->otherAdmin, 'SINV-018-00999');
 

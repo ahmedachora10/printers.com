@@ -1,4 +1,4 @@
-import { destroy, index } from '@/actions/App/Http/Controllers/ExpenseController';
+import { approve, approveAll, destroy, index } from '@/actions/App/Http/Controllers/ExpenseController';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import ExpenseFormModal from '@/components/expenses/expense-form-modal';
 import { FilterBar } from '@/components/filter-bar';
@@ -13,7 +13,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type Expense, type PaginatedExpense } from '@/types/expense';
 import { Link, router } from '@inertiajs/react';
-import { Paperclip, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { CheckCheck, CheckCircle2, Paperclip, Pencil, Plus, Trash2, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'المصروفات', href: '/expenses' }];
@@ -27,11 +27,15 @@ interface Category {
 interface Props {
     items: PaginatedExpense;
     periodTotal: number;
+    /** تاسك 113 — غير المعتمد تحت الفلاتر الحالية، لنافذة «اعتماد الكل» */
+    pendingSummary: { count: number; total: number };
+    canApproveAll: boolean;
     categories: Category[];
     branches?: { id: number; name: string }[] | null;
     filters: {
         search?: string;
         expense_category_id?: string;
+        approval?: string;
         /** المدى المطبَّق فعلاً — اليوم حين تُفتح الشاشة بلا مدى (تاسك 104) */
         from?: string | null;
         to?: string | null;
@@ -63,7 +67,8 @@ function rangeLabel(from: string, to: string): string {
     return from ? `من ${shortDate(from)}` : `حتى ${shortDate(to)}`;
 }
 
-export default function ExpensesIndex({ items, periodTotal, categories, branches, filters, defaultDate }: Props) {
+export default function ExpensesIndex({ items, periodTotal, pendingSummary, canApproveAll, categories, branches, filters, defaultDate }: Props) {
+    const [approvingAll, setApprovingAll] = useState(false);
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Expense | null>(null);
     const [deleting, setDeleting] = useState<Expense | null>(null);
@@ -125,7 +130,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                     <div className="flex items-center gap-2 whitespace-nowrap">
                         {/* وسمٌ عارٍ لا Link: الوجهة ملفٌ من القرص الخاص لا صفحة Inertia. */}
                         {item.attachmentUrl && (
-                            <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" title={item.attachmentName ?? 'المرفق'} className="text-primary">
+                            <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" title="المرفق" className="text-primary">
                                 <Paperclip className="size-4" />
                             </a>
                         )}
@@ -153,17 +158,40 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                 cell: (item) => item.userName ?? '—',
             },
             {
+                key: 'approval',
+                header: 'الحالة',
+                cell: (item) =>
+                    item.approvedAt ? (
+                        <Badge variant="secondary" className="whitespace-nowrap text-green-700" title={`${item.approvedByName ?? ''} — ${item.approvedAt}`}>
+                            معتمد
+                        </Badge>
+                    ) : (
+                        <Badge variant="outline" className="whitespace-nowrap text-amber-600">
+                            غير معتمد
+                        </Badge>
+                    ),
+            },
+            {
                 key: 'actions',
                 header: '',
                 headerClassName: 'w-24',
                 cell: (item) => (
                     <div className="flex items-center gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleting(item)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                        {item.canApprove && (
+                            <Button variant="outline" size="sm" onClick={() => router.post(approve.url(item), {}, { preserveScroll: true })}>
+                                <CheckCircle2 className="h-3.5 w-3.5" /> اعتماد
+                            </Button>
+                        )}
+                        {item.canUpdate && (
+                            <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
+                        {item.canDelete && (
+                            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleting(item)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
                     </div>
                 ),
             },
@@ -194,6 +222,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
     const [search, setSearch] = useState(filters.search ?? '');
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
         expense_category_id: filters.expense_category_id ?? '',
+        approval: filters.approval ?? '',
     });
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -202,6 +231,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
         const merged = {
             search,
             expense_category_id: filterValues.expense_category_id,
+            approval: filterValues.approval,
             from: filters.from ?? undefined,
             to: filters.to ?? undefined,
             range: filters.range ?? undefined,
@@ -229,7 +259,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
 
     const handleClearAll = () => {
         setSearch('');
-        setFilterValues({ expense_category_id: '' });
+        setFilterValues({ expense_category_id: '', approval: '' });
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         router.get(index.url(), {}, { preserveState: true, replace: true });
     };
@@ -279,14 +309,29 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                                 placeholder: 'الفئة',
                                 options: categories.map((c) => ({ value: c.id.toString(), label: c.name })),
                             },
+                            {
+                                key: 'approval',
+                                placeholder: 'الحالة',
+                                options: [
+                                    { value: 'pending', label: 'غير معتمد' },
+                                    { value: 'approved', label: 'معتمد' },
+                                ],
+                            },
                         ]}
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
                         actions={
-                            <Button size="sm" onClick={openCreate}>
-                                <Plus className="size-4" /> تسجيل مصروف
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                {canApproveAll && pendingSummary.count > 0 && (
+                                    <Button size="sm" variant="outline" onClick={() => setApprovingAll(true)}>
+                                        <CheckCheck className="size-4" /> اعتماد جميع المصروفات
+                                    </Button>
+                                )}
+                                <Button size="sm" onClick={openCreate}>
+                                    <Plus className="size-4" /> تسجيل مصروف
+                                </Button>
+                            </div>
                         }
                     />
                 </div>
@@ -312,6 +357,7 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                             <TableCell />
                             <TableCell />
                             <TableCell />
+                            <TableCell />
                         </TableRow>
                     }
                 />
@@ -327,6 +373,30 @@ export default function ExpensesIndex({ items, periodTotal, categories, branches
                     }}
                 />
             </div>
+
+            <Dialog open={approvingAll} onOpenChange={setApprovingAll}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>اعتماد جميع المصروفات</DialogTitle>
+                        <DialogDescription>
+                            هل أنت متأكد من اعتماد جميع المصروفات؟ بعد الاعتماد لن يتمكن المحاسب من تعديلها أو حذفها. ({pendingSummary.count} مصروف
+                            بمجموع {formatSar(pendingSummary.total)})
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setApprovingAll(false)}>
+                            إلغاء
+                        </Button>
+                        <Button
+                            onClick={() =>
+                                router.post(approveAll.url(), buildQuery({}), { preserveScroll: true, onFinish: () => setApprovingAll(false) })
+                            }
+                        >
+                            اعتماد
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <Dialog open={!!deleting} onOpenChange={(open) => !open && setDeleting(null)}>
                 <DialogContent>

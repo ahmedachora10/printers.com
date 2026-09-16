@@ -43,11 +43,25 @@ class Expense extends Model implements HasMedia
         'total' => 'decimal:2',
         'paid_from' => ExpenseSourceEnum::class,
         'date' => 'date',
+        'approved_at' => 'datetime',
     ];
 
     public function getActivitylogOptions(): LogOptions
     {
-        return LogOptions::defaults()->logFillable()->useLogName('expenses');
+        // تاسك 113: القديم والجديد للحقول المتغيّرة وحدها — سجلّ تعديلات المعتمد.
+        return LogOptions::defaults()->logFillable()->logOnlyDirty()->dontSubmitEmptyLogs()->useLogName('expenses');
+    }
+
+    /** تاسك 113 — approved_* خارج fillable عمداً: لا يكتبهما نموذج التعديل. */
+    public function isApproved(): bool
+    {
+        return $this->approved_at !== null;
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by');
     }
 
     public function registerMediaCollections(): void
