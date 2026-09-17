@@ -306,6 +306,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                                     setInvoiceLabel(option?.label.split(' — ')[0] ?? '');
                                 }}
                                 sentinel={NO_INVOICE}
+                                inline
                                 searchPlaceholder="رقم الفاتورة أو اسم العميل"
                                 emptyText="لا توجد فاتورة مطابقة"
                                 triggerClassName="w-full"

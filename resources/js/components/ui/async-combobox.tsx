@@ -29,6 +29,15 @@ export interface AsyncComboboxProps<T> {
     className?: string;
     triggerClassName?: string;
     debounceMs?: number;
+    /**
+     * Set when the combobox lives inside a Dialog: the list then opens inline
+     * under the trigger instead of in a popover. A portalled popover sits
+     * outside the dialog's interaction layer — its items are unclickable, its
+     * search box never keeps focus, and the click is read as an outside-press
+     * that closes the dialog. Same trap, same fix, as FilterMultiSelect in
+     * components/reports/filter-fields.tsx.
+     */
+    inline?: boolean;
 }
 
 /**
@@ -48,6 +57,7 @@ export function AsyncCombobox<T>({
     className,
     triggerClassName,
     debounceMs = 500,
+    inline = false,
 }: AsyncComboboxProps<T>) {
     const [open, setOpen] = React.useState(false);
     const [query, setQuery] = React.useState('');
@@ -89,51 +99,67 @@ export function AsyncCombobox<T>({
         setOpen(false);
     }
 
+    const trigger = (
+        <Button
+            type="button"
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            onClick={inline ? () => setOpen((o) => !o) : undefined}
+            className={cn(
+                'h-9 justify-between gap-2 text-sm font-normal',
+                hasSelection ? 'border-primary/40 bg-primary/5 text-primary' : 'text-muted-foreground',
+                triggerClassName,
+            )}
+        >
+            <span className="truncate">{triggerLabel}</span>
+            <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
+        </Button>
+    );
+
+    // Server does the filtering, so disable cmdk's built-in filter.
+    const list = (
+        <Command shouldFilter={false} className={cn(inline && 'rounded-md border')}>
+            <CommandInput placeholder={searchPlaceholder} value={query} onValueChange={setQuery} autoFocus={inline} />
+            <CommandList>
+                {sentinel && (
+                    <CommandItem value={`__sentinel__${sentinel.value}`} onSelect={() => choose(sentinel)} className="cursor-pointer">
+                        <Check className={cn('size-4', value === sentinel.value ? 'opacity-100' : 'opacity-0')} />
+                        {sentinel.label}
+                    </CommandItem>
+                )}
+                {loading ? (
+                    <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-sm">
+                        <Loader2 className="size-4 animate-spin" /> {loadingText}
+                    </div>
+                ) : results.length === 0 ? (
+                    <div className="text-muted-foreground py-6 text-center text-sm">{emptyText}</div>
+                ) : (
+                    results.map((opt) => (
+                        <CommandItem key={opt.value} value={opt.value} onSelect={() => choose(opt)} className="cursor-pointer">
+                            <Check className={cn('size-4', opt.value === value ? 'opacity-100' : 'opacity-0')} />
+                            {opt.label}
+                        </CommandItem>
+                    ))
+                )}
+            </CommandList>
+        </Command>
+    );
+
+    if (inline) {
+        return (
+            <div className="space-y-1">
+                {trigger}
+                {open && list}
+            </div>
+        );
+    }
+
     return (
         <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger asChild>
-                <Button
-                    type="button"
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={open}
-                    className={cn(
-                        'h-9 justify-between gap-2 text-sm font-normal',
-                        hasSelection ? 'border-primary/40 bg-primary/5 text-primary' : 'text-muted-foreground',
-                        triggerClassName,
-                    )}
-                >
-                    <span className="truncate">{triggerLabel}</span>
-                    <ChevronsUpDown className="size-4 shrink-0 opacity-50" />
-                </Button>
-            </PopoverTrigger>
+            <PopoverTrigger asChild>{trigger}</PopoverTrigger>
             <PopoverContent className={cn('w-56 p-0', className)} align="start">
-                {/* Server does the filtering, so disable cmdk's built-in filter. */}
-                <Command shouldFilter={false}>
-                    <CommandInput placeholder={searchPlaceholder} value={query} onValueChange={setQuery} />
-                    <CommandList>
-                        {sentinel && (
-                            <CommandItem value={`__sentinel__${sentinel.value}`} onSelect={() => choose(sentinel)}>
-                                <Check className={cn('size-4', value === sentinel.value ? 'opacity-100' : 'opacity-0')} />
-                                {sentinel.label}
-                            </CommandItem>
-                        )}
-                        {loading ? (
-                            <div className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-sm">
-                                <Loader2 className="size-4 animate-spin" /> {loadingText}
-                            </div>
-                        ) : results.length === 0 ? (
-                            <div className="text-muted-foreground py-6 text-center text-sm">{emptyText}</div>
-                        ) : (
-                            results.map((opt) => (
-                                <CommandItem key={opt.value} value={opt.value} onSelect={() => choose(opt)}>
-                                    <Check className={cn('size-4', opt.value === value ? 'opacity-100' : 'opacity-0')} />
-                                    {opt.label}
-                                </CommandItem>
-                            ))
-                        )}
-                    </CommandList>
-                </Command>
+                {list}
             </PopoverContent>
         </Popover>
     );
