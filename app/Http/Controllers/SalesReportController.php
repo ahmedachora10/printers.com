@@ -84,11 +84,13 @@ class SalesReportController extends Controller
     {
         $scope = $resolveScope->handle($request);
         $type = $request->input('type', 'all');
+        $byType = $this->byType($scope, $type);
+        $byDay = $this->byDay($scope, $type);
 
         return Inertia::render('reports/sales/index', [
-            'totals' => $this->totals($scope, $type),
-            'byType' => $this->byType($scope, $type),
-            'byDay' => $this->byDay($scope, $type),
+            'totals' => $this->totals($byType, $byDay),
+            'byType' => $byType,
+            'byDay' => $byDay,
             'byEmployee' => $this->byEmployee($scope, $type),
             'byPaymentMethod' => $this->byPaymentMethod($scope, $type),
             'byBranch' => $scope['isSuper'] ? $this->byBranch($scope, $type) : [],
@@ -349,46 +351,37 @@ class SalesReportController extends Controller
     }
 
     /**
-     * Grand totals across both invoice tables.
+     * Grand totals across both invoice tables — summed from byType and byDay
+     * rather than re-querying: they already ran the same aggregates.
      *
-     * @param  array<string, mixed>  $scope
+     * The invoice count comes from byType, not byDay: an invoice collected over
+     * several days is one invoice per table but one per day.
+     *
+     * @param  array<int, array<string, mixed>>  $byType
+     * @param  array<int, array<string, mixed>>  $byDay
      * @return array<string, float|int>
      */
-    private function totals(array $scope, string $type): array
+    private function totals(array $byType, array $byDay): array
     {
-        $subtotal = $discounts = $vat = $total = $refunds = $shipping = 0.0;
-        $count = 0;
-
-        foreach ($this->tablesForType($type) as $table) {
-            $row = $this->baseQuery($table, $scope)->first($this->sumColumns());
-
-            $count += (int) $row->c;
-            $subtotal += (float) $row->subtotal;
-            $discounts += (float) $row->discounts;
-            $vat += (float) $row->vat;
-            $shipping += (float) $row->shipping;
-            $total += (float) $row->total;
-            $refunds += (float) $row->refunds;
-        }
+        $sum = fn (array $rows, string $key) => array_sum(array_column($rows, $key));
 
         // تاسك 97: المصروفات تُطرح من **النقد وحده** — ما دخل الدرج فعلاً —
         // لا من كل المحصَّل (تاسك 87 كان يطرحها من الشبكة والتحويل كذلك).
         // تاسك 110: ومن المصروفات ما دُفع من الدرج وحده؛ التحويل البنكي لا يمسّ النقد.
-        $expensesDaily = $this->expensesDaily($scope);
-        $expenses = round(array_sum(array_column($expensesDaily, 'all')), 2);
-        $cashExpenses = round(array_sum(array_column($expensesDaily, 'cash')), 2);
-        $cash = round(array_sum($this->cashDaily($scope, $type)), 2);
+        $expenses = round($sum($byDay, 'expenses'), 2);
+        $cashExpenses = round($sum($byDay, 'cashExpenses'), 2);
+        $cash = round($sum($byDay, 'cash'), 2);
 
         return [
-            'invoiceCount' => $count,
-            'subtotal' => $subtotal,
-            'discounts' => $discounts,
-            'vat' => $vat,
+            'invoiceCount' => (int) $sum($byType, 'count'),
+            'subtotal' => (float) $sum($byType, 'subtotal'),
+            'discounts' => (float) $sum($byType, 'discounts'),
+            'vat' => (float) $sum($byType, 'vat'),
             // تاسك 93: جملة الشحن مستقلّةً — داخلةٌ في `total` كما يدفعها العميل،
             // ومعروضةٌ بجانبه حتى لا تُقرأ إيراد خدمات.
-            'shipping' => round($shipping, 2),
-            'refunds' => $refunds,
-            'total' => $total,
+            'shipping' => round($sum($byType, 'shipping'), 2),
+            'refunds' => (float) $sum($byType, 'refunds'),
+            'total' => (float) $sum($byType, 'total'),
             'cash' => $cash,
             'expenses' => $expenses,
             'cashExpenses' => $cashExpenses,

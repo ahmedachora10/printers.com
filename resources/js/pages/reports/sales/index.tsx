@@ -322,6 +322,18 @@ export default function SalesReportIndex({
                             data={byDay}
                             keyExtractor={(row) => row.date}
                             emptyState={EMPTY_STATE}
+                            footer={
+                                <TableRow>
+                                    <TableCell className="font-bold">الإجمالي</TableCell>
+                                    <TableCell className="font-bold">{totals.invoiceCount}</TableCell>
+                                    <TableCell className="font-bold">{formatCurrency(totals.total)}</TableCell>
+                                    <TableCell className="font-bold">{formatCurrency(totals.cash)}</TableCell>
+                                    <TableCell className="font-bold text-amber-600">{formatCurrency(totals.expenses)}</TableCell>
+                                    <TableCell className="font-bold">
+                                        <Remaining value={totals.cashRemaining} />
+                                    </TableCell>
+                                </TableRow>
+                            }
                         />
                     </CardContent>
                 </Card>
