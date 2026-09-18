@@ -151,6 +151,29 @@ describe('Service invoice edit/return', function () {
         $this->actingAs($other)->get(route('pos.service.edit', $invoice))->assertForbidden();
     });
 
+    it('refuses to attach a customer from another branch on edit', function () {
+        $invoice = makeOwnedDueInvoice();
+        $foreign = Customer::factory()->create(['branch_id' => Branch::factory()->create()->id]);
+
+        $this->put(route('pos.service.update', $invoice), [
+            'customer_id' => $foreign->id,
+            'lines' => [['branch_service_id' => $this->service->id, 'qty' => 1, 'unit_price' => 10]],
+        ])->assertSessionHasErrors('customer_id');
+
+        expect($invoice->refresh()->customer_id)->toBeNull();
+    });
+
+    it('keeps accepting the customer the invoice already carries', function () {
+        $invoice = makeOwnedDueInvoice();
+        $legacy = Customer::factory()->create(['branch_id' => Branch::factory()->create()->id]);
+        $invoice->update(['customer_id' => $legacy->id]);
+
+        $this->put(route('pos.service.update', $invoice), [
+            'customer_id' => $legacy->id,
+            'lines' => [['branch_service_id' => $this->service->id, 'qty' => 1, 'unit_price' => 10]],
+        ])->assertSessionHasNoErrors();
+    });
+
     // ---- تاسك 70: المراجع يصحّح قبل الاعتماد -----------------------------
 
     it('lets a branch admin edit a due invoice raised by an employee in their branch', function () {

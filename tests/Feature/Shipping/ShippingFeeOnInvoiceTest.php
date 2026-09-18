@@ -336,4 +336,15 @@ describe('Shipping fee on the service invoice', function () {
             'shipping_zone_id' => $this->zone->id,
         ]))->assertSessionHasErrors('customer_address_id');
     });
+
+    it('refuses a saved address when the invoice has no customer', function () {
+        $someone = Customer::factory()->create(['branch_id' => $this->branch->id]);
+        $address = CustomerAddress::create(['customer_id' => $someone->id, 'address' => 'عنوان غريب']);
+
+        $this->post(route('pos.service.store'), shippingPayload([
+            'customer_address_id' => $address->id,
+            'shipping_provider_id' => $this->provider->id,
+            'shipping_zone_id' => $this->zone->id,
+        ]))->assertSessionHasErrors('customer_address_id');
+    });
 });

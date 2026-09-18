@@ -51,7 +51,7 @@ class CalculateServiceInvoiceAction
      */
     public function handle(array $data, User $user, int $branchId, float $vatPct, ?ServiceInvoice $editing = null): array
     {
-        $customerId = $this->resolveCustomerId($data, $branchId);
+        $customerId = $this->resolveCustomerId($data, $branchId, $editing);
 
         // Load the branch services referenced by the lines so we can resolve
         // their name, commission rate, tahazir flag and discount ceiling.
@@ -532,7 +532,8 @@ class CalculateServiceInvoiceAction
 
         if ($addressId !== null) {
             $saved = CustomerAddress::query()
-                ->when($customerId !== null, fn ($q) => $q->where('customer_id', $customerId))
+                // بلا عميل لا دفتر عناوين، فأيّ رقم عنوانٍ هنا لعميلٍ آخر.
+                ->where('customer_id', $customerId)
                 ->find($addressId);
 
             if (! $saved) {
@@ -907,10 +908,21 @@ class CalculateServiceInvoiceAction
      *
      * @param  array<string, mixed>  $data
      */
-    private function resolveCustomerId(array $data, int $branchId): ?int
+    private function resolveCustomerId(array $data, int $branchId, ?ServiceInvoice $editing = null): ?int
     {
         if (! empty($data['customer_id'])) {
-            return (int) $data['customer_id'];
+            $id = (int) $data['customer_id'];
+
+            // الطلب يتحقّق من وجود العميل فقط؛ الفرع يُحسم هنا. عميل الفاتورة
+            // الحالي يُقبل كما هو، فلا تُقفل فاتورة قديمة عن التعديل.
+            if ($id !== (int) $editing?->customer_id
+                && ! Customer::query()->where('branch_id', $branchId)->whereKey($id)->exists()) {
+                throw ValidationException::withMessages([
+                    'customer_id' => 'العميل المحدد لا يتبع فرع هذه الفاتورة.',
+                ]);
+            }
+
+            return $id;
         }
 
         $name = trim((string) ($data['walkin_name'] ?? ''));
