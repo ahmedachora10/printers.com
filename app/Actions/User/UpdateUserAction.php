@@ -8,7 +8,6 @@ use App\Models\Branch;
 use App\Models\User;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class UpdateUserAction
@@ -52,7 +51,6 @@ class UpdateUserAction
                 $this->updateBranchAction->handle(Branch::find($data['branch_id']), ['owner_id' => $user->id]);
             }
 
-            Cache::forget('user_role_'.$user->id);
 
             return $user->refresh();
         });

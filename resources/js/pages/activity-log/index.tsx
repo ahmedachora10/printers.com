@@ -2,21 +2,18 @@ import { ActivityChanges, ActivitySentence, ActorAvatar, LogBadge, SensitiveBadg
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
 import DateRangeBar from '@/components/reports/date-range-bar';
-import { FilterSelect } from '@/components/reports/filter-fields';
+import { FilterSelect, type FilterOption } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
+import FilterSearch from '@/components/reports/filter-search';
 import { Card } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
-import { cn } from '@/lib/utils';
 import activityLog from '@/routes/activity-log';
 import users from '@/routes/users';
 import { type BreadcrumbItem } from '@/types';
-import { type ActivityEntry, type ActivityFilters, type ActivityOption, type PagedActivities } from '@/types/activity';
+import { type ActivityEntry, type ActivityFilters, type PagedActivities } from '@/types/activity';
 import { Head, Link, router } from '@inertiajs/react';
-import { Search, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo } from 'react';
 
 const PAGE_URL = '/activity-log';
 
@@ -24,8 +21,8 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'سجل النشاط', href: act
 
 interface Props {
     activities: PagedActivities;
-    users: ActivityOption[];
-    logOptions: ActivityOption[];
+    users: FilterOption[];
+    logOptions: FilterOption[];
     filters: ActivityFilters;
     defaultFrom: string;
     defaultTo: string;
@@ -50,16 +47,6 @@ export default function ActivityLogIndex({ activities, users: userOptions, logOp
     };
 
     const f = useReportFilters(PAGE_URL, applied, defaults);
-
-    // البحث يطبّق نفسه بعد وقفةٍ قصيرة؛ بقيّة الفلاتر تنتظر زرّ التطبيق.
-    const [search, setSearch] = useState(applied.search);
-    const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
-
-    function handleSearchChange(value: string) {
-        setSearch(value);
-        if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        searchTimeout.current = setTimeout(() => f.replace('search', value), 400);
-    }
 
     const columns = useMemo<ColumnDef<ActivityEntry>[]>(
         () => [
@@ -146,32 +133,7 @@ export default function ActivityLogIndex({ activities, users: userOptions, logOp
                 </div>
 
                 <Card className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border px-4 py-3.5">
-                    <div className="space-y-1">
-                        <Label htmlFor="activity-search" className="text-muted-foreground text-xs">
-                            بحث
-                        </Label>
-                        <div className="relative">
-                            <Search className="text-muted-foreground pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2" />
-                            <Input
-                                id="activity-search"
-                                value={search}
-                                onChange={(e) => handleSearchChange(e.target.value)}
-                                placeholder="اسم المستخدم أو وصف العملية..."
-                                className={cn('h-8 w-full ps-9 pe-8 text-sm sm:w-72', search && 'border-primary/40 bg-primary/5')}
-                            />
-                            {search && (
-                                <button
-                                    type="button"
-                                    onClick={() => handleSearchChange('')}
-                                    className="text-muted-foreground hover:text-foreground absolute end-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 transition-colors"
-                                    aria-label="مسح البحث"
-                                >
-                                    <X className="size-3.5" />
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
+                    <FilterSearch filters={f} value={applied.search} placeholder="اسم المستخدم أو وصف العملية..." />
                     <DateRangeBar filters={f} from={applied.from} to={applied.to} extended />
                 </Card>
 

@@ -18,7 +18,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\Cache;
 use Laratrust\Contracts\LaratrustUser;
 use Laratrust\Traits\HasRolesAndPermissions;
 use Spatie\MediaLibrary\HasMedia;
@@ -168,7 +167,10 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
     public function roleName(): Attribute
     {
         return Attribute::make(
-            get: fn () => Cache::remember('user_role_'.$this->id, now()->addDay(), fn () => Roles::tryFrom($this->roles->first()?->name)),
+            // لاراتراست يقرأ الأدوار مرّةً واحدةً ويحفظها على نسخة المستخدم، فقراءة
+            // الدور من عنده تُلغي استعلاماً ثانياً لنفس الصفّ — وتغييرُ الدور يُفرغ
+            // كاشه فلا يبقى دورٌ قديم.
+            get: fn () => Roles::tryFrom($this->getRoles()[0] ?? ''),
         );
     }
 
@@ -196,7 +198,7 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         $branchId = $this->attributes['branch_id'] ?? null;
 
         return $this->workBranch = $branchId
-            ? Branch::with('media')->find($branchId)
+            ? Branch::find($branchId)
             : null;
     }
 

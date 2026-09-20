@@ -41,6 +41,24 @@ class Branch extends Model implements HasMedia
         $this->addMediaCollection('logo')->singleFile();
     }
 
+    /**
+     * مسار شعار الفرع، محفوظاً لعمر الطلب بمعرّف الفرع.
+     *
+     * الشعار يُقرأ مرّتين في صفحة الفاتورة: مرّةً في ترويسة النظام من فرع
+     * المستخدم، ومرّةً على المستند من فرع الفاتورة — وهما نسختان مختلفتان من
+     * الصفّ نفسه، فكانت كلٌّ منهما تستعلم عن `media` على حدة. الحفظ في الحاوية
+     * لا في متغيّرٍ ساكن: لارافل يُفرغه بين الطلبات وبين مهامّ الطابور، فلا
+     * يبقى شعارٌ قديمٌ بعد رفع شعارٍ جديد.
+     */
+    public function logoUrl(): ?string
+    {
+        $key = 'branch_logo_url_'.$this->getKey();
+
+        app()->scopedIf($key, fn () => $this->getFirstMediaUrl('logo') ?: null);
+
+        return app()->make($key);
+    }
+
     /** @return BelongsTo<City, $this> */
     public function city(): BelongsTo
     {

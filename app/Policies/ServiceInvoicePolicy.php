@@ -54,8 +54,9 @@ class ServiceInvoicePolicy
     /**
      * تاسك 99 — تغيير طريقة الدفع، قبل الاعتماد وبعده: خطأ الكاشير في الطريقة
      * يُكتشف غالباً بعد إقفال الفاتورة. لا يمسّ الملغاة ولا المرتجعة — قصّتهما
-     * أُغلقت. تاسك 107: قبل الاعتماد سلطةُ الاعتماد نفسها (الاعتماد يوجب
-     * الطريقة)، وبعده مدير فرع الفاتورة والسوبر أدمن وحدهما.
+     * أُغلقت. وما عداهما فهي سلطةُ الاعتماد نفسها في أي حالة: المحاسب هو من
+     * يحصّل ويسجّل الدفعات، فتصحيح الطريقة — على الفاتورة أو على صفّ دفعةٍ
+     * منها — من عمله (يلغي قَصْرَ تاسك 107 على مدير الفرع بعد الإقفال).
      */
     public function changePaymentMethod(User $user, ServiceInvoice $invoice): bool
     {
@@ -63,12 +64,7 @@ class ServiceInvoicePolicy
             return false;
         }
 
-        if ($invoice->status === InvoiceStatusEnum::DUE) {
-            return $this->updateStatus($user, $invoice);
-        }
-
-        return $user->roleName->isSuperAdmin()
-            || ($user->roleName->isBranchAdmin() && $user->branchId === $invoice->branch_id);
+        return $this->updateStatus($user, $invoice);
     }
 
     /**

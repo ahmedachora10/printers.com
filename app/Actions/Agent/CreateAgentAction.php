@@ -5,7 +5,6 @@ namespace App\Actions\Agent;
 use App\Enums\Roles;
 use App\Models\User;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class CreateAgentAction
@@ -35,7 +34,6 @@ class CreateAgentAction
             // terms; the profile above only holds the defaults.
             $this->syncAgentBranches($user, $data['branches'] ?? [], $actor);
 
-            Cache::forget('user_role_'.$user->id);
 
             return $user;
         });

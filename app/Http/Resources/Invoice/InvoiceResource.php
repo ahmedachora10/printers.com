@@ -251,7 +251,7 @@ class InvoiceResource extends JsonResource
                 'phone' => $this->branch?->phone,
                 'address' => $this->branch?->address,
                 'taxNumber' => $this->branch?->tax_number,
-                'logoUrl' => $this->branch?->getFirstMediaUrl('logo') ?: null,
+                'logoUrl' => $this->branch?->logoUrl(),
             ],
         ];
     }
