@@ -9,6 +9,8 @@ use App\Models\CustomerAddress;
 use App\Models\DeliveryProvider;
 use App\Models\DeliveryZone;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
+use App\Models\PaymentMethod;
 use App\Models\ProductInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
@@ -18,8 +20,10 @@ use App\Models\StockReconciliation;
 use App\Models\Supplier;
 use App\Models\User;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Collection;
 use Spatie\Activitylog\Models\Activity;
 
 /**
@@ -144,16 +148,70 @@ class ActivityResource extends JsonResource
         'credit_limit' => 'الحد الائتماني',
         'salary' => 'الراتب',
         'base_commission_pct' => 'نسبة العمولة',
+        'messages_closed_at' => 'إغلاق المحادثة',
+        'messages_closed_by' => 'أغلق المحادثة',
+        'customer_address_id' => 'عنوان التسليم',
+        'target_id' => 'الحساب المستهدف',
+        'count' => 'العدد',
+        'shortages' => 'نواقص الخامات',
+        'lines' => 'السطور',
+        'deducted_at' => 'تاريخ الحسم',
     ];
 
     /** ضوضاءٌ لا تُعرض ضمن الفروق. */
     private const HIDDEN_FIELDS = ['updated_at', 'created_at', 'deleted_at', 'password', 'remember_token'];
+
+    /**
+     * السجلّ اليدويّ يكتب `old`/`new` مسطَّحين بلا اسمِ حقل — الوصفُ هو ما يسمّي
+     * ما تغيّر.
+     */
+    private const PAIR_LABELS = [
+        'payment method changed' => 'طريقة الدفع',
+        'updated internal notes' => 'الملاحظات الداخلية',
+    ];
+
+    /**
+     * ما يستوجب تمييز الصفّ: المال، والحالة، وطريقة الدفع، ورصيد العميل، وما
+     * يُحذف. لا تُخفى بقيّة الصفوف — إنما تُقرأ هذه أولاً عند المراجعة.
+     */
+    private const SENSITIVE_FIELDS = [
+        'payment_method_id', 'طريقة الدفع', 'status', 'total_amount', 'subtotal',
+        'coupon_discount', 'agent_discount', 'tier_discount_amount', 'points_discount',
+        'employee_commission', 'materials_cost', 'unit_price', 'total', 'amount',
+        'points_balance', 'points_redeemed', 'cumulative_spend', 'tier', 'credit_limit',
+        'salary', 'base_commission_pct', 'approved_at', 'vat_amount', 'shipping_fee',
+    ];
+
+    /** أسماءٌ للمعرّفات، مجموعةً على مستوى الصفحة: ['payment_method_id' => [2 => 'كاش']]. */
+    private array $names = [];
+
+    /** @param  array<string, array<int, string>>  $names */
+    public function withNames(array $names): static
+    {
+        $this->names = $names;
+
+        return $this;
+    }
+
+    /**
+     * `properties` عمودٌ مصبوبٌ Collection في Spatie لا مصفوفة — يُقرأ مصفوفةً
+     * مرّةً واحدة هنا، وإلا سقط كلُّ فحص `is_array` عليه صامتاً.
+     *
+     * @return array<string, mixed>
+     */
+    private function properties(): array
+    {
+        $properties = $this->resource->properties;
+
+        return $properties instanceof Collection ? $properties->all() : (array) $properties;
+    }
 
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
         $activity = $this->resource;
         $changes = $this->changes();
+        $details = $this->details();
 
         return [
             'id' => $activity->id,
@@ -169,6 +227,35 @@ class ActivityResource extends JsonResource
             'time' => $activity->created_at?->format('H:i'),
             'at' => $activity->created_at?->format('d/m/Y H:i'),
             'changes' => $changes,
+            'details' => $details,
+            'isSensitive' => $this->isSensitive($changes),
+        ];
+    }
+
+    /**
+     * الحقول التي يقرأ العارض معرّفاتها كأسماء، ومصدرُ كل اسم. تُجمع في
+     * المتحكّم مرّةً لكل صفحة (استعلامٌ واحد لكل نوعٍ حاضر) لا لكل صفّ.
+     *
+     * @return array<string, array{class-string<Model>, string}>
+     */
+    public static function idFields(): array
+    {
+        return [
+            'payment_method_id' => [PaymentMethod::class, 'name'],
+            'customer_id' => [Customer::class, 'full_name'],
+            'branch_id' => [Branch::class, 'name'],
+            'expense_category_id' => [ExpenseCategory::class, 'name'],
+            'supplier_id' => [Supplier::class, 'name'],
+            'shipping_provider_id' => [DeliveryProvider::class, 'name'],
+            'service_invoice_id' => [ServiceInvoice::class, 'invoice_number'],
+            'invoice_id' => [ServiceInvoice::class, 'invoice_number'],
+            'user_id' => [User::class, 'name'],
+            'delivered_by' => [User::class, 'name'],
+            'approved_by' => [User::class, 'name'],
+            'cancelled_by' => [User::class, 'name'],
+            'created_by' => [User::class, 'name'],
+            'target_id' => [User::class, 'name'],
+            'impersonator_id' => [User::class, 'name'],
         ];
     }
 
@@ -249,38 +336,64 @@ class ActivityResource extends JsonResource
     }
 
     /**
-     * الحقول التي تغيّرت فعلاً. النماذج هنا تسجّل `fillable` كاملاً لا المتّسخ
-     * وحده، فالمقارنة بين `old` و`attributes` هي ما يفرز التغيير من الثبات.
-     * والإنشاء لا فروق له — كل الحقول جديدة.
+     * ما تغيّر، بأشكال `properties` الثلاثة التي يكتبها النظام:
      *
-     * ponytail: المعرّفات تُعرض أرقاماً (فئة، طريقة دفع…)؛ ترجمتها إلى أسماء
-     * تعني استعلاماً لكل نوعٍ في الصفحة — يُضاف إن طلبه العميل.
+     * 1. النموذج: `old` و`attributes` مصفوفتان. والنماذج هنا تسجّل `fillable`
+     *    كاملاً لا المتّسخ وحده، فالمقارنة بينهما هي ما يفرز التغيير من الثبات.
+     * 2. السجلّ اليدويّ المسطَّح: `old` و`new` قيمتان مفردتان (طريقة الدفع،
+     *    الملاحظات الداخلية) — يسمّيهما الوصف.
+     * 3. أزواج `from_x`/`to_x` (ترقية فئة الولاء اليدوية).
+     *
+     * والإنشاء لا فروق له — كل الحقول جديدة.
      *
      * @return list<array{field: string, label: string, old: string, new: string}>
      */
     private function changes(): array
     {
-        $properties = $this->resource->properties;
+        $properties = $this->properties();
+        $old = $properties['old'] ?? null;
         $new = $properties['attributes'] ?? null;
 
-        if ($this->resource->event === 'created' || ! is_array($new)) {
+        if ($this->resource->event === 'created') {
             return [];
         }
 
-        $old = $properties['old'] ?? [];
+        // (2) قيمتان مفردتان: الوصف هو اسم الحقل.
+        if (! is_array($new) && (isset($properties['new']) || isset($properties['old'])) && ! is_array($old)) {
+            $label = self::PAIR_LABELS[$this->resource->description] ?? 'القيمة';
 
-        if (! is_array($old)) {
-            return [];
+            return [[
+                'field' => $label,
+                'label' => $label,
+                'old' => $this->display($label, $old),
+                'new' => $this->display($label, $properties['new'] ?? null),
+            ]];
         }
 
         $changes = [];
 
-        foreach ($new as $field => $value) {
+        // (3) from_x ⇐ to_x.
+        foreach ($properties as $key => $value) {
+            if (! str_starts_with((string) $key, 'from_') || ! array_key_exists('to_'.substr((string) $key, 5), $properties)) {
+                continue;
+            }
+
+            $field = substr((string) $key, 5);
+            $changes[] = [
+                'field' => $field,
+                'label' => self::FIELD_LABELS[$field] ?? $field,
+                'old' => $this->display($field, $value),
+                'new' => $this->display($field, $properties['to_'.$field]),
+            ];
+        }
+
+        // (1) فروق النموذج.
+        foreach (is_array($new) ? $new : [] as $field => $value) {
             if (in_array($field, self::HIDDEN_FIELDS, true)) {
                 continue;
             }
 
-            $before = $old[$field] ?? null;
+            $before = is_array($old) ? ($old[$field] ?? null) : null;
 
             if ($this->display($field, $before) === $this->display($field, $value)) {
                 continue;
@@ -295,6 +408,62 @@ class ActivityResource extends JsonResource
         }
 
         return $changes;
+    }
+
+    /**
+     * بقيّة ما في `properties` مما لا مقابلَ قديماً له — مبلغُ الحسم المحذوف،
+     * وعددُ المصروفات المعتمَدة، وسببُ الإجراء. يُعرض سطوراً تحت الفروق بدل
+     * أن يضيع، فصفٌّ بلا تفاصيل هو ما شكا منه العميل.
+     *
+     * @return list<array{label: string, value: string}>
+     */
+    private function details(): array
+    {
+        $properties = $this->properties();
+
+        if ($properties === []) {
+            return [];
+        }
+
+        $details = [];
+
+        foreach ($properties as $key => $value) {
+            $key = (string) $key;
+
+            // ما استهلكته الفروق أصلاً، وما لا معنى له للقارئ.
+            if (in_array($key, ['attributes', 'old', 'new', 'payment_id', 'impersonator_id'], true)
+                || str_starts_with($key, 'from_')
+                || str_starts_with($key, 'to_')) {
+                continue;
+            }
+
+            $details[] = [
+                'label' => self::FIELD_LABELS[$key] ?? $key,
+                'value' => is_array($value) ? count($value).' عنصر' : $this->display($key, $value),
+            ];
+        }
+
+        return $details;
+    }
+
+    /**
+     * @param  list<array{field: string, label: string, old: string, new: string}>  $changes
+     */
+    private function isSensitive(array $changes): bool
+    {
+        // الدخول والخروج روتينٌ يوميّ؛ الحسّاس في سجلّ الأمان هو الانتحال.
+        if ($this->resource->event === 'deleted'
+            || ($this->resource->log_name === 'security' && ! in_array($this->resource->description, ['تسجيل الدخول', 'تسجيل الخروج'], true))) {
+            return true;
+        }
+
+        foreach ($changes as $change) {
+            if (in_array($change['field'], self::SENSITIVE_FIELDS, true)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /** قيمةٌ معروضة: الحالة بوصفها، والمنطقي نعم/لا، والفارغ شَرطة. */
@@ -314,6 +483,12 @@ class ActivityResource extends JsonResource
 
         if ($field === 'is_active') {
             return $value ? 'نشط' : 'غير نشط';
+        }
+
+        // معرّفٌ باسمه: الأسماء مجموعةٌ لكل الصفحة، فلا استعلام هنا. والمحذوف
+        // نهائياً لا اسم له فيبقى رقمه.
+        if (isset($this->names[$field]) && is_numeric($value)) {
+            return $this->names[$field][(int) $value] ?? '#'.$value;
         }
 
         // التواريخ تُخزَّن ISO؛ تُقرأ d/m/Y، والوقت معها إن كان طابعاً زمنياً.

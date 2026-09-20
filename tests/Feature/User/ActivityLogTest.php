@@ -3,6 +3,7 @@
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\Roles;
 use App\Models\Branch;
+use App\Models\PaymentMethod;
 use App\Models\ServiceInvoice;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -130,6 +131,81 @@ describe('Activity log', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('activities.data.0.action', 'اعتمد')
                 ->where('activities.data.0.subjectLabel', $invoice->invoice_number));
+    });
+
+    it('reads the flat old/new pair a manual log writes', function () {
+        $cash = PaymentMethod::create(['name' => 'نقد', 'branch_id' => $this->branch->id, 'is_active' => true]);
+        $card = PaymentMethod::create(['name' => 'شبكة', 'branch_id' => $this->branch->id, 'is_active' => true]);
+
+        activity('invoices')
+            ->causedBy($this->employee)
+            ->withProperties(['payment_id' => null, 'old' => $cash->name, 'new' => $card->name])
+            ->log('payment method changed');
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('users.activity', $this->employee))
+            ->assertInertia(fn ($page) => $page
+                ->where('activities.data.0.changes.0.label', 'طريقة الدفع')
+                ->where('activities.data.0.changes.0.old', 'نقد')
+                ->where('activities.data.0.changes.0.new', 'شبكة')
+                ->where('activities.data.0.isSensitive', true));
+    });
+
+    it('reads from_/to_ pairs and keeps the rest as details', function () {
+        activity('customers')
+            ->causedBy($this->employee)
+            ->withProperties([
+                'from_tier' => 'silver',
+                'to_tier' => 'gold',
+                'reason' => 'عميل مميز',
+            ])
+            ->log('تعديل يدوي لمستوى الولاء');
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('users.activity', $this->employee))
+            ->assertInertia(fn ($page) => $page
+                ->where('activities.data.0.changes.0.label', 'فئة الولاء')
+                ->where('activities.data.0.changes.0.old', 'silver')
+                ->where('activities.data.0.changes.0.new', 'gold')
+                ->where('activities.data.0.details.0.label', 'السبب')
+                ->where('activities.data.0.details.0.value', 'عميل مميز'));
+    });
+
+    it('resolves ids in a model diff to names', function () {
+        $method = PaymentMethod::create(['name' => 'تحويل بنكي', 'branch_id' => $this->branch->id, 'is_active' => true]);
+
+        $invoice = ServiceInvoice::create([
+            'invoice_number' => 'SINV-TST-2',
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->employee->id,
+            'subtotal' => 100,
+            'coupon_discount' => 0,
+            'agent_discount' => 0,
+            'vat_pct' => 15,
+            'vat_amount' => 15,
+            'total_amount' => 115,
+            'employee_commission' => 0,
+            'status' => InvoiceStatusEnum::DUE,
+        ]);
+
+        Activity::query()->delete();
+
+        $this->actingAs($this->employee);
+        $invoice->update(['payment_method_id' => $method->id]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('users.activity', $this->employee))
+            ->assertInertia(fn ($page) => $page
+                ->where('activities.data.0.changes.0.label', 'طريقة الدفع')
+                ->where('activities.data.0.changes.0.new', 'تحويل بنكي'));
+    });
+
+    it('does not flag a routine sign in as sensitive', function () {
+        activity('security')->causedBy($this->employee)->log('تسجيل الدخول');
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('users.activity', $this->employee))
+            ->assertInertia(fn ($page) => $page->where('activities.data.0.isSensitive', false));
     });
 
     it('logs sign in and sign out', function () {

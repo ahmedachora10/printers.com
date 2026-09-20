@@ -1,4 +1,4 @@
-import { ActivityChanges, ActivitySentence, ActorAvatar, LogBadge } from '@/components/activity-entry';
+import { ActivityChanges, ActivitySentence, ActorAvatar, LogBadge, SensitiveBadge } from '@/components/activity-entry';
 import { TablePagination } from '@/components/data-table';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
 import DateRangeBar from '@/components/reports/date-range-bar';
@@ -179,10 +179,13 @@ export default function UserActivity({ subject, activities, logOptions, filters,
                                             </span>
                                             <div className="min-w-0 flex-1">
                                                 <div className="flex flex-wrap items-center justify-between gap-2">
-                                                    <ActivitySentence entry={entry} showCauser={false} />
+                                                    <span className="flex flex-wrap items-center gap-2">
+                                                        <ActivitySentence entry={entry} showCauser={false} />
+                                                        <SensitiveBadge sensitive={entry.isSensitive} />
+                                                    </span>
                                                     <LogBadge label={entry.logLabel} />
                                                 </div>
-                                                <ActivityChanges changes={entry.changes} />
+                                                <ActivityChanges changes={entry.changes} details={entry.details} sensitive={entry.isSensitive} />
                                             </div>
                                         </div>
                                     ))}

@@ -1,4 +1,4 @@
-import { ActivityChanges, ActivitySentence, ActorAvatar, LogBadge } from '@/components/activity-entry';
+import { ActivityChanges, ActivitySentence, ActorAvatar, LogBadge, SensitiveBadge } from '@/components/activity-entry';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
 import DateRangeBar from '@/components/reports/date-range-bar';
@@ -90,8 +90,11 @@ export default function ActivityLogIndex({ activities, users: userOptions, logOp
                 header: 'العملية',
                 cell: (row) => (
                     <div className="min-w-0">
-                        <ActivitySentence entry={row} showCauser={false} />
-                        <ActivityChanges changes={row.changes} max={3} />
+                        <span className="flex flex-wrap items-center gap-2">
+                            <ActivitySentence entry={row} showCauser={false} />
+                            <SensitiveBadge sensitive={row.isSensitive} />
+                        </span>
+                        <ActivityChanges changes={row.changes} details={row.details} sensitive={row.isSensitive} max={3} />
                     </div>
                 ),
             },

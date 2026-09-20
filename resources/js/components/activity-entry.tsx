@@ -1,7 +1,8 @@
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { type ActivityChange, type ActivityEntry } from '@/types/activity';
+import { type ActivityChange, type ActivityDetail, type ActivityEntry } from '@/types/activity';
 import { Link } from '@inertiajs/react';
+import { ShieldAlert } from 'lucide-react';
 
 /**
  * تاسك 115: أجزاء الصفّ المشتركة بين شاشتَي سجلّ النشاط — الجدول العامّ والخطّ
@@ -55,24 +56,72 @@ export function ActivitySentence({ entry, showCauser = true }: { entry: Activity
     );
 }
 
-/** صندوق الفروق: الحقل، قيمته القديمة ⇐ الجديدة. */
-export function ActivityChanges({ changes, max = 6 }: { changes: ActivityChange[]; max?: number }) {
-    if (changes.length === 0) return null;
+/** النصّ الطويل (ملاحظة، سبب إلغاء) يُقتطع في سطرين وكاملُه في tooltip المتصفّح. */
+function Value({ text, className }: { text: string; className?: string }) {
+    return (
+        <span className={cn('line-clamp-2 align-bottom', className)} title={text.length > 60 ? text : undefined}>
+            {text}
+        </span>
+    );
+}
+
+/**
+ * صندوق الفروق: الحقل، قيمته القديمة ⇐ الجديدة، ثم التفاصيل التي لا مقابل
+ * قديم لها. الحسّاس بإطارٍ كهرماني — المال والحالة والصلاحية تُقرأ أولاً.
+ */
+export function ActivityChanges({
+    changes,
+    details = [],
+    sensitive = false,
+    max = 6,
+}: {
+    changes: ActivityChange[];
+    details?: ActivityDetail[];
+    sensitive?: boolean;
+    max?: number;
+}) {
+    if (changes.length === 0 && details.length === 0) return null;
 
     const shown = changes.slice(0, max);
 
     return (
-        <div className="bg-muted/40 mt-2 space-y-1 rounded-lg border p-3">
+        <div
+            className={cn(
+                'mt-2 space-y-1 rounded-lg border p-3',
+                sensitive ? 'border-amber-300 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/30' : 'bg-muted/40',
+            )}
+        >
             {shown.map((change) => (
-                <p key={change.field} className="text-xs">
-                    <span className="text-muted-foreground">{change.label}: </span>
-                    <span className="text-muted-foreground line-through">{change.old}</span>
-                    <span className="text-muted-foreground mx-1">⇐</span>
-                    <span className="font-medium">{change.new}</span>
+                <p key={change.field} className="flex flex-wrap items-baseline gap-x-1 text-xs">
+                    <span className="text-muted-foreground shrink-0">{change.label}:</span>
+                    <Value text={change.old} className="text-muted-foreground line-through" />
+                    <span className="text-muted-foreground shrink-0">⇐</span>
+                    <Value text={change.new} className="font-medium" />
                 </p>
             ))}
             {changes.length > shown.length && <p className="text-muted-foreground text-xs">وحقول أخرى ({changes.length - shown.length})</p>}
+            {details.map((detail) => (
+                <p key={detail.label} className="flex flex-wrap items-baseline gap-x-1 text-xs">
+                    <span className="text-muted-foreground shrink-0">{detail.label}:</span>
+                    <Value text={detail.value} className="font-medium" />
+                </p>
+            ))}
         </div>
+    );
+}
+
+/** شارة «حسّاس» على صفّ يمسّ المال أو الحالة أو الصلاحية. */
+export function SensitiveBadge({ sensitive }: { sensitive: boolean }) {
+    if (!sensitive) return null;
+
+    return (
+        <Badge
+            variant="outline"
+            className="shrink-0 border-amber-300 bg-amber-50 text-xs font-normal text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300"
+        >
+            <ShieldAlert className="size-3" />
+            حسّاس
+        </Badge>
     );
 }
 

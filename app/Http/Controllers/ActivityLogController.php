@@ -6,8 +6,10 @@ use App\Http\Controllers\Concerns\BuildsPagedProps;
 use App\Http\Resources\Activity\ActivityResource;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -42,10 +44,7 @@ class ActivityLogController extends Controller
         }
 
         return Inertia::render('activity-log/index', [
-            'activities' => $this->pagedProp(
-                $query->paginate(self::PER_PAGE)->withQueryString(),
-                fn (Activity $activity) => (new ActivityResource($activity))->toArray($request),
-            ),
+            'activities' => $this->pagedActivities($request, $query),
             'users' => $this->visibleUsers($actor),
             'logOptions' => $this->logOptions(),
             'filters' => $this->filters($request),
@@ -70,15 +69,89 @@ class ActivityLogController extends Controller
                 'branchName' => $user->workBranch()?->name,
                 'isActive' => (bool) $user->is_active,
             ],
-            'activities' => $this->pagedProp(
-                $query->paginate(self::PER_PAGE)->withQueryString(),
-                fn (Activity $activity) => (new ActivityResource($activity))->toArray($request),
-            ),
+            'activities' => $this->pagedActivities($request, $query),
             'logOptions' => $this->logOptions(),
             'filters' => $this->filters($request),
             'defaultFrom' => $this->defaultFrom(),
             'defaultTo' => Carbon::today()->format('Y-m-d'),
         ]);
+    }
+
+    /**
+     * صفحةٌ من السجلّ بصيغتها المعروضة. المعرّفات داخل `properties` تُترجَم إلى
+     * أسماء باستعلامٍ واحد لكل نوعٍ حاضرٍ في الصفحة — لا لكل صفّ.
+     *
+     * @param  Builder<Activity>  $query
+     * @return array{data: list<mixed>, meta: array<string, int|null>}
+     */
+    private function pagedActivities(Request $request, Builder $query): array
+    {
+        $page = $query->paginate(self::PER_PAGE)->withQueryString();
+        $names = $this->resolveNames(collect($page->items()));
+
+        return $this->pagedProp(
+            $page,
+            fn (Activity $activity) => (new ActivityResource($activity))->withNames($names)->toArray($request),
+        );
+    }
+
+    /**
+     * أسماء المعرّفات الواردة في صفحةٍ واحدة، مجموعةً حسب الحقل:
+     * `['payment_method_id' => [2 => 'كاش'], …]`. المحذوف يُقرأ أيضاً — سجلٌّ
+     * يشير إلى طريقة دفعٍ أُلغيت لا يجوز أن يفقد اسمها.
+     *
+     * @param  Collection<int, Activity>  $activities
+     * @return array<string, array<int, string>>
+     */
+    private function resolveNames(Collection $activities): array
+    {
+        $ids = [];
+
+        foreach ($activities as $activity) {
+            $properties = $activity->properties;
+
+            $this->collectIds($properties instanceof Collection ? $properties->all() : (array) $properties, $ids);
+        }
+
+        $names = [];
+
+        foreach ($ids as $field => $values) {
+            [$model, $column] = ActivityResource::idFields()[$field];
+
+            $names[$field] = $model::query()
+                ->when(
+                    in_array(SoftDeletes::class, class_uses_recursive($model), true),
+                    fn ($q) => $q->withTrashed(),
+                )
+                ->whereKey(array_unique($values))
+                ->pluck($column, 'id')
+                ->all();
+        }
+
+        return $names;
+    }
+
+    /**
+     * يلتقط المعرّفات من `properties` مهما تعشّقت: `attributes` و`old` معاً وما
+     * على السطح. جمعٌ لا دمج — القديم والجديد معرّفان مختلفان، وطيُّهما في
+     * خريطةٍ واحدة كان يُسقط أحدهما فيبقى رقماً بلا اسم.
+     *
+     * @param  array<array-key, mixed>  $properties
+     * @param  array<string, list<int>>  $ids
+     */
+    private function collectIds(array $properties, array &$ids): void
+    {
+        foreach ($properties as $key => $value) {
+            if (is_array($value)) {
+                $this->collectIds($value, $ids);
+
+                continue;
+            }
+
+            if (is_numeric($value) && isset(ActivityResource::idFields()[(string) $key])) {
+                $ids[(string) $key][] = (int) $value;
+            }
+        }
     }
 
     /**
