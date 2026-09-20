@@ -44,6 +44,8 @@ interface Props {
 
 type InvoiceLine = Invoice['lines'][number];
 
+const THREAD_SKELETON = <Skeleton className="h-40 w-full" />;
+
 const lineColumns: ColumnDef<InvoiceLine>[] = [
     {
         key: 'name',
@@ -788,10 +790,16 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                     </Card>
                 )}
 
-                {/* تاسك 100: المحادثة الداخلية — مؤجَّلة فلا تنتظرها الصفحة. */}
+                {/* تاسك 100: المحادثة الداخلية — مؤجَّلة فلا تنتظرها الصفحة.
+                    تاسك 130: الشرط `thread ?` ليس زائداً فوق `<Deferred>`. زيارةٌ بـ
+                    preserveState (وهو **افتراض** router.patch/post/delete — الاعتماد
+                    والتسليم وتعديل العميل كلُّها كذلك) تُعيد تصيير الصفحة بلا إعادة
+                    تركيبها، فيحتفظ `<Deferred>` بحالته «وصلت» بينما ردُّ الخادم الكامل
+                    لا يحمل الخاصية المؤجَّلة — فيُصيَّر الابن والخاصية undefined. وهي
+                    تعود بعدها مباشرةً لأن كل ضبطٍ للصفحة يعيد طلب المؤجَّلات. */}
                 {hasThread && (
-                    <Deferred data="thread" fallback={<Skeleton className="h-40 w-full" />}>
-                        <InvoiceThread invoiceId={invoice.id} thread={thread as InvoiceThreadData} />
+                    <Deferred data="thread" fallback={THREAD_SKELETON}>
+                        {thread ? <InvoiceThread invoiceId={invoice.id} thread={thread} /> : THREAD_SKELETON}
                     </Deferred>
                 )}
             </div>
