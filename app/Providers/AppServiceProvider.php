@@ -64,10 +64,13 @@ use App\Policies\StockReconciliationPolicy;
 use App\Policies\SupplierPolicy;
 use App\Policies\UserPolicy;
 use Carbon\CarbonImmutable;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Database\SQLiteConnection;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
@@ -98,6 +101,33 @@ class AppServiceProvider extends ServiceProvider
 
         $this->configureDefaults();
         $this->configureGates();
+        $this->configureAuthLog();
+    }
+
+    /**
+     * تاسك 115: الدخول والخروج في سجلّ النشاط. بقيّة السجلّ يكتبه النموذج عند
+     * الحفظ، وهذان حدثان بلا نموذجٍ يُحفظ — فيُلتقطان من حدثَي المصادقة.
+     *
+     * الانتحال مستثنى: له سطراه في `security` أصلاً، وتبديلُ الحساب فيه يمرّ
+     * بـ`Auth::login` فيُسجَّل مرّتين بلا هذا الاستثناء.
+     */
+    private function configureAuthLog(): void
+    {
+        Event::listen(function (Login $event) {
+            if (request()->routeIs('users.impersonate', 'impersonate.leave')) {
+                return;
+            }
+
+            activity('security')->causedBy($event->user)->log('تسجيل الدخول');
+        });
+
+        Event::listen(function (Logout $event) {
+            if ($event->user === null || request()->routeIs('users.impersonate', 'impersonate.leave')) {
+                return;
+            }
+
+            activity('security')->causedBy($event->user)->log('تسجيل الخروج');
+        });
     }
 
     private function configureGates(): void

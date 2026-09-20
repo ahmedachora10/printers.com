@@ -439,6 +439,14 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
             ],
             [
+                // تاسك 115: سجلّ حركة العمليات — من فعل ماذا ومتى.
+                'title' => 'سجل النشاط',
+                'url' => route('activity-log.index'),
+                'icon' => 'History',
+                'group' => 'admin',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+            ],
+            [
                 'title' => 'الإشعارات',
                 'url' => route('notifications.index'),
                 'icon' => 'Bell',

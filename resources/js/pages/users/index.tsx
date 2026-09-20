@@ -17,7 +17,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type BranchOption, type ManagedUser, type PaginatedUser, type RoleOption } from '@/types/user';
 import { Link, router, usePage } from '@inertiajs/react';
-import { Eye, LogIn, Pencil, Percent, Plus, StickyNote, Trash2 } from 'lucide-react';
+import { Eye, History, LogIn, Pencil, Percent, Plus, StickyNote, Trash2 } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import users from '@/routes/users';
 import { formatCurrency } from '@/lib/utils';
@@ -63,6 +63,12 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
             item.id !== auth.user.id &&
             (item.role === null || !ADMIN_ROLES.includes(item.role))
         );
+    }
+
+    // تاسك 115: يطابق UserPolicy::viewActivity — السوبر أدمن للجميع، ومديرُ
+    // الفرع لمن يديرهم (القائمة عنده مقصورةٌ على فرعه أصلاً).
+    function canViewActivity(item: ManagedUser): boolean {
+        return isSuperAdmin || (auth.role === 'branch-admin' && (item.role === null || !ADMIN_ROLES.includes(item.role)));
     }
 
     function handleImpersonate(item: ManagedUser) {
@@ -199,6 +205,13 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                                 title="عمولات الخدمات"
                             >
                                 <Percent className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
+                        {canViewActivity(item) && (
+                            <Button variant="outline" size="sm" asChild title="سجل النشاط">
+                                <Link href={users.activity(item.id).url}>
+                                    <History className="h-3.5 w-3.5" />
+                                </Link>
                             </Button>
                         )}
                         {canImpersonate(item) && (

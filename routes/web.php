@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AgentCommissionReportController;
 use App\Http\Controllers\AgentController;
 use App\Http\Controllers\AgentPaymentController;
@@ -21,8 +22,8 @@ use App\Http\Controllers\CustomerController;
 use App\Http\Controllers\DailyReportController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DeliveryLogController;
-use App\Http\Controllers\DeliverySettlementController;
 use App\Http\Controllers\DeliveryProviderController;
+use App\Http\Controllers\DeliverySettlementController;
 use App\Http\Controllers\DeliveryZoneController;
 use App\Http\Controllers\DeployController;
 use App\Http\Controllers\DeploymentController;
@@ -485,6 +486,10 @@ Route::middleware(['auth'])->group(function () {
 
         Route::post('users/{user}/impersonate', [ImpersonationController::class, 'start'])
             ->name('users.impersonate');
+
+        // تاسك 115: سجلّ حركة العمليات — جدولٌ عامّ وخطٌّ زمنيّ لمستخدمٍ واحد.
+        Route::get('activity-log', [ActivityLogController::class, 'index'])->name('activity-log.index');
+        Route::get('users/{user}/activity', [ActivityLogController::class, 'forUser'])->name('users.activity');
 
         Route::get('app-settings', [AppSettingController::class, 'index'])->name('app-settings.index');
         Route::put('app-settings/general', [AppSettingController::class, 'updateGeneral'])->name('app-settings.update-general');
