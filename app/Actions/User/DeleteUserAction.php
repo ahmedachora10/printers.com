@@ -3,7 +3,6 @@
 namespace App\Actions\User;
 
 use App\Models\User;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -20,7 +19,6 @@ class DeleteUserAction
         return DB::transaction(function () use ($user) {
             $deleted = $user->delete();
 
-            Cache::forget('user_role_'.$user->id);
 
             return $deleted;
         });

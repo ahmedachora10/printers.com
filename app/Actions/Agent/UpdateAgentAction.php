@@ -4,7 +4,6 @@ namespace App\Actions\Agent;
 
 use App\Models\User;
 use Illuminate\Support\Arr;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class UpdateAgentAction
@@ -37,7 +36,6 @@ class UpdateAgentAction
 
             $this->syncAgentBranches($agent, $data['branches'] ?? [], $actor);
 
-            Cache::forget('user_role_'.$agent->id);
 
             return $agent->refresh();
         });

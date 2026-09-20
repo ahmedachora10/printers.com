@@ -3,7 +3,6 @@
 namespace App\Actions\Agent;
 
 use App\Models\User;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class DeleteAgentAction
@@ -16,7 +15,6 @@ class DeleteAgentAction
             $agent->agentProfile()->delete();
             $agent->delete();
 
-            Cache::forget('user_role_'.$agent->id);
         });
     }
 }
