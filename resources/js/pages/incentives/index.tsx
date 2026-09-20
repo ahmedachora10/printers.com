@@ -256,30 +256,26 @@ export default function IncentivesIndex({
                 headerClassName: 'w-24',
                 cell: (d) => (
                     <div className="flex items-center justify-end gap-1.5">
-                        {d.canUpdate && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                title="تعديل"
-                                onClick={() => {
-                                    setEditingDeduction(d);
-                                    setDeductionOpen(true);
-                                }}
-                            >
-                                <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                        )}
-                        {d.canDelete && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                title="حذف"
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => setDeletingDeduction(d)}
-                            >
-                                <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
-                        )}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            title="تعديل"
+                            onClick={() => {
+                                setEditingDeduction(d);
+                                setDeductionOpen(true);
+                            }}
+                        >
+                            <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            title="حذف"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeletingDeduction(d)}
+                        >
+                            <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
                     </div>
                 ),
             },
@@ -488,6 +484,9 @@ export default function IncentivesIndex({
             />
 
             <DeductionFormModal
+                // تاسك 126: مفتاحٌ لكل قيد — يُعيد تركيب النافذة فتُبتدأ حقولها
+                // من الصفّ المفتوح، بلا تصفيرٍ يدويّ في useEffect.
+                key={editingDeduction?.id ?? 'new'}
                 open={deductionOpen}
                 onOpenChange={setDeductionOpen}
                 editing={editingDeduction}

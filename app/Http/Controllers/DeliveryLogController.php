@@ -110,10 +110,9 @@ class DeliveryLogController extends Controller
                 : [],
             'isSuperAdmin' => $scope['isSuper'],
             // تاسك 127: المحاسب يقرأ الكشف ولا يسوّي أجر السائق — الزرّ يتبع
-            // السياسة، وهي تُعاد فحصها في DeliverySettlementController.
-            'canSettle' => $scope['branchId'] !== null
-                ? Gate::allows('settle', [DeliveryProvider::class, $scope['branchId']])
-                : $scope['isSuper'],
+            // السياسة، وهي تُعاد فحصها في DeliverySettlementController. والفرع
+            // الفارغ لا يقع إلا للسوبر أدمن، وهو يمرّ على `isSuperAdmin` أولاً.
+            'canSettle' => Gate::allows('settle', [DeliveryProvider::class, (int) $scope['branchId']]),
             'expenseCategories' => ExpenseCategory::activeOptionsFor($scope['branchId']),
             'defaultDate' => now()->toDateString(),
             'filters' => [

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Actions\Deduction\CreateDeductionAction;
 use App\Actions\Deduction\DeleteDeductionAction;
-use App\Actions\Deduction\UpdateDeductionAction;
 use App\Http\Requests\Deduction\StoreEmployeeDeductionRequest;
 use App\Http\Requests\Deduction\UpdateEmployeeDeductionRequest;
 use App\Models\EmployeeDeduction;
@@ -42,15 +41,17 @@ class EmployeeDeductionController extends Controller
         return back(fallback: route('incentives.index'))->with('success', 'تم تسجيل الحسم بنجاح');
     }
 
-    /** تاسك 126 — تصحيح القيد. الموظف المحسوم عليه خارج الطلب عمداً. */
-    public function update(
-        UpdateEmployeeDeductionRequest $request,
-        EmployeeDeduction $employeeDeduction,
-        UpdateDeductionAction $action,
-    ): RedirectResponse {
+    /**
+     * تاسك 126 — تصحيح القيد. الموظف المحسوم عليه خارج الطلب عمداً.
+     *
+     * بلا Action: صفٌّ واحد يُحدَّث، و`LogsActivity` يكتب سجلّه — فلا معاملة
+     * تلفّ عبارةً واحدة ولا طبقةٌ تمرّر `$data` وتعود.
+     */
+    public function update(UpdateEmployeeDeductionRequest $request, EmployeeDeduction $employeeDeduction): RedirectResponse
+    {
         Gate::authorize('update', $employeeDeduction);
 
-        $action->handle($employeeDeduction, $request->validated());
+        $employeeDeduction->update($request->validated());
 
         return back(fallback: route('incentives.index'))->with('success', 'تم تعديل الحسم بنجاح');
     }

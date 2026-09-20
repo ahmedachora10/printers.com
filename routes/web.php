@@ -188,15 +188,13 @@ Route::middleware(['auth'])->group(function () {
         });
     });
 
-    // تاسك 93 — كشف توصيلات اليوم: متابعةٌ تشغيلية قراءةً فقط.
-    // تاسك 127: والمحاسب منها — خارج مجموعة الإدارة كي يصلها، والسياسة
-    // (`viewDeliveries`) هي الحارس الفعلي لا موضع السطر.
     Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
+        // تاسك 93 — كشف توصيلات اليوم: متابعةٌ تشغيلية قراءةً فقط.
+        // تاسك 127: والمحاسب منها — خارج مجموعة الإدارة كي يصلها، والسياسة
+        // (`viewDeliveries`) هي الحارس الفعلي لا موضع السطر.
         Route::get('shipping/deliveries', [DeliveryLogController::class, 'index'])
             ->name('shipping.deliveries');
-    });
 
-    Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
         Route::prefix('pos')->name('pos.')->group(function () {
             Route::get('product', [ProductInvoiceController::class, 'create'])->name('product.create');
             Route::post('product', [ProductInvoiceController::class, 'store'])->name('product.store');

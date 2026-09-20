@@ -60,8 +60,8 @@ class CalculateServiceInvoiceAction
         // تاسك 116: غير القابلة للبيع لا تُحمَّل أصلاً — فالسطر الذي يرجع بخدمةٍ
         // عطّلها مدير النظام يسقط على شرط `$branchService` أدناه بالرسالة نفسها.
         $branchServices = BranchService::query()
-            ->where('branch_services.branch_id', $branchId)
-            ->whereIn('branch_services.id', $branchServiceIds)
+            ->where('branch_id', $branchId)
+            ->whereIn('id', $branchServiceIds)
             ->sellable()
             ->with('serviceTemplate:id,name')
             ->get()

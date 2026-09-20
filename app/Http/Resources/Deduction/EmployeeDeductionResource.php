@@ -33,28 +33,36 @@ class EmployeeDeductionResource extends JsonResource
             // بصيغة العرض، و`<input type="date">` لا يقرؤها.
             'deductedAtDate' => $this->deducted_at?->format('Y-m-d'),
             'notes' => $this->notes,
-            'canUpdate' => $request->user()->can('update', $this->resource),
-            'canDelete' => $request->user()->can('delete', $this->resource),
             // تاسك 126: سجلّ التعديلات — القديم ⇒ الجديد لما تغيّر، من ومتى.
-            // نفس عارض تاسك 113 في نافذة المصروف، لا عارضٌ ثانٍ.
+            // ولا `canUpdate`/`canDelete`: الشاشة للإدارة وحدها والقائمة مقصورةٌ
+            // على فرع المستخدم، فالسياسة صادقةٌ على كل صفٍّ يصله.
             'history' => $this->relationLoaded('activities') ? $this->readableHistory() : [],
         ];
     }
 
+    /** تسميات الحقول القابلة للتعديل (تاسك 126) — تُقرأ في سجلّ التعديلات. */
+    private const FIELD_LABELS = [
+        'amount' => 'القيمة',
+        'reason' => 'السبب',
+        'reason_note' => 'شرح السبب',
+        'deducted_at' => 'التاريخ',
+        'notes' => 'الملاحظات',
+    ];
+
     /**
-     * تعديلات هذا القيد بقيمٍ مقروءة: تسمية السبب بدل قيمته، والتاريخ بصيغته
-     * المعروضة.
+     * تعديلات هذا القيد سطراً سطراً: تسمية الحقل وقيمتاه مقروءتين — فالواجهة
+     * تعرضها كما هي بلا خريطة تسمياتٍ ثانية عندها.
      *
      * @return list<array<string, mixed>>
      */
     private function readableHistory(): array
     {
-        $readable = fn (array $fields) => collect($fields)->map(fn ($value, $field) => match (true) {
-            $value === null => null,
+        $readable = fn (?string $field, mixed $value) => match (true) {
+            $value === null || $value === '' => '—',
             $field === 'reason' => DeductionReasonEnum::tryFrom($value)?->label() ?? $value,
             $field === 'deducted_at' => Carbon::parse($value)->format('d/m/Y'),
-            default => $value,
-        })->all();
+            default => (string) $value,
+        };
 
         return $this->activities
             ->where('event', 'updated')
@@ -63,8 +71,14 @@ class EmployeeDeductionResource extends JsonResource
                 'id' => $activity->id,
                 'byName' => $activity->causer?->name,
                 'at' => $activity->created_at->format('d/m/Y H:i'),
-                'old' => $readable($activity->properties['old'] ?? []),
-                'new' => $readable($activity->properties['attributes'] ?? []),
+                'changes' => collect($activity->properties['attributes'] ?? [])
+                    ->map(fn ($value, $field) => [
+                        'label' => self::FIELD_LABELS[$field] ?? $field,
+                        'old' => $readable($field, $activity->properties['old'][$field] ?? null),
+                        'new' => $readable($field, $value),
+                    ])
+                    ->values()
+                    ->all(),
             ])
             ->values()
             ->all();

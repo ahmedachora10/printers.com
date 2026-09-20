@@ -276,8 +276,10 @@ describe('Employee deductions', function () {
 
             $this->get(route('incentives.index'))
                 ->assertInertia(fn ($page) => $page
-                    ->where('deductions.data.0.canUpdate', true)
-                    ->has('deductions.data.0.history', 1));
+                    ->has('deductions.data.0.history', 1)
+                    ->where('deductions.data.0.history.0.changes.0.label', 'القيمة')
+                    ->where('deductions.data.0.history.0.changes.0.old', '300.00')
+                    ->where('deductions.data.0.history.0.changes.0.new', '150.00'));
         });
 
         it('forbids a branch admin from editing a deduction in another branch', function () {

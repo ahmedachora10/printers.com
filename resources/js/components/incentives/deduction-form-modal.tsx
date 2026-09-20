@@ -6,17 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type DeductionReasonOption, type EmployeeDeduction, type EmployeeOption } from '@/types/incentive';
 import { useForm } from '@inertiajs/react';
-import { useEffect } from 'react';
 import InputError from '../input-error';
-
-/** تسميات حقول سجلّ التعديلات كما تُقرأ. */
-const FIELD_LABELS: Record<string, string> = {
-    amount: 'القيمة',
-    reason: 'السبب',
-    reason_note: 'شرح السبب',
-    deducted_at: 'التاريخ',
-    notes: 'الملاحظات',
-};
 
 interface Props {
     open: boolean;
@@ -37,34 +27,16 @@ export default function DeductionFormModal({ open, onOpenChange, employees, reas
     const isEdit = editing !== null;
     const today = new Date().toISOString().slice(0, 10);
 
-    const { data, setData, post, patch, processing, errors, reset, setDefaults } = useForm({
-        user_id: '',
-        amount: '',
-        reason: '',
-        reason_note: '',
-        deducted_at: today,
-        notes: '',
+    // الحقول تُبتدأ مرةً واحدة عند التركيب — والشاشة تُعيد تركيب النافذة بـ`key`
+    // لكل قيدٍ تفتحه، فلا حاجة إلى تصفيرٍ يدويّ بعد كل فتحة.
+    const { data, setData, post, patch, processing, errors } = useForm({
+        user_id: editing ? editing.userId.toString() : '',
+        amount: editing ? editing.amount.toString() : '',
+        reason: editing?.reason ?? '',
+        reason_note: editing?.reasonNote ?? '',
+        deducted_at: editing?.deductedAtDate ?? today,
+        notes: editing?.notes ?? '',
     });
-
-    // الافتراضات تُزرع قبل reset: القيد المفتوح للتعديل يملأ الحقول، والتسجيل
-    // يفتح على فارغ — ونفس الاستدعاء يخدم الحالتين.
-    useEffect(() => {
-        if (!open) return;
-
-        setDefaults(
-            editing
-                ? {
-                      user_id: editing.userId.toString(),
-                      amount: editing.amount.toString(),
-                      reason: editing.reason,
-                      reason_note: editing.reasonNote ?? '',
-                      deducted_at: editing.deductedAtDate ?? today,
-                      notes: editing.notes ?? '',
-                  }
-                : { user_id: '', amount: '', reason: '', reason_note: '', deducted_at: today, notes: '' },
-        );
-        reset();
-    }, [open, editing]);
 
     // «حالات أخرى» وحدها تطالب بشرح — والخادم يفرضه كذلك بـrequired_if.
     const needsNote = reasons.find((r) => r.value === data.reason)?.requiresNote ?? false;
@@ -197,10 +169,9 @@ export default function DeductionFormModal({ open, onOpenChange, employees, reas
                                     <p className="font-medium">
                                         {entry.byName ?? '—'} — {entry.at}
                                     </p>
-                                    {Object.keys(entry.new).map((field) => (
-                                        <p key={field}>
-                                            {FIELD_LABELS[field] ?? field}: {String(entry.old[field] ?? '—')} ⇐{' '}
-                                            {String(entry.new[field] ?? '—')}
+                                    {entry.changes.map((change) => (
+                                        <p key={change.label}>
+                                            {change.label}: {change.old} ⇐ {change.new}
                                         </p>
                                     ))}
                                 </div>

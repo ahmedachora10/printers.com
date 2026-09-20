@@ -75,18 +75,15 @@ export interface EmployeeDeduction {
     /** تاسك 126: الخام (Y-m-d) لخانة التاريخ في نافذة التعديل. */
     deductedAtDate: string | null;
     notes: string | null;
-    canUpdate: boolean;
-    canDelete: boolean;
     history: DeductionHistoryEntry[];
 }
 
-/** تاسك 126: تعديلٌ واحد على قيد حسم — القديم ⇒ الجديد لما تغيّر. */
+/** تاسك 126: تعديلٌ واحد على قيد حسم — سطرٌ لكل حقلٍ تغيّر، مقروءاً من الخادم. */
 export interface DeductionHistoryEntry {
     id: number;
     byName: string | null;
     at: string;
-    old: Record<string, string | number | null>;
-    new: Record<string, string | number | null>;
+    changes: { label: string; old: string; new: string }[];
 }
 
 export interface PaginatedEmployeeDeduction {
