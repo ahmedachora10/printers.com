@@ -3,14 +3,13 @@ import DeliveryBadge from '@/components/invoices/delivery-badge';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
 import DateRangeBar from '@/components/reports/date-range-bar';
+import FilterSearch from '@/components/reports/filter-search';
 import { FilterSelect } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
@@ -22,8 +21,8 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
 import { Link, router } from '@inertiajs/react';
-import { CheckCircle2, Eye, Info, Loader2, MessageSquare, PackageCheck, Pencil, Printer, Search, Undo2, UserPlus, X } from 'lucide-react';
-import { useMemo, useRef, useState } from 'react';
+import { CheckCircle2, Eye, Info, Loader2, MessageSquare, PackageCheck, Pencil, Printer, Undo2, UserPlus } from 'lucide-react';
+import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'الفواتير', href: '/invoices' }];
@@ -124,7 +123,6 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         });
     };
 
-    const [search, setSearch] = useState(applied.search);
     const [returnItem, setReturnItem] = useState<InvoiceListItem | null>(null);
     const [returnReason, setReturnReason] = useState('');
     const [returning, setReturning] = useState(false);
@@ -134,7 +132,6 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     // اعتماد الفاتورة من صفّ القائمة (تاسك 88) — بتأكيدٍ صغير، فهو قرار مالي.
     const [approveItem, setApproveItem] = useState<InvoiceListItem | null>(null);
     const [approving, setApproving] = useState(false);
-    const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
     // Customer name/phone/tax editing — service invoices only, gated by
     // item.canEditCustomer. Reuses the review-queue update-customer endpoint,
@@ -256,19 +253,6 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         );
     }
 
-    // Typing searches on its own after a short pause; every other filter applies
-    // on click, so the list never reloads mid-keystroke.
-    const handleSearchChange = (value: string) => {
-        setSearch(value);
-        if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        searchTimeout.current = setTimeout(() => f.replace('search', value), 400);
-    };
-
-    const handleReset = () => {
-        if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        setSearch('');
-        f.reset();
-    };
 
     const modalActiveCount = MODAL_KEYS.filter((key) => f.isActive(key)).length;
 
@@ -572,7 +556,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                         open={f.open}
                         onOpenChange={f.onOpenChange}
                         onApply={f.apply}
-                        onReset={handleReset}
+                        onReset={f.reset}
                         activeCount={modalActiveCount}
                         title="تصفية الفواتير"
                     >
@@ -639,32 +623,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 </div>
 
                 <Card className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border px-4 py-3.5">
-                    <div className="space-y-1">
-                        <Label htmlFor="invoice-search" className="text-muted-foreground text-xs">
-                            بحث
-                        </Label>
-                        <div className="relative">
-                            <Search className="text-muted-foreground pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2" />
-                            <Input
-                                id="invoice-search"
-                                value={search}
-                                onChange={(e) => handleSearchChange(e.target.value)}
-                                placeholder="رقم الفاتورة أو اسم الموظف..."
-                                className={cn('h-8 w-full ps-9 pe-8 text-sm sm:w-72', search && 'border-primary/40 bg-primary/5')}
-                            />
-                            {search && (
-                                <button
-                                    type="button"
-                                    onClick={() => handleSearchChange('')}
-                                    className="text-muted-foreground hover:text-foreground absolute end-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 transition-colors"
-                                    aria-label="مسح البحث"
-                                >
-                                    <X className="size-3.5" />
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
+                    <FilterSearch filters={f} value={applied.search} placeholder="رقم الفاتورة أو اسم الموظف..." />
                     <DateRangeBar filters={f} from={applied.date_from} to={applied.date_to} fromKey="date_from" toKey="date_to" extended />
                 </Card>
 

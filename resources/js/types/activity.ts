@@ -53,19 +53,7 @@ export interface ActivitySubject {
     isActive: boolean;
 }
 
-export interface ActivityOption {
-    value: string;
-    label: string;
-}
-
 export interface PagedActivities {
     data: ActivityEntry[];
-    meta: {
-        current_page: number;
-        last_page: number;
-        total: number;
-        per_page: number;
-        from: number | null;
-        to: number | null;
-    };
+    meta: { current_page: number; last_page: number; total: number; from: number | null; to: number | null };
 }

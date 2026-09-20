@@ -163,11 +163,11 @@ class ActivityResource extends JsonResource
 
     /**
      * السجلّ اليدويّ يكتب `old`/`new` مسطَّحين بلا اسمِ حقل — الوصفُ هو ما يسمّي
-     * ما تغيّر.
+     * ما تغيّر: `الوصف => [الحقل، عنوانه]`.
      */
-    private const PAIR_LABELS = [
-        'payment method changed' => 'طريقة الدفع',
-        'updated internal notes' => 'الملاحظات الداخلية',
+    private const PAIR_FIELDS = [
+        'payment method changed' => ['payment_method_id', 'طريقة الدفع'],
+        'updated internal notes' => ['internal_notes', 'الملاحظات الداخلية'],
     ];
 
     /**
@@ -175,7 +175,7 @@ class ActivityResource extends JsonResource
      * يُحذف. لا تُخفى بقيّة الصفوف — إنما تُقرأ هذه أولاً عند المراجعة.
      */
     private const SENSITIVE_FIELDS = [
-        'payment_method_id', 'طريقة الدفع', 'status', 'total_amount', 'subtotal',
+        'payment_method_id', 'status', 'total_amount', 'subtotal',
         'coupon_discount', 'agent_discount', 'tier_discount_amount', 'points_discount',
         'employee_commission', 'materials_cost', 'unit_price', 'total', 'amount',
         'points_balance', 'points_redeemed', 'cumulative_spend', 'tier', 'credit_limit',
@@ -217,7 +217,7 @@ class ActivityResource extends JsonResource
             'id' => $activity->id,
             'logName' => $activity->log_name,
             'logLabel' => self::LOG_LABELS[$activity->log_name] ?? $activity->log_name,
-            'action' => $this->action($changes),
+            'action' => $this->action(),
             'causerId' => $activity->causer_id,
             'causerName' => $activity->causer?->name ?? 'النظام',
             'subjectType' => self::SUBJECT_TYPES[$activity->subject_type] ?? null,
@@ -236,43 +236,35 @@ class ActivityResource extends JsonResource
      * الحقول التي يقرأ العارض معرّفاتها كأسماء، ومصدرُ كل اسم. تُجمع في
      * المتحكّم مرّةً لكل صفحة (استعلامٌ واحد لكل نوعٍ حاضر) لا لكل صفّ.
      *
-     * @return array<string, array{class-string<Model>, string}>
+     * @var array<string, array{class-string<Model>, string}>
      */
-    public static function idFields(): array
-    {
-        return [
-            'payment_method_id' => [PaymentMethod::class, 'name'],
-            'customer_id' => [Customer::class, 'full_name'],
-            'branch_id' => [Branch::class, 'name'],
-            'expense_category_id' => [ExpenseCategory::class, 'name'],
-            'supplier_id' => [Supplier::class, 'name'],
-            'shipping_provider_id' => [DeliveryProvider::class, 'name'],
-            'service_invoice_id' => [ServiceInvoice::class, 'invoice_number'],
-            'invoice_id' => [ServiceInvoice::class, 'invoice_number'],
-            'user_id' => [User::class, 'name'],
-            'delivered_by' => [User::class, 'name'],
-            'approved_by' => [User::class, 'name'],
-            'cancelled_by' => [User::class, 'name'],
-            'created_by' => [User::class, 'name'],
-            'target_id' => [User::class, 'name'],
-            'impersonator_id' => [User::class, 'name'],
-        ];
-    }
+    public const ID_FIELDS = [
+        'payment_method_id' => [PaymentMethod::class, 'name'],
+        'customer_id' => [Customer::class, 'full_name'],
+        'branch_id' => [Branch::class, 'name'],
+        'expense_category_id' => [ExpenseCategory::class, 'name'],
+        'supplier_id' => [Supplier::class, 'name'],
+        'shipping_provider_id' => [DeliveryProvider::class, 'name'],
+        'service_invoice_id' => [ServiceInvoice::class, 'invoice_number'],
+        'invoice_id' => [ServiceInvoice::class, 'invoice_number'],
+        'user_id' => [User::class, 'name'],
+        'delivered_by' => [User::class, 'name'],
+        'approved_by' => [User::class, 'name'],
+        'cancelled_by' => [User::class, 'name'],
+        'target_id' => [User::class, 'name'],
+    ];
 
     /**
      * الجملة: انتقالُ حالة الفاتورة أولاً (اعتماد/إلغاء/إرجاع)، ثم الوصف المترجَم،
      * ثم الوصف كما كُتب — فالسجلّات اليدوية عربيةٌ أصلاً في معظمها.
-     *
-     * @param  list<array{field: string, label: string, old: string, new: string}>  $changes
      */
-    private function action(array $changes): string
+    private function action(): string
     {
-        $status = collect($changes)->firstWhere('field', 'status');
+        $properties = $this->properties();
+        $to = $properties['attributes']['status'] ?? null;
 
-        if ($status && $this->isInvoice()) {
-            $to = InvoiceStatusEnum::tryFrom($this->resource->properties['attributes']['status'] ?? '');
-
-            $verb = match ($to) {
+        if ($this->isInvoice() && $to !== ($properties['old']['status'] ?? null)) {
+            $verb = match (InvoiceStatusEnum::tryFrom((string) $to)) {
                 InvoiceStatusEnum::PAID => 'اعتمد',
                 InvoiceStatusEnum::CANCELLED => 'ألغى',
                 InvoiceStatusEnum::RETURNED => 'أرجع',
@@ -305,7 +297,7 @@ class ActivityResource extends JsonResource
             return $this->resource->subject_id ? '#'.$this->resource->subject_id : null;
         }
 
-        foreach (['invoice_number', 'po_number', 'full_name', 'name', 'name_ar', 'supplier_name'] as $field) {
+        foreach (['invoice_number', 'po_number', 'full_name', 'name', 'name_ar'] as $field) {
             if (filled($subject->{$field} ?? null)) {
                 return (string) $subject->{$field};
             }
@@ -360,13 +352,14 @@ class ActivityResource extends JsonResource
 
         // (2) قيمتان مفردتان: الوصف هو اسم الحقل.
         if (! is_array($new) && (isset($properties['new']) || isset($properties['old'])) && ! is_array($old)) {
-            $label = self::PAIR_LABELS[$this->resource->description] ?? 'القيمة';
+            [$field, $label] = self::PAIR_FIELDS[$this->resource->description] ?? ['value', 'القيمة'];
 
             return [[
-                'field' => $label,
+                'field' => $field,
                 'label' => $label,
-                'old' => $this->display($label, $old),
-                'new' => $this->display($label, $properties['new'] ?? null),
+                // القيمة هنا اسمٌ مكتوبٌ أصلاً لا معرّف، فلا تمرّ على خريطة الأسماء.
+                'old' => $this->display('', $old),
+                'new' => $this->display('', $properties['new'] ?? null),
             ]];
         }
 
