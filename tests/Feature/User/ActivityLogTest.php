@@ -8,6 +8,7 @@ use App\Models\ServiceInvoice;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity;
 
 uses(RefreshDatabase::class);
@@ -198,6 +199,32 @@ describe('Activity log', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('activities.data.0.changes.0.label', 'طريقة الدفع')
                 ->where('activities.data.0.changes.0.new', 'تحويل بنكي'));
+    });
+
+    it('reads the users table once for all the user fields on a page', function () {
+        activity('expenses')->causedBy($this->employee)->withProperties([
+            'attributes' => [
+                'user_id' => $this->employee->id,
+                'approved_by' => $this->branchAdmin->id,
+                'delivered_by' => $this->outsider->id,
+            ],
+        ])->log('اختبار المصدر الواحد');
+
+        $lookups = 0;
+        DB::listen(function ($query) use (&$lookups) {
+            if (str_starts_with($query->sql, 'select "name", "id" from "users"')) {
+                $lookups++;
+            }
+        });
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('users.activity', $this->employee))
+            ->assertInertia(fn ($page) => $page
+                ->where('activities.data.0.changes.0.new', $this->employee->name)
+                ->where('activities.data.0.changes.1.new', $this->branchAdmin->name)
+                ->where('activities.data.0.changes.2.new', $this->outsider->name));
+
+        expect($lookups)->toBe(1);
     });
 
     it('does not flag a routine sign in as sensitive', function () {

@@ -44,12 +44,8 @@ class ActivityLogController extends Controller
         }
 
         return Inertia::render('activity-log/index', [
-            'activities' => $this->pagedActivities($request, $query),
+            ...$this->sharedProps($request, $query),
             'users' => $this->visibleUsers($actor),
-            'logOptions' => $this->logOptions(),
-            'filters' => $this->filters($request),
-            'defaultFrom' => $this->defaultFrom(),
-            'defaultTo' => Carbon::today()->format('Y-m-d'),
         ]);
     }
 
@@ -69,30 +65,33 @@ class ActivityLogController extends Controller
                 'branchName' => $user->workBranch()?->name,
                 'isActive' => (bool) $user->is_active,
             ],
-            'activities' => $this->pagedActivities($request, $query),
-            'logOptions' => $this->logOptions(),
-            'filters' => $this->filters($request),
-            'defaultFrom' => $this->defaultFrom(),
-            'defaultTo' => Carbon::today()->format('Y-m-d'),
+            ...$this->sharedProps($request, $query),
         ]);
     }
 
     /**
-     * صفحةٌ من السجلّ بصيغتها المعروضة. المعرّفات داخل `properties` تُترجَم إلى
-     * أسماء باستعلامٍ واحد لكل نوعٍ حاضرٍ في الصفحة — لا لكل صفّ.
+     * ما تشترك فيه الشاشتان: الصفحة بصيغتها المعروضة وحالةُ التصفية. المعرّفات
+     * داخل `properties` تُترجَم إلى أسماء باستعلامٍ واحد لكل نوعٍ حاضرٍ في
+     * الصفحة — لا لكل صفّ.
      *
      * @param  Builder<Activity>  $query
-     * @return array{data: list<mixed>, meta: array<string, int|null>}
+     * @return array<string, mixed>
      */
-    private function pagedActivities(Request $request, Builder $query): array
+    private function sharedProps(Request $request, Builder $query): array
     {
         $page = $query->paginate(self::PER_PAGE)->withQueryString();
         $names = $this->resolveNames(collect($page->items()));
 
-        return $this->pagedProp(
-            $page,
-            fn (Activity $activity) => (new ActivityResource($activity))->withNames($names)->toArray($request),
-        );
+        return [
+            'activities' => $this->pagedProp(
+                $page,
+                fn (Activity $activity) => (new ActivityResource($activity))->withNames($names)->toArray($request),
+            ),
+            'logOptions' => $this->logOptions(),
+            'filters' => $this->filters($request),
+            'defaultFrom' => $this->defaultFrom(),
+            'defaultTo' => Carbon::today()->format('Y-m-d'),
+        ];
     }
 
     /**
@@ -113,19 +112,33 @@ class ActivityLogController extends Controller
             $this->collectIds($properties instanceof Collection ? $properties->all() : (array) $properties, $ids);
         }
 
+        // حقولٌ كثيرة تشير إلى المصدر نفسه (`user_id` و`approved_by` و`delivered_by`…
+        // كلّها مستخدمون)، فالاستعلام لكل مصدرٍ لا لكل حقل، وإلا قُرئ الجدول مرّتين.
+        $groups = [];
+
+        foreach (array_keys($ids) as $field) {
+            [$model, $column] = ActivityResource::ID_FIELDS[$field];
+
+            $groups[$model.'|'.$column][] = $field;
+        }
+
         $names = [];
 
-        foreach ($ids as $field => $values) {
-            [$model, $column] = ActivityResource::idFields()[$field];
+        foreach ($groups as $source => $fields) {
+            [$model, $column] = explode('|', $source);
 
-            $names[$field] = $model::query()
+            $map = $model::query()
                 ->when(
                     in_array(SoftDeletes::class, class_uses_recursive($model), true),
                     fn ($q) => $q->withTrashed(),
                 )
-                ->whereKey(array_unique($values))
+                ->whereKey(array_unique(array_merge(...array_map(fn (string $field) => $ids[$field], $fields))))
                 ->pluck($column, 'id')
                 ->all();
+
+            foreach ($fields as $field) {
+                $names[$field] = $map;
+            }
         }
 
         return $names;
@@ -148,7 +161,7 @@ class ActivityLogController extends Controller
                 continue;
             }
 
-            if (is_numeric($value) && isset(ActivityResource::idFields()[(string) $key])) {
+            if (is_numeric($value) && isset(ActivityResource::ID_FIELDS[(string) $key])) {
                 $ids[(string) $key][] = (int) $value;
             }
         }
