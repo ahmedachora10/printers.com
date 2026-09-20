@@ -62,9 +62,33 @@ describe('User Impersonation', function () {
         $this->assertAuthenticatedAs($this->branchAdmin->fresh());
     });
 
-    it('forbids impersonating another admin', function () {
+    // تاسك 129 — «إضافة زر الدخول المباشر من الأدمن لمدير الفرع».
+    it('lets a super-admin impersonate a branch-admin', function () {
         $this->actingAs($this->superAdmin)
             ->post(route('users.impersonate', $this->branchAdmin))
+            ->assertRedirect(route('dashboard'));
+
+        $this->assertAuthenticatedAs($this->branchAdmin->fresh());
+    });
+
+    it('forbids a branch-admin from impersonating another branch-admin', function () {
+        $otherAdmin = User::factory()->create();
+        $otherAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        Branch::factory()->create(['owner_id' => $otherAdmin->id]);
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('users.impersonate', $otherAdmin))
+            ->assertForbidden();
+
+        $this->assertAuthenticatedAs($this->branchAdmin->fresh());
+    });
+
+    it('forbids impersonating a super-admin', function () {
+        $otherSuper = User::factory()->create();
+        $otherSuper->addRole(Roles::SUPER_ADMIN->value);
+
+        $this->actingAs($this->superAdmin)
+            ->post(route('users.impersonate', $otherSuper))
             ->assertForbidden();
     });
 

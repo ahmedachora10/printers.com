@@ -5,8 +5,10 @@ namespace App\Http\Requests\BranchService;
 use App\Enums\ServicePricingTypeEnum;
 use App\Http\Requests\BranchService\Concerns\HandlesNoteExamples;
 use App\Http\Requests\BranchService\Concerns\ValidatesSellingPriceBounds;
+use App\Models\BranchService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdateBranchServiceRequest extends FormRequest
 {
@@ -47,6 +49,26 @@ class UpdateBranchServiceRequest extends FormRequest
             'materials_cost' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ];
+    }
+
+    /**
+     * تاسك 116 — مدير الفرع لا يُفعّل خدمةً عطّلها مدير النظام: التعطيل من فوق
+     * قاطعٌ، فتفعيلٌ يُخزَّن ولا يُباع كذبةٌ على الشاشة.
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function (Validator $validator): void {
+            // اسم الوسيط في مسار الـresource هو `branch_service`.
+            $service = $this->route('branch_service');
+
+            if (! $this->boolean('is_active') || ! $service instanceof BranchService) {
+                return;
+            }
+
+            if ($service->serviceTemplate?->is_active === false) {
+                $validator->errors()->add('is_active', 'الخدمة معطَّلة من الإدارة على مستوى النظام، فلا تُفعَّل في الفرع.');
+            }
+        });
     }
 
     public function messages(): array

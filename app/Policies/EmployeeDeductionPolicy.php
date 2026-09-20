@@ -8,8 +8,8 @@ use Illuminate\Auth\Access\HandlesAuthorization;
 
 /**
  * تاسك 74: «للإدارة صلاحية تطبيق الخصم» — أي السوبر أدمن ومدير الفرع وحدهما،
- * ومدير الفرع داخل فرعه فقط. ولا `update` هنا: القيد لا يُعاد كتابته بعد الإدراج.
- * أمّا `delete` فمتاحٌ لمن يملك التطبيق نفسه — الحذف soft، فيبقى الأثر.
+ * ومدير الفرع داخل فرعه فقط. و`delete` و`update` لمن يملك التطبيق نفسه:
+ * الحذف soft، والتعديل مكتوبٌ في سجلّ النشاط — فالأثر باقٍ في الحالتين.
  */
 class EmployeeDeductionPolicy
 {
@@ -50,6 +50,12 @@ class EmployeeDeductionPolicy
      * وفي فرعه وحده — تماماً كشرط `applyTo`.
      */
     public function delete(User $user, EmployeeDeduction $deduction): bool
+    {
+        return $this->view($user, $deduction);
+    }
+
+    /** تاسك 126: «إضافة زر التعديل عند تسجيل حسم» — بنفس شرط الحذف. */
+    public function update(User $user, EmployeeDeduction $deduction): bool
     {
         return $this->view($user, $deduction);
     }

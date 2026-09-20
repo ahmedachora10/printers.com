@@ -31,11 +31,14 @@ interface Props {
     pendingSummary: { count: number; total: number };
     canApproveAll: boolean;
     categories: Category[];
+    /** تاسك 123 — خيارات فلتر مصدر المصروف، من ExpenseSourceEnum. */
+    sources: { value: string; label: string }[];
     branches?: { id: number; name: string }[] | null;
     filters: {
         search?: string;
         expense_category_id?: string;
         approval?: string;
+        paid_from?: string;
         /** المدى المطبَّق فعلاً — اليوم حين تُفتح الشاشة بلا مدى (تاسك 104) */
         from?: string | null;
         to?: string | null;
@@ -67,7 +70,7 @@ function rangeLabel(from: string, to: string): string {
     return from ? `من ${shortDate(from)}` : `حتى ${shortDate(to)}`;
 }
 
-export default function ExpensesIndex({ items, periodTotal, pendingSummary, canApproveAll, categories, branches, filters, defaultDate }: Props) {
+export default function ExpensesIndex({ items, periodTotal, pendingSummary, canApproveAll, categories, sources, branches, filters, defaultDate }: Props) {
     const [approvingAll, setApprovingAll] = useState(false);
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Expense | null>(null);
@@ -233,6 +236,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
         expense_category_id: filters.expense_category_id ?? '',
         approval: filters.approval ?? '',
+        paid_from: filters.paid_from ?? '',
     });
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -242,6 +246,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
             search,
             expense_category_id: filterValues.expense_category_id,
             approval: filterValues.approval,
+            paid_from: filterValues.paid_from,
             from: filters.from ?? undefined,
             to: filters.to ?? undefined,
             range: filters.range ?? undefined,
@@ -269,7 +274,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
 
     const handleClearAll = () => {
         setSearch('');
-        setFilterValues({ expense_category_id: '', approval: '' });
+        setFilterValues({ expense_category_id: '', approval: '', paid_from: '' });
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         router.get(index.url(), {}, { preserveState: true, replace: true });
     };
@@ -326,6 +331,13 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                                     { value: 'pending', label: 'غير معتمد' },
                                     { value: 'approved', label: 'معتمد' },
                                 ],
+                            },
+                            // تاسك 123 — مصدر المصروف. يمرّ عبر نفس الاستعلام،
+                            // فزرّ «اعتماد جميع المصروفات» يحترمه.
+                            {
+                                key: 'paid_from',
+                                placeholder: 'المصدر',
+                                options: sources,
                             },
                         ]}
                         filterValues={filterValues}

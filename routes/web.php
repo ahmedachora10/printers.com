@@ -188,6 +188,14 @@ Route::middleware(['auth'])->group(function () {
         });
     });
 
+    // تاسك 93 — كشف توصيلات اليوم: متابعةٌ تشغيلية قراءةً فقط.
+    // تاسك 127: والمحاسب منها — خارج مجموعة الإدارة كي يصلها، والسياسة
+    // (`viewDeliveries`) هي الحارس الفعلي لا موضع السطر.
+    Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
+        Route::get('shipping/deliveries', [DeliveryLogController::class, 'index'])
+            ->name('shipping.deliveries');
+    });
+
     Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
         Route::prefix('pos')->name('pos.')->group(function () {
             Route::get('product', [ProductInvoiceController::class, 'create'])->name('product.create');
@@ -546,9 +554,6 @@ Route::middleware(['auth'])->group(function () {
         // في جدوله. `toggle-status` قبل الـresource وإلا التقطه `{id}`.
         Route::get('shipping', [ShippingController::class, 'index'])->name('shipping.index');
 
-        // تاسك 93 — كشف توصيلات اليوم: متابعةٌ تشغيلية قراءةً فقط.
-        Route::get('shipping/deliveries', [DeliveryLogController::class, 'index'])
-            ->name('shipping.deliveries');
         // تاسك 111 — تسوية أجر السائق لكل طلب.
         Route::post('shipping/deliveries/{invoice}/settle', [DeliverySettlementController::class, 'store'])
             ->name('shipping.deliveries.settle');
@@ -588,6 +593,9 @@ Route::middleware(['auth'])->group(function () {
         // «للإدارة صلاحية تطبيق الخصم» يحقّقها role:branch-admin|super-admin.
         Route::post('employee-deductions', [EmployeeDeductionController::class, 'store'])
             ->name('employee-deductions.store');
+        // تاسك 126 — «إضافة زر التعديل عند تسجيل حسم».
+        Route::patch('employee-deductions/{employee_deduction}', [EmployeeDeductionController::class, 'update'])
+            ->name('employee-deductions.update');
         Route::delete('employee-deductions/{employee_deduction}', [EmployeeDeductionController::class, 'destroy'])
             ->name('employee-deductions.destroy');
 

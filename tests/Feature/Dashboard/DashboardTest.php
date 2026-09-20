@@ -4,6 +4,7 @@ use App\Enums\Roles;
 use App\Models\Branch;
 use App\Models\CommissionLedger;
 use App\Models\IncentivePlan;
+use App\Models\InvoicePayment;
 use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\ProductInvoice;
@@ -220,6 +221,82 @@ describe('Dashboard', function () {
             ->get(route('dashboard'))
             ->assertInertia(fn ($page) => $page
                 ->where('paymentMethods.0.name', 'نقدًا')
+                ->where('paymentMethods.0.total', 115));
+    });
+
+    // تاسك 117 — شريحة «غير محدد» كانت مالاً حقيقياً فقدت طريقتُه: الفاتورة
+    // المسدَّدة بدفعات طريقتُها على صفوفها لا على رأسها.
+    it('splits an invoice settled by two deposits across both their methods', function () {
+        $cash = PaymentMethod::factory()->create(['name' => 'نقدًا']);
+        $transfer = PaymentMethod::factory()->create(['name' => 'تحويل']);
+
+        // رأسها بلا طريقة — كما تتركه RecordInvoicePaymentAction::settle.
+        $invoice = dashServiceInvoice($this->branch, $this->branchAdmin, [
+            'payment_method_id' => null,
+            'total_amount' => 230,
+        ]);
+
+        foreach ([[$cash, 100], [$transfer, 130]] as [$method, $amount]) {
+            InvoicePayment::create([
+                'invoice_id' => $invoice->id,
+                'invoice_type' => ServiceInvoice::class,
+                'branch_id' => $this->branch->id,
+                'payment_method_id' => $method->id,
+                'amount' => $amount,
+                'paid_at' => now(),
+                'recorded_by' => $this->branchAdmin->id,
+            ]);
+        }
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('dashboard'))
+            ->assertInertia(function ($page) {
+                $methods = collect($page->toArray()['props']['paymentMethods'])
+                    ->pluck('total', 'name');
+
+                // Inertia يُنزل 130.0 إلى 130 في الـJSON، فـtoEqual لا toBe.
+                expect($methods->get('تحويل'))->toEqual(130)
+                    ->and($methods->get('نقدًا'))->toEqual(100)
+                    ->and($methods->keys())->not->toContain('غير محدد (فواتير قديمة)');
+            });
+    });
+
+    it('keeps a payment-less legacy invoice visible under a labelled slice', function () {
+        dashProductInvoice($this->branch, $this->branchAdmin, [
+            'payment_method_id' => null,
+            'total_amount' => 115,
+        ]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->where('paymentMethods.0.name', 'غير محدد (فواتير قديمة)')
+                ->where('paymentMethods.0.total', 115));
+    });
+
+    it('counts an invoice paid at the till once, not twice', function () {
+        $cash = PaymentMethod::factory()->create(['name' => 'نقدًا']);
+
+        $invoice = dashProductInvoice($this->branch, $this->branchAdmin, [
+            'payment_method_id' => $cash->id,
+            'total_amount' => 115,
+        ]);
+
+        // دفعةٌ واحدة بكامل المبلغ: تُعدّ من صفّها لا من رأس الفاتورة كذلك.
+        InvoicePayment::create([
+            'invoice_id' => $invoice->id,
+            'invoice_type' => ProductInvoice::class,
+            'branch_id' => $this->branch->id,
+            'payment_method_id' => $cash->id,
+            'amount' => 115,
+            'paid_at' => now(),
+            'recorded_by' => $this->branchAdmin->id,
+        ]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page
+                ->has('paymentMethods', 1)
                 ->where('paymentMethods.0.total', 115));
     });
 

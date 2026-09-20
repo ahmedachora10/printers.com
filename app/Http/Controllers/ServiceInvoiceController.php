@@ -808,7 +808,8 @@ class ServiceInvoiceController extends Controller
 
         return BranchService::query()
             ->where('branch_services.branch_id', $branchId)
-            ->where('branch_services.is_active', true)
+            // تاسك 116: صفُّ الفرع نشط وقالبه نشط — تعطيل مدير النظام يُخفيها من كل فرع.
+            ->sellable()
             ->with([
                 'serviceTemplate:id,name,sort_order',
                 // خامات المخزون ومتاحُها — استعلامان ثابتان لا واحدٌ لكل خدمة.

@@ -1,63 +1,96 @@
-import { store } from '@/actions/App/Http/Controllers/EmployeeDeductionController';
+import { store, update } from '@/actions/App/Http/Controllers/EmployeeDeductionController';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type DeductionReasonOption, type EmployeeOption } from '@/types/incentive';
+import { type DeductionReasonOption, type EmployeeDeduction, type EmployeeOption } from '@/types/incentive';
 import { useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
 import InputError from '../input-error';
+
+/** تسميات حقول سجلّ التعديلات كما تُقرأ. */
+const FIELD_LABELS: Record<string, string> = {
+    amount: 'القيمة',
+    reason: 'السبب',
+    reason_note: 'شرح السبب',
+    deducted_at: 'التاريخ',
+    notes: 'الملاحظات',
+};
 
 interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     employees: EmployeeOption[];
     reasons: DeductionReasonOption[];
+    /** تاسك 126: القيد المُعدَّل، أو null للتسجيل. */
+    editing?: EmployeeDeduction | null;
 }
 
 /**
- * تاسك 74: تسجيل حسم على موظف. القيد غير قابل للتعديل بعد الحفظ، فلا شاشة
- * تعديل — والتصحيح يكون بقيدٍ معاكس.
+ * تاسك 74: تسجيل حسم على موظف.
+ *
+ * تاسك 126: والنافذة نفسها تعدّله — القيمة والسبب والتاريخ. والموظف المحسوم
+ * عليه يُقفل في التعديل: نقله إلى ذمّةٍ أخرى حذفٌ وتسجيلٌ جديد، لا تعديل.
  */
-export default function DeductionFormModal({ open, onOpenChange, employees, reasons }: Props) {
-    const { data, setData, post, processing, errors, reset } = useForm({
+export default function DeductionFormModal({ open, onOpenChange, employees, reasons, editing = null }: Props) {
+    const isEdit = editing !== null;
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { data, setData, post, patch, processing, errors, reset, setDefaults } = useForm({
         user_id: '',
         amount: '',
         reason: '',
         reason_note: '',
+        deducted_at: today,
         notes: '',
     });
 
+    // الافتراضات تُزرع قبل reset: القيد المفتوح للتعديل يملأ الحقول، والتسجيل
+    // يفتح على فارغ — ونفس الاستدعاء يخدم الحالتين.
     useEffect(() => {
+        if (!open) return;
+
+        setDefaults(
+            editing
+                ? {
+                      user_id: editing.userId.toString(),
+                      amount: editing.amount.toString(),
+                      reason: editing.reason,
+                      reason_note: editing.reasonNote ?? '',
+                      deducted_at: editing.deductedAtDate ?? today,
+                      notes: editing.notes ?? '',
+                  }
+                : { user_id: '', amount: '', reason: '', reason_note: '', deducted_at: today, notes: '' },
+        );
         reset();
-    }, [open]);
+    }, [open, editing]);
 
     // «حالات أخرى» وحدها تطالب بشرح — والخادم يفرضه كذلك بـrequired_if.
     const needsNote = reasons.find((r) => r.value === data.reason)?.requiresNote ?? false;
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
-        post(store.url(), {
-            preserveScroll: true,
-            onSuccess: () => {
-                onOpenChange(false);
-                reset();
-            },
-        });
+        const done = { preserveScroll: true, onSuccess: () => onOpenChange(false) };
+
+        if (editing) {
+            patch(update.url(editing.id), done);
+        } else {
+            post(store.url(), done);
+        }
     }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
                 <DialogHeader>
-                    <DialogTitle>تسجيل حسم على موظف</DialogTitle>
+                    <DialogTitle>{isEdit ? 'تعديل حسم' : 'تسجيل حسم على موظف'}</DialogTitle>
                 </DialogHeader>
 
                 <form id="deduction-form" onSubmit={handleSubmit} className="space-y-4 py-2">
                     <div className="space-y-1">
                         <Label htmlFor="deduction-employee">الموظف</Label>
-                        <Select value={data.user_id} onValueChange={(val) => setData('user_id', val)}>
+                        <Select value={data.user_id} onValueChange={(val) => setData('user_id', val)} disabled={isEdit}>
                             <SelectTrigger id="deduction-employee">
                                 <SelectValue placeholder="اختر الموظف" />
                             </SelectTrigger>
@@ -71,6 +104,11 @@ export default function DeductionFormModal({ open, onOpenChange, employees, reas
                             </SelectContent>
                         </Select>
                         <InputError message={errors.user_id} />
+                        {isEdit && (
+                            <p className="text-muted-foreground text-xs">
+                                الموظف لا يُغيَّر — نقل الحسم إلى غيره يكون بحذف هذا القيد وتسجيل قيدٍ جديد.
+                            </p>
+                        )}
                     </div>
 
                     <div className="space-y-1">
@@ -118,6 +156,20 @@ export default function DeductionFormModal({ open, onOpenChange, employees, reas
                         </div>
                     )}
 
+                    {isEdit && (
+                        <div className="space-y-1">
+                            <Label htmlFor="deduction-date">التاريخ</Label>
+                            <Input
+                                id="deduction-date"
+                                type="date"
+                                value={data.deducted_at}
+                                onChange={(e) => setData('deducted_at', e.target.value)}
+                                dir="ltr"
+                            />
+                            <InputError message={errors.deducted_at} />
+                        </div>
+                    )}
+
                     <div className="space-y-1">
                         <Label htmlFor="deduction-notes">ملاحظات</Label>
                         <textarea
@@ -132,9 +184,29 @@ export default function DeductionFormModal({ open, onOpenChange, employees, reas
                     </div>
 
                     <p className="text-muted-foreground text-xs">
-                        الحسم قيدٌ نهائي لا يُعدَّل ولا يُحذف — تصحيحه يكون بقيدٍ معاكس. ولا يمسّ عمولة الموظف ولا
-                        مكافأته: يُعرض بجانبهما في كشفه.
+                        الحسم لا يمسّ عمولة الموظف ولا مكافأته: يُعرض بجانبهما في كشفه. وكلُّ تعديلٍ عليه مكتوبٌ في
+                        سجلّه.
                     </p>
+
+                    {/* تاسك 126: سجلّ التعديلات — القديم ⇒ الجديد، من ومتى. */}
+                    {editing && editing.history.length > 0 && (
+                        <div className="space-y-2 border-t pt-3">
+                            <p className="text-sm font-semibold">سجلّ التعديلات</p>
+                            {editing.history.map((entry) => (
+                                <div key={entry.id} className="text-muted-foreground text-xs">
+                                    <p className="font-medium">
+                                        {entry.byName ?? '—'} — {entry.at}
+                                    </p>
+                                    {Object.keys(entry.new).map((field) => (
+                                        <p key={field}>
+                                            {FIELD_LABELS[field] ?? field}: {String(entry.old[field] ?? '—')} ⇐{' '}
+                                            {String(entry.new[field] ?? '—')}
+                                        </p>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    )}
                 </form>
 
                 <DialogFooter>
@@ -142,7 +214,7 @@ export default function DeductionFormModal({ open, onOpenChange, employees, reas
                         إلغاء
                     </Button>
                     <Button type="submit" form="deduction-form" disabled={processing}>
-                        {processing ? 'جاري الحفظ...' : 'تسجيل الحسم'}
+                        {processing ? 'جاري الحفظ...' : isEdit ? 'حفظ التعديلات' : 'تسجيل الحسم'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

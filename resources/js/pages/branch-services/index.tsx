@@ -163,8 +163,15 @@ export default function BranchServicesIndex({
             {
                 key: 'isActive',
                 header: 'الحالة',
+                // تاسك 116: القالب قاطعٌ علويّ — خدمةٌ عطّلها مدير النظام لا تُباع
+                // في أي فرع مهما كانت حالة الصفّ، والشاشة تقول السبب.
                 cell: (s) =>
-                    s.isActive ? (
+                    !s.templateIsActive ? (
+                        <Badge variant="outline" className="gap-1.5 border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                            <span className="inline-block size-1.5 rounded-full bg-amber-500" />
+                            معطَّلة من الإدارة
+                        </Badge>
+                    ) : s.isActive ? (
                         <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
                             <span className="inline-block size-1.5 rounded-full bg-green-500" />
                             نشطة

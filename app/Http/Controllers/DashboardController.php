@@ -7,6 +7,8 @@ use App\Enums\Roles;
 use App\Models\EmployeeDeduction;
 use App\Models\IncentivePlan;
 use App\Models\Product;
+use App\Models\ProductInvoice;
+use App\Models\ServiceInvoice;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -149,7 +151,15 @@ class DashboardController extends Controller
 
     /**
      * Paid revenue per payment method over the window, merged across both
-     * tables. Invoices without one are grouped as "unspecified".
+     * tables.
+     *
+     * تاسك 117 — تُعدّ **أحداث التحصيل** لا رؤوس الفواتير، كما يفعل تقرير
+     * المبيعات: الفاتورة المسدَّدة بعربون ودفعات تبلغ `paid` وطريقةُ كل دفعة على
+     * صفّها في `invoice_payments`، ورأسها `payment_method_id = null` — فالضمُّ
+     * على الرأس وحده كان يُسقط ذلك المال كلَّه في «غير محدد».
+     *
+     * وما بقي بلا طريقة بعد ذلك فواتيرُ قديمة سابقة لإلزام طريقة الدفع (تاسك 59):
+     * تبقى شريحتها ظاهرةً موسومةً — حذف إيرادٍ حقيقي من رسمٍ أسوأ من إظهاره.
      *
      * @return array<int, array{name: string, total: float}>
      */
@@ -158,25 +168,47 @@ class DashboardController extends Controller
         $methods = [];
 
         foreach (self::TABLES as $table) {
-            $rows = $this->scoped($table, $branchId, $userId)
+            $morphClass = $table === 'product_invoices' ? ProductInvoice::class : ServiceInvoice::class;
+
+            // أ. دفعةٌ مسجَّلة (عربون أو قسط): طريقتها هي طريقتها، وإلا فطريقة الرأس.
+            $payments = $this->scoped($table, $branchId, $userId)
+                ->join('invoice_payments as p', function ($join) use ($table, $morphClass) {
+                    $join->on('p.invoice_id', '=', $table . '.id')
+                        ->where('p.invoice_type', '=', $morphClass);
+                })
+                ->where($table . '.status', InvoiceStatusEnum::PAID->value)
+                ->where('p.paid_at', '>=', $windowStart)
+                ->leftJoin('payment_methods', 'payment_methods.id', '=', DB::raw('COALESCE(p.payment_method_id, ' . $table . '.payment_method_id)'))
+                ->groupBy('payment_methods.name')
+                ->get([
+                    'payment_methods.name as name',
+                    DB::raw('COALESCE(SUM(p.amount), 0) as total'),
+                ]);
+
+            // ب. فاتورةٌ بلا دفعات — سُدّدت دفعةً واحدة على الصندوق: حدثٌ واحد
+            //    بكامل مبلغها وطريقة رأسها، كما كان الرسم يعدّها.
+            $direct = $this->scoped($table, $branchId, $userId)
                 ->where($table . '.status', InvoiceStatusEnum::PAID->value)
                 ->where($table . '.paid_at', '>=', $windowStart)
+                ->whereNotExists(fn($q) => $q->from('invoice_payments as p')
+                    ->where('p.invoice_type', $morphClass)
+                    ->whereColumn('p.invoice_id', $table . '.id'))
                 ->leftJoin('payment_methods', 'payment_methods.id', '=', $table . '.payment_method_id')
-                ->groupBy($table . '.payment_method_id', 'payment_methods.name')
+                ->groupBy('payment_methods.name')
                 ->get([
                     'payment_methods.name as name',
                     DB::raw('COALESCE(SUM(' . $table . '.total_amount), 0) as total'),
                 ]);
 
-            foreach ($rows as $row) {
-                $name = $row->name ?? 'غير محدد';
+            foreach ($payments->concat($direct) as $row) {
+                $name = $row->name ?? 'غير محدد (فواتير قديمة)';
                 $methods[$name] = ($methods[$name] ?? 0.0) + (float) $row->total;
             }
         }
 
         $out = [];
         foreach ($methods as $name => $total) {
-            $out[] = ['name' => $name, 'total' => $total];
+            $out[] = ['name' => $name, 'total' => round($total, 2)];
         }
         usort($out, fn($a, $b) => $b['total'] <=> $a['total']);
 

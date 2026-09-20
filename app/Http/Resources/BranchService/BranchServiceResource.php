@@ -59,6 +59,10 @@ class BranchServiceResource extends JsonResource
                 ->values()
                 ->all(),
             'isActive' => (bool) ($hasPivot ? $this->pivot->is_active : $this->is_active),
+            // تاسك 116: قالبٌ معطَّلٌ من مدير النظام يمنع البيع في كل الفروع مهما
+            // كانت حالة الصفّ — فالشاشة تقول ذلك بدل أن تعرض «نشطة» لخدمةٍ لا تُباع.
+            // في وضع الـpivot الصفُّ مقروءٌ من جهة القالب، فحالته حالة القالب نفسه.
+            'templateIsActive' => $hasPivot ? true : (bool) ($this->serviceTemplate?->is_active ?? true),
             'createdAt' => ($hasPivot ? $this->pivot->created_at : $this->created_at)?->toISOString(),
             'updatedAt' => ($hasPivot ? $this->pivot->updated_at : $this->updated_at)?->toISOString(),
         ];

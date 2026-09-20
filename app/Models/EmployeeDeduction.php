@@ -10,12 +10,17 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 /**
  * تاسك 74: حسمٌ مطبَّق على موظف بسببه وقيمته.
  *
- * لا يُحدَّث بعد الإدراج — لا تُعاد كتابة قيمةٍ أو سببٍ رآهما الموظف في إشعاره.
- * لكنه يُحذف: الحسم بندٌ مستقلّ لا تُبنى عليه فاتورةٌ ولا صفُّ عمولة، فإلغاؤه
+ * تاسك 126: يُعدَّل بعد الإدراج — قيمةً وسبباً وتاريخاً، وكلُّ تغييرٍ مكتوبٌ في
+ * سجلّ النشاط فيبقى ما رآه الموظف في إشعاره مقروءاً. والموظف المحسوم عليه لا
+ * يُغيَّر: نقلُ الحسم من ذمّةٍ إلى أخرى حذفٌ وتسجيلٌ جديد.
+ *
+ * ويُحذف كذلك: الحسم بندٌ مستقلّ لا تُبنى عليه فاتورةٌ ولا صفُّ عمولة، فإلغاؤه
  * بقيدٍ معاكس كان يُضاعف السطور في كشفٍ يقرؤه الموظف نفسه. والحذف `SoftDeletes`،
  * فيختفي من كل عرضٍ ومجموع ويبقى أثره للمراجعة.
  */
@@ -24,6 +29,7 @@ class EmployeeDeduction extends Model
     /** @use HasFactory<EmployeeDeductionFactory> */
     use HasFactory;
 
+    use LogsActivity;
     use SoftDeletes;
 
     protected $fillable = [
@@ -42,6 +48,12 @@ class EmployeeDeduction extends Model
         'reason' => DeductionReasonEnum::class,
         'deducted_at' => 'datetime',
     ];
+
+    /** تاسك 126: القديم والجديد للحقول المتغيّرة وحدها — سجلّ تعديلات الحسم. */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()->logFillable()->logOnlyDirty()->dontSubmitEmptyLogs()->useLogName('incentives');
+    }
 
     /**
      * الخصومات الواقعة داخل مدى تاريخين — نظير `IncentivePlan::inPeriodRange`،

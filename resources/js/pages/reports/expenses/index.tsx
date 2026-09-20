@@ -174,7 +174,17 @@ export default function ExpenseReportIndex({
                         valueClass="text-amber-600"
                         hint={`من الكاشير ${formatCurrency(totals.cashTotal)} · بتحويل ${formatCurrency(totals.total - totals.cashTotal)}`}
                     />
-                    <SummaryCard icon={<Receipt className="size-4" />} label="عدد العمليات" value={totals.expenseCount.toLocaleString('ar')} />
+                    {/* تاسك 123: المصروف يُحتسب معتمداً أو غير معتمد، فيُقال كم منه ما زال قابلاً للتعديل. */}
+                    <SummaryCard
+                        icon={<Receipt className="size-4" />}
+                        label="عدد العمليات"
+                        value={totals.expenseCount.toLocaleString('ar')}
+                        hint={
+                            totals.pendingCount > 0
+                                ? `منها غير معتمد: ${totals.pendingCount.toLocaleString('ar')} بقيمة ${formatCurrency(totals.pendingTotal)}`
+                                : undefined
+                        }
+                    />
                     <SummaryCard icon={<Sigma className="size-4" />} label="متوسط العملية" value={formatCurrency(totals.average)} />
                     <SummaryCard
                         icon={<FolderKanban className="size-4" />}

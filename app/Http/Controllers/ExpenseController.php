@@ -7,6 +7,7 @@ use App\Actions\Expense\CreateExpenseAction;
 use App\Actions\Expense\DeleteExpenseAction;
 use App\Actions\Expense\UnapproveExpenseAction;
 use App\Actions\Expense\UpdateExpenseAction;
+use App\Enums\ExpenseSourceEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Http\Requests\Expense\StoreExpenseRequest;
 use App\Http\Requests\Expense\UpdateExpenseRequest;
@@ -53,6 +54,11 @@ class ExpenseController extends Controller
             // تاسك 113: لنافذة تأكيد «اعتماد جميع المصروفات».
             'pendingSummary' => ['count' => (clone $pending)->count(), 'total' => (float) $pending->sum('total')],
             'canApproveAll' => Gate::allows('approveAny', Expense::class),
+            // تاسك 123: خيارات فلتر المصدر من الـenum نفسه، فلا تُكتب مرتين.
+            'sources' => array_map(
+                fn (ExpenseSourceEnum $c) => ['value' => $c->value, 'label' => $c->label()],
+                ExpenseSourceEnum::cases(),
+            ),
             'categories' => $categories,
             'branches' => auth()->user()->roleName?->isSuperAdmin()
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
@@ -61,6 +67,7 @@ class ExpenseController extends Controller
                 'search' => $request->input('search'),
                 'expense_category_id' => $request->input('expense_category_id'),
                 'approval' => $request->input('approval'),
+                'paid_from' => $request->input('paid_from'),
                 // المدى المطبَّق فعلاً لا المُرسَل — فيُضيء زرّ «اليوم» حين
                 // تُفتح الشاشة بلا مدى.
                 'from' => $from,
@@ -91,6 +98,12 @@ class ExpenseController extends Controller
             ->when($request->filled('expense_category_id'), fn ($q) => $q->where('expense_category_id', (int) $request->input('expense_category_id')))
             ->when($request->input('approval') === 'approved', fn ($q) => $q->whereNotNull('approved_at'))
             ->when($request->input('approval') === 'pending', fn ($q) => $q->whereNull('approved_at'))
+            // تاسك 123 — مصدر المصروف (تاسك 110). يمرّ عبر هذه المشتركة، فزرّ
+            // «اعتماد الكل» يحترمه تلقائياً: المعروض هو المعتمَد.
+            ->when(
+                ExpenseSourceEnum::tryFrom((string) $request->input('paid_from')),
+                fn ($q, ExpenseSourceEnum $source) => $q->where('paid_from', $source->value),
+            )
             ->when($from, fn ($q) => $q->whereDate('date', '>=', $from))
             ->when($to, fn ($q) => $q->whereDate('date', '<=', $to));
     }
