@@ -32,7 +32,7 @@ class BranchResource extends JsonResource
             'taxNumber' => $this->tax_number,
             'vatRateOverride' => (float) $this->vat_rate_override,
             'isActive' => $this->is_active,
-            'logoUrl' => $this->getFirstMediaUrl('logo'),
+            'logoUrl' => $this->logoUrl(),
             'createdAt' => $this->created_at?->toISOString(),
             'updatedAt' => $this->updated_at?->toISOString(),
         ];

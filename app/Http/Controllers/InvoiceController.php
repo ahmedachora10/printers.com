@@ -217,7 +217,11 @@ class InvoiceController extends Controller
         // Product invoices carry a single agent on the row; service invoices list
         // several via the pivot, plus the per-line commission owners.
         if ($invoice instanceof ServiceInvoice) {
-            $invoice->load('invoiceAgents.agent:id,name', 'lines.lineAgent:id,name', 'cancelledBy:id,name', 'deliveredBy:id,name', 'shippingProvider:id,name,phone', 'shippingZone:id,name');
+            $invoice->load('invoiceAgents.agent:id,name', 'cancelledBy:id,name', 'deliveredBy:id,name', 'shippingProvider:id,name,phone', 'shippingZone:id,name');
+
+            // صاحب عمولة السطر يُحمَّل على البنود المحمَّلة أصلاً: `load` لمسارٍ
+            // متداخل (`lines.lineAgent`) يُعيد استعلام `lines` من أوّله.
+            $invoice->lines->loadMissing('lineAgent:id,name');
 
             // تاسك 112: المصروفات المربوطة — لمن يدير المصروفات وحده (لا الموظف ولا المندوب).
             if (Gate::allows('viewAny', Expense::class)) {

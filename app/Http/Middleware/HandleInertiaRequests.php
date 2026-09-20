@@ -78,7 +78,7 @@ class HandleInertiaRequests extends Middleware
 
         return [
             'name' => $branch->name,
-            'logoUrl' => $branch->getFirstMediaUrl('logo') ?: null,
+            'logoUrl' => $branch->logoUrl(),
         ];
     }
 

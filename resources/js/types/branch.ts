@@ -19,7 +19,7 @@ export interface Branch {
     taxNumber: string | null;
     vatRateOverride: number;
     isActive: boolean;
-    logoUrl: string;
+    logoUrl: string | null;
     createdAt: string;
     updatedAt: string;
 }

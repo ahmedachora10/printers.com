@@ -35,7 +35,9 @@ return [
         |           This method doesn't support cache yet.
         | - class that extends Laratrust\Checkers\User\UserChecker
         */
-        'user' => 'default',
+        // يحفظ أدوار المستخدم لعمر الطلب: فحصٌ واحد بأربعة أدوار
+        // كان يقرأ الكاش أربع مرّات — أي أربعة استعلامات.
+        'user' => \App\Support\Laratrust\MemoizedUserChecker::class,
 
         /*
         |--------------------------------------------------------------------------
