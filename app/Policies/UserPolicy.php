@@ -86,6 +86,16 @@ class UserPolicy
     }
 
     /**
+     * تاسك 115: قراءة سجلّ حركة مستخدم. السوبر أدمن يقرأ سجلّ الجميع — سجلّ
+     * مديري الفروع فيهم — ومديرُ الفرع يقرأ سجلّ من يديرهم في فرعه وحدهم. ولا
+     * أحد يقرأ سجلّ نفسه من هنا: السجلّ أداةُ مراجعةٍ لا صفحةٌ شخصية.
+     */
+    public function viewActivity(User $user, User $model): bool
+    {
+        return $user->roleName->isSuperAdmin() || $this->managesInBranch($user, $model);
+    }
+
+    /**
      * A branch-admin may manage staff (accountant/employee/agent) within their own branch,
      * but never other super-admins or branch-admins.
      */
