@@ -203,6 +203,30 @@ describe('Sales Report', function () {
             ->assertInertia(fn ($page) => $page->where('totals.total', 900));
     });
 
+    // تاسك 124 — فرعان من ثلاثة.
+    it('lets a super-admin pick several branches at once', function () {
+        $third = Branch::factory()->create();
+        paidProductInvoice($this->branch, $this->branchAdmin, ['total_amount' => 115]);
+        paidProductInvoice($this->otherBranch, $this->superAdmin, ['total_amount' => 900]);
+        paidProductInvoice($third, $this->superAdmin, ['total_amount' => 50]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales', ['branch' => "{$this->branch->id},{$this->otherBranch->id}"]))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.total', 1015)
+                ->has('byBranch', 2)
+                ->where('filters.branch', "{$this->branch->id},{$this->otherBranch->id}"));
+    });
+
+    it('keeps an accountant on their branch whatever branches they send', function () {
+        paidProductInvoice($this->branch, $this->branchAdmin, ['total_amount' => 115]);
+        paidProductInvoice($this->otherBranch, $this->superAdmin, ['total_amount' => 900]);
+
+        $this->actingAs($this->accountant)
+            ->get(route('reports.sales', ['branch' => "{$this->branch->id},{$this->otherBranch->id}"]))
+            ->assertInertia(fn ($page) => $page->where('totals.total', 115));
+    });
+
     // ── FILTERS ────────────────────────────────────────────────────
 
     it('filters to product invoices only', function () {

@@ -3,6 +3,7 @@
 namespace App\Actions\Report;
 
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 
 /**
@@ -15,22 +16,29 @@ use Illuminate\Support\Carbon;
  * An unfiltered report shows TODAY only — every report opens on the current day
  * and the user widens the range from the filter modal. `from`/`to` are therefore
  * never null, so callers can rely on a bounded window when zero-filling days.
+ *
+ * تاسك 124: `branchIds` — قائمة الفروع المختارة (فارغة = كل الفروع)، يقرؤها تقرير
+ * المبيعات. و`branchId` يبقى كما هو لبقيّة التقارير: الفرع حين يكون واحداً، وإلا null.
+ * ponytail: branchIds في تقرير المبيعات وحده؛ يُنقل إليه تقريرٌ آخر حين يُطلب له.
  */
 class ResolveReportScope
 {
     /**
-     * @return array{isSuper: bool, branchId: ?int, from: Carbon, to: Carbon}
+     * @return array{isSuper: bool, branchId: ?int, branchIds: list<int>, from: Carbon, to: Carbon}
      */
     public function handle(Request $request): array
     {
         $actor = $request->user();
         $isSuper = $actor->roleName?->isSuperAdmin() ?? false;
+        // غير السوبر أدمن مثبَّتٌ على فرعه مهما أرسل.
+        $branchIds = $isSuper
+            ? array_values(array_unique(array_map('intval', array_filter(Arr::wrap($request->input('branch'))))))
+            : array_filter([$actor->branchId]);
 
         return [
             'isSuper' => $isSuper,
-            'branchId' => $isSuper
-                ? ($request->filled('branch') ? (int) $request->input('branch') : null)
-                : $actor->branchId,
+            'branchId' => count($branchIds) === 1 ? $branchIds[0] : null,
+            'branchIds' => array_values($branchIds),
             'from' => $request->filled('from')
                 ? Carbon::parse($request->input('from'))->startOfDay()
                 : Carbon::today()->startOfDay(),

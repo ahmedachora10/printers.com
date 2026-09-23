@@ -97,7 +97,8 @@ class SalesReportController extends Controller
             'filters' => [
                 'from' => $scope['from']?->toDateString(),
                 'to' => $scope['to']?->toDateString(),
-                'branch' => $scope['isSuper'] && $scope['branchId'] ? (string) $scope['branchId'] : null,
+                // تاسك 124: قائمةٌ مفصولةٌ بفواصل، كما يرسلها FilterMultiSelect.
+                'branch' => $scope['isSuper'] && $scope['branchIds'] ? implode(',', $scope['branchIds']) : null,
                 'type' => $type,
             ],
             // The "cleared" value of the date fields — the report opens on today,
@@ -308,7 +309,7 @@ class SalesReportController extends Controller
         return DB::query()
             ->fromSub($payments->unionAll($direct)->unionAll($refunds), 'events')
             ->whereNotNull('events.realized_at')
-            ->when($scope['branchId'], fn ($q) => $q->where('events.branch_id', $scope['branchId']))
+            ->when($scope['branchIds'], fn ($q) => $q->whereIn('events.branch_id', $scope['branchIds']))
             ->when($scope['from'], fn ($q) => $q->where('events.realized_at', '>=', $scope['from']))
             ->when($scope['to'], fn ($q) => $q->where('events.realized_at', '<=', $scope['to']));
     }
@@ -513,7 +514,7 @@ class SalesReportController extends Controller
             ->whereNull('deleted_at')
             // تاسك 123: المعتمد وغيره معاً — «زر اعتماد المصروف لا يعني تسجيله
             // أو إضافته للحسابات، وإنما تثبيته وقفل التعديل عليه». يعكس تاسك 113.
-            ->when($scope['branchId'], fn ($q) => $q->where('branch_id', $scope['branchId']))
+            ->when($scope['branchIds'], fn ($q) => $q->whereIn('branch_id', $scope['branchIds']))
             ->when($scope['from'], fn ($q) => $q->where('date', '>=', $scope['from']))
             ->when($scope['to'], fn ($q) => $q->where('date', '<=', $scope['to']))
             ->groupBy(DB::raw('DATE(date)'))
