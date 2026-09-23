@@ -243,4 +243,35 @@ describe('Invoice list filters', function () {
                 fn ($rows) => collect($rows)->pluck('name')->contains('طباعة جاهزة'),
             ));
     });
+
+    // ── تاسك 114: ساعاتٌ من كل يوم ──────────────────────────────
+
+    it('keeps the same hours of every day in the range, midnight-crossing windows included', function () {
+        $at = fn (string $time) => tap(filterInvoice($this->branch->id, $this->alice->id), fn ($i) => $i
+            ->forceFill(['created_at' => today()->setTimeFromTimeString($time)])->saveQuietly());
+        $morning = $at('09:30');
+        $evening = $at('19:15');
+        $lateNight = $at('23:40');
+        $pastMidnight = $at('01:05');
+
+        $numbers = function (array $query) {
+            $rows = [];
+            $this->actingAs($this->branchAdmin)
+                ->get(route('invoices.index', $query))
+                ->assertInertia(function ($page) use (&$rows) {
+                    $rows = $page->toArray()['props']['items']['data'];
+
+                    return $page;
+                });
+
+            return $rows;
+        };
+
+        expect(listedNumbers($numbers(['time_from' => '18:00', 'time_to' => '22:00'])))
+            ->toBe([$evening->invoice_number])
+            ->and(listedNumbers($numbers(['time_from' => '23:00', 'time_to' => '02:00'])))
+            ->toBe(collect([$lateNight->invoice_number, $pastMidnight->invoice_number])->sort()->values()->all())
+            ->and(listedNumbers($numbers(['time_to' => '10:00'])))
+            ->toBe(collect([$morning->invoice_number, $pastMidnight->invoice_number])->sort()->values()->all());
+    });
 });

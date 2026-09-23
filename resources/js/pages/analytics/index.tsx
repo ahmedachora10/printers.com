@@ -1,4 +1,4 @@
-import { ExportChartCard, PointsMonthlyChart, TierDistributionChart } from '@/components/analytics/charts';
+import { ExportChartCard, HourlySalesChart, PointsMonthlyChart, TierDistributionChart } from '@/components/analytics/charts';
 import { RevenueTrendChart, SalesByTypeChart, TopServicesChart } from '@/components/dashboard/charts';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
 import DateRangeBar from '@/components/reports/date-range-bar';
@@ -10,6 +10,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import {
     type AnalyticsFilters,
+    type AnalyticsHourRow,
     type AnalyticsLoyalty,
     type AnalyticsRankedRow,
     type AnalyticsSalesByType,
@@ -24,6 +25,7 @@ const PAGE_URL = '/analytics';
 interface Props {
     dailyRevenue: AnalyticsTrendPoint[];
     salesByType: AnalyticsSalesByType;
+    hourlySales: AnalyticsHourRow[];
     topServices: AnalyticsRankedRow[];
     employeePerformance: AnalyticsRankedRow[];
     byBranch: AnalyticsRankedRow[];
@@ -53,6 +55,7 @@ const TIER_LEGEND = [
 export default function AnalyticsIndex({
     dailyRevenue,
     salesByType,
+    hourlySales,
     topServices,
     employeePerformance,
     byBranch,
@@ -126,6 +129,10 @@ export default function AnalyticsIndex({
 
                             <ExportChartCard title="المبيعات حسب النوع" filename="sales-by-type.png" legend={TYPE_LEGEND}>
                                 <SalesByTypeChart data={salesByType} />
+                            </ExportChartCard>
+
+                            <ExportChartCard title="أكثر الأوقات مبيعاً" filename="sales-by-hour.png" className="lg:col-span-3">
+                                <HourlySalesChart data={hourlySales} />
                             </ExportChartCard>
 
                             <ExportChartCard

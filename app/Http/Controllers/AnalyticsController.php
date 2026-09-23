@@ -33,6 +33,7 @@ class AnalyticsController extends Controller
                 'product' => array_sum(array_column($daily, 'product')),
                 'service' => array_sum(array_column($daily, 'service')),
             ],
+            'hourlySales' => $this->hourlySales($scope),
             'topServices' => $this->topServices($scope),
             'employeePerformance' => $this->employeePerformance($scope),
             'byBranch' => $scope['isSuper'] ? $this->byBranch($scope) : [],
@@ -109,6 +110,43 @@ class AnalyticsController extends Controller
         ksort($days);
 
         return array_values($days);
+    }
+
+    /**
+     * تاسك 114 — «أكثر الأوقات مبيعاً»: فواتير المدى بساعة إنشائها (0..23)، أي
+     * ساعة حضور العميل لا ساعة اعتماد المحاسب. كل الفواتير عدا الملغاة والمرتجعة
+     * — فاتورة الموظف تبقى «مستحقة» حتى تُعتمد، وهي طلبٌ حقيقي في تلك الساعة.
+     *
+     * الأوقات مخزَّنةٌ بتوقيت الرياض (APP_TIMEZONE منذ تاسك 33)، فالساعة تُقرأ
+     * كما هي. ما سبق ذلك مخزَّنٌ UTC ويظهر مبكِّراً ثلاث ساعات — تُرك عمداً.
+     *
+     * @param  array<string, mixed>  $scope
+     * @return array<int, array{hour: int, count: int, total: float}>
+     */
+    private function hourlySales(array $scope): array
+    {
+        $hours = array_map(fn (int $h) => ['hour' => $h, 'count' => 0, 'total' => 0.0], range(0, 23));
+
+        foreach (self::TABLES as $table) {
+            $hour = DB::getDriverName() === 'sqlite'
+                ? "CAST(strftime('%H', {$table}.created_at) AS INTEGER)"
+                : "HOUR({$table}.created_at)";
+
+            $rows = DB::table($table)
+                ->whereNull($table.'.deleted_at')
+                ->whereNotIn($table.'.status', [InvoiceStatusEnum::CANCELLED->value, InvoiceStatusEnum::RETURNED->value])
+                ->when($scope['branchId'], fn ($q) => $q->where($table.'.branch_id', $scope['branchId']))
+                ->whereBetween($table.'.created_at', [$scope['from'], $scope['to']])
+                ->groupBy(DB::raw($hour))
+                ->get([DB::raw("{$hour} as h"), DB::raw('COUNT(*) as c'), DB::raw('COALESCE(SUM(total_amount), 0) as total')]);
+
+            foreach ($rows as $row) {
+                $hours[(int) $row->h]['count'] += (int) $row->c;
+                $hours[(int) $row->h]['total'] = round($hours[(int) $row->h]['total'] + (float) $row->total, 2);
+            }
+        }
+
+        return $hours;
     }
 
     /**

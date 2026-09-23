@@ -1,10 +1,10 @@
 import { Button } from '@/components/ui/button';
 import { ChartCard, compact, EmptyState, SLOT, VizTooltip } from '@/components/viz';
 import { exportChartPng } from '@/lib/export-chart';
-import { type AnalyticsPointsMonth, type AnalyticsTierSlice } from '@/types/analytics';
+import { type AnalyticsHourRow, type AnalyticsPointsMonth, type AnalyticsTierSlice } from '@/types/analytics';
 import { ImageDown } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 export interface ChartLegendEntry {
     label: string;
@@ -117,6 +117,34 @@ export function PointsMonthlyChart({ data }: { data: AnalyticsPointsMonth[] }) {
                 <Line type="monotone" dataKey="earned" name="نقاط مكتسبة" stroke="var(--viz-1)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
                 <Line type="monotone" dataKey="redeemed" name="نقاط مستبدلة" stroke="var(--viz-2)" strokeWidth={2} dot={false} activeDot={{ r: 4 }} />
             </LineChart>
+        </ResponsiveContainer>
+    );
+}
+
+/** تاسك 114 — «أكثر الأوقات مبيعاً»: ٢٤ عموداً بساعة إنشاء الفاتورة، والعدد في التلميح. */
+export function HourlySalesChart({ data }: { data: AnalyticsHourRow[] }) {
+    if (!data.some((d) => d.count > 0)) return <EmptyState />;
+
+    const rows = data.map((d) => ({ ...d, slot: `${String(d.hour).padStart(2, '0')}:00` }));
+
+    return (
+        <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={rows} margin={{ top: 8, right: 12, left: 4, bottom: 0 }}>
+                <CartesianGrid stroke="var(--viz-grid)" vertical={false} />
+                <XAxis dataKey="slot" tick={{ fill: 'var(--viz-muted)', fontSize: 11 }} stroke="var(--viz-axis)" interval="preserveStartEnd" minTickGap={16} />
+                <YAxis tickFormatter={compact} tick={{ fill: 'var(--viz-muted)', fontSize: 11 }} stroke="var(--viz-axis)" width={44} />
+                <Tooltip
+                    cursor={{ fill: 'var(--viz-border)' }}
+                    content={({ active, payload, label }) => (
+                        <VizTooltip
+                            active={active}
+                            payload={payload as never}
+                            label={`${label} · ${(payload?.[0]?.payload as AnalyticsHourRow | undefined)?.count ?? 0} فاتورة`}
+                        />
+                    )}
+                />
+                <Bar dataKey="total" name="المبيعات" fill="var(--viz-1)" radius={[4, 4, 0, 0]} />
+            </BarChart>
         </ResponsiveContainer>
     );
 }

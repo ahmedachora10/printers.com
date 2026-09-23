@@ -15,6 +15,13 @@ export interface AnalyticsRankedRow {
     total: number;
 }
 
+/** تاسك 114 — ساعة إنشاء الفاتورة (0..23، بتوقيت الرياض) */
+export interface AnalyticsHourRow {
+    hour: number;
+    count: number;
+    total: number;
+}
+
 export interface AnalyticsTierSlice {
     tier: 'none' | 'bronze' | 'silver' | 'gold';
     count: number;

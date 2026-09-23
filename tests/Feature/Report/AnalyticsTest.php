@@ -318,4 +318,24 @@ describe('Advanced Analytics', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('loyalty.pointsMonthly', fn ($months) => collect($months)->sum('earned') === 0));
     });
+
+    // ── تاسك 114: أكثر الأوقات مبيعاً ─────────────────────────────
+
+    it('buckets the range invoices by the hour they were raised, cancelled ones out', function () {
+        $at = fn (string $time, array $overrides = []) => tap(anaServiceInvoice($this->branch, $this->branchAdmin, $overrides), fn ($i) => $i
+            ->forceFill(['created_at' => today()->setTimeFromTimeString($time)])->saveQuietly());
+        $at('18:10');
+        $at('18:50', ['status' => 'due', 'paid_at' => null]);
+        $at('09:00');
+        $at('18:30', ['status' => 'cancelled']);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('analytics.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('hourlySales', 24)
+                ->where('hourlySales.18.count', 2)
+                ->where('hourlySales.18.total', 460)
+                ->where('hourlySales.9.count', 1)
+                ->where('hourlySales.0.count', 0));
+    });
 });
