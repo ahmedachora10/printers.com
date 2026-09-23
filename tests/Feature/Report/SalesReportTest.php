@@ -460,7 +460,10 @@ describe('Sales Report', function () {
                 ->where('totals.transferExpenses', 20)
                 ->where('totals.cashRemaining', 85)
                 ->where('totals.totalAfterCashExpenses', 450)
-                ->where('totals.totalAfterTransferExpenses', 460));
+                ->where('totals.totalAfterTransferExpenses', 460)
+                // تاسك 120 — الصافي: 480 − 50 = 430.
+                ->where('totals.net', 430)
+                ->where('byDay.0.net', 430));
     });
 
     it('counts a cash deposit as cash even when the rest was paid by card', function () {

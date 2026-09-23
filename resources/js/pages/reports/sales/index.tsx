@@ -56,6 +56,9 @@ const breakdownColumns = (nameHeader: string): ColumnDef<BreakdownRow>[] => [
  */
 const CASH_HINT = 'المحصَّل نقداً ناقص المصروفات المدفوعة من الكاشير — مصروفات التحويل البنكي لا تُخصم من النقد. ليس ربحاً صافياً.';
 
+/** تاسك 120 — لا يساوي «المتبقي من النقد» ناقصاً شيئاً: ذاك يطرح النقدية وحدها. */
+const NET_HINT = 'الإجمالي ناقص كل المصروفات (نقداً وتحويلاً) — بخلاف «المتبقي من النقد» الذي يطرح مصروفات الكاشير وحدها من النقد.';
+
 /** رأس عمودٍ يحمل تفسيره في tooltip. */
 function HintedHeader({ label, hint }: { label: string; hint: string }) {
     return (
@@ -94,6 +97,12 @@ const dayColumns: ColumnDef<SalesReportDayRow>[] = [
         header: <HintedHeader label="المتبقي من النقد" hint={CASH_HINT} />,
         className: 'font-semibold',
         cell: (row) => <Remaining value={row.cashRemaining} />,
+    },
+    {
+        key: 'net',
+        header: <HintedHeader label="الصافي" hint={NET_HINT} />,
+        className: 'font-semibold',
+        cell: (row) => <Remaining value={row.net} />,
     },
 ];
 
@@ -331,6 +340,9 @@ export default function SalesReportIndex({
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.expenses)}</TableCell>
                                     <TableCell className="font-bold">
                                         <Remaining value={totals.cashRemaining} />
+                                    </TableCell>
+                                    <TableCell className="font-bold">
+                                        <Remaining value={totals.net} />
                                     </TableCell>
                                 </TableRow>
                             }

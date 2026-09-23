@@ -64,7 +64,7 @@ class SalesReportExport implements WithMultipleSheets
     {
         return new ReportSheet(
             'المبيعات اليومية',
-            ['التاريخ', 'عدد الفواتير', 'الإجمالي', 'منها نقداً', 'المصروفات', 'المتبقي من النقد'],
+            ['التاريخ', 'عدد الفواتير', 'الإجمالي', 'منها نقداً', 'المصروفات', 'المتبقي من النقد', 'الصافي'],
             collect($this->byDay)->map(fn (array $day) => [
                 Carbon::parse($day['date'])->format('d/m/Y'),
                 $day['count'],
@@ -72,6 +72,7 @@ class SalesReportExport implements WithMultipleSheets
                 $this->money($day['cash'] ?? 0),
                 $this->money($day['expenses'] ?? 0),
                 $this->money($day['cashRemaining'] ?? 0),
+                $this->money($day['net'] ?? 0),
             ]),
         );
     }

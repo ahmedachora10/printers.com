@@ -388,6 +388,7 @@ class SalesReportController extends Controller
             'expenses' => $expenses,
             'cashExpenses' => $cashExpenses,
             'cashRemaining' => round($cash - $cashExpenses, 2),
+            'net' => round($total - $expenses, 2),
             // تاسك 119: كلٌّ من الإجمالي الشامل (كل الطرق) ناقص صنفٍ واحد من المصروفات —
             // كما في مثال العميل حرفياً (480 − 30 = 450، 480 − 20 = 460).
             'transferExpenses' => $transferExpenses,
@@ -437,7 +438,7 @@ class SalesReportController extends Controller
     private function byDay(array $scope, string $type): array
     {
         $days = [];
-        $blank = ['count' => 0, 'total' => 0.0, 'cash' => 0.0, 'expenses' => 0.0, 'cashExpenses' => 0.0, 'cashRemaining' => 0.0];
+        $blank = ['count' => 0, 'total' => 0.0, 'cash' => 0.0, 'expenses' => 0.0, 'cashExpenses' => 0.0, 'cashRemaining' => 0.0, 'net' => 0.0];
 
         foreach ($this->dayRange->handle($scope) as $day) {
             $days[$day] = ['date' => $day, ...$blank];
@@ -477,6 +478,8 @@ class SalesReportController extends Controller
         // من الدرج وحده — عمود «المصروفات» يبقى الإجمالي (نصّ العميل).
         foreach ($days as $day => $row) {
             $days[$day]['cashRemaining'] = round($row['cash'] - $row['cashExpenses'], 2);
+            // تاسك 120: الصافي = الإجمالي ناقص كل المصروفات (نقداً وتحويلاً).
+            $days[$day]['net'] = round($row['total'] - $row['expenses'], 2);
         }
 
         ksort($days);
