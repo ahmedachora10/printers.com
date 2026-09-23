@@ -60,7 +60,8 @@ class IncentiveController extends Controller
             ->deductedBetween($scope['from'], $scope['to']);
 
         $deductions = $deductionQuery()
-            ->with(['user:id,name', 'branch:id,name', 'deductedBy:id,name'])
+            // تاسك 126: `activities` لعارض التعديلات في نافذة التعديل.
+            ->with(['user:id,name', 'branch:id,name', 'deductedBy:id,name', 'activities.causer:id,name'])
             ->latest('deducted_at')
             ->paginate(10, pageName: 'deductionsPage')
             ->withQueryString();

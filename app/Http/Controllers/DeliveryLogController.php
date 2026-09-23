@@ -36,7 +36,8 @@ class DeliveryLogController extends Controller
 
     public function index(Request $request, ResolveReportScope $resolveScope): Response
     {
-        Gate::authorize('viewAny', DeliveryProvider::class);
+        // تاسك 127: قراءة الكشف — المحاسب فيها، وإدارة السائقين ليست.
+        Gate::authorize('viewDeliveries', DeliveryProvider::class);
 
         $scope = $resolveScope->handle($request);
 
@@ -108,6 +109,10 @@ class DeliveryLogController extends Controller
                 ? Branch::query()->orderBy('name')->get(['id', 'name'])
                 : [],
             'isSuperAdmin' => $scope['isSuper'],
+            // تاسك 127: المحاسب يقرأ الكشف ولا يسوّي أجر السائق — الزرّ يتبع
+            // السياسة، وهي تُعاد فحصها في DeliverySettlementController. والفرع
+            // الفارغ لا يقع إلا للسوبر أدمن، وهو يمرّ على `isSuperAdmin` أولاً.
+            'canSettle' => Gate::allows('settle', [DeliveryProvider::class, (int) $scope['branchId']]),
             'expenseCategories' => ExpenseCategory::activeOptionsFor($scope['branchId']),
             'defaultDate' => now()->toDateString(),
             'filters' => [

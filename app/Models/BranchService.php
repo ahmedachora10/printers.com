@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ServicePricingTypeEnum;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Pivot;
@@ -42,6 +43,23 @@ class BranchService extends Pivot
         'materials_cost' => 'decimal:2',
         'is_active' => 'boolean',
     ];
+
+    /**
+     * تاسك 116 — الخدمة قابلةٌ للبيع بشرطين معاً: صفُّ الفرع نشط **و**قالبها
+     * نشطٌ عند مدير النظام. فتعطيل القالب قاطعٌ علويّ على كل الفروع، وحالة كل
+     * فرعٍ باقيةٌ تحته كما هي — فإعادة التفعيل تُرجع كل فرعٍ إلى ما كان عليه
+     * بلا جدول «حالة سابقة» ولا ترحيل ولا دهسٍ لبيانات.
+     *
+     * والشرط هنا لا في عملية التعطيل، فيسري على أي خدمة تُضاف مستقبلاً.
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeSellable(Builder $query): void
+    {
+        $query
+            ->where('branch_services.is_active', true)
+            ->whereRelation('serviceTemplate', 'service_templates.is_active', true);
+    }
 
     /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo

@@ -8,6 +8,7 @@ use App\Enums\ExpenseSourceEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Exports\SalesReportExport;
 use App\Http\Requests\Report\SalesReportFilterRequest;
+use App\Models\AccountReconciliation;
 use App\Models\Branch;
 use App\Models\InvoicePayment;
 use App\Models\ProductInvoice;
@@ -97,7 +98,8 @@ class SalesReportController extends Controller
             'filters' => [
                 'from' => $scope['from']?->toDateString(),
                 'to' => $scope['to']?->toDateString(),
-                'branch' => $scope['isSuper'] && $scope['branchId'] ? (string) $scope['branchId'] : null,
+                // تاسك 124: قائمةٌ مفصولةٌ بفواصل، كما يرسلها FilterMultiSelect.
+                'branch' => $scope['isSuper'] && $scope['branchIds'] ? implode(',', $scope['branchIds']) : null,
                 'type' => $type,
             ],
             // The "cleared" value of the date fields — the report opens on today,
@@ -107,7 +109,39 @@ class SalesReportController extends Controller
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
             'isSuperAdmin' => $scope['isSuper'],
+            'settlement' => $this->settlement($scope),
         ]);
+    }
+
+    /**
+     * تاسك 122 — ملف موازنة الشبكة: لمطابقة يومٍ وفرع، فيُعرض حين يغطّي التقرير
+     * يوماً واحداً لفرعٍ واحد، وإلا null (لا يُعرف لأيّ يومٍ يُرفع).
+     *
+     * @param  array<string, mixed>  $scope
+     * @return array{branchId: int, date: string, file: array{name: string, uploadedAt: string, url: string}|null}|null
+     */
+    private function settlement(array $scope): ?array
+    {
+        if ($scope['branchId'] === null || ! $scope['from']->isSameDay($scope['to'])) {
+            return null;
+        }
+
+        $date = $scope['from']->toDateString();
+        $reconciliation = AccountReconciliation::query()
+            ->where('branch_id', $scope['branchId'])
+            ->where('date', $date)
+            ->first();
+        $media = $reconciliation?->settlementFile();
+
+        return [
+            'branchId' => $scope['branchId'],
+            'date' => $date,
+            'file' => $media ? [
+                'name' => $media->file_name,
+                'uploadedAt' => $media->created_at->toIso8601String(),
+                'url' => route('reports.sales.settlement-file.show', $reconciliation),
+            ] : null,
+        ];
     }
 
     public function export(SalesReportFilterRequest $request, ResolveReportScope $resolveScope): BinaryFileResponse|HttpResponse
@@ -308,7 +342,7 @@ class SalesReportController extends Controller
         return DB::query()
             ->fromSub($payments->unionAll($direct)->unionAll($refunds), 'events')
             ->whereNotNull('events.realized_at')
-            ->when($scope['branchId'], fn ($q) => $q->where('events.branch_id', $scope['branchId']))
+            ->when($scope['branchIds'], fn ($q) => $q->whereIn('events.branch_id', $scope['branchIds']))
             ->when($scope['from'], fn ($q) => $q->where('events.realized_at', '>=', $scope['from']))
             ->when($scope['to'], fn ($q) => $q->where('events.realized_at', '<=', $scope['to']));
     }
@@ -371,6 +405,8 @@ class SalesReportController extends Controller
         $expenses = round($sum($byDay, 'expenses'), 2);
         $cashExpenses = round($sum($byDay, 'cashExpenses'), 2);
         $cash = round($sum($byDay, 'cash'), 2);
+        $total = (float) $sum($byType, 'total');
+        $transferExpenses = round($expenses - $cashExpenses, 2);
 
         return [
             'invoiceCount' => (int) $sum($byType, 'count'),
@@ -381,11 +417,17 @@ class SalesReportController extends Controller
             // ومعروضةٌ بجانبه حتى لا تُقرأ إيراد خدمات.
             'shipping' => round($sum($byType, 'shipping'), 2),
             'refunds' => (float) $sum($byType, 'refunds'),
-            'total' => (float) $sum($byType, 'total'),
+            'total' => $total,
             'cash' => $cash,
             'expenses' => $expenses,
             'cashExpenses' => $cashExpenses,
             'cashRemaining' => round($cash - $cashExpenses, 2),
+            'net' => round($total - $expenses, 2),
+            // تاسك 119: كلٌّ من الإجمالي الشامل (كل الطرق) ناقص صنفٍ واحد من المصروفات —
+            // كما في مثال العميل حرفياً (480 − 30 = 450، 480 − 20 = 460).
+            'transferExpenses' => $transferExpenses,
+            'totalAfterCashExpenses' => round($total - $cashExpenses, 2),
+            'totalAfterTransferExpenses' => round($total - $transferExpenses, 2),
         ];
     }
 
@@ -430,7 +472,7 @@ class SalesReportController extends Controller
     private function byDay(array $scope, string $type): array
     {
         $days = [];
-        $blank = ['count' => 0, 'total' => 0.0, 'cash' => 0.0, 'expenses' => 0.0, 'cashExpenses' => 0.0, 'cashRemaining' => 0.0];
+        $blank = ['count' => 0, 'total' => 0.0, 'cash' => 0.0, 'expenses' => 0.0, 'cashExpenses' => 0.0, 'cashRemaining' => 0.0, 'net' => 0.0];
 
         foreach ($this->dayRange->handle($scope) as $day) {
             $days[$day] = ['date' => $day, ...$blank];
@@ -470,6 +512,8 @@ class SalesReportController extends Controller
         // من الدرج وحده — عمود «المصروفات» يبقى الإجمالي (نصّ العميل).
         foreach ($days as $day => $row) {
             $days[$day]['cashRemaining'] = round($row['cash'] - $row['cashExpenses'], 2);
+            // تاسك 120: الصافي = الإجمالي ناقص كل المصروفات (نقداً وتحويلاً).
+            $days[$day]['net'] = round($row['total'] - $row['expenses'], 2);
         }
 
         ksort($days);
@@ -501,9 +545,9 @@ class SalesReportController extends Controller
             // DB::table يتجاوز نطاق الحذف الناعم، فالشرط صريح — وإلا حُسب
             // مصروفٌ محذوف (نفس المطبّ الذي وقع في هذا التقرير سابقاً).
             ->whereNull('deleted_at')
-            // المعتمد وحده: غير المعتمد قد يُعدَّل أو يُحذف بعد، فلا يدخل التقرير.
-            ->whereNotNull('approved_at')
-            ->when($scope['branchId'], fn ($q) => $q->where('branch_id', $scope['branchId']))
+            // تاسك 123: المعتمد وغيره معاً — «زر اعتماد المصروف لا يعني تسجيله
+            // أو إضافته للحسابات، وإنما تثبيته وقفل التعديل عليه». يعكس تاسك 113.
+            ->when($scope['branchIds'], fn ($q) => $q->whereIn('branch_id', $scope['branchIds']))
             ->when($scope['from'], fn ($q) => $q->where('date', '>=', $scope['from']))
             ->when($scope['to'], fn ($q) => $q->where('date', '<=', $scope['to']))
             ->groupBy(DB::raw('DATE(date)'))

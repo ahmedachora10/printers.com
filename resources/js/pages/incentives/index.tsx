@@ -82,6 +82,8 @@ export default function IncentivesIndex({
     const [deleting, setDeleting] = useState<IncentivePlan | null>(null);
     const [paying, setPaying] = useState<IncentivePlan | null>(null);
     const [deductionOpen, setDeductionOpen] = useState(false);
+    // تاسك 126: نفس النافذة للتسجيل والتعديل — القيد المفتوح أو null.
+    const [editingDeduction, setEditingDeduction] = useState<EmployeeDeduction | null>(null);
     const [deletingDeduction, setDeletingDeduction] = useState<EmployeeDeduction | null>(null);
 
     function openCreate() {
@@ -251,12 +253,24 @@ export default function IncentivesIndex({
             {
                 key: 'actions',
                 header: '',
-                headerClassName: 'w-16',
+                headerClassName: 'w-24',
                 cell: (d) => (
-                    <div className="flex items-center justify-end">
+                    <div className="flex items-center justify-end gap-1.5">
                         <Button
                             variant="outline"
                             size="sm"
+                            title="تعديل"
+                            onClick={() => {
+                                setEditingDeduction(d);
+                                setDeductionOpen(true);
+                            }}
+                        >
+                            <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            title="حذف"
                             className="text-destructive hover:text-destructive"
                             onClick={() => setDeletingDeduction(d)}
                         >
@@ -370,10 +384,18 @@ export default function IncentivesIndex({
                     <div>
                         <h2 className="text-xl font-bold">الخصومات</h2>
                         <p className="text-muted-foreground text-sm">
-                            حسمٌ تطبّقه الإدارة بسببه وقيمته. القيد لا يُعدَّل بعد تسجيله، وما سُجّل خطأً يُحذف.
+                            حسمٌ تطبّقه الإدارة بسببه وقيمته. يُعدَّل بعد تسجيله — قيمةً وسبباً وتاريخاً، وكلُّ
+                            تعديلٍ مكتوبٌ في سجلّه — ويُحذف إن سُجّل خطأً.
                         </p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => setDeductionOpen(true)}>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                            setEditingDeduction(null);
+                            setDeductionOpen(true);
+                        }}
+                    >
                         <Minus className="size-4" /> تسجيل حسم
                     </Button>
                 </div>
@@ -462,8 +484,12 @@ export default function IncentivesIndex({
             />
 
             <DeductionFormModal
+                // تاسك 126: مفتاحٌ لكل قيد — يُعيد تركيب النافذة فتُبتدأ حقولها
+                // من الصفّ المفتوح، بلا تصفيرٍ يدويّ في useEffect.
+                key={editingDeduction?.id ?? 'new'}
                 open={deductionOpen}
                 onOpenChange={setDeductionOpen}
+                editing={editingDeduction}
                 employees={employees}
                 reasons={deductionReasons}
             />

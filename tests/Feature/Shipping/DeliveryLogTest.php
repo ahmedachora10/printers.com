@@ -195,4 +195,56 @@ describe('Delivery log', function () {
             ->get(route('shipping.deliveries'))
             ->assertForbidden();
     });
+
+    // تاسك 127 — «إضافة الصلاحية للمحاسب بكشف التوصيل»: يرى ولا يسوّي.
+    describe('accountant access', function () {
+        beforeEach(function () {
+            $this->accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+            $this->accountant->addRole(Roles::ACCOUNTANT->value);
+        });
+
+        it('opens the log for an accountant, scoped to their own branch', function () {
+            deliveredInvoice($this->branch, $this->admin, $this->driver, 20);
+
+            $foreignAdmin = User::factory()->create();
+            $foreignAdmin->addRole(Roles::BRANCH_ADMIN->value);
+            $foreignBranch = Branch::factory()->create(['owner_id' => $foreignAdmin->id]);
+            $foreignAdmin->update(['branch_id' => $foreignBranch->id]);
+            deliveredInvoice($foreignBranch, $foreignAdmin, null, 50);
+
+            $this->actingAs($this->accountant)
+                ->get(route('shipping.deliveries'))
+                ->assertOk()
+                ->assertInertia(fn ($page) => $page
+                    ->where('totals.deliveries', 1)
+                    ->where('totals.fees', 20)
+                    ->where('canSettle', false));
+        });
+
+        it('forbids an accountant from settling a driver payout', function () {
+            $invoice = deliveredInvoice($this->branch, $this->admin, $this->driver, 20);
+
+            $this->actingAs($this->accountant)
+                ->post(route('shipping.deliveries.settle', $invoice), [
+                    'amount' => 15,
+                    'paid_from' => 'cash_drawer',
+                    'date' => now()->toDateString(),
+                ])
+                ->assertForbidden();
+        });
+
+        it('keeps the accountant out of the driver management screen', function () {
+            $this->actingAs($this->accountant)
+                ->get(route('shipping.index'))
+                ->assertForbidden();
+        });
+
+        it('still offers settlement to the branch admin', function () {
+            deliveredInvoice($this->branch, $this->admin, $this->driver, 20);
+
+            $this->actingAs($this->admin)
+                ->get(route('shipping.deliveries'))
+                ->assertInertia(fn ($page) => $page->where('canSettle', true));
+        });
+    });
 });

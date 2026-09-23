@@ -5,6 +5,9 @@ export interface ExpenseReportTotals {
     total: number;
     /** ما دُفع من درج الكاشير (تاسك 110) */
     cashTotal: number;
+    /** تاسك 123 — غير المعتمد: محسوبٌ في الجملة أعلاه، وموسومٌ لأنه ما زال قابلاً للتعديل. */
+    pendingCount: number;
+    pendingTotal: number;
     average: number;
     topCategoryName: string | null;
     topCategoryTotal: number;

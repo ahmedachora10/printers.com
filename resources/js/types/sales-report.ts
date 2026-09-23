@@ -16,6 +16,14 @@ export interface SalesReportTotals {
     cashExpenses: number;
     /** cash − cashExpenses: النقد المتوقَّع في الدرج (تاسكا 97 و110) */
     cashRemaining: number;
+    /** total − expenses: الإجمالي ناقص كل المصروفات (تاسك 120) */
+    net: number;
+    /** expenses − cashExpenses: ما دُفع بتحويل بنكي (تاسك 119) */
+    transferExpenses: number;
+    /** total − cashExpenses (تاسك 119) */
+    totalAfterCashExpenses: number;
+    /** total − transferExpenses (تاسك 119) */
+    totalAfterTransferExpenses: number;
 }
 
 export interface SalesReportTypeRow {
@@ -41,6 +49,8 @@ export interface SalesReportDayRow {
     expenses: number;
     /** cash − ما دُفع من درج الكاشير (تاسك 110) — قد يكون سالباً في يومٍ فيه مصروف نقدي بلا تحصيل نقدي */
     cashRemaining: number;
+    /** total − expenses (تاسك 120) */
+    net: number;
 }
 
 export interface SalesReportEmployeeRow {
@@ -71,4 +81,11 @@ export interface SalesReportFilters {
     to: string | null;
     branch: string | null;
     type: 'all' | 'product' | 'service';
+}
+
+/** تاسك 122 — ملف موازنة الشبكة ليوم التقرير وفرعه (null حين يغطّي التقرير أكثر من يومٍ أو فرع). */
+export interface SalesReportSettlement {
+    branchId: number;
+    date: string;
+    file: { name: string; uploadedAt: string; url: string } | null;
 }

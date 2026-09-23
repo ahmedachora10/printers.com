@@ -99,8 +99,8 @@ class ExpenseReportController extends Controller
     {
         return DB::table('expenses')
             ->whereNull('expenses.deleted_at')
-            // المعتمد وحده: غير المعتمد قد يُعدَّل أو يُحذف بعد، فلا يدخل التقرير.
-            ->whereNotNull('expenses.approved_at')
+            // تاسك 123: المعتمد وغيره معاً — الاعتماد قفلُ تعديلٍ لا قيدُ حساب.
+            // وغير المعتمد يُحصى على حدة في `totals` كي لا يُقرأ الرقم مثبَّتاً.
             ->when($scope['branchId'], fn ($q) => $q->where('expenses.branch_id', $scope['branchId']))
             ->when($scope['categoryId'], fn ($q) => $q->where('expenses.expense_category_id', $scope['categoryId']))
             ->when($scope['from'], fn ($q) => $q->whereDate('expenses.date', '>=', $scope['from']->toDateString()))
@@ -119,6 +119,10 @@ class ExpenseReportController extends Controller
         $row = $this->baseQuery($scope)
             ->selectRaw('COUNT(*) as c, COALESCE(SUM(expenses.total), 0) as total')
             ->selectRaw('COALESCE(SUM(CASE WHEN expenses.paid_from = ? THEN expenses.total ELSE 0 END), 0) as cash_total', [ExpenseSourceEnum::CashDrawer->value])
+            // تاسك 123: كم من هذا الرقم ما زال قابلاً للتعديل — نفس الاستعلام،
+            // لا ثانٍ بجانبه.
+            ->selectRaw('COUNT(CASE WHEN expenses.approved_at IS NULL THEN 1 END) as pending_count')
+            ->selectRaw('COALESCE(SUM(CASE WHEN expenses.approved_at IS NULL THEN expenses.total ELSE 0 END), 0) as pending_total')
             ->first();
 
         $count = (int) $row->c;
@@ -127,6 +131,9 @@ class ExpenseReportController extends Controller
         return [
             'expenseCount' => $count,
             'total' => $total,
+            // تاسك 123: غير المعتمد محسوبٌ في الجملة أعلاه، وموسومٌ هنا.
+            'pendingCount' => (int) $row->pending_count,
+            'pendingTotal' => (float) $row->pending_total,
             // تاسك 110: ما خرج من درج الكاشير، والباقي تحويلٌ من حساب الشركة.
             'cashTotal' => (float) $row->cash_total,
             'average' => $count > 0 ? round($total / $count, 2) : 0.0,

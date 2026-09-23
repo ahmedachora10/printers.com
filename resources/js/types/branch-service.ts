@@ -45,6 +45,8 @@ export interface BranchService {
     /** خامات المخزون المرتبطة بالخدمة — مستقلة عن materialsCost المحاسبي */
     materials: BranchServiceMaterial[];
     isActive: boolean;
+    /** تاسك 116: حالة القالب عند مدير النظام — معطَّلٌ يمنع البيع في كل الفروع. */
+    templateIsActive: boolean;
     createdAt: string | null;
     updatedAt: string | null;
 }

@@ -33,6 +33,7 @@ use App\Models\DeliveryZone;
 use App\Models\InvoiceMessage;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceLine;
 use App\Models\User;
 use App\Models\UserFavoriteService;
 use App\Models\UserService;
@@ -57,6 +58,54 @@ class ServiceInvoiceController extends Controller
         Gate::authorize('create', ServiceInvoice::class);
 
         return Inertia::render('pos/service/index', $this->posFormData(Auth::user(), $listBranchAgents));
+    }
+
+    /**
+     * تاسك 118: شاشة «إنشاء فاتورة سريعة» — مبلغٌ وخدمةٌ وEnter. للموظف وحده:
+     * فاتورته معلّقة بلا طريقة دفع، ومن فوقه يلزمه اختيار طريقة لا مكان لها هنا.
+     *
+     * ثماني خدمات: الافتراضية، ثم مفضّلات الموظف، ثم الأكثر مبيعاً في فرعه آخر
+     * 30 يوماً، ثم ترتيب القوالب — فلا تظهر الشاشة فارغةً لموظفٍ جديد. والخدمة
+     * المسعّرة بالمتر أو مفتوحة تكلفة الخامات خارجها: تحتاج ما لا تسأل عنه الشاشة.
+     */
+    public function quick(): Response
+    {
+        Gate::authorize('create', ServiceInvoice::class);
+
+        $user = Auth::user();
+        abort_unless($user->roleName->isEmployee(), 403);
+
+        $services = $this->branchServiceOptions($user->branchId, $user->id, $user->id)
+            ->filter(fn (array $s) => $s['pricingType'] === ServicePricingTypeEnum::Unit->value && ! $s['materialsCostIsOpen'])
+            ->keyBy('id');
+
+        $bestSellers = ServiceInvoiceLine::query()
+            ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_lines.invoice_id')
+            ->where('service_invoices.branch_id', $user->branchId)
+            ->where('service_invoices.created_at', '>=', now()->subDays(30))
+            ->where('service_invoices.status', '!=', InvoiceStatusEnum::CANCELLED->value)
+            ->groupBy('service_invoice_lines.branch_service_id')
+            ->orderByRaw('COUNT(*) DESC')
+            ->pluck('service_invoice_lines.branch_service_id');
+
+        $defaultId = $user->quick_service_id && $services->has($user->quick_service_id) ? (int) $user->quick_service_id : null;
+
+        $ids = collect([$defaultId])
+            ->merge($services->where('isFavorite', true)->keys())
+            ->merge($bestSellers)
+            ->merge($services->keys())
+            ->filter(fn ($id) => $services->has($id))
+            ->unique()
+            ->take(8);
+
+        return Inertia::render('pos/quick', [
+            'services' => $ids->map(fn ($id) => [
+                'id' => $id,
+                'name' => $services[$id]['name'],
+            ])->values(),
+            'defaultServiceId' => $defaultId,
+            'printInvoiceId' => session('quickPrintInvoiceId'),
+        ]);
     }
 
     /**
@@ -173,6 +222,14 @@ class ServiceInvoiceController extends Controller
                 BranchNotifiables::forBranch($invoice->branch_id, [Roles::BRANCH_ADMIN->value, Roles::ACCOUNTANT->value]),
                 new DueInvoiceNotification($invoice->invoice_number, $invoice->id, InvoiceTypeEnum::SERVICE, (float) $invoice->total_amount),
             );
+        }
+
+        // تاسك 118: الشاشة السريعة لا تُغادَر — تعود إليها، ورقمُ ما يُطبع يصلها
+        // لتطبعه في إطارٍ خفيّ.
+        if ($request->boolean('quick')) {
+            return to_route('pos.service.quick')
+                ->with('success', "تم حفظ الفاتورة {$invoice->invoice_number} بنجاح")
+                ->with('quickPrintInvoiceId', $request->boolean('print') ? $invoice->id : null);
         }
 
         if ($request->boolean('print')) {
@@ -808,7 +865,8 @@ class ServiceInvoiceController extends Controller
 
         return BranchService::query()
             ->where('branch_services.branch_id', $branchId)
-            ->where('branch_services.is_active', true)
+            // تاسك 116: صفُّ الفرع نشط وقالبه نشط — تعطيل مدير النظام يُخفيها من كل فرع.
+            ->sellable()
             ->with([
                 'serviceTemplate:id,name,sort_order',
                 // خامات المخزون ومتاحُها — استعلامان ثابتان لا واحدٌ لكل خدمة.

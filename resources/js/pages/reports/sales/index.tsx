@@ -1,7 +1,7 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
 import DateRangeBar from '@/components/reports/date-range-bar';
-import { FilterSelect } from '@/components/reports/filter-fields';
+import { FilterMultiSelect, FilterSelect } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,12 +17,13 @@ import {
     type SalesReportEmployeeRow,
     type SalesReportFilters,
     type SalesReportPaymentMethodRow,
+    type SalesReportSettlement,
     type SalesReportTotals,
     type SalesReportTypeRow,
 } from '@/types/sales-report';
-import { Head, usePage } from '@inertiajs/react';
-import { Bike, CreditCard, Download, FileArchive, Info, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Wallet } from 'lucide-react';
-import { useMemo } from 'react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { Bike, CreditCard, Download, FileArchive, Info, Paperclip, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Upload, Wallet } from 'lucide-react';
+import { useMemo, useRef } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير المبيعات', href: '/reports/sales' }];
 
@@ -55,6 +56,9 @@ const breakdownColumns = (nameHeader: string): ColumnDef<BreakdownRow>[] => [
  * المصروف المحوَّل من حساب الشركة لا يمسّه. والرقم تدفّقٌ نقدي لا ربحٌ محاسبي.
  */
 const CASH_HINT = 'المحصَّل نقداً ناقص المصروفات المدفوعة من الكاشير — مصروفات التحويل البنكي لا تُخصم من النقد. ليس ربحاً صافياً.';
+
+/** تاسك 120 — لا يساوي «المتبقي من النقد» ناقصاً شيئاً: ذاك يطرح النقدية وحدها. */
+const NET_HINT = 'الإجمالي ناقص كل المصروفات (نقداً وتحويلاً) — بخلاف «المتبقي من النقد» الذي يطرح مصروفات الكاشير وحدها من النقد.';
 
 /** رأس عمودٍ يحمل تفسيره في tooltip. */
 function HintedHeader({ label, hint }: { label: string; hint: string }) {
@@ -95,6 +99,12 @@ const dayColumns: ColumnDef<SalesReportDayRow>[] = [
         className: 'font-semibold',
         cell: (row) => <Remaining value={row.cashRemaining} />,
     },
+    {
+        key: 'net',
+        header: <HintedHeader label="الصافي" hint={NET_HINT} />,
+        className: 'font-semibold',
+        cell: (row) => <Remaining value={row.net} />,
+    },
 ];
 
 interface Props {
@@ -109,6 +119,7 @@ interface Props {
     defaultDate: string;
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
+    settlement: SalesReportSettlement | null;
 }
 
 export default function SalesReportIndex({
@@ -122,20 +133,21 @@ export default function SalesReportIndex({
     defaultDate,
     branches,
     isSuperAdmin,
+    settlement,
 }: Props) {
     const canPickBranch = isSuperAdmin && branches.length > 0;
 
     // Today is the cleared state of the date fields, so an untouched report shows
     // no date chips and clearing one snaps that end back to today.
     const defaults = useMemo<FilterValues>(
-        () => ({ from: defaultDate, to: defaultDate, branch: 'all', type: 'all' }),
+        () => ({ from: defaultDate, to: defaultDate, branch: '', type: 'all' }),
         [defaultDate],
     );
 
     const applied: FilterValues = {
         from: filters.from ?? defaultDate,
         to: filters.to ?? defaultDate,
-        branch: filters.branch ?? 'all',
+        branch: filters.branch ?? '',
         type: filters.type ?? 'all',
     };
     const f = useReportFilters(REPORT_URL, applied, defaults);
@@ -150,8 +162,9 @@ export default function SalesReportIndex({
     // No chips for from/to — the range is always visible in the bar above.
     const chips: FilterChip[] = [];
     if (f.isActive('branch')) {
-        const name = branches.find((b) => b.id.toString() === applied.branch)?.name ?? applied.branch;
-        chips.push({ key: 'branch', label: `الفرع: ${name}`, onRemove: () => f.remove('branch') });
+        const ids = applied.branch.split(',');
+        const names = branches.filter((b) => ids.includes(b.id.toString())).map((b) => b.name);
+        chips.push({ key: 'branch', label: `الفرع: ${names.join('، ') || applied.branch}`, onRemove: () => f.remove('branch') });
     }
     if (f.isActive('type'))
         chips.push({ key: 'type', label: `النوع: ${TYPE_LABELS[applied.type] ?? applied.type}`, onRemove: () => f.remove('type') });
@@ -165,12 +178,14 @@ export default function SalesReportIndex({
                     <div className="flex items-center gap-2">
                         <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
                             {canPickBranch && (
-                                <FilterSelect
+                                <FilterMultiSelect
                                     label="الفرع"
                                     value={f.draft.branch}
                                     onChange={(v) => f.setField('branch', v)}
                                     allLabel="كل الفروع"
+                                    searchPlaceholder="ابحث عن فرع..."
                                     options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                                    className="sm:col-span-2"
                                 />
                             )}
                             <FilterSelect
@@ -308,7 +323,7 @@ export default function SalesReportIndex({
                     rows={byEmployee.map((e) => ({ key: e.userId, name: e.userName, count: e.count, total: e.total }))}
                 />
 
-                <PaymentMethodCard rows={byPaymentMethod} totals={totals} receiptsUrl={receiptsUrl} />
+                <PaymentMethodCard rows={byPaymentMethod} totals={totals} receiptsUrl={receiptsUrl} settlement={settlement} />
 
                 {/* By day */}
                 <Card>
@@ -331,6 +346,9 @@ export default function SalesReportIndex({
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.expenses)}</TableCell>
                                     <TableCell className="font-bold">
                                         <Remaining value={totals.cashRemaining} />
+                                    </TableCell>
+                                    <TableCell className="font-bold">
+                                        <Remaining value={totals.net} />
                                     </TableCell>
                                 </TableRow>
                             }
@@ -385,7 +403,8 @@ function SummaryCard({
 }
 
 /**
- * تاسك 97 — «المبيعات حسب طريقة الدفع» مع عمودَي المصروفات والمتبقي من النقد.
+ * تاسك 97 — «المبيعات حسب طريقة الدفع» مع عمودَي المصروفات والمتبقي من النقد
+ * (وتاسك 119: مصروفات التحويل والإجمالي بعد خصم كلٍّ منهما، في صفّ الإجمالي).
  * الرقمان على صفّ النقد وحده؛ فإن تعدّدت صفوف النقد (سوبر أدمن عبر فروع لكلٍّ
  * طريقته) فهما في صفّ الإجمالي وحده، إذ لا يُعرف أيّ درجٍ دفع أيّ مصروف.
  */
@@ -393,10 +412,12 @@ function PaymentMethodCard({
     rows,
     totals,
     receiptsUrl,
+    settlement,
 }: {
     rows: SalesReportPaymentMethodRow[];
     totals: SalesReportTotals;
     receiptsUrl: (methodId?: number) => string;
+    settlement: SalesReportSettlement | null;
 }) {
     const cashRows = rows.filter((r) => r.isCash).length;
     const onRow = (row: SalesReportPaymentMethodRow) => row.isCash && cashRows === 1;
@@ -406,16 +427,20 @@ function PaymentMethodCard({
         { key: 'total', header: 'الإجمالي', className: 'font-medium', cell: (row) => formatCurrency(row.total) },
         {
             key: 'expenses',
-            header: 'المصروفات',
+            header: 'مصروفات نقد',
             className: 'text-amber-600',
             cell: (row) => (onRow(row) ? formatCurrency(totals.cashExpenses) : '—'),
         },
+        // تاسك 119: الأعمدة الثلاثة التالية أرقامُ فترةٍ لا طريقة — في صفّ الإجمالي وحده.
+        { key: 'transferExpenses', header: 'مصروفات تحويل', cell: () => '—' },
         {
             key: 'cashRemaining',
             header: <HintedHeader label="المتبقي من النقد" hint={CASH_HINT} />,
             className: 'font-semibold',
             cell: (row) => (onRow(row) ? <Remaining value={totals.cashRemaining} /> : '—'),
         },
+        { key: 'totalAfterCash', header: 'الإجمالي بعد خصم مصروف النقد', cell: () => '—' },
+        { key: 'totalAfterTransfer', header: 'الإجمالي بعد خصم مصروف التحويل', cell: () => '—' },
         {
             key: 'receipts',
             header: <span className="sr-only">الإيصالات</span>,
@@ -432,8 +457,9 @@ function PaymentMethodCard({
 
     return (
         <Card className="mb-6">
-            <CardHeader>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
                 <CardTitle>المبيعات حسب طريقة الدفع</CardTitle>
+                {settlement && <SettlementFile settlement={settlement} />}
             </CardHeader>
             <CardContent className="p-0">
                 {cashRows === 0 && totals.cashExpenses > 0 && (
@@ -454,20 +480,53 @@ function PaymentMethodCard({
                             <TableCell />
                             <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
                             <TableCell className="font-bold text-amber-600">{formatCurrency(totals.cashExpenses)}</TableCell>
+                            <TableCell className="font-bold text-amber-600">{formatCurrency(totals.transferExpenses)}</TableCell>
                             <TableCell className="font-bold">
                                 <Remaining value={totals.cashRemaining} />
+                            </TableCell>
+                            <TableCell className="font-bold">
+                                <Remaining value={totals.totalAfterCashExpenses} />
+                            </TableCell>
+                            <TableCell className="font-bold">
+                                <Remaining value={totals.totalAfterTransferExpenses} />
                             </TableCell>
                             <TableCell />
                         </TableRow>
                     }
                 />
-                {totals.expenses > totals.cashExpenses && (
-                    <p className="text-muted-foreground border-t px-4 py-2.5 text-sm">
-                        مصروفات بتحويل بنكي: {formatCurrency(totals.expenses - totals.cashExpenses)} — لا تُخصم من النقد.
-                    </p>
-                )}
             </CardContent>
         </Card>
+    );
+}
+
+/**
+ * تاسك 122 — ملف موازنة الشبكة ليوم التقرير وفرعه: رفعٌ (يستبدل السابق) ورابطٌ
+ * للقائم. لا يُقرأ محتواه.
+ */
+function SettlementFile({ settlement }: { settlement: SalesReportSettlement }) {
+    const input = useRef<HTMLInputElement>(null);
+    const upload = (file: File | undefined) => {
+        if (!file) return;
+        router.post(
+            '/reports/sales/settlement-file',
+            { branch: settlement.branchId, date: settlement.date, file },
+            { forceFormData: true, preserveScroll: true, onFinish: () => input.current && (input.current.value = '') },
+        );
+    };
+
+    return (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+            {settlement.file && (
+                <a href={settlement.file.url} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 hover:underline">
+                    <Paperclip className="size-4" />
+                    <span className="max-w-48 truncate">{settlement.file.name}</span>
+                </a>
+            )}
+            <input ref={input} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv" hidden onChange={(e) => upload(e.target.files?.[0])} />
+            <Button type="button" variant="outline" size="sm" onClick={() => input.current?.click()}>
+                <Upload className="size-4" /> {settlement.file ? 'استبدال ملف موازنة الشبكة' : 'رفع ملف موازنة الشبكة'}
+            </Button>
+        </div>
     );
 }
 

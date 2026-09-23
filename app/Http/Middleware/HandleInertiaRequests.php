@@ -170,6 +170,13 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::EMPLOYEE],
             ],
             [
+                'title' => 'فاتورة سريعة',
+                'url' => route('pos.service.quick'),
+                'icon' => 'Zap',
+                'group' => 'sales',
+                'role' => [Roles::EMPLOYEE],
+            ],
+            [
                 'title' => 'الفواتير',
                 'url' => route('invoices.index'),
                 'icon' => 'FileText',
@@ -380,11 +387,12 @@ class HandleInertiaRequests extends Middleware
             [
                 // تاسك 93 — كشف توصيلات اليوم لكل سائق. في مجموعة التقارير
                 // لأنه قراءةٌ ومتابعة، لا شاشةَ إدارةٍ كإدارة السائقين.
+                // تاسك 127: والمحاسب معهم — يقرأ الكشف ولا يسوّي.
                 'title' => 'كشف التوصيل',
                 'url' => route('shipping.deliveries'),
                 'icon' => 'Bike',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
                 'title' => 'التقرير اليومي',

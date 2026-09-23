@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Report\ResolveReportScope;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\Roles;
+use App\Models\Branch;
 use App\Models\EmployeeDeduction;
 use App\Models\IncentivePlan;
 use App\Models\Product;
+use App\Models\ProductInvoice;
+use App\Models\ServiceInvoice;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,7 +26,7 @@ class DashboardController extends Controller
     /** Days shown in the revenue trend and the rolling chart window. */
     private const TREND_DAYS = 30;
 
-    public function index(Request $request): Response|RedirectResponse
+    public function index(Request $request, ResolveReportScope $resolveScope): Response|RedirectResponse
     {
         $user = $request->user();
         $role = $user->roleName;
@@ -37,8 +41,9 @@ class DashboardController extends Controller
         $isAccountant = $role === Roles::ACCOUNTANT;
         $isEmployee = $role?->isEmployee() ?? false;
 
-        // Super-admin sees every branch; everyone else is pinned to their own.
-        $branchId = $isSuper ? null : $user->branchId;
+        // Super-admin sees every branch, or those he picks (تاسك 128); everyone
+        // else is pinned to their own — ResolveReportScope folds both rules.
+        $branchIds = $resolveScope->handle($request)['branchIds'];
         // Employees only ever see their own sales, dues and commissions.
         $userId = $isEmployee ? $user->id : null;
 
@@ -46,18 +51,18 @@ class DashboardController extends Controller
         $monthStart = Carbon::now()->startOfMonth();
         $windowStart = $today->copy()->subDays(self::TREND_DAYS - 1)->startOfDay();
 
-        $trend = $this->revenueTrend($branchId, $userId, $windowStart);
+        $trend = $this->revenueTrend($branchIds, $userId, $windowStart);
 
         return Inertia::render('dashboard', [
             'kpis' => [
                 'todaySales' => $isAdmin || $isAccountant
-                    ? $this->paidSalesBetween($branchId, $userId, $today->copy()->startOfDay(), $today->copy()->endOfDay())
+                    ? $this->paidSalesBetween($branchIds, $userId, $today->copy()->startOfDay(), $today->copy()->endOfDay())
                     : null,
-                'monthSales' => $this->paidSalesBetween($branchId, $userId, $monthStart, Carbon::now()),
-                'outstandingDue' => $isAdmin || $isAccountant ? $this->outstandingDue($branchId, $userId) : null,
-                'pendingCommissions' => $isAdmin || $isEmployee ? $this->pendingCommissions($branchId, $userId) : null,
+                'monthSales' => $this->paidSalesBetween($branchIds, $userId, $monthStart, Carbon::now()),
+                'outstandingDue' => $isAdmin || $isAccountant ? $this->outstandingDue($branchIds, $userId) : null,
+                'pendingCommissions' => $isAdmin || $isEmployee ? $this->pendingCommissions($branchIds, $userId) : null,
                 // Inventory is a manager concern; hidden for accountants/employees.
-                'lowStockCount' => $isAdmin ? $this->lowStockCount($branchId) : null,
+                'lowStockCount' => $isAdmin ? $this->lowStockCount($branchIds) : null,
             ],
             // Charts. Everyone gets a trend and their top services; the type and
             // payment-method breakdowns are for managers and accountants only.
@@ -66,9 +71,9 @@ class DashboardController extends Controller
                 'product' => array_sum(array_column($trend, 'product')),
                 'service' => array_sum(array_column($trend, 'service')),
             ],
-            'paymentMethods' => $isEmployee ? null : $this->paymentMethods($branchId, $userId, $windowStart),
-            'topServices' => $this->topServices($branchId, $userId, $windowStart),
-            'recentInvoices' => $this->recentInvoices($branchId, $userId),
+            'paymentMethods' => $isEmployee ? null : $this->paymentMethods($branchIds, $userId, $windowStart),
+            'topServices' => $this->topServices($branchIds, $userId, $windowStart),
+            'recentInvoices' => $this->recentInvoices($branchIds, $userId),
             'incentive' => $isEmployee ? $this->incentive($user->id) : null,
             // الخصومات تُعرض للموظف دائماً ولو كانت صفراً: الغرض ألّا يفاجئه الحسم
             // في كشف الراتب، وكارتٌ يختفي عند الصفر لا يُطمئن أحداً.
@@ -79,6 +84,9 @@ class DashboardController extends Controller
                 'userName' => $user->name,
                 'trendDays' => self::TREND_DAYS,
             ],
+            // تاسك 128: فلتر الفروع للسوبر أدمن وحده — قائمةٌ مفصولةٌ بفواصل.
+            'branches' => $isSuper ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']) : [],
+            'filters' => ['branch' => $isSuper && $branchIds ? implode(',', $branchIds) : null],
         ]);
     }
 
@@ -86,21 +94,21 @@ class DashboardController extends Controller
      * Base query for one invoice table, scoped to branch/user. DB::table()
      * bypasses the SoftDeletes global scope, so deleted rows are excluded here.
      */
-    private function scoped(string $table, ?int $branchId, ?int $userId): Builder
+    private function scoped(string $table, array $branchIds, ?int $userId): Builder
     {
         return DB::table($table)
             ->whereNull($table . '.deleted_at')
-            ->when($branchId, fn($q) => $q->where($table . '.branch_id', $branchId))
+            ->when($branchIds, fn($q) => $q->whereIn($table . '.branch_id', $branchIds))
             ->when($userId, fn($q) => $q->where($table . '.user_id', $userId));
     }
 
     /** Realized revenue (paid invoices) across both tables within a window. */
-    private function paidSalesBetween(?int $branchId, ?int $userId, Carbon $from, Carbon $to): float
+    private function paidSalesBetween(array $branchIds, ?int $userId, Carbon $from, Carbon $to): float
     {
         $total = 0.0;
 
         foreach (self::TABLES as $table) {
-            $total += (float) $this->scoped($table, $branchId, $userId)
+            $total += (float) $this->scoped($table, $branchIds, $userId)
                 ->where('status', InvoiceStatusEnum::PAID->value)
                 ->whereBetween('paid_at', [$from, $to])
                 ->sum('total_amount');
@@ -116,7 +124,7 @@ class DashboardController extends Controller
      *
      * @return array<int, array{date: string, product: float, service: float}>
      */
-    private function revenueTrend(?int $branchId, ?int $userId, Carbon $windowStart): array
+    private function revenueTrend(array $branchIds, ?int $userId, Carbon $windowStart): array
     {
         $days = [];
         for ($i = 0; $i < self::TREND_DAYS; $i++) {
@@ -127,7 +135,7 @@ class DashboardController extends Controller
         foreach (self::TABLES as $table) {
             $series = $table === 'product_invoices' ? 'product' : 'service';
 
-            $rows = $this->scoped($table, $branchId, $userId)
+            $rows = $this->scoped($table, $branchIds, $userId)
                 ->where('status', InvoiceStatusEnum::PAID->value)
                 ->where('paid_at', '>=', $windowStart)
                 ->groupBy(DB::raw('DATE(paid_at)'))
@@ -149,34 +157,64 @@ class DashboardController extends Controller
 
     /**
      * Paid revenue per payment method over the window, merged across both
-     * tables. Invoices without one are grouped as "unspecified".
+     * tables.
+     *
+     * تاسك 117 — تُعدّ **أحداث التحصيل** لا رؤوس الفواتير، كما يفعل تقرير
+     * المبيعات: الفاتورة المسدَّدة بعربون ودفعات تبلغ `paid` وطريقةُ كل دفعة على
+     * صفّها في `invoice_payments`، ورأسها `payment_method_id = null` — فالضمُّ
+     * على الرأس وحده كان يُسقط ذلك المال كلَّه في «غير محدد».
+     *
+     * وما بقي بلا طريقة بعد ذلك فواتيرُ قديمة سابقة لإلزام طريقة الدفع (تاسك 59):
+     * تبقى شريحتها ظاهرةً موسومةً — حذف إيرادٍ حقيقي من رسمٍ أسوأ من إظهاره.
      *
      * @return array<int, array{name: string, total: float}>
      */
-    private function paymentMethods(?int $branchId, ?int $userId, Carbon $windowStart): array
+    private function paymentMethods(array $branchIds, ?int $userId, Carbon $windowStart): array
     {
         $methods = [];
 
         foreach (self::TABLES as $table) {
-            $rows = $this->scoped($table, $branchId, $userId)
+            $morphClass = $table === 'product_invoices' ? ProductInvoice::class : ServiceInvoice::class;
+
+            // أ. دفعةٌ مسجَّلة (عربون أو قسط): طريقتها هي طريقتها، وإلا فطريقة الرأس.
+            $payments = $this->scoped($table, $branchIds, $userId)
+                ->join('invoice_payments as p', function ($join) use ($table, $morphClass) {
+                    $join->on('p.invoice_id', '=', $table . '.id')
+                        ->where('p.invoice_type', '=', $morphClass);
+                })
+                ->where($table . '.status', InvoiceStatusEnum::PAID->value)
+                ->where('p.paid_at', '>=', $windowStart)
+                ->leftJoin('payment_methods', 'payment_methods.id', '=', DB::raw('COALESCE(p.payment_method_id, ' . $table . '.payment_method_id)'))
+                ->groupBy('payment_methods.name')
+                ->get([
+                    'payment_methods.name as name',
+                    DB::raw('COALESCE(SUM(p.amount), 0) as total'),
+                ]);
+
+            // ب. فاتورةٌ بلا دفعات — سُدّدت دفعةً واحدة على الصندوق: حدثٌ واحد
+            //    بكامل مبلغها وطريقة رأسها، كما كان الرسم يعدّها.
+            $direct = $this->scoped($table, $branchIds, $userId)
                 ->where($table . '.status', InvoiceStatusEnum::PAID->value)
                 ->where($table . '.paid_at', '>=', $windowStart)
+                ->whereNotExists(fn($q) => $q->from('invoice_payments as p')
+                    ->where('p.invoice_type', $morphClass)
+                    ->whereColumn('p.invoice_id', $table . '.id'))
                 ->leftJoin('payment_methods', 'payment_methods.id', '=', $table . '.payment_method_id')
-                ->groupBy($table . '.payment_method_id', 'payment_methods.name')
+                ->groupBy('payment_methods.name')
                 ->get([
                     'payment_methods.name as name',
                     DB::raw('COALESCE(SUM(' . $table . '.total_amount), 0) as total'),
                 ]);
 
-            foreach ($rows as $row) {
-                $name = $row->name ?? 'غير محدد';
+            foreach ($payments->concat($direct) as $row) {
+                $name = $row->name ?? 'غير محدد (فواتير قديمة)';
                 $methods[$name] = ($methods[$name] ?? 0.0) + (float) $row->total;
             }
         }
 
         $out = [];
         foreach ($methods as $name => $total) {
-            $out[] = ['name' => $name, 'total' => $total];
+            $out[] = ['name' => $name, 'total' => round($total, 2)];
         }
         usort($out, fn($a, $b) => $b['total'] <=> $a['total']);
 
@@ -184,12 +222,12 @@ class DashboardController extends Controller
     }
 
     /** Total value of unpaid (due) invoices. */
-    private function outstandingDue(?int $branchId, ?int $userId): float
+    private function outstandingDue(array $branchIds, ?int $userId): float
     {
         $total = 0.0;
 
         foreach (self::TABLES as $table) {
-            $total += (float) $this->scoped($table, $branchId, $userId)
+            $total += (float) $this->scoped($table, $branchIds, $userId)
                 ->where('status', InvoiceStatusEnum::DUE->value)
                 ->sum('total_amount');
         }
@@ -198,20 +236,20 @@ class DashboardController extends Controller
     }
 
     /** Unpaid commission owed, from the immutable ledger. */
-    private function pendingCommissions(?int $branchId, ?int $userId): float
+    private function pendingCommissions(array $branchIds, ?int $userId): float
     {
         return (float) DB::table('commission_ledger')
             ->whereNull('paid_at')
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($branchIds, fn($q) => $q->whereIn('branch_id', $branchIds))
             ->when($userId, fn($q) => $q->where('user_id', $userId))
             ->sum('amount');
     }
 
     /** Active products at or below their minimum stock level. */
-    private function lowStockCount(?int $branchId): int
+    private function lowStockCount(array $branchIds): int
     {
         return Product::query()
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($branchIds, fn($q) => $q->whereIn('branch_id', $branchIds))
             ->whereColumn('current_stock', '<=', 'min_stock_level')
             ->where('is_active', true)
             ->count();
@@ -280,14 +318,14 @@ class DashboardController extends Controller
      *
      * @return array<int, array<string, mixed>>
      */
-    private function recentInvoices(?int $branchId, ?int $userId): array
+    private function recentInvoices(array $branchIds, ?int $userId): array
     {
         $rows = collect();
 
         foreach (self::TABLES as $table) {
             $type = $table === 'product_invoices' ? 'product' : 'service';
 
-            $records = $this->scoped($table, $branchId, $userId)
+            $records = $this->scoped($table, $branchIds, $userId)
                 ->leftJoin('customers', 'customers.id', '=', $table . '.customer_id')
                 ->orderByDesc($table . '.created_at')
                 ->limit(5)
@@ -321,14 +359,14 @@ class DashboardController extends Controller
      *
      * @return array<int, array<string, mixed>>
      */
-    private function topServices(?int $branchId, ?int $userId, Carbon $windowStart): array
+    private function topServices(array $branchIds, ?int $userId, Carbon $windowStart): array
     {
         return DB::table('service_invoice_lines')
             ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_lines.invoice_id')
             ->whereNull('service_invoices.deleted_at')
             ->where('service_invoices.status', InvoiceStatusEnum::PAID->value)
             ->where('service_invoices.paid_at', '>=', $windowStart)
-            ->when($branchId, fn($q) => $q->where('service_invoices.branch_id', $branchId))
+            ->when($branchIds, fn($q) => $q->whereIn('service_invoices.branch_id', $branchIds))
             ->when($userId, fn($q) => $q->where('service_invoices.user_id', $userId))
             ->groupBy('service_invoice_lines.service_name')
             ->orderByDesc(DB::raw('SUM(service_invoice_lines.subtotal)'))

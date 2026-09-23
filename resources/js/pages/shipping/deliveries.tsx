@@ -41,6 +41,8 @@ interface Props {
     expenseCategories: { id: number; name: string; branchId: number | null }[];
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
+    /** تاسك 127: المحاسب يقرأ الكشف ولا يسوّي أجر السائق. */
+    canSettle: boolean;
     defaultDate: string;
     filters: DeliveryLogFilters;
 }
@@ -64,6 +66,7 @@ export default function DeliveriesIndex({
     expenseCategories,
     branches,
     isSuperAdmin,
+    canSettle,
     defaultDate,
     filters,
 }: Props) {
@@ -183,18 +186,22 @@ export default function DeliveriesIndex({
                                     {row.settlement.settledAt && <> — {formatDateTime(row.settlement.settledAt)}</>}
                                 </p>
                             </div>
-                            <Button variant="ghost" size="icon" className="size-7" title="إلغاء التسوية" onClick={() => setCancelling(row)}>
-                                <X className="size-3.5" />
-                            </Button>
+                            {canSettle && (
+                                <Button variant="ghost" size="icon" className="size-7" title="إلغاء التسوية" onClick={() => setCancelling(row)}>
+                                    <X className="size-3.5" />
+                                </Button>
+                            )}
                         </div>
-                    ) : (
+                    ) : canSettle ? (
                         <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setSettling(row)}>
                             <HandCoins className="size-4" /> استلام مبلغ التوصيل
                         </Button>
+                    ) : (
+                        dash
                     ),
             },
         ],
-        [isSuperAdmin],
+        [isSuperAdmin, canSettle],
     );
 
     return (

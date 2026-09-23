@@ -258,6 +258,9 @@ export interface InvoiceFilters {
     status?: string;
     date_from?: string;
     date_to?: string;
+    /** تاسك 114 — HH:mm، ساعاتٌ من كل يوم في المدى */
+    time_from?: string;
+    time_to?: string;
     branch_id?: string;
     /** 'today' | 'overdue' | 'delivered' — تصفية حسب موعد التسليم */
     delivery?: string;

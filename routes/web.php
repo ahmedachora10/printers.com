@@ -53,6 +53,7 @@ use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\RefundController;
 use App\Http\Controllers\SalesReportController;
+use App\Http\Controllers\SettlementFileController;
 use App\Http\Controllers\ServiceInvoiceController;
 use App\Http\Controllers\ServicePriceListController;
 use App\Http\Controllers\ServiceTemplateController;
@@ -189,6 +190,12 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
+        // تاسك 93 — كشف توصيلات اليوم: متابعةٌ تشغيلية قراءةً فقط.
+        // تاسك 127: والمحاسب منها — خارج مجموعة الإدارة كي يصلها، والسياسة
+        // (`viewDeliveries`) هي الحارس الفعلي لا موضع السطر.
+        Route::get('shipping/deliveries', [DeliveryLogController::class, 'index'])
+            ->name('shipping.deliveries');
+
         Route::prefix('pos')->name('pos.')->group(function () {
             Route::get('product', [ProductInvoiceController::class, 'create'])->name('product.create');
             Route::post('product', [ProductInvoiceController::class, 'store'])->name('product.store');
@@ -230,6 +237,10 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('pos')->name('pos.')->group(function () {
             Route::get('service', [ServiceInvoiceController::class, 'create'])->name('service.create');
             Route::post('service', [ServiceInvoiceController::class, 'store'])->name('service.store');
+            // تاسك 118: الفاتورة السريعة — تُرسل إلى service.store نفسه.
+            Route::get('service/quick', [ServiceInvoiceController::class, 'quick'])->name('service.quick');
+            Route::post('service/quick/default/{branchService}', [FavoriteServiceController::class, 'toggleQuickDefault'])
+                ->name('service.quick.default');
             Route::get('service/{invoice}/print', [ServiceInvoiceController::class, 'print'])->name('service.print');
             // Return (DUE or PAID) is the owning employee's alone — an accountant
             // cancels or refunds instead — and ServiceInvoicePolicy says so per invoice.
@@ -416,6 +427,11 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.sales.receipts');
         Route::get('reports/sales', [SalesReportController::class, 'index'])
             ->name('reports.sales');
+        // تاسك 122: ملف موازنة الشبكة ليومٍ وفرع.
+        Route::post('reports/sales/settlement-file', [SettlementFileController::class, 'store'])
+            ->name('reports.sales.settlement-file.store');
+        Route::get('reports/sales/settlement-file/{reconciliation}', [SettlementFileController::class, 'show'])
+            ->name('reports.sales.settlement-file.show');
 
         // Daily report: per-day product/service sales, commission, purchases,
         // VAT and net remaining. Same audience and branch scoping as sales.
@@ -546,9 +562,6 @@ Route::middleware(['auth'])->group(function () {
         // في جدوله. `toggle-status` قبل الـresource وإلا التقطه `{id}`.
         Route::get('shipping', [ShippingController::class, 'index'])->name('shipping.index');
 
-        // تاسك 93 — كشف توصيلات اليوم: متابعةٌ تشغيلية قراءةً فقط.
-        Route::get('shipping/deliveries', [DeliveryLogController::class, 'index'])
-            ->name('shipping.deliveries');
         // تاسك 111 — تسوية أجر السائق لكل طلب.
         Route::post('shipping/deliveries/{invoice}/settle', [DeliverySettlementController::class, 'store'])
             ->name('shipping.deliveries.settle');
@@ -588,6 +601,9 @@ Route::middleware(['auth'])->group(function () {
         // «للإدارة صلاحية تطبيق الخصم» يحقّقها role:branch-admin|super-admin.
         Route::post('employee-deductions', [EmployeeDeductionController::class, 'store'])
             ->name('employee-deductions.store');
+        // تاسك 126 — «إضافة زر التعديل عند تسجيل حسم».
+        Route::patch('employee-deductions/{employee_deduction}', [EmployeeDeductionController::class, 'update'])
+            ->name('employee-deductions.update');
         Route::delete('employee-deductions/{employee_deduction}', [EmployeeDeductionController::class, 'destroy'])
             ->name('employee-deductions.destroy');
 

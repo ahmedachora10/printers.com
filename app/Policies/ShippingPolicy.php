@@ -41,7 +41,21 @@ class ShippingPolicy
         return $this->owns($user, $model);
     }
 
-    /** تاسك 111 — تسوية أجر السائق وإلغاؤها: من يرى كشف التوصيل، في فرع الطلب. */
+    /**
+     * تاسك 127 — قراءة كشف التوصيل وحدها، والمحاسب فيها. مفصولةٌ عن `viewAny`
+     * عمداً: المحاسب يتابع ما على السائقين ولا يضيف سائقاً ولا يسعّر شريحة.
+     */
+    public function viewDeliveries(User $user): bool
+    {
+        return $this->viewAny($user)
+            || ($user->roleName->isAccountant() && $user->branchId !== null);
+    }
+
+    /**
+     * تاسك 111 — تسوية أجر السائق وإلغاؤها، في فرع الطلب.
+     *
+     * تاسك 127: تبقى للإدارة — المحاسب يرى الكشف ولا يسوّي عليه.
+     */
     public function settle(User $user, int $branchId): bool
     {
         return $user->roleName->isSuperAdmin()

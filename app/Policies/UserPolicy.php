@@ -39,9 +39,13 @@ class UserPolicy
     }
 
     /**
-     * Sign in as another user. Reserved for admins, and never targets another
-     * admin, a deactivated account, or yourself. Branch-admins are confined to
-     * their own branch staff.
+     * Sign in as another user. Reserved for admins, and never targets a
+     * deactivated account or yourself. Branch-admins are confined to their own
+     * branch staff.
+     *
+     * تاسك 129: مدير الفرع هدفٌ مشروع — للسوبر أدمن وحده. ومدير فرعٍ ينتحل
+     * مدير فرعٍ آخر دورٌ يترقّى بنفسه، فيبقى ممنوعاً. والسوبر أدمن لا يُنتحل
+     * أبداً: لا انتحال للنظير الأعلى.
      */
     public function impersonate(User $user, User $model): bool
     {
@@ -53,8 +57,12 @@ class UserPolicy
             return false;
         }
 
-        if ($model->hasRole(['super-admin', 'branch-admin'])) {
+        if ($model->hasRole('super-admin')) {
             return false;
+        }
+
+        if ($model->hasRole('branch-admin')) {
+            return $user->roleName->isSuperAdmin();
         }
 
         return $user->roleName->isSuperAdmin() || $this->managesInBranch($user, $model);

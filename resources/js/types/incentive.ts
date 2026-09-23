@@ -72,7 +72,18 @@ export interface EmployeeDeduction {
     reasonText: string;
     deductedBy: string | null;
     deductedAt: string | null;
+    /** تاسك 126: الخام (Y-m-d) لخانة التاريخ في نافذة التعديل. */
+    deductedAtDate: string | null;
     notes: string | null;
+    history: DeductionHistoryEntry[];
+}
+
+/** تاسك 126: تعديلٌ واحد على قيد حسم — سطرٌ لكل حقلٍ تغيّر، مقروءاً من الخادم. */
+export interface DeductionHistoryEntry {
+    id: number;
+    byName: string | null;
+    at: string;
+    changes: { label: string; old: string; new: string }[];
 }
 
 export interface PaginatedEmployeeDeduction {

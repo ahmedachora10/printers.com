@@ -30,7 +30,8 @@ const breadcrumbs: BreadcrumbItem[] = [
 // users when they belong to a branch.
 const COMMISSION_ROLES = ['employee', 'accountant'];
 
-// Roles that can never be impersonated. The server enforces this too (policy).
+// Roles a branch-admin may neither impersonate nor inspect. The server
+// enforces this too (policy).
 const ADMIN_ROLES = ['super-admin', 'branch-admin'];
 
 function hasServiceCommissions(item: ManagedUser): boolean {
@@ -54,15 +55,14 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
     const { auth } = usePage<SharedData>().props;
     const isAdmin = isSuperAdmin || auth.role === 'branch-admin';
 
-    // Mirrors UserPolicy::impersonate — admins may sign in as any active
-    // non-admin who isn't themselves. The server re-checks before swapping accounts.
+    // Mirrors UserPolicy::impersonate — a super-admin may sign in as anyone
+    // active but another super-admin; a branch-admin only as their own
+    // non-admin staff. The server re-checks before swapping accounts.
     function canImpersonate(item: ManagedUser): boolean {
-        return (
-            isAdmin &&
-            item.isActive &&
-            item.id !== auth.user.id &&
-            (item.role === null || !ADMIN_ROLES.includes(item.role))
-        );
+        if (!isAdmin || !item.isActive || item.id === auth.user.id) return false;
+        if (item.role === 'super-admin') return false;
+        if (item.role === 'branch-admin') return isSuperAdmin;
+        return true;
     }
 
     // تاسك 115: يطابق UserPolicy::viewActivity — السوبر أدمن للجميع، ومديرُ

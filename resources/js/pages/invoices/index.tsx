@@ -4,8 +4,9 @@ import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomer
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
 import DateRangeBar from '@/components/reports/date-range-bar';
 import FilterSearch from '@/components/reports/filter-search';
-import { FilterSelect } from '@/components/reports/filter-fields';
+import { FilterField, FilterSelect } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
+import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -46,7 +47,7 @@ const DELIVERY_OPTIONS = [
 ];
 
 /** Modal-only filters — the search box and the date range apply on their own. */
-const MODAL_KEYS = ['type', 'branch_id', 'status', 'delivery', 'user_id', 'payment_method_id', 'branch_service_id'];
+const MODAL_KEYS = ['type', 'branch_id', 'status', 'delivery', 'user_id', 'payment_method_id', 'branch_service_id', 'time_from', 'time_to'];
 
 interface NamedOption {
     id: number;
@@ -83,6 +84,8 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             branch_service_id: 'all',
             date_from: '',
             date_to: '',
+            time_from: '',
+            time_to: '',
         }),
         [],
     );
@@ -98,6 +101,8 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         branch_service_id: filters.branch_service_id ?? 'all',
         date_from: filters.date_from ?? '',
         date_to: filters.date_to ?? '',
+        time_from: filters.time_from ?? '',
+        time_to: filters.time_to ?? '',
     };
     const f = useReportFilters(INVOICES_URL, applied, defaults);
 
@@ -281,6 +286,11 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     if (f.isActive('branch_service_id')) {
         const name = filterOptions.services.find((s) => s.id.toString() === applied.branch_service_id)?.name ?? applied.branch_service_id;
         chips.push({ key: 'branch_service_id', label: `الخدمة: ${name}`, onRemove: () => f.remove('branch_service_id') });
+    }
+    // تاسك 114: شريحةٌ واحدة للساعات، تُزيل الطرفين معاً.
+    if (f.isActive('time_from') || f.isActive('time_to')) {
+        const label = `الساعة: ${applied.time_from || '00:00'} – ${applied.time_to || '23:59'}`;
+        chips.push({ key: 'time', label, onRemove: () => f.replaceMany({ time_from: '', time_to: '' }) });
     }
     if (f.isActive('payment_method_id')) {
         const name = filterOptions.paymentMethods.find((m) => m.id.toString() === applied.payment_method_id)?.name ?? applied.payment_method_id;
@@ -619,6 +629,13 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                             allLabel="كل المواعيد"
                             options={DELIVERY_OPTIONS}
                         />
+                        {/* تاسك 114: الساعات نفسها من كل يوم في المدى، بوقت إنشاء الفاتورة. */}
+                        <FilterField label="من الساعة" htmlFor="filter-time-from">
+                            <Input id="filter-time-from" type="time" value={f.draft.time_from} onChange={(e) => f.setField('time_from', e.target.value)} />
+                        </FilterField>
+                        <FilterField label="إلى الساعة" htmlFor="filter-time-to">
+                            <Input id="filter-time-to" type="time" value={f.draft.time_to} onChange={(e) => f.setField('time_to', e.target.value)} />
+                        </FilterField>
                     </FilterModal>
                 </div>
 

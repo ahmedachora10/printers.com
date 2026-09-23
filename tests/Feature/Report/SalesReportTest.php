@@ -203,6 +203,30 @@ describe('Sales Report', function () {
             ->assertInertia(fn ($page) => $page->where('totals.total', 900));
     });
 
+    // تاسك 124 — فرعان من ثلاثة.
+    it('lets a super-admin pick several branches at once', function () {
+        $third = Branch::factory()->create();
+        paidProductInvoice($this->branch, $this->branchAdmin, ['total_amount' => 115]);
+        paidProductInvoice($this->otherBranch, $this->superAdmin, ['total_amount' => 900]);
+        paidProductInvoice($third, $this->superAdmin, ['total_amount' => 50]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales', ['branch' => "{$this->branch->id},{$this->otherBranch->id}"]))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.total', 1015)
+                ->has('byBranch', 2)
+                ->where('filters.branch', "{$this->branch->id},{$this->otherBranch->id}"));
+    });
+
+    it('keeps an accountant on their branch whatever branches they send', function () {
+        paidProductInvoice($this->branch, $this->branchAdmin, ['total_amount' => 115]);
+        paidProductInvoice($this->otherBranch, $this->superAdmin, ['total_amount' => 900]);
+
+        $this->actingAs($this->accountant)
+            ->get(route('reports.sales', ['branch' => "{$this->branch->id},{$this->otherBranch->id}"]))
+            ->assertInertia(fn ($page) => $page->where('totals.total', 115));
+    });
+
     // ── FILTERS ────────────────────────────────────────────────────
 
     it('filters to product invoices only', function () {
@@ -434,6 +458,37 @@ describe('Sales Report', function () {
         'نقد من الكاشير' => ['cash_drawer', 20, 80],
         'تحويل بنكي' => ['company_transfer', 0, 100],
     ]);
+
+    // تاسك 119 — مثال العميل: إجمالي 480، مصروف نقد 30، مصروف تحويل 20 ⇒ 450 و460.
+    it('takes each expense source off the total separately', function () {
+        $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد']);
+        $card = PaymentMethod::factory()->create(['name' => 'شبكة']);
+        paidProductInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $cash->id, 'total_amount' => 115]);
+        paidProductInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $card->id, 'total_amount' => 365]);
+        foreach (['cash_drawer' => 30, 'company_transfer' => 20] as $source => $amount) {
+            Expense::factory()->create([
+                'branch_id' => $this->branch->id,
+                'user_id' => $this->branchAdmin->id,
+                'expense_category_id' => ExpenseCategory::factory(),
+                'total' => $amount,
+                'paid_from' => $source,
+                'date' => today()->toDateString(),
+            ]);
+        }
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.total', 480)
+                ->where('totals.cashExpenses', 30)
+                ->where('totals.transferExpenses', 20)
+                ->where('totals.cashRemaining', 85)
+                ->where('totals.totalAfterCashExpenses', 450)
+                ->where('totals.totalAfterTransferExpenses', 460)
+                // تاسك 120 — الصافي: 480 − 50 = 430.
+                ->where('totals.net', 430)
+                ->where('byDay.0.net', 430));
+    });
 
     it('counts a cash deposit as cash even when the rest was paid by card', function () {
         $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد']);

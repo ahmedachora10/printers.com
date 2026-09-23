@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Actions\Deduction\CreateDeductionAction;
 use App\Actions\Deduction\DeleteDeductionAction;
 use App\Http\Requests\Deduction\StoreEmployeeDeductionRequest;
+use App\Http\Requests\Deduction\UpdateEmployeeDeductionRequest;
 use App\Models\EmployeeDeduction;
 use App\Models\User;
 use App\Notifications\DeductionRecordedNotification;
@@ -15,8 +16,8 @@ use Illuminate\Support\Facades\Gate;
  * تاسك 74: سجلّ حسومات الموظفين، معروضاً تحت بند الحوافز والمكافآت.
  *
  * القراءة تعيش في `IncentiveController::index` مع الخطط (شاشةٌ واحدة بتبويبين)،
- * فليس هنا إلا الكتابة. ولا `update`: القيد لا يُعاد كتابته بعد الإدراج — أمّا
- * `destroy` فحذفٌ soft، إلغاءً لحسمٍ سُجّل خطأً.
+ * فليس هنا إلا الكتابة. و`destroy` حذفٌ soft، إلغاءً لحسمٍ سُجّل خطأً، و`update`
+ * (تاسك 126) تصحيحٌ لقيمةٍ أو سببٍ أو تاريخ — دون نقل الحسم إلى موظفٍ آخر.
  */
 class EmployeeDeductionController extends Controller
 {
@@ -38,6 +39,21 @@ class EmployeeDeductionController extends Controller
         $employee->notify(new DeductionRecordedNotification($deduction));
 
         return back(fallback: route('incentives.index'))->with('success', 'تم تسجيل الحسم بنجاح');
+    }
+
+    /**
+     * تاسك 126 — تصحيح القيد. الموظف المحسوم عليه خارج الطلب عمداً.
+     *
+     * بلا Action: صفٌّ واحد يُحدَّث، و`LogsActivity` يكتب سجلّه — فلا معاملة
+     * تلفّ عبارةً واحدة ولا طبقةٌ تمرّر `$data` وتعود.
+     */
+    public function update(UpdateEmployeeDeductionRequest $request, EmployeeDeduction $employeeDeduction): RedirectResponse
+    {
+        Gate::authorize('update', $employeeDeduction);
+
+        $employeeDeduction->update($request->validated());
+
+        return back(fallback: route('incentives.index'))->with('success', 'تم تعديل الحسم بنجاح');
     }
 
     public function destroy(EmployeeDeduction $employeeDeduction, DeleteDeductionAction $action): RedirectResponse

@@ -57,9 +57,12 @@ class CalculateServiceInvoiceAction
         // their name, commission rate, tahazir flag and discount ceiling.
         $branchServiceIds = collect((array) $data['lines'])->pluck('branch_service_id')->unique();
 
+        // تاسك 116: غير القابلة للبيع لا تُحمَّل أصلاً — فالسطر الذي يرجع بخدمةٍ
+        // عطّلها مدير النظام يسقط على شرط `$branchService` أدناه بالرسالة نفسها.
         $branchServices = BranchService::query()
             ->where('branch_id', $branchId)
             ->whereIn('id', $branchServiceIds)
+            ->sellable()
             ->with('serviceTemplate:id,name')
             ->get()
             ->keyBy('id');
@@ -90,7 +93,7 @@ class CalculateServiceInvoiceAction
             /** @var BranchService|null $branchService */
             $branchService = $branchServices->get($line['branch_service_id']);
 
-            if (! $branchService || ! $branchService->is_active) {
+            if (! $branchService) {
                 throw ValidationException::withMessages([
                     'lines' => 'إحدى الخدمات غير متاحة في هذا الفرع.',
                 ]);

@@ -1,7 +1,11 @@
 import { ChartCard, PaymentMethodsChart, RevenueTrendChart, SalesByTypeChart, TopServicesChart } from '@/components/dashboard/charts';
 import { DataTable, type ColumnDef } from '@/components/data-table';
+import { ActiveFilterChips } from '@/components/reports/active-filter-chips';
+import { FilterMultiSelect } from '@/components/reports/filter-fields';
+import { FilterModal } from '@/components/reports/filter-modal';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useReportFilters } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
@@ -32,6 +36,9 @@ interface Props {
     /** للموظف وحده — null لبقية الأدوار. */
     deductions: DashboardDeductions | null;
     scope: DashboardScope;
+    /** تاسك 128 — للسوبر أدمن وحده؛ فارغةٌ لغيره. */
+    branches: { id: number; name: string }[];
+    filters: { branch: string | null };
 }
 
 const STATUS: Record<DashboardRecentInvoice['status'], { label: string; className: string }> = {
@@ -58,7 +65,7 @@ const recentInvoiceColumns: ColumnDef<DashboardRecentInvoice>[] = [
     { key: 'createdAt', header: 'التاريخ', className: 'text-sm', cell: (inv) => (inv.createdAt ? formatDate(inv.createdAt) : '—') },
 ];
 
-export default function Dashboard({ kpis, revenueTrend, salesByType, paymentMethods, topServices, recentInvoices, incentive, deductions, scope }: Props) {
+export default function Dashboard({ kpis, revenueTrend, salesByType, paymentMethods, topServices, recentInvoices, incentive, deductions, scope, branches, filters }: Props) {
     const salesLabel = scope.isEmployee ? 'مبيعاتي' : 'المبيعات';
     const trendTitle = `${scope.isEmployee ? 'مبيعاتي' : 'المبيعات'} خلال آخر ${scope.trendDays} يومًا`;
 
@@ -88,9 +95,12 @@ export default function Dashboard({ kpis, revenueTrend, salesByType, paymentMeth
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title="لوحة التحكم" />
             <div className="flex flex-col gap-6 p-6">
-                <div>
-                    <h1 className="text-2xl font-bold">مرحبًا، {scope.userName}</h1>
-                    <p className="text-sm text-muted-foreground">نظرة عامة على الأداء</p>
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h1 className="text-2xl font-bold">مرحبًا، {scope.userName}</h1>
+                        <p className="text-sm text-muted-foreground">نظرة عامة على الأداء</p>
+                    </div>
+                    {scope.isSuper && branches.length > 0 && <BranchFilter branches={branches} applied={filters.branch ?? ''} />}
                 </div>
 
                 {/* KPI tiles */}
@@ -255,5 +265,34 @@ function IncentiveCard({ incentive }: { incentive: DashboardIncentive }) {
                 </div>
             </CardContent>
         </Card>
+    );
+}
+
+/**
+ * تاسك 128 — فلتر الفروع (متعدد) للسوبر أدمن. بلا فلتر تاريخ: التاسك 17 استثنى
+ * لوحة التحكم عمداً، وبطاقاتها ذات فترات ثابتة.
+ */
+function BranchFilter({ branches, applied }: { branches: { id: number; name: string }[]; applied: string }) {
+    const f = useReportFilters('/dashboard', { branch: applied }, { branch: '' });
+    const ids = applied.split(',');
+    const names = branches.filter((b) => ids.includes(b.id.toString())).map((b) => b.name);
+
+    return (
+        <div className="flex flex-col items-end gap-2">
+            <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
+                <FilterMultiSelect
+                    label="الفرع"
+                    value={f.draft.branch}
+                    onChange={(v) => f.setField('branch', v)}
+                    allLabel="كل الفروع"
+                    searchPlaceholder="ابحث عن فرع..."
+                    options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                    className="sm:col-span-2"
+                />
+            </FilterModal>
+            <ActiveFilterChips
+                chips={f.isActive('branch') ? [{ key: 'branch', label: `الفرع: ${names.join('، ')}`, onRemove: () => f.remove('branch') }] : []}
+            />
+        </div>
     );
 }

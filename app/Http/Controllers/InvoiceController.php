@@ -105,10 +105,25 @@ class InvoiceController extends Controller
             ),
             'filterOptions' => $this->filterOptions($isSuperAdmin, $branchId),
             'filters' => $request->only([
-                'search', 'type', 'status', 'date_from', 'date_to', 'branch_id', 'delivery',
+                'search', 'type', 'status', 'date_from', 'date_to', 'time_from', 'time_to', 'branch_id', 'delivery',
                 'user_id', 'payment_method_id', 'branch_service_id',
             ]),
         ]);
+    }
+
+    /**
+     * تاسك 114 — [من، إلى] بصيغة H:i:s، أو null حين لا وقت. القيمة غير الصالحة
+     * تُتجاهَل كما يُتجاهل أي فلترٍ فارغ. «إلى» شاملةٌ دقيقتَها كلَّها.
+     *
+     * @return array{0: ?string, 1: ?string}|null
+     */
+    private function timeWindow(Request $request): ?array
+    {
+        $valid = fn (string $key) => preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', (string) $request->input($key)) === 1;
+        $from = $valid('time_from') ? $request->input('time_from').':00' : null;
+        $to = $valid('time_to') ? $request->input('time_to').':59' : null;
+
+        return $from || $to ? [$from, $to] : null;
     }
 
     /**
@@ -515,6 +530,19 @@ class InvoiceController extends Controller
             })
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate("{$table}.created_at", '>=', $request->input('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate("{$table}.created_at", '<=', $request->input('date_to')))
+            // تاسك 114: ساعاتٌ من كل يومٍ في المدى (18:00–22:00 مثلاً)، على وقت الإنشاء
+            // أي وقت حضور العميل. ونافذةٌ تعبر منتصف الليل (22:00–02:00) تصير «أو».
+            ->when($this->timeWindow($request), function ($q, array $window) use ($table) {
+                [$from, $to] = $window;
+                $col = "{$table}.created_at";
+
+                return match (true) {
+                    $to === null => $q->whereTime($col, '>=', $from),
+                    $from === null => $q->whereTime($col, '<=', $to),
+                    $from <= $to => $q->whereTime($col, '>=', $from)->whereTime($col, '<=', $to),
+                    default => $q->where(fn ($w) => $w->whereTime($col, '>=', $from)->orWhereTime($col, '<=', $to)),
+                };
+            })
             // «تسليم اليوم / متأخر / تم التسليم»: يخص فواتير الخدمات وحدها، فيُقصى
             // فرع المنتجات من الاتحاد كاملاً بدل أن يُرجع صفوفاً بلا موعد. الملغاة
             // والمرتجعة لا ينتظر أحد تسليمها، والمُسلَّمة تغادر «اليوم» و«المتأخر»
