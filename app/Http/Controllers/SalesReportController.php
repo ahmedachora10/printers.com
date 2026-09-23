@@ -8,6 +8,7 @@ use App\Enums\ExpenseSourceEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Exports\SalesReportExport;
 use App\Http\Requests\Report\SalesReportFilterRequest;
+use App\Models\AccountReconciliation;
 use App\Models\Branch;
 use App\Models\InvoicePayment;
 use App\Models\ProductInvoice;
@@ -108,7 +109,39 @@ class SalesReportController extends Controller
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
             'isSuperAdmin' => $scope['isSuper'],
+            'settlement' => $this->settlement($scope),
         ]);
+    }
+
+    /**
+     * تاسك 122 — ملف موازنة الشبكة: لمطابقة يومٍ وفرع، فيُعرض حين يغطّي التقرير
+     * يوماً واحداً لفرعٍ واحد، وإلا null (لا يُعرف لأيّ يومٍ يُرفع).
+     *
+     * @param  array<string, mixed>  $scope
+     * @return array{branchId: int, date: string, file: array{name: string, uploadedAt: string, url: string}|null}|null
+     */
+    private function settlement(array $scope): ?array
+    {
+        if ($scope['branchId'] === null || ! $scope['from']->isSameDay($scope['to'])) {
+            return null;
+        }
+
+        $date = $scope['from']->toDateString();
+        $reconciliation = AccountReconciliation::query()
+            ->where('branch_id', $scope['branchId'])
+            ->where('date', $date)
+            ->first();
+        $media = $reconciliation?->settlementFile();
+
+        return [
+            'branchId' => $scope['branchId'],
+            'date' => $date,
+            'file' => $media ? [
+                'name' => $media->file_name,
+                'uploadedAt' => $media->created_at->toIso8601String(),
+                'url' => route('reports.sales.settlement-file.show', $reconciliation),
+            ] : null,
+        ];
     }
 
     public function export(SalesReportFilterRequest $request, ResolveReportScope $resolveScope): BinaryFileResponse|HttpResponse

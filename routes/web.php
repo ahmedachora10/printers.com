@@ -53,6 +53,7 @@ use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\RefundController;
 use App\Http\Controllers\SalesReportController;
+use App\Http\Controllers\SettlementFileController;
 use App\Http\Controllers\ServiceInvoiceController;
 use App\Http\Controllers\ServicePriceListController;
 use App\Http\Controllers\ServiceTemplateController;
@@ -422,6 +423,11 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.sales.receipts');
         Route::get('reports/sales', [SalesReportController::class, 'index'])
             ->name('reports.sales');
+        // تاسك 122: ملف موازنة الشبكة ليومٍ وفرع.
+        Route::post('reports/sales/settlement-file', [SettlementFileController::class, 'store'])
+            ->name('reports.sales.settlement-file.store');
+        Route::get('reports/sales/settlement-file/{reconciliation}', [SettlementFileController::class, 'show'])
+            ->name('reports.sales.settlement-file.show');
 
         // Daily report: per-day product/service sales, commission, purchases,
         // VAT and net remaining. Same audience and branch scoping as sales.

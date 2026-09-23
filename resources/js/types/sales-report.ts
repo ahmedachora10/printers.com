@@ -82,3 +82,10 @@ export interface SalesReportFilters {
     branch: string | null;
     type: 'all' | 'product' | 'service';
 }
+
+/** تاسك 122 — ملف موازنة الشبكة ليوم التقرير وفرعه (null حين يغطّي التقرير أكثر من يومٍ أو فرع). */
+export interface SalesReportSettlement {
+    branchId: number;
+    date: string;
+    file: { name: string; uploadedAt: string; url: string } | null;
+}

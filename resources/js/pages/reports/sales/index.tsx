@@ -17,12 +17,13 @@ import {
     type SalesReportEmployeeRow,
     type SalesReportFilters,
     type SalesReportPaymentMethodRow,
+    type SalesReportSettlement,
     type SalesReportTotals,
     type SalesReportTypeRow,
 } from '@/types/sales-report';
-import { Head, usePage } from '@inertiajs/react';
-import { Bike, CreditCard, Download, FileArchive, Info, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Wallet } from 'lucide-react';
-import { useMemo } from 'react';
+import { Head, router, usePage } from '@inertiajs/react';
+import { Bike, CreditCard, Download, FileArchive, Info, Paperclip, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Upload, Wallet } from 'lucide-react';
+import { useMemo, useRef } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير المبيعات', href: '/reports/sales' }];
 
@@ -118,6 +119,7 @@ interface Props {
     defaultDate: string;
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
+    settlement: SalesReportSettlement | null;
 }
 
 export default function SalesReportIndex({
@@ -131,6 +133,7 @@ export default function SalesReportIndex({
     defaultDate,
     branches,
     isSuperAdmin,
+    settlement,
 }: Props) {
     const canPickBranch = isSuperAdmin && branches.length > 0;
 
@@ -320,7 +323,7 @@ export default function SalesReportIndex({
                     rows={byEmployee.map((e) => ({ key: e.userId, name: e.userName, count: e.count, total: e.total }))}
                 />
 
-                <PaymentMethodCard rows={byPaymentMethod} totals={totals} receiptsUrl={receiptsUrl} />
+                <PaymentMethodCard rows={byPaymentMethod} totals={totals} receiptsUrl={receiptsUrl} settlement={settlement} />
 
                 {/* By day */}
                 <Card>
@@ -409,10 +412,12 @@ function PaymentMethodCard({
     rows,
     totals,
     receiptsUrl,
+    settlement,
 }: {
     rows: SalesReportPaymentMethodRow[];
     totals: SalesReportTotals;
     receiptsUrl: (methodId?: number) => string;
+    settlement: SalesReportSettlement | null;
 }) {
     const cashRows = rows.filter((r) => r.isCash).length;
     const onRow = (row: SalesReportPaymentMethodRow) => row.isCash && cashRows === 1;
@@ -452,8 +457,9 @@ function PaymentMethodCard({
 
     return (
         <Card className="mb-6">
-            <CardHeader>
+            <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2">
                 <CardTitle>المبيعات حسب طريقة الدفع</CardTitle>
+                {settlement && <SettlementFile settlement={settlement} />}
             </CardHeader>
             <CardContent className="p-0">
                 {cashRows === 0 && totals.cashExpenses > 0 && (
@@ -490,6 +496,37 @@ function PaymentMethodCard({
                 />
             </CardContent>
         </Card>
+    );
+}
+
+/**
+ * تاسك 122 — ملف موازنة الشبكة ليوم التقرير وفرعه: رفعٌ (يستبدل السابق) ورابطٌ
+ * للقائم. لا يُقرأ محتواه.
+ */
+function SettlementFile({ settlement }: { settlement: SalesReportSettlement }) {
+    const input = useRef<HTMLInputElement>(null);
+    const upload = (file: File | undefined) => {
+        if (!file) return;
+        router.post(
+            '/reports/sales/settlement-file',
+            { branch: settlement.branchId, date: settlement.date, file },
+            { forceFormData: true, preserveScroll: true, onFinish: () => input.current && (input.current.value = '') },
+        );
+    };
+
+    return (
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+            {settlement.file && (
+                <a href={settlement.file.url} target="_blank" rel="noreferrer" className="text-primary inline-flex items-center gap-1 hover:underline">
+                    <Paperclip className="size-4" />
+                    <span className="max-w-48 truncate">{settlement.file.name}</span>
+                </a>
+            )}
+            <input ref={input} type="file" accept=".pdf,.jpg,.jpeg,.png,.webp,.xlsx,.xls,.csv" hidden onChange={(e) => upload(e.target.files?.[0])} />
+            <Button type="button" variant="outline" size="sm" onClick={() => input.current?.click()}>
+                <Upload className="size-4" /> {settlement.file ? 'استبدال ملف موازنة الشبكة' : 'رفع ملف موازنة الشبكة'}
+            </Button>
+        </div>
     );
 }
 
