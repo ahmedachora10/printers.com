@@ -237,6 +237,10 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('pos')->name('pos.')->group(function () {
             Route::get('service', [ServiceInvoiceController::class, 'create'])->name('service.create');
             Route::post('service', [ServiceInvoiceController::class, 'store'])->name('service.store');
+            // تاسك 118: الفاتورة السريعة — تُرسل إلى service.store نفسه.
+            Route::get('service/quick', [ServiceInvoiceController::class, 'quick'])->name('service.quick');
+            Route::post('service/quick/default/{branchService}', [FavoriteServiceController::class, 'toggleQuickDefault'])
+                ->name('service.quick.default');
             Route::get('service/{invoice}/print', [ServiceInvoiceController::class, 'print'])->name('service.print');
             // Return (DUE or PAID) is the owning employee's alone — an accountant
             // cancels or refunds instead — and ServiceInvoicePolicy says so per invoice.

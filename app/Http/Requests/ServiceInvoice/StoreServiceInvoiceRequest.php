@@ -52,6 +52,8 @@ class StoreServiceInvoiceRequest extends FormRequest
             ],
             'status' => ['required', Rule::in($allowedStatuses)],
             'print' => ['nullable', 'boolean'],
+            // تاسك 118: أُرسلت من الشاشة السريعة — فالرجوع إليها لا إلى الشاشة الكاملة.
+            'quick' => ['nullable', 'boolean'],
             // موعد تسليم العمل للعميل — اختياري، ولا يُقبل في الماضي.
             'delivery_at' => ['nullable', 'date', 'after_or_equal:today'],
             // Invoice-level remark for the customer, printed under the lines.
