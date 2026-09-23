@@ -435,6 +435,34 @@ describe('Sales Report', function () {
         'تحويل بنكي' => ['company_transfer', 0, 100],
     ]);
 
+    // تاسك 119 — مثال العميل: إجمالي 480، مصروف نقد 30، مصروف تحويل 20 ⇒ 450 و460.
+    it('takes each expense source off the total separately', function () {
+        $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد']);
+        $card = PaymentMethod::factory()->create(['name' => 'شبكة']);
+        paidProductInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $cash->id, 'total_amount' => 115]);
+        paidProductInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $card->id, 'total_amount' => 365]);
+        foreach (['cash_drawer' => 30, 'company_transfer' => 20] as $source => $amount) {
+            Expense::factory()->create([
+                'branch_id' => $this->branch->id,
+                'user_id' => $this->branchAdmin->id,
+                'expense_category_id' => ExpenseCategory::factory(),
+                'total' => $amount,
+                'paid_from' => $source,
+                'date' => today()->toDateString(),
+            ]);
+        }
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.total', 480)
+                ->where('totals.cashExpenses', 30)
+                ->where('totals.transferExpenses', 20)
+                ->where('totals.cashRemaining', 85)
+                ->where('totals.totalAfterCashExpenses', 450)
+                ->where('totals.totalAfterTransferExpenses', 460));
+    });
+
     it('counts a cash deposit as cash even when the rest was paid by card', function () {
         $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد']);
         $card = PaymentMethod::factory()->create(['name' => 'شبكة']);

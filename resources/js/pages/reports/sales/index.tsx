@@ -385,7 +385,8 @@ function SummaryCard({
 }
 
 /**
- * تاسك 97 — «المبيعات حسب طريقة الدفع» مع عمودَي المصروفات والمتبقي من النقد.
+ * تاسك 97 — «المبيعات حسب طريقة الدفع» مع عمودَي المصروفات والمتبقي من النقد
+ * (وتاسك 119: مصروفات التحويل والإجمالي بعد خصم كلٍّ منهما، في صفّ الإجمالي).
  * الرقمان على صفّ النقد وحده؛ فإن تعدّدت صفوف النقد (سوبر أدمن عبر فروع لكلٍّ
  * طريقته) فهما في صفّ الإجمالي وحده، إذ لا يُعرف أيّ درجٍ دفع أيّ مصروف.
  */
@@ -406,16 +407,20 @@ function PaymentMethodCard({
         { key: 'total', header: 'الإجمالي', className: 'font-medium', cell: (row) => formatCurrency(row.total) },
         {
             key: 'expenses',
-            header: 'المصروفات',
+            header: 'مصروفات نقد',
             className: 'text-amber-600',
             cell: (row) => (onRow(row) ? formatCurrency(totals.cashExpenses) : '—'),
         },
+        // تاسك 119: الأعمدة الثلاثة التالية أرقامُ فترةٍ لا طريقة — في صفّ الإجمالي وحده.
+        { key: 'transferExpenses', header: 'مصروفات تحويل', cell: () => '—' },
         {
             key: 'cashRemaining',
             header: <HintedHeader label="المتبقي من النقد" hint={CASH_HINT} />,
             className: 'font-semibold',
             cell: (row) => (onRow(row) ? <Remaining value={totals.cashRemaining} /> : '—'),
         },
+        { key: 'totalAfterCash', header: 'الإجمالي بعد خصم مصروف النقد', cell: () => '—' },
+        { key: 'totalAfterTransfer', header: 'الإجمالي بعد خصم مصروف التحويل', cell: () => '—' },
         {
             key: 'receipts',
             header: <span className="sr-only">الإيصالات</span>,
@@ -454,18 +459,20 @@ function PaymentMethodCard({
                             <TableCell />
                             <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
                             <TableCell className="font-bold text-amber-600">{formatCurrency(totals.cashExpenses)}</TableCell>
+                            <TableCell className="font-bold text-amber-600">{formatCurrency(totals.transferExpenses)}</TableCell>
                             <TableCell className="font-bold">
                                 <Remaining value={totals.cashRemaining} />
+                            </TableCell>
+                            <TableCell className="font-bold">
+                                <Remaining value={totals.totalAfterCashExpenses} />
+                            </TableCell>
+                            <TableCell className="font-bold">
+                                <Remaining value={totals.totalAfterTransferExpenses} />
                             </TableCell>
                             <TableCell />
                         </TableRow>
                     }
                 />
-                {totals.expenses > totals.cashExpenses && (
-                    <p className="text-muted-foreground border-t px-4 py-2.5 text-sm">
-                        مصروفات بتحويل بنكي: {formatCurrency(totals.expenses - totals.cashExpenses)} — لا تُخصم من النقد.
-                    </p>
-                )}
             </CardContent>
         </Card>
     );

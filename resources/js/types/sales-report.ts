@@ -16,6 +16,12 @@ export interface SalesReportTotals {
     cashExpenses: number;
     /** cash − cashExpenses: النقد المتوقَّع في الدرج (تاسكا 97 و110) */
     cashRemaining: number;
+    /** expenses − cashExpenses: ما دُفع بتحويل بنكي (تاسك 119) */
+    transferExpenses: number;
+    /** total − cashExpenses (تاسك 119) */
+    totalAfterCashExpenses: number;
+    /** total − transferExpenses (تاسك 119) */
+    totalAfterTransferExpenses: number;
 }
 
 export interface SalesReportTypeRow {

@@ -371,6 +371,8 @@ class SalesReportController extends Controller
         $expenses = round($sum($byDay, 'expenses'), 2);
         $cashExpenses = round($sum($byDay, 'cashExpenses'), 2);
         $cash = round($sum($byDay, 'cash'), 2);
+        $total = (float) $sum($byType, 'total');
+        $transferExpenses = round($expenses - $cashExpenses, 2);
 
         return [
             'invoiceCount' => (int) $sum($byType, 'count'),
@@ -381,11 +383,16 @@ class SalesReportController extends Controller
             // ومعروضةٌ بجانبه حتى لا تُقرأ إيراد خدمات.
             'shipping' => round($sum($byType, 'shipping'), 2),
             'refunds' => (float) $sum($byType, 'refunds'),
-            'total' => (float) $sum($byType, 'total'),
+            'total' => $total,
             'cash' => $cash,
             'expenses' => $expenses,
             'cashExpenses' => $cashExpenses,
             'cashRemaining' => round($cash - $cashExpenses, 2),
+            // تاسك 119: كلٌّ من الإجمالي الشامل (كل الطرق) ناقص صنفٍ واحد من المصروفات —
+            // كما في مثال العميل حرفياً (480 − 30 = 450، 480 − 20 = 460).
+            'transferExpenses' => $transferExpenses,
+            'totalAfterCashExpenses' => round($total - $cashExpenses, 2),
+            'totalAfterTransferExpenses' => round($total - $transferExpenses, 2),
         ];
     }
 
