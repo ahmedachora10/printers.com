@@ -156,6 +156,32 @@ describe('Dashboard', function () {
             ->assertInertia(fn ($page) => $page->where('kpis.todaySales', 115));
     });
 
+    // تاسك 128 — فلتر الفروع للسوبر أدمن.
+    it('lets a super-admin narrow the dashboard to chosen branches', function () {
+        $third = Branch::factory()->create();
+        dashProductInvoice($this->branch, $this->branchAdmin, ['total_amount' => 115]);
+        dashProductInvoice($this->otherBranch, $this->superAdmin, ['total_amount' => 900]);
+        dashProductInvoice($third, $this->superAdmin, ['total_amount' => 50]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('dashboard', ['branch' => "{$this->branch->id},{$third->id}"]))
+            ->assertInertia(fn ($page) => $page
+                ->where('kpis.todaySales', 165)
+                ->where('filters.branch', "{$this->branch->id},{$third->id}")
+                ->has('branches', 3));
+    });
+
+    it('keeps a branch-admin on their branch whatever branch they send', function () {
+        dashProductInvoice($this->branch, $this->branchAdmin, ['total_amount' => 115]);
+        dashProductInvoice($this->otherBranch, $this->superAdmin, ['total_amount' => 900]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('dashboard', ['branch' => $this->otherBranch->id]))
+            ->assertInertia(fn ($page) => $page
+                ->where('kpis.todaySales', 115)
+                ->where('branches', []));
+    });
+
     it('scopes an employee to their own sales', function () {
         $coworker = User::factory()->create(['branch_id' => $this->branch->id]);
         $coworker->addRole(Roles::EMPLOYEE->value);

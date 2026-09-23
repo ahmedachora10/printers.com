@@ -3,7 +3,6 @@
 namespace App\Actions\Report;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Carbon;
 
 /**
@@ -18,8 +17,8 @@ use Illuminate\Support\Carbon;
  * never null, so callers can rely on a bounded window when zero-filling days.
  *
  * تاسك 124: `branchIds` — قائمة الفروع المختارة (فارغة = كل الفروع)، يقرؤها تقرير
- * المبيعات. و`branchId` يبقى كما هو لبقيّة التقارير: الفرع حين يكون واحداً، وإلا null.
- * ponytail: branchIds في تقرير المبيعات وحده؛ يُنقل إليه تقريرٌ آخر حين يُطلب له.
+ * المبيعات ولوحة التحكم (تاسك 128). و`branchId` يبقى كما هو لبقيّة التقارير: الفرع حين يكون واحداً، وإلا null.
+ * ponytail: branchIds في المبيعات ولوحة التحكم وحدهما؛ يُنقل إليه تقريرٌ آخر حين يُطلب له.
  */
 class ResolveReportScope
 {
@@ -32,7 +31,10 @@ class ResolveReportScope
         $isSuper = $actor->roleName?->isSuperAdmin() ?? false;
         // غير السوبر أدمن مثبَّتٌ على فرعه مهما أرسل.
         $branchIds = $isSuper
-            ? array_values(array_unique(array_map('intval', array_filter(Arr::wrap($request->input('branch'))))))
+            ? array_values(array_unique(array_map('intval', array_filter(
+                is_array($raw = $request->input('branch')) ? $raw : explode(',', (string) $raw),
+                'is_numeric',
+            ))))
             : array_filter([$actor->branchId]);
 
         return [
