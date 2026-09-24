@@ -22,12 +22,14 @@ class PaymentMethod extends Model
         'is_active',
         'requires_attachment',
         'is_cash',
+        'is_network',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
         'requires_attachment' => 'boolean',
         'is_cash' => 'boolean',
+        'is_network' => 'boolean',
     ];
 
     /** الفرع المالك — null = طريقة عامة يراها كل فرع (تاسك 59). */
@@ -51,6 +53,11 @@ class PaymentMethod extends Model
         }
 
         return $query->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId));
+    }
+
+    public function scopeIsNetwork($query)
+    {
+        return $query->where('is_network', true);
     }
 
     public function isReferencedByInvoices(): bool

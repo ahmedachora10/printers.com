@@ -305,6 +305,14 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [
+                // تاسك 121 — بعد المصروفات بنصّ العميل.
+                'title' => 'مطابقة الحسابات',
+                'url' => route('finance.reconciliation.index'),
+                'icon' => 'Scale',
+                'group' => 'finance',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+            ],
+            [
                 'title' => 'فئات المصروفات',
                 'url' => route('expense-categories.index'),
                 'icon' => 'FolderKanban',

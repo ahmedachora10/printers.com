@@ -34,4 +34,10 @@ class PaymentMethodFactory extends Factory
     {
         return $this->state(fn () => ['is_cash' => true]);
     }
+
+    /** A network (card-terminal) method — reconciled per device (تاسك 121). */
+    public function network(): static
+    {
+        return $this->state(fn () => ['is_network' => true]);
+    }
 }

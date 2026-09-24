@@ -5,6 +5,8 @@ export interface PaymentMethod {
     requiresAttachment: boolean;
     /** طريقة نقدية — تقرير المبيعات يطرح المصروفات من هذه الطرق وحدها (تاسك 97) */
     isCash: boolean;
+    /** طريقة شبكة — موازنتها تُدخَل يدوياً لكل جهاز في مطابقة الحسابات (تاسك 121) */
+    isNetwork: boolean;
     /** null = طريقة عامة يرثها كل فرع؛ وإلا فهي ملك فرعها (تاسك 59). */
     branchId: number | null;
     branchName: string | null;

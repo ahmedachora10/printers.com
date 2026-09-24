@@ -29,6 +29,7 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
         is_active:           paymentMethod?.isActive ?? true,
         requires_attachment: paymentMethod?.requiresAttachment ?? false,
         is_cash:             paymentMethod?.isCash ?? false,
+        is_network:          paymentMethod?.isNetwork ?? false,
     });
 
     useEffect(() => {
@@ -38,6 +39,7 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
                 is_active: paymentMethod.isActive ?? true,
                 requires_attachment: paymentMethod.requiresAttachment ?? false,
                 is_cash: paymentMethod.isCash ?? false,
+                is_network: paymentMethod.isNetwork ?? false,
             });
         } else {
             reset();
@@ -119,6 +121,22 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
                             </Label>
                             <p className="text-muted-foreground text-xs">
                                 تقرير المبيعات يطرح المصروفات من المحصَّل بهذه الطريقة وحدها.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="flex items-start gap-2">
+                        <Checkbox
+                            id="pm-is-network"
+                            checked={data.is_network}
+                            onCheckedChange={(checked) => setData('is_network', checked === true)}
+                        />
+                        <div className="grid gap-0.5">
+                            <Label htmlFor="pm-is-network" className="cursor-pointer">
+                                شبكة (أجهزة دفع)
+                            </Label>
+                            <p className="text-muted-foreground text-xs">
+                                في مطابقة الحسابات يُدخل المحاسب موازنة كل جهاز لهذه الطريقة يدوياً.
                             </p>
                         </div>
                     </div>

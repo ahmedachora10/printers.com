@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountReconciliationController;
 use App\Http\Controllers\ActivityLogController;
 use App\Http\Controllers\AgentCommissionReportController;
 use App\Http\Controllers\AgentController;
@@ -231,6 +232,12 @@ Route::middleware(['auth'])->group(function () {
         Route::post('expenses/{expense}/unapprove', [ExpenseController::class, 'unapprove'])->name('expenses.unapprove');
         Route::resource('expenses', ExpenseController::class)
             ->only(['index', 'store', 'update', 'destroy']);
+
+        // تاسك 121 — مطابقة الحسابات.
+        Route::get('finance/reconciliation', [AccountReconciliationController::class, 'index'])->name('finance.reconciliation.index');
+        Route::post('finance/reconciliation', [AccountReconciliationController::class, 'store'])->name('finance.reconciliation.store');
+        Route::post('finance/reconciliation/{reconciliation}/approve', [AccountReconciliationController::class, 'approve'])->name('finance.reconciliation.approve');
+        Route::post('finance/reconciliation/{reconciliation}/unapprove', [AccountReconciliationController::class, 'unapprove'])->name('finance.reconciliation.unapprove');
     });
 
     Route::middleware('role:branch-admin|super-admin|employee')->group(function () {
