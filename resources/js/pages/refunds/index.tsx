@@ -7,9 +7,9 @@ import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
 import refunds from '@/routes/refunds';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type PaginatedRefund, type RefundFilters, type RefundListItem } from '@/types/refund';
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -27,6 +27,8 @@ interface Props {
 }
 
 export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
+    // تاسك 125: مراجع الحسابات يطّلع على المرتجعات ولا يُنشئها.
+    const canCreate = usePage<SharedData>().props.auth.role !== 'auditor';
     const [formOpen, setFormOpen] = useState(false);
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
         source_type: filters.source_type ?? '',
@@ -166,9 +168,11 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
                                     className="h-9 w-full text-sm sm:w-40"
                                     aria-label="إلى تاريخ"
                                 />
-                                <Button size="sm" className="h-9 w-full sm:w-auto" onClick={() => setFormOpen(true)}>
-                                    <Plus className="size-4" /> إنشاء مرتجع
-                                </Button>
+                                {canCreate && (
+                                    <Button size="sm" className="h-9 w-full sm:w-auto" onClick={() => setFormOpen(true)}>
+                                        <Plus className="size-4" /> إنشاء مرتجع
+                                    </Button>
+                                )}
                             </div>
                         }
                     />

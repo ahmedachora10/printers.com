@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { ReportExportButton } from '@/components/report-export-button';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import {
     type SalesReportBranchRow,
@@ -22,7 +23,7 @@ import {
     type SalesReportTypeRow,
 } from '@/types/sales-report';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Bike, CreditCard, Download, FileArchive, Info, Paperclip, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Upload, Wallet } from 'lucide-react';
+import { Bike, CreditCard, FileArchive, Info, Paperclip, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Upload, Wallet } from 'lucide-react';
 import { useMemo, useRef } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير المبيعات', href: '/reports/sales' }];
@@ -157,7 +158,9 @@ export default function SalesReportIndex({
     // تاسك 106: إيصالات الفترة بالفلاتر نفسها، ولصفّ طريقة الدفع طريقتُه.
     const receiptsUrl = (methodId?: number) =>
         `${REPORT_URL}/receipts?${new URLSearchParams({ ...f.appliedQuery, ...(methodId ? { payment_method: String(methodId) } : {}) })}`;
-    const { error } = usePage<SharedData>().props;
+    const { error, auth } = usePage<SharedData>().props;
+    // تاسك 125: مراجع الحسابات يطّلع ولا ينزّل الإيصالات ولا يرفع ملف التسوية.
+    const isAuditor = auth.role === 'auditor';
 
     // No chips for from/to — the range is always visible in the bar above.
     const chips: FilterChip[] = [];
@@ -198,16 +201,14 @@ export default function SalesReportIndex({
                                 ]}
                             />
                         </FilterModal>
-                        <Button asChild variant="outline" disabled={totals.invoiceCount === 0}>
-                            <a href={exportUrl}>
-                                <Download className="size-4" /> تصدير Excel
-                            </a>
-                        </Button>
-                        <Button asChild variant="outline" disabled={totals.invoiceCount === 0}>
-                            <a href={receiptsUrl()}>
-                                <FileArchive className="size-4" /> تنزيل جميع الإيصالات
-                            </a>
-                        </Button>
+                        <ReportExportButton href={exportUrl} disabled={totals.invoiceCount === 0} />
+                        {!isAuditor && (
+                            <Button asChild variant="outline" disabled={totals.invoiceCount === 0}>
+                                <a href={receiptsUrl()}>
+                                    <FileArchive className="size-4" /> تنزيل جميع الإيصالات
+                                </a>
+                            </Button>
+                        )}
                     </div>
                 </div>
 
@@ -323,7 +324,7 @@ export default function SalesReportIndex({
                     rows={byEmployee.map((e) => ({ key: e.userId, name: e.userName, count: e.count, total: e.total }))}
                 />
 
-                <PaymentMethodCard rows={byPaymentMethod} totals={totals} receiptsUrl={receiptsUrl} settlement={settlement} />
+                <PaymentMethodCard rows={byPaymentMethod} totals={totals} receiptsUrl={isAuditor ? null : receiptsUrl} settlement={isAuditor ? null : settlement} />
 
                 {/* By day */}
                 <Card>
@@ -416,7 +417,7 @@ function PaymentMethodCard({
 }: {
     rows: SalesReportPaymentMethodRow[];
     totals: SalesReportTotals;
-    receiptsUrl: (methodId?: number) => string;
+    receiptsUrl: ((methodId?: number) => string) | null;
     settlement: SalesReportSettlement | null;
 }) {
     const cashRows = rows.filter((r) => r.isCash).length;
@@ -445,7 +446,8 @@ function PaymentMethodCard({
             key: 'receipts',
             header: <span className="sr-only">الإيصالات</span>,
             cell: (row) =>
-                row.methodId !== null && (
+                row.methodId !== null &&
+                receiptsUrl && (
                     <Button asChild variant="ghost" size="icon" title={`تنزيل إيصالات ${row.methodName}`}>
                         <a href={receiptsUrl(row.methodId)}>
                             <FileArchive className="size-4" />

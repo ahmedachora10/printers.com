@@ -9,6 +9,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate, formatQty } from '@/lib/utils';
+import { ReportExportButton } from '@/components/report-export-button';
 import { type BreadcrumbItem } from '@/types';
 import {
     type MaterialsReportDayRow,
@@ -19,7 +20,7 @@ import {
     type MaterialsReportTotals,
 } from '@/types/materials-report';
 import { Head } from '@inertiajs/react';
-import { Boxes, Coins, Download, Layers, ReceiptText } from 'lucide-react';
+import { Boxes, Coins, Layers, ReceiptText } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير استهلاك الخامات', href: '/reports/materials' }];
@@ -194,11 +195,7 @@ export default function MaterialsReportIndex({
                                 options={services.map((s) => ({ value: s.id.toString(), label: s.name }))}
                             />
                         </FilterModal>
-                        <Button asChild variant="outline" disabled={movements.length === 0}>
-                            <a href={exportUrl}>
-                                <Download className="size-4" /> تصدير Excel
-                            </a>
-                        </Button>
+                        <ReportExportButton href={exportUrl} disabled={movements.length === 0} />
                     </div>
                 </div>
 

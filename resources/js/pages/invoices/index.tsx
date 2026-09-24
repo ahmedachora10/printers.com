@@ -19,9 +19,9 @@ import { cn, formatCurrency, formatDate } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import posProduct from '@/routes/pos/product';
 import posService from '@/routes/pos/service';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
-import { Link, router } from '@inertiajs/react';
+import { Link, router, usePage } from '@inertiajs/react';
 import { CheckCircle2, Eye, Info, Loader2, MessageSquare, PackageCheck, Pencil, Printer, Undo2, UserPlus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
@@ -68,6 +68,8 @@ interface Props {
 }
 
 export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, branches, statusOptions, filterOptions, filters }: Props) {
+    // تاسك 125: مراجع الحسابات يطّلع ولا يطبع.
+    const canPrint = usePage<SharedData>().props.auth.role !== 'auditor';
     // Filtering follows the report pages: the selects live in a modal, the date
     // range stays visible above the table, and applied values show as removable
     // chips. 'all' is the cleared value for the selects — useReportFilters drops
@@ -489,11 +491,13 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                                 <Eye className="h-3.5 w-3.5" />
                             </Link>
                         </Button>
-                        <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
-                            <a href={`/invoices/${item.type}/${item.id}/print?format=a4`} target="_blank" rel="noreferrer" aria-label="طباعة">
-                                <Printer className="h-3.5 w-3.5" />
-                            </a>
-                        </Button>
+                        {canPrint && (
+                            <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
+                                <a href={`/invoices/${item.type}/${item.id}/print?format=a4`} target="_blank" rel="noreferrer" aria-label="طباعة">
+                                    <Printer className="h-3.5 w-3.5" />
+                                </a>
+                            </Button>
+                        )}
                         {/* اعتماد الفاتورة غير المسددة من القائمة (تاسك 88). */}
                         {item.canApprove && (
                             <Button
@@ -554,7 +558,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 ),
             },
         ],
-        [isSuperAdmin],
+        [isSuperAdmin, canPrint],
     );
 
     return (

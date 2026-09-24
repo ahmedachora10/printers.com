@@ -116,6 +116,10 @@ class InvoiceResource extends JsonResource
         $canChangePaymentMethod = $user !== null && $user->can('changePaymentMethod', $this->resource);
         $hasPaymentRows = $this->relationLoaded('payments') && $this->payments->isNotEmpty();
         $canEditPaymentMethod = $canChangePaymentMethod && ! $hasPaymentRows;
+        // تاسك 125: مراجع الحسابات يطّلع على الفاتورة ولا ينزّل إيصالاتها —
+        // ومساراتها خارج مجموعته أصلاً، فلا يُعرض له رابطٌ يردّ 403.
+        $showsReceipts = ! ($user?->roleName?->isAuditor() ?? false);
+
         $canReturn = $user !== null
             && $isServiceInvoice
             && $user->can('returnInvoice', $this->resource)
@@ -192,7 +196,7 @@ class InvoiceResource extends JsonResource
             // `thread` مستقلّ على شاشة الفاتورة)، فيبقى للمنتجات وحدها.
             'internalNotes' => ! $isServiceInvoice && $this->showsInternalCostsTo($request) ? $this->internal_notes : null,
             'canEditInternalNotes' => ! $isServiceInvoice && $this->canEditInternalNotes($request),
-            'receiptUrl' => $this->receiptUrl(),
+            'receiptUrl' => $showsReceipts ? $this->receiptUrl() : null,
             // تاسك 94: أرقام السطر الداخلية (تكلفة الخامات، عمولة الموظف،
             // الشريحة) تُحجب عمّن لا يملكها — قرارٌ واحد يُتخذ هنا ويُمرَّر
             // لكل سطر، فلا يقرأ كل سطر الفاتورة الأم من جديد.
@@ -227,7 +231,7 @@ class InvoiceResource extends JsonResource
                     'paymentMethodId' => $payment->payment_method_id,
                     'recordedByName' => $payment->recordedBy?->name,
                     'notes' => $payment->notes,
-                    'receiptUrl' => $payment->receiptUrl(),
+                    'receiptUrl' => $showsReceipts ? $payment->receiptUrl() : null,
                 ])->values()->all()),
             // تاسك 99: تعديل طريقة كل دفعة — المبلغ والتاريخ لا يُمسّان.
             'canEditPaymentRows' => $canChangePaymentMethod && $hasPaymentRows,
@@ -276,7 +280,8 @@ class InvoiceResource extends JsonResource
 
         $role = $user->roleName;
 
-        if ($role?->isSuperAdmin() || $role?->isBranchAdmin() || $role?->isAccountant()) {
+        // تاسك 125: ومراجع الحسابات يرى ما يراه المحاسب — قراءةً لا تعديلاً.
+        if ($role?->isSuperAdmin() || $role?->isBranchAdmin() || $role?->isAccountant() || $role?->isAuditor()) {
             return true;
         }
 

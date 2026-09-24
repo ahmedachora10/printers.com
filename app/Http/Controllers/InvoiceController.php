@@ -412,10 +412,10 @@ class InvoiceController extends Controller
         $role = Auth::user()->roleName;
 
         $types = [];
-        if ($role->isSuperAdmin() || $role->isBranchAdmin() || $role->isAccountant()) {
+        if ($role->isSuperAdmin() || $role->isBranchAdmin() || $role->isAccountant() || $role->isAuditor()) {
             $types[] = InvoiceTypeEnum::PRODUCT;
         }
-        if ($role->isSuperAdmin() || $role->isBranchAdmin() || $role->isEmployee() || $role->isAccountant()) {
+        if ($role->isSuperAdmin() || $role->isBranchAdmin() || $role->isEmployee() || $role->isAccountant() || $role->isAuditor()) {
             $types[] = InvoiceTypeEnum::SERVICE;
         }
 

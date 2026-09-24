@@ -155,10 +155,13 @@ export default function ServicePriceList({ categories, branches, selectedBranchI
                                 className="pe-9"
                             />
                         </div>
-                        <Button variant="outline" onClick={() => window.print()}>
-                            <Printer className="size-4" />
-                            طباعة
-                        </Button>
+                        {/* تاسك 125: مراجع الحسابات يطّلع ولا يطبع. */}
+                        {auth.role !== 'auditor' && (
+                            <Button variant="outline" onClick={() => window.print()}>
+                                <Printer className="size-4" />
+                                طباعة
+                            </Button>
+                        )}
                     </div>
                 </div>
 

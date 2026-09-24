@@ -10,6 +10,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { ReportExportButton } from '@/components/report-export-button';
 import { type BreadcrumbItem } from '@/types';
 import {
     type CommissionReportDayRow,
@@ -18,7 +19,7 @@ import {
     type CommissionReportSummaryRow,
     type CommissionReportTotals,
 } from '@/types/report';
-import { Banknote, Download, Handshake, Package, TrendingUp, Wallet } from 'lucide-react';
+import { Banknote, Handshake, Package, TrendingUp, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير العمولات', href: '/reports/commissions' }];
@@ -196,11 +197,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                                 ]}
                             />
                         </FilterModal>
-                        <Button asChild variant="outline" disabled={totals.lineCount === 0}>
-                            <a href={exportUrl}>
-                                <Download className="size-4" /> تصدير Excel
-                            </a>
-                        </Button>
+                        <ReportExportButton href={exportUrl} disabled={totals.lineCount === 0} />
                     </div>
                 </div>
 

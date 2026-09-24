@@ -181,14 +181,14 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('invoices.index'),
                 'icon' => 'FileText',
                 'group' => 'sales',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE, Roles::AUDITOR],
             ],
             [
                 'title' => 'عروض الاسعار',
                 'url' => route('invoices.service.review'),
                 'icon' => 'ClipboardList',
                 'group' => 'sales',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             [
                 // Read-only reference list — everyone who quotes or invoices
@@ -197,14 +197,14 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('services.price-list'),
                 'icon' => 'Tags',
                 'group' => 'sales',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE, Roles::AUDITOR],
             ],
             [
                 'title' => 'المرتجعات',
                 'url' => route('refunds.index'),
                 'icon' => 'Undo2',
                 'group' => 'sales',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             // ---- Customers & Agents ----
             // العملاء والمناديب خارج نطاق المحاسب (تاسك 40)، وصرف عمولاتهم من
@@ -347,42 +347,42 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('reports.sales'),
                 'icon' => 'TrendingUp',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             [
                 'title' => 'تقرير العمولات',
                 'url' => route('reports.commissions'),
                 'icon' => 'FileText',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE, Roles::AUDITOR],
             ],
             [
                 'title' => 'عمولات المناديب',
                 'url' => route('reports.agent-commissions'),
                 'icon' => 'Handshake',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             [
                 'title' => 'تقرير المصروفات',
                 'url' => route('reports.expenses'),
                 'icon' => 'Receipt',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             [
                 'title' => 'استهلاك الخامات',
                 'url' => route('reports.materials'),
                 'icon' => 'Boxes',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             [
                 'title' => 'الحوافز والخصومات',
                 'url' => route('reports.incentives'),
                 'icon' => 'Trophy',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::AUDITOR],
             ],
             [
                 // تاسك 93 — كشف توصيلات اليوم لكل سائق. في مجموعة التقارير
@@ -392,21 +392,21 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('shipping.deliveries'),
                 'icon' => 'Bike',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             [
                 'title' => 'التقرير اليومي',
                 'url' => route('reports.daily'),
                 'icon' => 'CalendarDays',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             [
                 'title' => 'التحليلات المتقدمة',
                 'url' => route('analytics.index'),
                 'icon' => 'ChartPie',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             // ---- Admin & Setup ----
             [
