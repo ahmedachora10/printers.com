@@ -5,17 +5,12 @@ namespace App\Http\Requests\User;
 use App\Enums\Roles;
 use App\Rules\SingleBranchAuditor;
 use App\Rules\SingleBranchManager;
-use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
-class UpdateUserRequest extends FormRequest
+/** Same assignable roles and target branch as creating a user; only the rules differ. */
+class UpdateUserRequest extends StoreUserRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     /** @return array<string, mixed> */
     public function rules(): array
     {
@@ -42,25 +37,5 @@ class UpdateUserRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:20000'],
             'is_active' => ['boolean'],
         ];
-    }
-
-    /**
-     * Roles the current actor is allowed to assign.
-     *
-     * @return list<string>
-     */
-    protected function assignableRoles(): array
-    {
-        return $this->user()->roleName->isSuperAdmin()
-            ? Roles::all()
-            : [Roles::AUDITOR->value, Roles::ACCOUNTANT->value, Roles::EMPLOYEE->value, Roles::AGENT->value];
-    }
-
-    /** The branch the user will end up on: a branch admin's own, whatever the form sends. */
-    private function targetBranchId(): ?int
-    {
-        return $this->user()->roleName->isSuperAdmin()
-            ? ($this->integer('branch_id') ?: null)
-            : $this->user()->branchId;
     }
 }

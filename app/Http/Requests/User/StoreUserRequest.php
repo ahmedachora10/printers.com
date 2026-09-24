@@ -55,7 +55,7 @@ class StoreUserRequest extends FormRequest
     }
 
     /** The branch the user will end up on: a branch admin's own, whatever the form sends. */
-    private function targetBranchId(): ?int
+    protected function targetBranchId(): ?int
     {
         return $this->user()->roleName->isSuperAdmin()
             ? ($this->integer('branch_id') ?: null)

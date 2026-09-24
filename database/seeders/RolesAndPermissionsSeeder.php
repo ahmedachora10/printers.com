@@ -110,9 +110,7 @@ class RolesAndPermissionsSeeder extends Seeder
             Roles::AUDITOR->value => [
                 'display_name' => 'مراجع الحسابات',
                 'description'  => 'الاطلاع على مبيعات الفرع وتقاريره دون أي تعديل',
-                'permissions'  => [
-                    'view-branch-report',
-                ],
+                'permissions'  => [],
             ],
 
             Roles::ACCOUNTANT->value => [
