@@ -36,6 +36,7 @@ class AuthenticatedSessionController extends Controller
         $destination = match (true) {
             $user->hasRole('super-admin') => route('dashboard', absolute: false),
             $user->hasRole('agent') => route('agent-portal.index', absolute: false),
+            $user->hasRole('auditor') => route('reports.sales', absolute: false),
             default => route('dashboard', absolute: false),
         };
 

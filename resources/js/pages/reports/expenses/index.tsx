@@ -9,6 +9,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { ReportExportButton } from '@/components/report-export-button';
 import { type BreadcrumbItem } from '@/types';
 import {
     type ExpenseReportCategoryRow,
@@ -18,7 +19,7 @@ import {
     type ExpenseReportTotals,
 } from '@/types/expense-report';
 import { Head } from '@inertiajs/react';
-import { Download, FolderKanban, Receipt, Sigma, Wallet } from 'lucide-react';
+import { FolderKanban, Receipt, Sigma, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير المصروفات', href: '/reports/expenses' }];
@@ -152,11 +153,7 @@ export default function ExpenseReportIndex({
                                 options={categories.map((c) => ({ value: c.id.toString(), label: c.name }))}
                             />
                         </FilterModal>
-                        <Button asChild variant="outline" disabled={totals.expenseCount === 0}>
-                            <a href={exportUrl}>
-                                <Download className="size-4" /> تصدير Excel
-                            </a>
-                        </Button>
+                        <ReportExportButton href={exportUrl} disabled={totals.expenseCount === 0} />
                     </div>
                 </div>
 

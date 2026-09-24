@@ -11,6 +11,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { ReportExportButton } from '@/components/report-export-button';
 import { type BreadcrumbItem } from '@/types';
 import { type EnumOption } from '@/types/incentive';
 import {
@@ -21,7 +22,7 @@ import {
     type IncentiveReportSummaryRow,
     type IncentiveReportTotals,
 } from '@/types/report';
-import { Banknote, Download, Minus, Scale, Target, Trophy, Users } from 'lucide-react';
+import { Banknote, Minus, Scale, Target, Trophy, Users } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير الحوافز والخصومات', href: '/reports/incentives' }];
@@ -179,11 +180,7 @@ export default function IncentiveReportIndex({
                                 options={statuses}
                             />
                         </FilterModal>
-                        <Button asChild variant="outline" disabled={summary.length === 0}>
-                            <a href={exportUrl}>
-                                <Download className="size-4" /> تصدير Excel
-                            </a>
-                        </Button>
+                        <ReportExportButton href={exportUrl} disabled={summary.length === 0} />
                     </div>
                 </div>
 

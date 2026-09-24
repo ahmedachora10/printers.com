@@ -118,6 +118,9 @@ const formatDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateStri
 
 export default function InvoiceReview({ invoices, meta, summary, filters, isSuperAdmin }: Props) {
     const { props } = usePage<SharedData>();
+    // تاسك 125: مراجع الحسابات يطّلع على الطابور ولا يلمسه — مسارات الاعتماد
+    // والإلغاء والعربون والإيصال خارج مجموعته، فلا يُعرض له زرّ يردّ 403.
+    const readOnly = props.auth.role === 'auditor';
 
     const applied: FilterValues = {
         from: filters.from ?? '',
@@ -409,20 +412,22 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                                             </div>
                                             <div className="flex shrink-0 items-center gap-2">
                                                 <span className="text-base font-bold">{formatCurrency(invoice.totalAmount)}</span>
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
-                                                    aria-label="تسجيل عربون"
-                                                    title="تسجيل عربون"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setPayingPartial(invoice);
-                                                    }}
-                                                >
-                                                    <Wallet className="size-4" />
-                                                </Button>
+                                                {!readOnly && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-sky-600 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300"
+                                                        aria-label="تسجيل عربون"
+                                                        title="تسجيل عربون"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setPayingPartial(invoice);
+                                                        }}
+                                                    >
+                                                        <Wallet className="size-4" />
+                                                    </Button>
+                                                )}
                                                 {/* تاسك 70: تصحيح الفاتورة — وتكلفة الخامات خاصّةً —
                                                     قبل الاعتماد؛ فبعده يُقفل التحرير. والمحاسب لا يراه:
                                                     الخدمات والأسعار ليست له، وبيانات العميل وطريقة الدفع
@@ -442,21 +447,23 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                                                         <Pencil className="size-4" />
                                                     </Button>
                                                 )}
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
-                                                    aria-label={approveHint}
-                                                    title={approveHint}
-                                                    disabled={!canApprove}
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setPaying(invoice);
-                                                    }}
-                                                >
-                                                    <CheckCircle2 className="size-4" />
-                                                </Button>
+                                                {!readOnly && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300"
+                                                        aria-label={approveHint}
+                                                        title={approveHint}
+                                                        disabled={!canApprove}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setPaying(invoice);
+                                                        }}
+                                                    >
+                                                        <CheckCircle2 className="size-4" />
+                                                    </Button>
+                                                )}
                                                 <Button
                                                     type="button"
                                                     variant="ghost"
@@ -481,6 +488,7 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                                                         <User className="size-4" /> بيانات العميل
                                                     </span>
                                                     {!isEditing &&
+                                                        !readOnly &&
                                                         (invoice.customerId ? (
                                                             <Button type="button" variant="ghost" size="sm" onClick={() => startEditing(invoice)}>
                                                                 <Pencil className="size-3.5" /> تعديل
@@ -595,7 +603,7 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                                             <div className="bg-muted/40 space-y-2 rounded-md border p-3 text-sm">
                                                 <div className="flex items-center justify-between gap-2">
                                                     <span className="text-muted-foreground">طريقة الدفع</span>
-                                                    {invoice.paymentMethodOptions.length > 0 ? (
+                                                    {!readOnly && invoice.paymentMethodOptions.length > 0 ? (
                                                         <Select
                                                             value={invoice.paymentMethodId ? String(invoice.paymentMethodId) : undefined}
                                                             onValueChange={(v) => changePaymentMethod(invoice, v)}
@@ -620,7 +628,9 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                                                     <span className="text-muted-foreground flex items-center gap-1.5">
                                                         <Paperclip className="size-4" /> إيصال التحويل
                                                     </span>
-                                                    {invoice.receiptUrl ? (
+                                                    {readOnly ? (
+                                                        <span className="font-medium">{invoice.receiptUrl ? 'مرفق' : 'لا يوجد'}</span>
+                                                    ) : invoice.receiptUrl ? (
                                                         <a
                                                             href={invoice.receiptUrl}
                                                             target="_blank"
@@ -633,59 +643,65 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                                                         <span className="text-amber-600 dark:text-amber-400">لا يوجد</span>
                                                     )}
                                                 </div>
-                                                <Label
-                                                    htmlFor={`receipt-${invoice.id}`}
-                                                    className="text-primary block cursor-pointer text-xs hover:underline"
-                                                >
-                                                    {uploadingId === invoice.id
-                                                        ? 'جارٍ الرفع...'
-                                                        : invoice.receiptUrl
-                                                          ? 'استبدال الإيصال'
-                                                          : 'إرفاق إيصال'}
-                                                </Label>
-                                                <input
-                                                    id={`receipt-${invoice.id}`}
-                                                    type="file"
-                                                    accept="image/jpeg,image/png,image/webp,application/pdf"
-                                                    className="hidden"
-                                                    disabled={uploadingId === invoice.id}
-                                                    onChange={(e) => uploadReceipt(invoice.id, e.target.files?.[0])}
-                                                />
+                                                {!readOnly && (
+                                                    <>
+                                                        <Label
+                                                            htmlFor={`receipt-${invoice.id}`}
+                                                            className="text-primary block cursor-pointer text-xs hover:underline"
+                                                        >
+                                                            {uploadingId === invoice.id
+                                                                ? 'جارٍ الرفع...'
+                                                                : invoice.receiptUrl
+                                                                  ? 'استبدال الإيصال'
+                                                                  : 'إرفاق إيصال'}
+                                                        </Label>
+                                                        <input
+                                                            id={`receipt-${invoice.id}`}
+                                                            type="file"
+                                                            accept="image/jpeg,image/png,image/webp,application/pdf"
+                                                            className="hidden"
+                                                            disabled={uploadingId === invoice.id}
+                                                            onChange={(e) => uploadReceipt(invoice.id, e.target.files?.[0])}
+                                                        />
+                                                    </>
+                                                )}
                                             </div>
 
-                                            {invoice.paymentMethodId === null && (
+                                            {!readOnly && invoice.paymentMethodId === null && (
                                                 <p className="text-amber-600 text-xs dark:text-amber-400">
                                                     حدّد طريقة الدفع أعلاه قبل اعتماد الفاتورة — التقرير لا ينسب مبلغاً بلا طريقة.
                                                 </p>
                                             )}
-                                            {needsReceipt && (
+                                            {!readOnly && needsReceipt && (
                                                 <p className="text-amber-600 text-xs dark:text-amber-400">
                                                     طريقة الدفع المحددة تستلزم إيصال التحويل — أرفقه أعلاه قبل اعتماد الفاتورة.
                                                 </p>
                                             )}
 
-                                            <div className="grid grid-cols-2 gap-2 pt-1">
-                                                <Button type="button" disabled={!canApprove} title={approveHint} onClick={() => setPaying(invoice)}>
-                                                    <CheckCircle2 className="size-4" /> اعتماد الدفع
-                                                </Button>
-                                                {/* أول دفعة تُخرج الفاتورة من طابور عروض الأسعار —
-                                                    ويُستكمل سدادها بعدها من صفحة الفاتورة. */}
-                                                <Button type="button" variant="outline" onClick={() => setPayingPartial(invoice)}>
-                                                    <Wallet className="size-4" /> تسجيل عربون
-                                                </Button>
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    className="text-destructive hover:text-destructive"
-                                                    onClick={() => {
-                                                        setReason('');
-                                                        setReasonError(null);
-                                                        setCancelling(invoice);
-                                                    }}
-                                                >
-                                                    <XCircle className="size-4" /> إلغاء الفاتورة
-                                                </Button>
-                                            </div>
+                                            {!readOnly && (
+                                                <div className="grid grid-cols-2 gap-2 pt-1">
+                                                    <Button type="button" disabled={!canApprove} title={approveHint} onClick={() => setPaying(invoice)}>
+                                                        <CheckCircle2 className="size-4" /> اعتماد الدفع
+                                                    </Button>
+                                                    {/* أول دفعة تُخرج الفاتورة من طابور عروض الأسعار —
+                                                        ويُستكمل سدادها بعدها من صفحة الفاتورة. */}
+                                                    <Button type="button" variant="outline" onClick={() => setPayingPartial(invoice)}>
+                                                        <Wallet className="size-4" /> تسجيل عربون
+                                                    </Button>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        className="text-destructive hover:text-destructive"
+                                                        onClick={() => {
+                                                            setReason('');
+                                                            setReasonError(null);
+                                                            setCancelling(invoice);
+                                                        }}
+                                                    >
+                                                        <XCircle className="size-4" /> إلغاء الفاتورة
+                                                    </Button>
+                                                </div>
+                                            )}
                                         </CardContent>
                                     )}
                                 </Card>

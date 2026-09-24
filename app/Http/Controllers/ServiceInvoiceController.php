@@ -292,7 +292,7 @@ class ServiceInvoiceController extends Controller
      */
     public function review(ReviewQueueFilterRequest $request): Response
     {
-        Gate::authorize('review', ServiceInvoice::class);
+        Gate::authorize('viewReviewQueue', ServiceInvoice::class);
 
         $user = Auth::user();
         $isSuperAdmin = $user->roleName->isSuperAdmin();

@@ -16,6 +16,12 @@ class IncentivePlanPolicy
         return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
     }
 
+    /** تاسك 125 — تقرير الحوافز والخصومات: الإدارة، ومراجع الحسابات يطّلع. */
+    public function viewReport(User $user): bool
+    {
+        return $this->viewAny($user) || $user->roleName->isAuditor();
+    }
+
     public function create(User $user): bool
     {
         return $this->viewAny($user);

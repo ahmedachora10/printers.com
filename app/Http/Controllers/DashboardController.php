@@ -36,6 +36,11 @@ class DashboardController extends Controller
             return redirect()->route('agent-portal.index');
         }
 
+        // تاسك 125: ولا لوحة لمراجع الحسابات — شاشاته المبيعات والتقارير.
+        if ($role === Roles::AUDITOR) {
+            return redirect()->route('reports.sales');
+        }
+
         $isSuper = $role?->isSuperAdmin() ?? false;
         $isAdmin = $isSuper || $role === Roles::BRANCH_ADMIN;
         $isAccountant = $role === Roles::ACCOUNTANT;

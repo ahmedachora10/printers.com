@@ -317,7 +317,7 @@ class UserController extends Controller
     {
         $roles = $isSuper
             ? Roles::cases()
-            : [Roles::ACCOUNTANT, Roles::EMPLOYEE, Roles::AGENT];
+            : [Roles::AUDITOR, Roles::ACCOUNTANT, Roles::EMPLOYEE, Roles::AGENT];
 
         return array_map(fn (Roles $role) => [
             'value' => $role->value,
