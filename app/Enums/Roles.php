@@ -6,6 +6,7 @@ enum Roles: string
 {
     case SUPER_ADMIN = 'super-admin';
     case BRANCH_ADMIN = 'branch-admin';
+    case AUDITOR = 'auditor';
     case ACCOUNTANT = 'accountant';
     case EMPLOYEE = 'employee';
     case AGENT = 'agent';
@@ -15,6 +16,7 @@ enum Roles: string
         return match ($this) {
             self::SUPER_ADMIN => 'مدير عام',
             self::BRANCH_ADMIN => 'مدير فرع',
+            self::AUDITOR => 'مراجع الحسابات',
             self::ACCOUNTANT => 'محاسب',
             self::EMPLOYEE => 'موظف',
             self::AGENT => 'مندوب',
@@ -35,6 +37,11 @@ enum Roles: string
     public function isBranchAdmin(): bool
     {
         return $this === self::BRANCH_ADMIN;
+    }
+
+    public function isAuditor(): bool
+    {
+        return $this === self::AUDITOR;
     }
 
     public function isAccountant(): bool

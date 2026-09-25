@@ -41,7 +41,7 @@ class IncentiveReportController extends Controller
 {
     public function index(IncentiveReportFilterRequest $request, ResolveIncentiveScope $resolveScope): Response
     {
-        Gate::authorize('viewAny', IncentivePlan::class);
+        Gate::authorize('viewReport', IncentivePlan::class);
 
         $scope = $this->scope($request, $resolveScope);
         $plans = $this->plans($scope);
@@ -77,7 +77,7 @@ class IncentiveReportController extends Controller
 
     public function export(IncentiveReportFilterRequest $request, ResolveIncentiveScope $resolveScope): BinaryFileResponse|HttpResponse
     {
-        Gate::authorize('viewAny', IncentivePlan::class);
+        Gate::authorize('viewReport', IncentivePlan::class);
 
         $scope = $this->scope($request, $resolveScope);
         $plans = $this->plans($scope);

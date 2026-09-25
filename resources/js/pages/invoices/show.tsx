@@ -125,6 +125,8 @@ function TotalRow({ label, value, strong = false }: { label: string; value: stri
 
 export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory, hasThread, thread }: Props) {
     const { props } = usePage<SharedData>();
+    // تاسك 125: مراجع الحسابات يطّلع على الشاشة ولا يطبع — ومسارات الطباعة خارج مجموعته.
+    const canPrint = props.auth.role !== 'auditor';
     const [refundOpen, setRefundOpen] = useState(false);
     const [paymentOpen, setPaymentOpen] = useState(false);
     const [approveOpen, setApproveOpen] = useState(false);
@@ -385,7 +387,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                 <Undo2 className="size-4" /> استرجاع الفاتورة
                             </Button>
                         )}
-                        {invoice.status !== 'cancelled' && (
+                        {canPrint && invoice.status !== 'cancelled' && (
                             <>
                                 {/* تاسك 93: بيان السائق بزرٍّ مستقلّ لا يُطبع تلقائياً
                                     مع الفاتورة — ولا يظهر إلا لطلبٍ له توصيل. */}

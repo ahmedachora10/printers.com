@@ -18,7 +18,8 @@ class ServiceInvoicePolicy
         return $user->roleName->isSuperAdmin()
             || $user->roleName->isBranchAdmin()
             || $user->roleName->isEmployee()
-            || $user->roleName->isAccountant();
+            || $user->roleName->isAccountant()
+            || $user->roleName->isAuditor();
     }
 
     public function view(User $user, ServiceInvoice $invoice): bool
@@ -43,6 +44,12 @@ class ServiceInvoicePolicy
         return $user->roleName->isSuperAdmin()
             || $user->roleName->isBranchAdmin()
             || $user->roleName->isAccountant();
+    }
+
+    /** تاسك 125 — صفحة «عروض الأسعار» نفسها: من يعتمد، ومراجع الحسابات يطّلع. */
+    public function viewReviewQueue(User $user): bool
+    {
+        return $this->review($user) || $user->roleName->isAuditor();
     }
 
     public function updateStatus(User $user, ServiceInvoice $invoice): bool

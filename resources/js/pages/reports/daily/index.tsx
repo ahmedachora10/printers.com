@@ -9,10 +9,11 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { ReportExportButton } from '@/components/report-export-button';
 import { type BreadcrumbItem } from '@/types';
 import { type DailyReportFilters, type DailyReportRow, type DailyReportTotals } from '@/types/daily-report';
 import { Head } from '@inertiajs/react';
-import { Banknote, CalendarDays, CreditCard, Download, ShoppingCart, TrendingUp, Wallet } from 'lucide-react';
+import { Banknote, CalendarDays, CreditCard, ShoppingCart, TrendingUp, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'التقرير اليومي', href: '/reports/daily' }];
@@ -141,11 +142,7 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
                                 className="sm:col-span-2"
                             />
                         </FilterModal>
-                        <Button asChild variant="outline" disabled={totals.dayCount === 0}>
-                            <a href={exportUrl}>
-                                <Download className="size-4" /> تصدير Excel
-                            </a>
-                        </Button>
+                        <ReportExportButton href={exportUrl} disabled={totals.dayCount === 0} />
                     </div>
                 </div>
 

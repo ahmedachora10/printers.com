@@ -48,7 +48,7 @@ class ShippingPolicy
     public function viewDeliveries(User $user): bool
     {
         return $this->viewAny($user)
-            || ($user->roleName->isAccountant() && $user->branchId !== null);
+            || (($user->roleName->isAccountant() || $user->roleName->isAuditor()) && $user->branchId !== null);
     }
 
     /**

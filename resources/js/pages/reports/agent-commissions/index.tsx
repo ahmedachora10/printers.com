@@ -10,6 +10,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
+import { ReportExportButton } from '@/components/report-export-button';
 import { type BreadcrumbItem } from '@/types';
 import {
     type AgentCommissionFilters,
@@ -18,7 +19,7 @@ import {
     type AgentCommissionTotals,
 } from '@/types/agent-commission-report';
 import { Head } from '@inertiajs/react';
-import { Banknote, Download, Handshake, Receipt, Wallet } from 'lucide-react';
+import { Banknote, Handshake, Receipt, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'عمولات المناديب', href: '/reports/agent-commissions' }];
@@ -153,11 +154,7 @@ export default function AgentCommissionReportIndex({ rows, lines, totals, filter
                                 )}
                             </FilterModal>
                         )}
-                        <Button asChild variant="outline" disabled={totals.agentCount === 0}>
-                            <a href={exportUrl}>
-                                <Download className="size-4" /> تصدير Excel
-                            </a>
-                        </Button>
+                        <ReportExportButton href={exportUrl} disabled={totals.agentCount === 0} />
                     </div>
                 </div>
 

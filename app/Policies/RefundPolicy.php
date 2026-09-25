@@ -21,7 +21,8 @@ class RefundPolicy
     {
         return $user->roleName->isSuperAdmin()
             || $user->roleName->isBranchAdmin()
-            || $user->roleName->isAccountant();
+            || $user->roleName->isAccountant()
+            || $user->roleName->isAuditor();
     }
 
     public function view(User $user, Refund $refund): bool
@@ -41,7 +42,8 @@ class RefundPolicy
      */
     public function create(User $user, ProductInvoice|ServiceInvoice|null $invoice = null): bool
     {
-        if (! $this->viewAny($user)) {
+        // تاسك 125: مراجع الحسابات يطّلع على المرتجعات ولا يُنشئها.
+        if (! $this->viewAny($user) || $user->roleName->isAuditor()) {
             return false;
         }
 

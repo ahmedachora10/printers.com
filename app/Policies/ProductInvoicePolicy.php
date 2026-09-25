@@ -15,7 +15,8 @@ class ProductInvoicePolicy
     {
         return $user->roleName->isSuperAdmin()
             || $user->roleName->isBranchAdmin()
-            || $user->roleName->isAccountant();
+            || $user->roleName->isAccountant()
+            || $user->roleName->isAuditor();
     }
 
     public function view(User $user, ProductInvoice $invoice): bool

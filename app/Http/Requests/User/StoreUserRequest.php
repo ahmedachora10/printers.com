@@ -31,7 +31,7 @@ class StoreUserRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['required', 'confirmed', Password::defaults()],
             'role' => ['required', Rule::in($this->assignableRoles())],
-            'branch_id' => ['nullable', 'integer', 'exists:branches,id', new SingleBranchManager($this->input('role'))],
+            'branch_id' => [Rule::requiredIf(fn () => $this->input('role') === Roles::AUDITOR->value && $this->user()->roleName->isSuperAdmin()), 'nullable', 'integer', 'exists:branches,id', new SingleBranchManager($this->input('role'))],
             'salary' => ['nullable', 'numeric', 'min:0'],
             'base_commission_pct' => ['nullable', 'numeric', 'between:0,100'],
             'referral_commission_pct' => ['nullable', 'numeric', 'between:0,100'],
@@ -50,6 +50,6 @@ class StoreUserRequest extends FormRequest
     {
         return $this->user()->roleName->isSuperAdmin()
             ? Roles::all()
-            : [Roles::ACCOUNTANT->value, Roles::EMPLOYEE->value, Roles::AGENT->value];
+            : [Roles::AUDITOR->value, Roles::ACCOUNTANT->value, Roles::EMPLOYEE->value, Roles::AGENT->value];
     }
 }
