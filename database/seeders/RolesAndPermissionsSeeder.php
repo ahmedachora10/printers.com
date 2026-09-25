@@ -106,7 +106,7 @@ class RolesAndPermissionsSeeder extends Seeder
                 ],
             ],
 
-            // تاسك 125 — مراجعٌ واحد لكل فرع، يطّلع ولا يلمس.
+            // تاسك 125 — مراجع حسابات الفرع (واحدٌ أو أكثر)، يطّلع ولا يلمس.
             Roles::AUDITOR->value => [
                 'display_name' => 'مراجع الحسابات',
                 'description'  => 'الاطلاع على مبيعات الفرع وتقاريره دون أي تعديل',

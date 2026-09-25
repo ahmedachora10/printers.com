@@ -3,7 +3,6 @@
 namespace App\Http\Requests\User;
 
 use App\Enums\Roles;
-use App\Rules\SingleBranchAuditor;
 use App\Rules\SingleBranchManager;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -31,7 +30,7 @@ class StoreUserRequest extends FormRequest
             ],
             'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['required', 'confirmed', Password::defaults()],
-            'role' => ['required', Rule::in($this->assignableRoles()), new SingleBranchAuditor($this->targetBranchId())],
+            'role' => ['required', Rule::in($this->assignableRoles())],
             'branch_id' => [Rule::requiredIf(fn () => $this->input('role') === Roles::AUDITOR->value && $this->user()->roleName->isSuperAdmin()), 'nullable', 'integer', 'exists:branches,id', new SingleBranchManager($this->input('role'))],
             'salary' => ['nullable', 'numeric', 'min:0'],
             'base_commission_pct' => ['nullable', 'numeric', 'between:0,100'],
@@ -52,13 +51,5 @@ class StoreUserRequest extends FormRequest
         return $this->user()->roleName->isSuperAdmin()
             ? Roles::all()
             : [Roles::AUDITOR->value, Roles::ACCOUNTANT->value, Roles::EMPLOYEE->value, Roles::AGENT->value];
-    }
-
-    /** The branch the user will end up on: a branch admin's own, whatever the form sends. */
-    protected function targetBranchId(): ?int
-    {
-        return $this->user()->roleName->isSuperAdmin()
-            ? ($this->integer('branch_id') ?: null)
-            : $this->user()->branchId;
     }
 }

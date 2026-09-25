@@ -11,7 +11,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /*
- * تاسك 125 — «مراجع الحسابات»: مراجعٌ واحد لكل فرع، يطّلع على المبيعات
+ * تاسك 125 — «مراجع الحسابات»: مراجعٌ أو أكثر لكل فرع، يطّلع على المبيعات
  * والتقارير في فرعه ولا يطبع ولا يصدّر ولا يعتمد ولا يُنشئ.
  */
 
@@ -191,10 +191,12 @@ describe('assigning the auditor', function () {
             ->and((int) $user->branch_id)->toBe($this->otherBranch->id);
     });
 
-    it('refuses a second auditor on the same branch', function () {
+    it('allows several auditors on the same branch', function () {
         $this->actingAs($this->superAdmin)
             ->post(route('users.store'), auditorPayload(['branch_id' => $this->branch->id]))
-            ->assertSessionHasErrors('role');
+            ->assertSessionHasNoErrors();
+
+        expect(User::whereHasRole(Roles::AUDITOR->value)->where('branch_id', $this->branch->id)->count())->toBe(2);
     });
 
     it('refuses an auditor without a branch', function () {
