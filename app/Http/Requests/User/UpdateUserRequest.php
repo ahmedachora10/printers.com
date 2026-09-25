@@ -3,12 +3,11 @@
 namespace App\Http\Requests\User;
 
 use App\Enums\Roles;
-use App\Rules\SingleBranchAuditor;
 use App\Rules\SingleBranchManager;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Rules\Password;
 
-/** Same assignable roles and target branch as creating a user; only the rules differ. */
+/** Same assignable roles as creating a user; only the rules differ. */
 class UpdateUserRequest extends StoreUserRequest
 {
     /** @return array<string, mixed> */
@@ -28,7 +27,7 @@ class UpdateUserRequest extends StoreUserRequest
             ],
             'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['nullable', 'confirmed', Password::defaults()],
-            'role' => ['required', Rule::in($this->assignableRoles()), new SingleBranchAuditor($this->targetBranchId(), $userId)],
+            'role' => ['required', Rule::in($this->assignableRoles())],
             'branch_id' => [Rule::requiredIf(fn () => $this->input('role') === Roles::AUDITOR->value && $this->user()->roleName->isSuperAdmin()), 'nullable', 'integer', 'exists:branches,id', new SingleBranchManager($this->input('role'), $userId)],
             'salary' => ['nullable', 'numeric', 'min:0'],
             'base_commission_pct' => ['nullable', 'numeric', 'between:0,100'],
