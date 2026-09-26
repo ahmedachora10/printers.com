@@ -12,7 +12,7 @@ import finance from '@/routes/finance';
 import { type BreadcrumbItem, type Paginated } from '@/types';
 import { Head, router, useForm } from '@inertiajs/react';
 import { ChevronLeft, ChevronRight, FileText, Lock, Plus, Trash2 } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface Option {
     id: number;
@@ -97,19 +97,31 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
     const today = new Date().toLocaleDateString('en-CA');
     const [confirmingApprove, setConfirmingApprove] = useState(false);
 
-    // تحذير قبل مغادرة اليوم أو الصفحة بتعديلات غير محفوظة.
+    // تنقّلٌ داخلي أوقفته التعديلات غير المحفوظة — يُستأنف من النافذة.
+    const [pendingUrl, setPendingUrl] = useState<string | null>(null);
+    const leaving = useRef(false);
+
+    // إغلاق التبويب/تحديثه لا يقبل إلا تنبيه المتصفح؛ التنقّل داخل التطبيق يمرّ بالنافذة.
     useEffect(() => {
         if (!form.isDirty) return;
         const warn = (e: BeforeUnloadEvent) => e.preventDefault();
         window.addEventListener('beforeunload', warn);
         const off = router.on('before', (event) => {
-            if (event.detail.visit.method === 'get' && !window.confirm('لديك تعديلات غير محفوظة. هل تريد المغادرة دون حفظ؟')) event.preventDefault();
+            if (leaving.current || event.detail.visit.method !== 'get') return;
+            event.preventDefault();
+            setPendingUrl(event.detail.visit.url.href);
         });
         return () => {
             window.removeEventListener('beforeunload', warn);
             off();
         };
     }, [form.isDirty]);
+
+    const leave = (url: string) => {
+        leaving.current = true;
+        setPendingUrl(null);
+        router.visit(url);
+    };
 
     const visit = (params: { branch?: number | null; date?: string; page?: number }) =>
         router.get(finance.reconciliation.index().url, {
@@ -121,12 +133,12 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
     const setDevice = (index: number, patch: Partial<Device>) =>
         form.setData('devices', form.data.devices.map((d, i) => (i === index ? { ...d, ...patch } : d)));
 
-    const save = () => {
+    const save = (onSuccess?: () => void) => {
         form.transform((data) => ({
             ...data,
             devices: data.devices.map((d) => ({ payment_method_id: d.paymentMethodId, device_label: d.deviceLabel, amount: d.amount })),
         }));
-        form.post(finance.reconciliation.store().url, { preserveScroll: true });
+        form.post(finance.reconciliation.store().url, { preserveScroll: true, onSuccess });
     };
 
     return (
@@ -299,7 +311,7 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
 
                             <div className="flex flex-wrap items-center gap-2">
                                 {!approved && (
-                                    <Button onClick={save} disabled={form.processing}>
+                                    <Button onClick={() => save()} disabled={form.processing}>
                                         حفظ المطابقة
                                     </Button>
                                 )}
@@ -439,6 +451,34 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                             }
                         >
                             تأكيد الاعتماد
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={pendingUrl !== null} onOpenChange={(open) => !open && setPendingUrl(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>تعديلات غير محفوظة</DialogTitle>
+                        <DialogDescription>لديك تعديلات على مطابقة هذا اليوم لم تُحفظ بعد. ماذا تريد أن تفعل؟</DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter className="gap-2">
+                        <Button variant="outline" onClick={() => setPendingUrl(null)}>
+                            البقاء
+                        </Button>
+                        <Button variant="destructive" onClick={() => pendingUrl && leave(pendingUrl)}>
+                            مغادرة دون حفظ
+                        </Button>
+                        <Button
+                            disabled={form.processing}
+                            onClick={() => {
+                                const url = pendingUrl;
+                                // فشل الحفظ (أخطاء تحقق) ← تُغلق النافذة ويبقى في الصفحة ليرى الأخطاء.
+                                setPendingUrl(null);
+                                if (url) save(() => leave(url));
+                            }}
+                        >
+                            حفظ ثم مغادرة
                         </Button>
                     </DialogFooter>
                 </DialogContent>
