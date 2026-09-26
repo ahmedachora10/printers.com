@@ -3,7 +3,6 @@
 namespace App\Http\Requests\Refund;
 
 use App\Enums\InvoiceTypeEnum;
-use App\Models\Branch;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -51,8 +50,7 @@ class StoreRefundRequest extends FormRequest
     {
         $invoice = InvoiceTypeEnum::tryFrom((string) $this->input('source_type'))
             ?->modelClass()::find($this->input('invoice_id'));
-        $branch = $invoice ? Branch::find($invoice->branch_id) : null;
 
-        return $branch ? $branch->enabledPaymentMethods()->pluck('id')->all() : [];
+        return $invoice?->branch?->enabledPaymentMethods()->pluck('id')->all() ?? [];
     }
 }

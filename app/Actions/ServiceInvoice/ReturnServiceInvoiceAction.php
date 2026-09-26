@@ -105,7 +105,7 @@ class ReturnServiceInvoiceAction
      * أو مجموع دفعاتها إن كان قد قُبض عليها عربون — منقوصاً منه ما سبق ردّه.
      * الفاتورة الآجلة لم يُقبض منها شيء فلا يُردّ عنها شيء.
      */
-    private function refundableCollected(ServiceInvoice $invoice): float
+    public function refundableCollected(ServiceInvoice $invoice): float
     {
         $alreadyRefunded = (float) Refund::query()
             ->where('invoice_type', $invoice->getMorphClass())

@@ -167,8 +167,7 @@ class RefundController extends Controller
                     'stockReversed' => $stockReversed,
                     // تاسك 131: طرق فرع الفاتورة لاختيار طريقة ردّ المبلغ.
                     'paymentMethods' => $invoice->branch?->enabledPaymentMethods()
-                        ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name])
-                        ->values() ?? [],
+                        ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name]) ?? [],
                 ],
             ]);
         }
