@@ -294,6 +294,12 @@ export default function AppSettingsIndex({
                                                         نقدية
                                                     </Badge>
                                                 )}
+                                                {pm.isNetwork && (
+                                                    <Badge variant="outline" className="gap-1.5 border-sky-200 bg-sky-50 text-sky-700">
+                                                        <CreditCard className="size-3" />
+                                                        شبكة
+                                                    </Badge>
+                                                )}
                                             </div>
 
                                             <div className="flex items-center gap-2">

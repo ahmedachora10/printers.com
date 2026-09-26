@@ -114,6 +114,32 @@ class SalesReportController extends Controller
     }
 
     /**
+     * تاسك 121 — أرقام النظام لمطابقة الحسابات ليومٍ وفرع: الأرقام نفسها التي
+     * يعرضها هذا التقرير لذلك اليوم، لا استعلامٌ ثانٍ يفترق عنها.
+     *
+     * ponytail: متحكّمٌ يُستدعى خدمةً؛ تُنقل الاستعلامات إلى Action حين يطلبها مستدعٍ ثالث.
+     *
+     * @return array{systemNet: float, cashExpenses: float, methods: array<int, array<string, mixed>>}
+     */
+    public function reconciliationFigures(int $branchId, string $date): array
+    {
+        $scope = [
+            'isSuper' => false,
+            'branchId' => $branchId,
+            'branchIds' => [$branchId],
+            'from' => Carbon::parse($date)->startOfDay(),
+            'to' => Carbon::parse($date)->endOfDay(),
+        ];
+        $totals = $this->totals($this->byType($scope, 'all'), $this->byDay($scope, 'all'));
+
+        return [
+            'systemNet' => $totals['totalAfterCashExpenses'],
+            'cashExpenses' => $totals['cashExpenses'],
+            'methods' => $this->byPaymentMethod($scope, 'all'),
+        ];
+    }
+
+    /**
      * تاسك 122 — ملف موازنة الشبكة: لمطابقة يومٍ وفرع، فيُعرض حين يغطّي التقرير
      * يوماً واحداً لفرعٍ واحد، وإلا null (لا يُعرف لأيّ يومٍ يُرفع).
      *
@@ -639,11 +665,12 @@ class SalesReportController extends Controller
         foreach ($this->tablesForType($type) as $table) {
             $rows = $this->baseQuery($table, $scope)
                 ->leftJoin('payment_methods', 'payment_methods.id', '=', 'events.payment_method_id')
-                ->groupBy('events.payment_method_id', 'payment_methods.name', 'payment_methods.is_cash')
+                ->groupBy('events.payment_method_id', 'payment_methods.name', 'payment_methods.is_cash', 'payment_methods.is_network')
                 ->get([
                     DB::raw('events.payment_method_id as method_id'),
                     'payment_methods.name as method_name',
                     'payment_methods.is_cash as is_cash',
+                    'payment_methods.is_network as is_network',
                     DB::raw(self::COUNT_EXPR.' as c'),
                     DB::raw('COALESCE(SUM(events.realized), 0) as total'),
                 ]);
@@ -654,6 +681,7 @@ class SalesReportController extends Controller
                     'methodId' => $row->method_id !== null ? (int) $row->method_id : null,
                     'methodName' => $row->method_name ?? 'غير محدد',
                     'isCash' => (bool) $row->is_cash,
+                    'isNetwork' => (bool) $row->is_network,
                     'count' => 0,
                     'total' => 0.0,
                 ];
