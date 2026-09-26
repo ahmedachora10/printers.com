@@ -463,7 +463,9 @@ describe('Employee Commission Report', function () {
                 ->where('totals.revenue', 1000)
                 ->where('totals.vat', 130.43)
                 ->where('totals.invoiceCount', 1)
-                ->where('totals.afterMaterials', 925));
+                ->where('totals.afterMaterials', 925)
+                // The card subtracts the employee's 100 as well.
+                ->where('totals.netRevenue', 825));
     });
 
     // ── EXPORT ─────────────────────────────────────────────────────

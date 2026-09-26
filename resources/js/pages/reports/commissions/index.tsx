@@ -220,7 +220,12 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                 {/* Seven cards: four tracks at xl, all seven only on very wide
                     screens — narrower tracks let the currency figures overflow. */}
                 <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
-                    <SummaryCard icon={<Coins className="size-4" />} label="إجمالي الإيرادات" value={formatCurrency(totals.revenue)} />
+                    <SummaryCard
+                        icon={<Coins className="size-4" />}
+                        label="إجمالي الإيرادات"
+                        hint="الإجمالي − تكلفة الخامات − عمولات الموظفين − العمولات الخارجية"
+                        value={formatCurrency(totals.netRevenue)}
+                    />
                     <SummaryCard
                         icon={<Receipt className="size-4" />}
                         label="إجمالي الضريبة"
@@ -321,9 +326,21 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
     );
 }
 
-function SummaryCard({ icon, label, value, valueClass }: { icon: React.ReactNode; label: string; value: string; valueClass?: string }) {
+function SummaryCard({
+    icon,
+    label,
+    value,
+    valueClass,
+    hint,
+}: {
+    icon: React.ReactNode;
+    label: string;
+    value: string;
+    valueClass?: string;
+    hint?: string;
+}) {
     return (
-        <Card className="min-w-0">
+        <Card className="min-w-0" title={hint}>
             <CardHeader className="pb-2">
                 <CardTitle className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
                     <span className="shrink-0">{icon}</span>

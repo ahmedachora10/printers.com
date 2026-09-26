@@ -44,6 +44,9 @@ class CommissionReportController extends Controller
                 'vat' => round($byDay->sum('vat'), 2),
                 'invoiceCount' => $byDay->sum('invoiceCount'),
                 'afterMaterials' => round($byDay->sum('afterMaterials'), 2),
+                // بطاقة «إجمالي الإيرادات» (لقطة العميل): بعد الخامات و**كل** العمولات —
+                // تزيد على عمود afterMaterials بطرح عمولة الموظف أيضاً (1000 ⇒ 825).
+                'netRevenue' => round($byDay->sum('afterMaterials') - $byDay->sum('earned'), 2),
                 'earned' => (float) $summary->sum('earned'),
                 'paid' => (float) $summary->sum('paid'),
                 'pending' => (float) $summary->sum('pending'),

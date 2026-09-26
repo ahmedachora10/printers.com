@@ -62,6 +62,8 @@ export interface CommissionReportTotals {
     vat: number;
     invoiceCount: number;
     afterMaterials: number;
+    /** afterMaterials − employee commission: بطاقة «إجمالي الإيرادات». */
+    netRevenue: number;
 }
 
 export interface CommissionReportFilters {
