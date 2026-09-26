@@ -404,6 +404,70 @@ describe('Employee Commission Report', function () {
             ->assertInertia(fn ($page) => $page->where('totals.lineCommission', 0));
     });
 
+    it('adds revenue, VAT, invoice count and the after-materials total per day (task 133)', function () {
+        // مثال العميل: فاتورة 1000 شاملة الضريبة ببندين، خامات 25، خارجية 50 ⇒ 925.
+        $invoice = ServiceInvoice::create([
+            'invoice_number' => 'SINV-TST-133',
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->employee->id,
+            'subtotal' => 869.57,
+            'vat_pct' => 15,
+            'vat_amount' => 130.43,
+            'total_amount' => 1000,
+            'employee_commission' => 100,
+            'status' => 'paid',
+            'paid_at' => now(),
+        ]);
+        foreach ([['materials_total' => 25, 'agent_commission_amount' => 30], ['materials_total' => 0, 'agent_commission_amount' => 20]] as $extra) {
+            $line = ServiceInvoiceLine::create([
+                'invoice_id' => $invoice->id,
+                'service_name' => 'طباعة',
+                'qty' => 1,
+                'unit_price' => 500,
+                'discount_pct' => 0,
+                'subtotal' => 500,
+                'commission_pct' => 10,
+                'commission_amount' => 50,
+                ...$extra,
+            ]);
+            CommissionLedger::factory()->create([
+                'user_id' => $this->employee->id,
+                'branch_id' => $this->branch->id,
+                'invoice_line_id' => $line->id,
+                'invoice_line_type' => ServiceInvoiceLine::class,
+                'amount' => 50,
+            ]);
+        }
+        // A due invoice is not revenue yet.
+        ServiceInvoice::create([
+            'invoice_number' => 'SINV-TST-133-DUE',
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->employee->id,
+            'subtotal' => 100,
+            'vat_pct' => 15,
+            'vat_amount' => 15,
+            'total_amount' => 115,
+            'employee_commission' => 0,
+            'status' => 'due',
+        ]);
+
+        $this->actingAs($this->employee)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->where('byDay.0.invoiceCount', 1)
+                ->where('byDay.0.lineCount', 2)
+                ->where('byDay.0.revenue', 1000)
+                ->where('byDay.0.vat', 130.43)
+                ->where('byDay.0.earned', 100)
+                ->where('byDay.0.afterMaterials', 925)
+                ->where('totals.revenue', 1000)
+                ->where('totals.vat', 130.43)
+                ->where('totals.invoiceCount', 1)
+                ->where('totals.afterMaterials', 925)
+                // The card subtracts the employee's 100 as well.
+                ->where('totals.netRevenue', 825));
+    });
+
     // ── EXPORT ─────────────────────────────────────────────────────
 
     it('exports the report as an xlsx download', function () {

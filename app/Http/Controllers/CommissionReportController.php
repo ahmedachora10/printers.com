@@ -32,12 +32,21 @@ class CommissionReportController extends Controller
 
         $summary = $this->summaryRows($scope);
         $lines = $this->detailLines($scope);
+        $byDay = $this->dailyRows($scope);
 
         return Inertia::render('reports/commissions/index', [
             'summary' => $summary,
-            'byDay' => $this->dailyRows($scope),
+            'byDay' => $byDay,
             'lines' => $lines,
             'totals' => [
+                // تاسك 133: الإيراد يومي المحور (paid_at)، فمجموع الأيام هو إجماليه.
+                'revenue' => round($byDay->sum('revenue'), 2),
+                'vat' => round($byDay->sum('vat'), 2),
+                'invoiceCount' => $byDay->sum('invoiceCount'),
+                'afterMaterials' => round($byDay->sum('afterMaterials'), 2),
+                // بطاقة «إجمالي الإيرادات» (لقطة العميل): بعد الخامات و**كل** العمولات —
+                // تزيد على عمود afterMaterials بطرح عمولة الموظف أيضاً (1000 ⇒ 825).
+                'netRevenue' => round($byDay->sum('afterMaterials') - $byDay->sum('earned'), 2),
                 'earned' => (float) $summary->sum('earned'),
                 'paid' => (float) $summary->sum('paid'),
                 'pending' => (float) $summary->sum('pending'),
@@ -248,6 +257,7 @@ class CommissionReportController extends Controller
     private function dailyRows(array $scope): Collection
     {
         $lineCommissions = $this->lineCommissionByDay($scope);
+        $revenue = $this->revenueByDay($scope);
         $days = [];
 
         foreach ($this->dayRange->handle($scope) as $day) {
@@ -258,8 +268,6 @@ class CommissionReportController extends Controller
                 'paid' => 0.0,
                 'pending' => 0.0,
                 'tahazir' => 0.0,
-                'lineCommission' => (float) ($lineCommissions[$day]['amount'] ?? 0.0),
-                'materials' => (float) ($lineCommissions[$day]['materials'] ?? 0.0),
             ];
         }
 
@@ -285,8 +293,24 @@ class CommissionReportController extends Controller
                 'paid' => $paid,
                 'pending' => max(0, $earned - $paid),
                 'tahazir' => (float) $row->tahazir,
-                'lineCommission' => (float) ($lineCommissions[$day]['amount'] ?? 0.0),
-                'materials' => (float) ($lineCommissions[$day]['materials'] ?? 0.0),
+            ];
+        }
+
+        foreach ($days as $day => $row) {
+            $total = $revenue[$day]['total'] ?? 0.0;
+            $lineCommission = $lineCommissions[$day]['amount'] ?? 0.0;
+            $materials = $lineCommissions[$day]['materials'] ?? 0.0;
+
+            $days[$day] = [
+                ...$row,
+                'invoiceCount' => $revenue[$day]['count'] ?? 0,
+                'revenue' => $total,
+                'vat' => $revenue[$day]['vat'] ?? 0.0,
+                'lineCommission' => $lineCommission,
+                'materials' => $materials,
+                // تاسك 133 — مثال العميل: 1000 − 25 خامات − 50 خارجية = 925.
+                // عمولة الموظف لا تُطرح هنا.
+                'afterMaterials' => round($total - $materials - $lineCommission, 2),
             ];
         }
 
@@ -413,14 +437,54 @@ class CommissionReportController extends Controller
     }
 
     /**
+     * تاسك 133: إيراد الفواتير المعتمدة يومياً — شاملاً الضريبة، على محور paid_at
+     * نفسه الذي تُؤرَّخ به العمولات الخارجية والخامات. يُجمع من رأس الفاتورة لا
+     * من البنود، فلا يتكرّر total_amount بعدد بنودها.
+     *
+     * @param  array<string, mixed>  $scope
+     * @return array<string, array{count: int, total: float, vat: float}> YYYY-MM-DD => totals
+     */
+    private function revenueByDay(array $scope): array
+    {
+        return $this->paidInvoiceQuery(DB::table('service_invoices'), $scope)
+            ->groupBy(DB::raw('DATE(service_invoices.paid_at)'))
+            ->get([
+                DB::raw('DATE(service_invoices.paid_at) as day'),
+                DB::raw('COUNT(*) as invoice_count'),
+                DB::raw('COALESCE(SUM(service_invoices.total_amount), 0) as total'),
+                DB::raw('COALESCE(SUM(service_invoices.vat_amount), 0) as vat'),
+            ])
+            ->mapWithKeys(fn ($row) => [(string) $row->day => [
+                'count' => (int) $row->invoice_count,
+                'total' => (float) $row->total,
+                'vat' => (float) $row->vat,
+            ]])
+            ->all();
+    }
+
+    /**
      * Shared base for both line-commission aggregates.
      *
      * @param  array<string, mixed>  $scope
      */
     private function lineCommissionQuery(array $scope): Builder
     {
-        return DB::table('service_invoice_lines')
-            ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_lines.invoice_id')
+        return $this->paidInvoiceQuery(
+            DB::table('service_invoice_lines')
+                ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_lines.invoice_id'),
+            $scope,
+        );
+    }
+
+    /**
+     * The approved invoices in scope — one filter set for revenue and the line
+     * columns, so they always cover the same invoices.
+     *
+     * @param  array<string, mixed>  $scope
+     */
+    private function paidInvoiceQuery(Builder $query, array $scope): Builder
+    {
+        return $query
             ->where('service_invoices.status', InvoiceStatusEnum::PAID->value)
             // DB::table() bypasses the model's soft-delete scope.
             ->whereNull('service_invoices.deleted_at')
