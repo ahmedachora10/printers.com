@@ -104,6 +104,11 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
                 ),
             },
             {
+                key: 'paymentMethodName',
+                header: 'طريقة الردّ',
+                cell: (item) => <span className="text-sm">{item.paymentMethodName ?? '—'}</span>,
+            },
+            {
                 key: 'reason',
                 header: 'السبب',
                 cell: (item) => (

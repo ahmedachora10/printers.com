@@ -294,6 +294,7 @@ describe('Sales Report', function () {
         $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 15,
             'reason' => 'مرتجع جزئي',
         ])->assertRedirect();
@@ -312,6 +313,7 @@ describe('Sales Report', function () {
         $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 57.5, // نصف الفاتورة
             'reason' => 'نصف المبلغ',
         ])->assertRedirect();
@@ -332,6 +334,7 @@ describe('Sales Report', function () {
         $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 115,
             'reason' => 'مرتجع كامل',
         ])->assertRedirect();
@@ -352,6 +355,7 @@ describe('Sales Report', function () {
         $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 15,
             'reason' => 'مرتجع اليوم على بيع قديم',
         ])->assertRedirect();
@@ -383,6 +387,7 @@ describe('Sales Report', function () {
         $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 30,
             'reason' => 'مرتجع جزئي',
         ])->assertRedirect();
@@ -522,6 +527,7 @@ describe('Sales Report', function () {
         $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 15,
             'reason' => 'مرتجع جزئي',
         ])->assertRedirect();
@@ -529,6 +535,82 @@ describe('Sales Report', function () {
         $this->actingAs($this->branchAdmin)
             ->get(route('reports.sales'))
             ->assertInertia(fn ($page) => $page->where('totals.cash', 100));
+    });
+
+    // تاسك 131 — المرتجع يُطرح من طريقة ردّه يوم تنفيذه، لا من طريقة الفاتورة.
+    it('books a bank refund of yesterday\'s cash sale on the bank row today', function () {
+        $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد']);
+        $bank = PaymentMethod::factory()->create(['name' => 'تحويل بنكي']);
+        $invoice = paidProductInvoice($this->branch, $this->branchAdmin, [
+            'payment_method_id' => $cash->id,
+            'paid_at' => now()->subDay(),
+        ]); // 115
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'payment_method_id' => $bank->id,
+            'amount' => 15,
+            'reason' => 'ردّ بالتحويل',
+        ])->assertRedirect();
+
+        $today = ['from' => now()->toDateString(), 'to' => now()->toDateString()];
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales', $today))
+            ->assertInertia(fn ($page) => $page
+                ->has('byPaymentMethod', 1)
+                ->where('byPaymentMethod.0.methodId', $bank->id)
+                ->where('byPaymentMethod.0.total', -15)
+                ->where('byPaymentMethod.0.refunds', 15)
+                ->where('totals.cash', 0));
+
+        $yesterday = ['from' => now()->subDay()->toDateString(), 'to' => now()->subDay()->toDateString()];
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales', $yesterday))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.cash', 115)
+                ->where('byPaymentMethod.0.refunds', 0));
+    });
+
+    it('keeps a refund of a deposit-paid invoice off the unspecified row', function () {
+        $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد']);
+        $invoice = paidProductInvoice($this->branch, $this->branchAdmin); // رأسها بلا طريقة
+        InvoicePayment::create([
+            'invoice_id' => $invoice->id,
+            'invoice_type' => ProductInvoice::class,
+            'branch_id' => $this->branch->id,
+            'payment_method_id' => $cash->id,
+            'amount' => 115,
+            'paid_at' => now(),
+            'recorded_by' => $this->branchAdmin->id,
+        ]);
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'payment_method_id' => $cash->id,
+            'amount' => 15,
+            'reason' => 'مرتجع جزئي',
+        ])->assertRedirect();
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->has('byPaymentMethod', 1)
+                ->where('byPaymentMethod.0.methodId', $cash->id)
+                ->where('byPaymentMethod.0.total', 100)
+                ->where('byPaymentMethod.0.refunds', 15));
+    });
+
+    it('requires the refund method', function () {
+        $invoice = paidProductInvoice($this->branch, $this->branchAdmin);
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'amount' => 15,
+            'reason' => 'بلا طريقة',
+        ])->assertSessionHasErrors('payment_method_id');
     });
 
     it('shows a day with expenses and no sales, with a negative remaining', function () {

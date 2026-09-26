@@ -49,7 +49,7 @@ class CreateRefundAction
     ) {}
 
     /**
-     * @param  array{source_type: string, invoice_id: int, amount: float|string, reason: string, reverse_stock?: bool}  $data
+     * @param  array{source_type: string, invoice_id: int, amount: float|string, reason: string, reverse_stock?: bool, payment_method_id?: int|null}  $data
      */
     public function handle(array $data, User $actor): Refund
     {
@@ -141,6 +141,7 @@ class CreateRefundAction
                 'invoice_type' => $type->modelClass(),
                 'amount' => $amount,
                 'shipping_refunded' => $shippingRefunded,
+                'payment_method_id' => $data['payment_method_id'] ?? null,
                 'reason' => $data['reason'],
                 'stock_reversed' => $reverseStock,
             ]);

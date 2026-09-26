@@ -353,7 +353,10 @@ class SalesReportController extends Controller
                 // يُنسب المرتجع إلى منشئ الفاتورة لا إلى من سجّله: الأثر على
                 // مبيعات ذلك الموظف. نفس عُرف التقرير اليومي.
                 DB::raw('i.user_id as user_id'),
-                DB::raw('i.payment_method_id as payment_method_id'),
+                // تاسك 131: بطريقة الردّ المكتوبة على المرتجع — منها خرج المال،
+                // فنقدُ الدرج يُنقَص بالمرتجع النقدي وحده. والمرتجع القديم بلا
+                // طريقة يبقى على طريقة فاتورته كما كان.
+                DB::raw('COALESCE(r.payment_method_id, i.payment_method_id) as payment_method_id'),
                 DB::raw('r.created_at as realized_at'),
                 DB::raw('-r.amount as realized'),
                 DB::raw("-i.subtotal * ({$refundShare}) as subtotal_share"),
@@ -673,6 +676,8 @@ class SalesReportController extends Controller
                     'payment_methods.is_network as is_network',
                     DB::raw(self::COUNT_EXPR.' as c'),
                     DB::raw('COALESCE(SUM(events.realized), 0) as total'),
+                    // تاسك 131: المرتجعات ظاهرةً (موجبة)، و`total` يبقى صافياً منها.
+                    DB::raw(self::REFUNDS_EXPR.' as refunds'),
                 ]);
 
             foreach ($rows as $row) {
@@ -684,9 +689,11 @@ class SalesReportController extends Controller
                     'isNetwork' => (bool) $row->is_network,
                     'count' => 0,
                     'total' => 0.0,
+                    'refunds' => 0.0,
                 ];
                 $methods[$key]['count'] += (int) $row->c;
                 $methods[$key]['total'] += (float) $row->total;
+                $methods[$key]['refunds'] += (float) $row->refunds;
             }
         }
 

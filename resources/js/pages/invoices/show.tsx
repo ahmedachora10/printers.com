@@ -135,6 +135,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     const [approving, setApproving] = useState(false);
     const [returnOpen, setReturnOpen] = useState(false);
     const [returnReason, setReturnReason] = useState('');
+    const [returnMethodId, setReturnMethodId] = useState('');
     const [returning, setReturning] = useState(false);
     const [deliverOpen, setDeliverOpen] = useState(false);
     const [delivering, setDelivering] = useState(false);
@@ -289,7 +290,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
         setReturning(true);
         router.post(
             posService.return(invoice.id).url,
-            { reason: returnReason.trim() },
+            { reason: returnReason.trim(), payment_method_id: returnMethodId || null },
             {
                 onError: (e) => {
                     toast.error((Object.values(e)[0] as string) ?? 'تعذّر استرجاع الفاتورة.');
@@ -1021,11 +1022,35 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                             className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                         />
                     </div>
+                    {/* تاسك 131: ما حُصِّل يُردّ بمرتجع، فيحتاج طريقة ردّه كمرتجع المحاسب. */}
+                    {invoice.refundableRemaining > 0 && (
+                        <div className="space-y-1">
+                            <label htmlFor="invoice-return-method" className="text-sm font-medium">
+                                طريقة ردّ {formatCurrency(invoice.refundableRemaining)} للعميل
+                            </label>
+                            <Select value={returnMethodId} onValueChange={setReturnMethodId} disabled={returning}>
+                                <SelectTrigger id="invoice-return-method">
+                                    <SelectValue placeholder="نقداً أو تحويل بنكي…" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {paymentMethodOptions.map((m) => (
+                                        <SelectItem key={m.id} value={String(m.id)}>
+                                            {m.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setReturnOpen(false)} disabled={returning}>
                             تراجع
                         </Button>
-                        <Button variant="destructive" onClick={confirmReturn} disabled={returning}>
+                        <Button
+                            variant="destructive"
+                            onClick={confirmReturn}
+                            disabled={returning || (invoice.refundableRemaining > 0 && !returnMethodId)}
+                        >
                             <Undo2 className="size-4" /> تأكيد الاسترجاع
                         </Button>
                     </DialogFooter>

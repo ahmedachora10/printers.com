@@ -131,6 +131,7 @@ describe('مرتجع فاتورة الخدمة يعيد خاماتها إلى ا
             ->post(route('refunds.store'), [
                 'source_type' => 'service',
                 'invoice_id' => $invoice->id,
+                'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
                 'amount' => 50,
                 'reason' => 'الطباعة معيبة',
                 'reverse_stock' => true,
@@ -156,6 +157,7 @@ describe('مرتجع فاتورة الخدمة يعيد خاماتها إلى ا
             ->post(route('refunds.store'), [
                 'source_type' => 'service',
                 'invoice_id' => $invoice->id,
+                'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
                 'amount' => 50,
                 'reason' => 'خصم تسوية',
                 'reverse_stock' => false,
@@ -182,6 +184,7 @@ describe('مرتجع فاتورة الخدمة يعيد خاماتها إلى ا
             ->post(route('refunds.store'), [
                 'source_type' => 'service',
                 'invoice_id' => $invoice->id,
+                'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
                 'amount' => 30,
                 'reason' => 'مرتجع أول',
                 'reverse_stock' => true,
@@ -193,6 +196,7 @@ describe('مرتجع فاتورة الخدمة يعيد خاماتها إلى ا
             ->post(route('refunds.store'), [
                 'source_type' => 'service',
                 'invoice_id' => $invoice->id,
+                'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
                 'amount' => 30,
                 'reason' => 'مرتجع ثانٍ',
                 'reverse_stock' => true,
@@ -213,6 +217,7 @@ describe('مرتجع فاتورة الخدمة يعيد خاماتها إلى ا
             ->post(route('refunds.store'), [
                 'source_type' => 'service',
                 'invoice_id' => $invoice->id,
+                'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
                 'amount' => 50,
                 'reason' => 'اختبار',
                 'reverse_stock' => true,

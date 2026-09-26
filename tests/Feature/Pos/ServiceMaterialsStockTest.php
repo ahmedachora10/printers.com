@@ -242,7 +242,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
 
         // الاسترجاع صلاحية الموظف صاحب الفاتورة وحده (ServiceInvoicePolicy).
         $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار'])
+            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertRedirect();
 
         expect($product->refresh()->current_stock)->toEqual(100.0);
@@ -266,7 +266,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
 
         // الاسترجاع صلاحية الموظف صاحب الفاتورة وحده (ServiceInvoicePolicy).
         $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار'])
+            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertRedirect();
 
         expect($product->refresh()->current_stock)->toEqual(100.0);
@@ -282,7 +282,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
 
         // الاسترجاع صلاحية الموظف صاحب الفاتورة وحده (ServiceInvoicePolicy).
         $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار'])
+            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertRedirect();
 
         expect($product->refresh()->current_stock)->toEqual(100.0)
@@ -389,7 +389,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
         expect($product->refresh()->current_stock)->toEqual(95.0);
 
         $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار'])
+            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertRedirect();
 
         expect($product->refresh()->current_stock)->toEqual(100.0);
@@ -506,7 +506,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
             ->toBe($lineId);
 
         $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار'])
+            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertRedirect();
 
         // حركة الإرجاع تحمل النسبة نفسها، فيتوازن التقرير على مستوى الخدمة.

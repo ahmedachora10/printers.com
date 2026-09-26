@@ -78,6 +78,7 @@ describe('Refunding the shipping fee is the accountant decision', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 50,
             'reason' => 'مرتجع جزئي',
         ])->assertRedirect();
@@ -92,6 +93,7 @@ describe('Refunding the shipping fee is the accountant decision', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 120,
             'reason' => 'الطلب لم يُشحن أصلاً',
             'refund_shipping' => true,
@@ -107,6 +109,7 @@ describe('Refunding the shipping fee is the accountant decision', function () {
             $this->post(route('refunds.store'), [
                 'source_type' => 'service',
                 'invoice_id' => $invoice->id,
+                'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
                 'amount' => $amount,
                 'reason' => 'مرتجع جزئي',
                 'refund_shipping' => true,
@@ -123,6 +126,7 @@ describe('Refunding the shipping fee is the accountant decision', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 5,
             'reason' => 'مرتجع صغير',
             'refund_shipping' => true,
@@ -148,6 +152,7 @@ describe('Refunding the shipping fee is the accountant decision', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 120,
             'reason' => 'إرجاع كامل',
             'refund_shipping' => true,
@@ -176,6 +181,7 @@ describe('Refunding the shipping fee is the accountant decision', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 100,
             'reason' => 'إرجاع كامل',
             'refund_shipping' => true,

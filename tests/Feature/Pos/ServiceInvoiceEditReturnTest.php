@@ -315,7 +315,7 @@ describe('Service invoice edit/return', function () {
     it('returns a due invoice without deleting it and books no refund', function () {
         $invoice = makeOwnedDueInvoice();
 
-        $this->post(route('pos.service.return', $invoice))
+        $this->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertRedirect(route('invoices.index'))
             ->assertSessionHas('success');
 
@@ -336,7 +336,7 @@ describe('Service invoice edit/return', function () {
         expect((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(2.61);
 
         $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'العميل ألغى الطلب'])
+            ->post(route('pos.service.return', $invoice), ['reason' => 'العميل ألغى الطلب', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertRedirect(route('invoices.index'));
 
         $invoice->refresh();
@@ -349,7 +349,19 @@ describe('Service invoice edit/return', function () {
             ->and($refund->user_id)->toBe($this->employee->id)
             // The reversal is a new negative row — the ledger is never mutated.
             ->and(CommissionLedger::where('user_id', $this->employee->id)->count())->toBe(2)
-            ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(0.00);
+            ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(0.00)
+            ->and($refund->payment_method_id)->toBe(paymentMethodId($invoice->branch_id));
+    });
+
+    // تاسك 131: ما حُصِّل يُردّ بمرتجع، فلا استرجاع بلا طريقة ردّ.
+    it('requires the refund method when returning an invoice that collected money', function () {
+        $invoice = makeOwnedDueInvoice();
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
+
+        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice))
+            ->assertSessionHasErrors('payment_method_id');
+
+        expect($invoice->refresh()->status->value)->toBe('paid');
     });
 
     it('refunds only the remainder when the invoice was already partially refunded', function () {
@@ -359,11 +371,12 @@ describe('Service invoice edit/return', function () {
         $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 10,
             'reason' => 'مرتجع جزئي',
         ])->assertSessionHasNoErrors();
 
-        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice))
+        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertRedirect(route('invoices.index'));
 
         $invoice->refresh();
@@ -378,11 +391,11 @@ describe('Service invoice edit/return', function () {
     it('refuses to return an invoice that is already returned', function () {
         $invoice = makeOwnedDueInvoice();
 
-        $this->post(route('pos.service.return', $invoice))->assertRedirect(route('invoices.index'));
+        $this->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])->assertRedirect(route('invoices.index'));
 
         // The policy denies a second return outright — no duplicate refund, and
         // the accruals are never unwound twice.
-        $this->post(route('pos.service.return', $invoice))->assertForbidden();
+        $this->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])->assertForbidden();
 
         expect(Refund::where('invoice_id', $invoice->id)->count())->toBe(0)
             ->and($invoice->refresh()->status->value)->toBe('returned');
@@ -405,7 +418,7 @@ describe('Service invoice edit/return', function () {
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
         expect($customer->refresh()->points_balance)->toBe(26);
 
-        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice))
+        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertRedirect(route('invoices.index'));
 
         $customer->refresh();
@@ -449,7 +462,7 @@ describe('Service invoice edit/return', function () {
         expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
             ->and((float) $customer->cumulative_spend)->toBe(30.00);
 
-        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice));
+        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)]);
 
         // والإرجاع يعيد الإنفاق إلى الصفر فتسقط الفئة معه.
         expect($customer->refresh()->tier)->toBe(CustomerTierEnum::None)
@@ -484,7 +497,7 @@ describe('Service invoice edit/return', function () {
             'agent_payment_id' => $payment->id,
         ]);
 
-        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice))
+        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertSessionHasErrors('invoice');
 
         expect($invoice->refresh()->status->value)->toBe('paid')
@@ -497,7 +510,7 @@ describe('Service invoice edit/return', function () {
         $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
         $accountant->addRole(Roles::ACCOUNTANT->value);
 
-        $this->actingAs($accountant)->post(route('pos.service.return', $invoice))->assertForbidden();
+        $this->actingAs($accountant)->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])->assertForbidden();
 
         expect($invoice->refresh()->status->value)->toBe('due');
     });
@@ -508,7 +521,7 @@ describe('Service invoice edit/return', function () {
         $other = User::factory()->create(['branch_id' => $this->branch->id]);
         $other->addRole(Roles::EMPLOYEE->value);
 
-        $this->actingAs($other)->post(route('pos.service.return', $invoice))->assertForbidden();
+        $this->actingAs($other)->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])->assertForbidden();
     });
 
     // ---- Customer details from the POS edit screen --------------------------

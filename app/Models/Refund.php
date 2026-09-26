@@ -25,6 +25,7 @@ class Refund extends Model
         'invoice_type',
         'amount',
         'shipping_refunded',
+        'payment_method_id',
         'reason',
         'stock_reversed',
     ];
@@ -51,6 +52,12 @@ class Refund extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /** @return BelongsTo<PaymentMethod, $this> */
+    public function paymentMethod(): BelongsTo
+    {
+        return $this->belongsTo(PaymentMethod::class);
     }
 
     /** @return MorphTo<Model, $this> */

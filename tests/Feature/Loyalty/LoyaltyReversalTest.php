@@ -59,6 +59,7 @@ function refundInvoice(ProductInvoice|ServiceInvoice $invoice, float $amount): v
         ->post(route('refunds.store'), [
             'source_type' => $invoice instanceof ProductInvoice ? 'product' : 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => $amount,
             'reason' => 'اختبار',
         ])->assertRedirect();

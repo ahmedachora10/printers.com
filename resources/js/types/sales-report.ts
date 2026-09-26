@@ -66,7 +66,10 @@ export interface SalesReportPaymentMethodRow {
     /** طريقة نقدية — عليها تُطرح المصروفات (تاسك 97) */
     isCash: boolean;
     count: number;
+    /** صافٍ من المرتجعات */
     total: number;
+    /** تاسك 131: ما رُدّ بهذه الطريقة، موجباً */
+    refunds: number;
 }
 
 export interface SalesReportBranchRow {

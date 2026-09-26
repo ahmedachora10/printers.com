@@ -189,7 +189,7 @@ describe('Deferred loyalty redemption', function () {
 
         $invoice = ServiceInvoice::firstOrFail();
 
-        $this->post(route('pos.service.return', $invoice), ['reason' => 'إلغاء العمل'])
+        $this->post(route('pos.service.return', $invoice), ['reason' => 'إلغاء العمل', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertSessionHasNoErrors();
 
         expect($this->customer->refresh()->points_balance)->toBe(1000)

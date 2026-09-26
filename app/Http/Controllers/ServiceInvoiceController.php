@@ -266,7 +266,7 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('returnInvoice', $invoice);
 
-        $action->handle($invoice, Auth::user(), $request->validated('reason'));
+        $action->handle($invoice, Auth::user(), $request->validated('reason'), $request->validated('payment_method_id'));
 
         return to_route('invoices.index')
             ->with('success', "تم استرجاع الفاتورة {$invoice->invoice_number} بنجاح");

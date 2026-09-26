@@ -174,6 +174,7 @@ describe('Notification triggers', function () {
             ->post(route('refunds.store'), [
                 'source_type' => 'product',
                 'invoice_id' => $invoice->id,
+                'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
                 'amount' => 50,
                 'reason' => 'استرداد جزئي',
             ])->assertRedirect();
