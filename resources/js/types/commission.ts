@@ -1,16 +1,20 @@
 export interface CommissionEmployeeRow {
     userId: number;
     userName: string;
+    salary: number;
     totalEarned: number;
     totalPaid: number;
     pending: number;
     tahazirEarned: number;
+    salaryPlusCommission: number;
 }
 
 export interface CommissionSummary {
     totalEarned: number;
     totalPaid: number;
     pending: number;
+    totalSalaries: number;
+    totalSalariesPlusCommissions: number;
 }
 
 export interface CommissionPayment {

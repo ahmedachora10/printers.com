@@ -19,34 +19,35 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     employee: CommissionEmployeeRow | null;
+    /** YYYY-MM — the month the commissions screen is showing. */
+    month: string;
 }
 
-function monthStart(): string {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth(), 1).toLocaleDateString('en-CA');
+function monthStart(month: string): string {
+    return `${month}-01`;
 }
 
-function monthEnd(): string {
-    const now = new Date();
-    return new Date(now.getFullYear(), now.getMonth() + 1, 0).toLocaleDateString('en-CA');
+function monthEnd(month: string): string {
+    const [year, m] = month.split('-').map(Number);
+    return new Date(year, m, 0).toLocaleDateString('en-CA');
 }
 
-export default function CommissionPayModal({ open, onOpenChange, employee }: Props) {
+export default function CommissionPayModal({ open, onOpenChange, employee, month }: Props) {
     const { data, setData, post, processing, errors, reset } = useForm({
         user_id: employee?.userId ?? 0,
-        period_start: monthStart(),
-        period_end: monthEnd(),
+        period_start: monthStart(month),
+        period_end: monthEnd(month),
         notes: '',
     });
 
     useEffect(() => {
         setData({
             user_id: employee?.userId ?? 0,
-            period_start: monthStart(),
-            period_end: monthEnd(),
+            period_start: monthStart(month),
+            period_end: monthEnd(month),
             notes: '',
         });
-    }, [employee, open]);
+    }, [employee, open, month]);
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

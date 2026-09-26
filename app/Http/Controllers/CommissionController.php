@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Notifications\CommissionPaidNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
@@ -31,30 +32,54 @@ class CommissionController extends Controller
             ? ($request->filled('branch') ? (int) $request->input('branch') : null)
             : $actor->branchId;
 
-        $employees = CommissionLedger::query()
-            ->join('users', 'users.id', '=', 'commission_ledger.user_id')
-            ->when($branchId, fn ($q) => $q->where('commission_ledger.branch_id', $branchId))
-            ->groupBy('commission_ledger.user_id', 'users.name')
-            ->orderBy('users.name')
+        // Salary is monthly, so the ledger is summed over one month (task 134).
+        $month = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/', (string) $request->input('month'))
+            ? $request->input('month')
+            : now()->format('Y-m');
+        $monthStart = Carbon::createFromFormat('Y-m-d', $month.'-01')->startOfDay();
+        $monthEnd = $monthStart->copy()->endOfMonth();
+
+        $ledger = CommissionLedger::query()
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->whereBetween('earned_at', [$monthStart, $monthEnd])
+            ->groupBy('user_id')
             ->toBase()
             ->get([
-                'commission_ledger.user_id as user_id',
-                'users.name as user_name',
+                'user_id',
                 DB::raw('COALESCE(SUM(amount), 0) as total_earned'),
                 DB::raw('COALESCE(SUM(CASE WHEN paid_at IS NOT NULL THEN amount ELSE 0 END), 0) as total_paid'),
                 DB::raw('COALESCE(SUM(CASE WHEN is_tahazir = 1 THEN amount ELSE 0 END), 0) as tahazir_earned'),
             ])
-            ->map(function ($row) {
-                $earned = (float) $row->total_earned;
-                $paid = (float) $row->total_paid;
+            ->keyBy('user_id');
+
+        // Rows come from the salaried staff too, so an employee without commission
+        // this month still shows (and counts toward the salaries total).
+        $employees = User::query()
+            ->withTrashed()
+            ->where(fn ($q) => $q
+                ->whereIn('id', $ledger->keys())
+                ->orWhere(fn ($q) => $q
+                    ->whereNull('deleted_at')
+                    ->where('is_active', true)
+                    ->where('salary', '>', 0)
+                    ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))))
+            ->orderBy('name')
+            ->get(['id', 'name', 'salary'])
+            ->map(function (User $user) use ($ledger) {
+                $row = $ledger->get($user->id);
+                $earned = (float) ($row->total_earned ?? 0);
+                $paid = (float) ($row->total_paid ?? 0);
+                $salary = (float) $user->salary;
 
                 return [
-                    'userId' => (int) $row->user_id,
-                    'userName' => $row->user_name,
+                    'userId' => $user->id,
+                    'userName' => $user->name,
+                    'salary' => $salary,
                     'totalEarned' => $earned,
                     'totalPaid' => $paid,
                     'pending' => max(0, $earned - $paid),
-                    'tahazirEarned' => (float) $row->tahazir_earned,
+                    'tahazirEarned' => (float) ($row->tahazir_earned ?? 0),
+                    'salaryPlusCommission' => round($salary + $earned, 2),
                 ];
             })
             ->values();
@@ -72,6 +97,8 @@ class CommissionController extends Controller
                 'totalEarned' => (float) $employees->sum('totalEarned'),
                 'totalPaid' => (float) $employees->sum('totalPaid'),
                 'pending' => (float) $employees->sum('pending'),
+                'totalSalaries' => round((float) $employees->sum('salary'), 2),
+                'totalSalariesPlusCommissions' => round((float) $employees->sum('salaryPlusCommission'), 2),
             ],
             'payments' => CommissionPaymentResource::collection($payments),
             'branches' => $isSuper
@@ -80,6 +107,7 @@ class CommissionController extends Controller
             'isSuperAdmin' => $isSuper,
             'filters' => [
                 'branch' => $request->input('branch'),
+                'month' => $month,
             ],
         ]);
     }

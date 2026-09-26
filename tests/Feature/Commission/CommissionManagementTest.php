@@ -80,6 +80,72 @@ describe('Commission System', function () {
                 ->where('employees.0.pending', 40));
     });
 
+    // ── SALARIES (task 134) ────────────────────────────────────────
+
+    it('lists a salaried employee without commission and adds salary to the totals', function () {
+        $this->employee->update(['salary' => 3000]);
+        $noCommission = User::factory()->create(['branch_id' => $this->branch->id, 'salary' => 2500]);
+        $noCommission->addRole(Roles::EMPLOYEE->value);
+
+        CommissionLedger::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'amount' => 200,
+        ]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('commissions.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('employees', 2)
+                ->where('summary.totalEarned', 200)
+                ->where('summary.totalSalaries', 5500)
+                ->where('summary.totalSalariesPlusCommissions', 5700)
+                ->where('filters.month', now()->format('Y-m')));
+
+        $rows = collect($this->get(route('commissions.index'))->viewData('page')['props']['employees'])->keyBy('userId');
+        expect($rows[$noCommission->id]['totalEarned'])->toEqual(0)
+            ->and($rows[$noCommission->id]['salaryPlusCommission'])->toEqual(2500)
+            ->and($rows[$this->employee->id]['salaryPlusCommission'])->toEqual(3200);
+    });
+
+    it('sums only the selected month of commission', function () {
+        $this->employee->update(['salary' => 3000]);
+
+        CommissionLedger::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'amount' => 100,
+            'earned_at' => now()->startOfMonth()->subDays(3),
+        ]);
+        CommissionLedger::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'amount' => 40,
+        ]);
+
+        $this->get(route('commissions.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('summary.totalEarned', 40)
+                ->where('summary.totalSalariesPlusCommissions', 3040));
+
+        $this->get(route('commissions.index', ['month' => now()->startOfMonth()->subDays(3)->format('Y-m')]))
+            ->assertInertia(fn ($page) => $page
+                ->where('summary.totalEarned', 100)
+                ->where('employees.0.salaryPlusCommission', 3100));
+    });
+
+    it('leaves out salaried staff of other branches and inactive users', function () {
+        $otherBranch = Branch::factory()->create();
+        User::factory()->create(['branch_id' => $otherBranch->id, 'salary' => 9000]);
+        User::factory()->create(['branch_id' => $this->branch->id, 'salary' => 9000, 'is_active' => false]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('commissions.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('employees', 0)
+                ->where('summary.totalSalaries', 0));
+    });
+
     // ── PAY FLOW ───────────────────────────────────────────────────
 
     it('records a payment and stamps paid_at on covered ledger entries', function () {
