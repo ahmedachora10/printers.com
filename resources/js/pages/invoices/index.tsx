@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
@@ -22,7 +23,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type InvoiceFilters, type InvoiceListItem, type PaginatedInvoice } from '@/types/invoice';
 import { Link, router, usePage } from '@inertiajs/react';
-import { CheckCircle2, Eye, Info, Loader2, MessageSquare, PackageCheck, Pencil, Printer, Undo2, UserPlus } from 'lucide-react';
+import { CheckCircle2, Eye, Info, Loader2, MessageSquare, MoreHorizontal, PackageCheck, Pencil, Printer, Undo2, UserPlus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -345,6 +346,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'createdAt',
                 header: 'التاريخ',
+                className: 'whitespace-nowrap',
                 cell: (item) => <span>{formatDate(item.createdAt)}</span>,
             },
             {
@@ -395,6 +397,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'employeeName',
                 header: 'منشئ الفاتورة',
+                className: 'whitespace-nowrap',
                 cell: (item) => item.employeeName ?? <span className="text-muted-foreground">—</span>,
             },
             ...(isSuperAdmin
@@ -402,6 +405,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                       {
                           key: 'branchName',
                           header: 'الفرع',
+                          className: 'whitespace-nowrap',
                           cell: (item: InvoiceListItem) => item.branchName ?? <span className="text-muted-foreground">—</span>,
                       },
                   ]
@@ -409,6 +413,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'totalAmount',
                 header: 'الإجمالي',
+                className: 'whitespace-nowrap',
                 cell: (item) => (
                     <span className="font-semibold tabular-nums" dir="ltr">
                         {formatCurrency(item.totalAmount)}
@@ -418,11 +423,13 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'paymentMethodName',
                 header: 'طريقة الدفع',
+                className: 'whitespace-nowrap',
                 cell: (item) => item.paymentMethodName ?? <span className="text-muted-foreground">—</span>,
             },
             {
                 key: 'remainingAmount',
                 header: 'المتبقي',
+                className: 'whitespace-nowrap',
                 cell: (item) =>
                     item.remainingAmount > 0 ? (
                         <span className="font-semibold text-amber-700 tabular-nums dark:text-amber-400" dir="ltr">
@@ -435,6 +442,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'status',
                 header: 'الحالة',
+                className: 'whitespace-nowrap',
                 cell: (item) => {
                     const badge = (
                         <Badge variant="outline" className={INVOICE_STATUS_COLORS[item.status]}>
@@ -483,79 +491,96 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'actions',
                 header: '',
-                headerClassName: 'w-44',
-                cell: (item) => (
-                    <div className="flex items-center gap-1.5">
-                        <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
-                            <Link href={`/invoices/${item.type}/${item.id}`} aria-label="عرض">
-                                <Eye className="h-3.5 w-3.5" />
-                            </Link>
-                        </Button>
-                        {canPrint && (
+                headerClassName: 'w-32',
+                cell: (item) => {
+                    // «عرض» والإجراء الأهم (اعتماد، وإلا تسليم) ظاهران؛ والباقي في قائمة ⋯
+                    // فلا يتّسع العمود ولا يُقصّ مهما اجتمعت الصلاحيات.
+                    const quickDeliver = item.canDeliver && !item.canApprove;
+                    const hasMenu = canPrint || (item.canDeliver && !quickDeliver) || item.canEdit || item.canReturn || item.returnLocked;
+
+                    return (
+                        <div className="flex items-center gap-1.5">
                             <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
-                                <a href={`/invoices/${item.type}/${item.id}/print?format=a4`} target="_blank" rel="noreferrer" aria-label="طباعة">
-                                    <Printer className="h-3.5 w-3.5" />
-                                </a>
-                            </Button>
-                        )}
-                        {/* اعتماد الفاتورة غير المسددة من القائمة (تاسك 88). */}
-                        {item.canApprove && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className={cn(ACTION_BUTTON, 'text-green-700 hover:text-green-800 dark:text-green-400')}
-                                aria-label="اعتماد الفاتورة"
-                                title={
-                                    item.approveBlockedReason === 'method'
-                                        ? 'ينقصها تحديد طريقة الدفع'
-                                        : item.approveBlockedReason === 'receipt'
-                                          ? 'ينقصها إيصال التحويل'
-                                          : 'اعتماد الفاتورة'
-                                }
-                                onClick={() => startApprove(item)}
-                            >
-                                <CheckCircle2 className="h-3.5 w-3.5" />
-                            </Button>
-                        )}
-                        {/* زر سريع لفواتير الخدمة الحيّة التي لم يُسلَّم عملها بعد (تاسك 31). */}
-                        {item.canDeliver && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className={cn(ACTION_BUTTON, 'text-green-700 hover:text-green-800 dark:text-green-400')}
-                                aria-label="تم تسليم العمل"
-                                title="تم تسليم العمل"
-                                onClick={() => setDeliverItem(item)}
-                            >
-                                <PackageCheck className="h-3.5 w-3.5" />
-                            </Button>
-                        )}
-                        {item.canEdit && (
-                            <Button variant="outline" size="sm" className={ACTION_BUTTON} asChild>
-                                <Link href={(item.type === 'product' ? posProduct : posService).edit(item.id).url} aria-label="تعديل">
-                                    <Pencil className="h-3.5 w-3.5" />
+                                <Link href={`/invoices/${item.type}/${item.id}`} aria-label="عرض" title="عرض">
+                                    <Eye className="h-3.5 w-3.5" />
                                 </Link>
                             </Button>
-                        )}
-                        {item.canReturn && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                className={cn(ACTION_BUTTON, 'text-destructive hover:text-destructive')}
-                                aria-label="استرجاع الفاتورة"
-                                title="استرجاع الفاتورة"
-                                onClick={() => setReturnItem(item)}
-                            >
-                                <Undo2 className="h-3.5 w-3.5" />
-                            </Button>
-                        )}
-                        {item.returnLocked && (
-                            <Button variant="outline" size="sm" className={ACTION_BUTTON} disabled aria-label="مُرتجعة بالفعل" title="مُرتجعة بالفعل">
-                                <Undo2 className="h-3.5 w-3.5" />
-                            </Button>
-                        )}
-                    </div>
-                ),
+                            {/* اعتماد الفاتورة غير المسددة من القائمة (تاسك 88). */}
+                            {item.canApprove && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className={cn(ACTION_BUTTON, 'text-green-700 hover:text-green-800 dark:text-green-400')}
+                                    aria-label="اعتماد الفاتورة"
+                                    title={
+                                        item.approveBlockedReason === 'method'
+                                            ? 'ينقصها تحديد طريقة الدفع'
+                                            : item.approveBlockedReason === 'receipt'
+                                              ? 'ينقصها إيصال التحويل'
+                                              : 'اعتماد الفاتورة'
+                                    }
+                                    onClick={() => startApprove(item)}
+                                >
+                                    <CheckCircle2 className="h-3.5 w-3.5" />
+                                </Button>
+                            )}
+                            {/* زر سريع لفواتير الخدمة الحيّة التي لم يُسلَّم عملها بعد (تاسك 31). */}
+                            {quickDeliver && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className={cn(ACTION_BUTTON, 'text-green-700 hover:text-green-800 dark:text-green-400')}
+                                    aria-label="تم تسليم العمل"
+                                    title="تم تسليم العمل"
+                                    onClick={() => setDeliverItem(item)}
+                                >
+                                    <PackageCheck className="h-3.5 w-3.5" />
+                                </Button>
+                            )}
+                            {hasMenu && (
+                                <DropdownMenu dir="rtl">
+                                    <DropdownMenuTrigger asChild>
+                                        <Button variant="outline" size="sm" className={ACTION_BUTTON} aria-label="إجراءات أخرى" title="إجراءات أخرى">
+                                            <MoreHorizontal className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="min-w-44">
+                                        {canPrint && (
+                                            <DropdownMenuItem asChild>
+                                                <a href={`/invoices/${item.type}/${item.id}/print?format=a4`} target="_blank" rel="noreferrer">
+                                                    <Printer /> طباعة
+                                                </a>
+                                            </DropdownMenuItem>
+                                        )}
+                                        {item.canDeliver && !quickDeliver && (
+                                            <DropdownMenuItem onSelect={() => setDeliverItem(item)}>
+                                                <PackageCheck /> تم تسليم العمل
+                                            </DropdownMenuItem>
+                                        )}
+                                        {item.canEdit && (
+                                            <DropdownMenuItem asChild>
+                                                <Link href={(item.type === 'product' ? posProduct : posService).edit(item.id).url}>
+                                                    <Pencil /> تعديل
+                                                </Link>
+                                            </DropdownMenuItem>
+                                        )}
+                                        {(item.canReturn || item.returnLocked) && <DropdownMenuSeparator />}
+                                        {item.canReturn && (
+                                            <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => setReturnItem(item)}>
+                                                <Undo2 /> استرجاع الفاتورة
+                                            </DropdownMenuItem>
+                                        )}
+                                        {item.returnLocked && (
+                                            <DropdownMenuItem disabled>
+                                                <Undo2 /> مُرتجعة بالفعل
+                                            </DropdownMenuItem>
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            )}
+                        </div>
+                    );
+                },
             },
         ],
         [isSuperAdmin, canPrint],
