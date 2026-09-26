@@ -296,6 +296,7 @@ export default function SalesReportIndex({
                             emptyState={EMPTY_STATE}
                             footer={
                                 <TableRow>
+                                    <TableCell />
                                     <TableCell className="font-bold">الإجمالي</TableCell>
                                     <TableCell className="font-bold">{totals.invoiceCount}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.subtotal)}</TableCell>
@@ -340,6 +341,7 @@ export default function SalesReportIndex({
                             emptyState={EMPTY_STATE}
                             footer={
                                 <TableRow>
+                                    <TableCell />
                                     <TableCell className="font-bold">الإجمالي</TableCell>
                                     <TableCell className="font-bold">{totals.invoiceCount}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.total)}</TableCell>
@@ -478,6 +480,7 @@ function PaymentMethodCard({
                     emptyState={EMPTY_STATE}
                     footer={
                         <TableRow>
+                            <TableCell />
                             <TableCell className="font-bold">الإجمالي</TableCell>
                             <TableCell />
                             <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
@@ -556,6 +559,7 @@ function BreakdownCard({ title, nameHeader, rows }: { title: string; nameHeader:
                     emptyState={EMPTY_STATE}
                     footer={
                         <TableRow>
+                            <TableCell />
                             <TableCell className="font-bold">الإجمالي</TableCell>
                             <TableCell />
                             <TableCell className="font-bold text-green-600">{formatCurrency(total)}</TableCell>

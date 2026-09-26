@@ -302,7 +302,7 @@ export default function BranchServicesIndex({
                     />
                 </div>
 
-                <DataTable columns={columns} data={branchServices.data} keyExtractor={(s) => s.id} />
+                <DataTable rowOffset={Number(branchServices.meta.from ?? 1) - 1} columns={columns} data={branchServices.data} keyExtractor={(s) => s.id} />
 
                 <TablePagination
                     currentPage={branchServices.meta.current_page as number}

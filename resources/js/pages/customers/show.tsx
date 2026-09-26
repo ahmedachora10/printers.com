@@ -335,6 +335,7 @@ export default function CustomerShow({
                             </CardHeader>
                             <CardContent className="p-0">
                                 <DataTable
+                                    rowOffset={Number(invoiceHistory.meta.from ?? 1) - 1}
                                     className="rounded-none bg-transparent shadow-none"
                                     columns={invoiceHistoryColumns}
                                     data={invoiceHistory.data}

@@ -209,9 +209,11 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
                             data={rows}
                             keyExtractor={(row) => `${row.date}-${row.isTotal ? 'total' : (row.employeeId ?? 'all')}`}
                             rowClassName={(row) => (row.isTotal ? 'bg-muted/40 font-semibold hover:bg-muted/50' : undefined)}
+                            unnumbered={(row) => row.isTotal}
                             emptyState={EMPTY_STATE}
                             footer={
                                 <TableRow>
+                                    <TableCell />
                                     <TableCell className="font-bold">الإجمالي</TableCell>
                                     {detailed && <TableCell />}
                                     <TableCell className="font-bold">{formatCurrency(totals.products)}</TableCell>

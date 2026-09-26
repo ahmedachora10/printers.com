@@ -676,6 +676,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 <ActiveFilterChips chips={chips} />
 
                 <DataTable
+                    rowOffset={Number(items.meta.from ?? 1) - 1}
                     columns={columns}
                     data={items.data}
                     keyExtractor={(item) => `${item.type}-${item.id}`}

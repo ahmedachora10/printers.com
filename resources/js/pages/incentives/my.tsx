@@ -147,6 +147,7 @@ export default function MyIncentives({ plans, deductions, currentPlan, totals }:
                     </CardHeader>
                     <CardContent className="p-0">
                         <DataTable
+                            rowOffset={Number(plans.meta.from ?? 1) - 1}
                             className="rounded-none bg-transparent shadow-none"
                             columns={planColumns}
                             data={plans.data}
@@ -170,6 +171,7 @@ export default function MyIncentives({ plans, deductions, currentPlan, totals }:
                     </CardHeader>
                     <CardContent className="p-0">
                         <DataTable
+                            rowOffset={Number(deductions.meta.from ?? 1) - 1}
                             className="rounded-none bg-transparent shadow-none"
                             columns={deductionColumns}
                             data={deductions.data}

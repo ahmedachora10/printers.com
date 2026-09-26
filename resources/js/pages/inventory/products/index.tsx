@@ -332,6 +332,7 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                 </div>
 
                 <DataTable
+                    rowOffset={Number(items.meta.from ?? 1) - 1}
                     columns={columns}
                     data={items.data}
                     keyExtractor={(item) => item.id}

@@ -222,7 +222,7 @@ export default function AgentPaymentsIndex({ agents, payments, paymentTotals, fi
                     />
                 </div>
 
-                <DataTable columns={columns} data={payments.data} keyExtractor={(p) => p.id} />
+                <DataTable rowOffset={Number(payments.meta.from ?? 1) - 1} columns={columns} data={payments.data} keyExtractor={(p) => p.id} />
                 <TablePagination
                     currentPage={payments.meta.current_page as number}
                     totalPages={payments.meta.last_page as number}

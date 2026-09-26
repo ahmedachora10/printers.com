@@ -285,6 +285,7 @@ export default function LoyaltyIndex({
                         </CardHeader>
                         <CardContent className="p-0">
                             <DataTable
+                                rowOffset={Number(branchConfigs.meta.from ?? 1) - 1}
                                 className="rounded-none bg-transparent shadow-none"
                                 columns={branchConfigColumns}
                                 data={branchConfigs.data}
@@ -312,6 +313,7 @@ export default function LoyaltyIndex({
                     </CardHeader>
                     <CardContent className="p-0">
                         <DataTable
+                            rowOffset={Number(transactions.meta.from ?? 1) - 1}
                             className="rounded-none bg-transparent shadow-none"
                             columns={transactionColumns}
                             data={transactions.data}

@@ -64,6 +64,15 @@ export interface DataTableProps<T extends object> {
      * itself carries the meaning (a matrix, a count sheet).
      */
     mobileCards?: boolean;
+    /**
+     * تاسك 132: عمود «م» أولَ الجدول، مفعَّلٌ افتراضياً على كل القوائم.
+     * ⚠️ من يمرّر `footer` يضع في صفّه خليةً فارغةً أولى مقابله.
+     */
+    numbered?: boolean;
+    /** إزاحة المسلسل على الجداول المصفَّحة (`meta.from - 1`) ليكمل العدّ عبر الصفحات. */
+    rowOffset?: number;
+    /** صفوفٌ لا تأخذ رقماً ولا تستهلكه — كصفّ إجمالي اليوم داخل البيانات. */
+    unnumbered?: (row: T) => boolean;
 }
 
 interface SortState {
@@ -180,6 +189,9 @@ export function DataTable<T extends object>({
     renderSubRow,
     rowClassName,
     mobileCards = true,
+    numbered = true,
+    rowOffset = 0,
+    unnumbered,
 }: DataTableProps<T>) {
     const [sort, setSort] = useState<SortState | null>(null);
     const [selectedKeys, setSelectedKeys] = useState<Set<string | number>>(new Set());
@@ -205,6 +217,12 @@ export function DataTable<T extends object>({
             return sort.direction === 'asc' ? cmp : -cmp;
         });
     }, [data, sort]);
+
+    // المسلسل يتبع الترتيب المعروض (بعد الفرز)، ويتخطّى صفوف unnumbered.
+    const serials = useMemo(() => {
+        let n = rowOffset;
+        return sorted.map((row) => (unnumbered?.(row) ? null : ++n));
+    }, [sorted, rowOffset, unnumbered]);
 
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleSort = (key: string) => {
@@ -246,7 +264,7 @@ export function DataTable<T extends object>({
         );
     };
 
-    const colSpan = columns.length + (selectable ? 1 : 0) + (expandable ? 1 : 0);
+    const colSpan = columns.length + (selectable ? 1 : 0) + (expandable ? 1 : 0) + (numbered ? 1 : 0);
 
     // ── Card layout (below md) ────────────────────────────────────────────────
     const cardColumns = columns.filter((col) => !col.hideOnMobile);
@@ -289,6 +307,9 @@ export function DataTable<T extends object>({
                                         onCheckedChange={() => toggleRow(key)}
                                         aria-label={`تحديد الصف ${idx + 1}`}
                                     />
+                                )}
+                                {numbered && serials[idx] !== null && (
+                                    <span className="text-muted-foreground mt-px shrink-0 text-xs tabular-nums">#{serials[idx]}</span>
                                 )}
                                 {primaryColumn && <div className="min-w-0 flex-1 text-sm font-semibold">{cellValue(primaryColumn, row, idx)}</div>}
                                 {expandable && (
@@ -361,6 +382,7 @@ export function DataTable<T extends object>({
                                 </TableHead>
                             )}
                             {expandable && <TableHead className="w-8 px-4" />}
+                            {numbered && <TableHead className="text-muted-foreground w-10 px-4 text-start text-[13px] font-semibold">م</TableHead>}
                             {columns.map((col) => (
                                 <TableHead
                                     key={col.key}
@@ -390,6 +412,8 @@ export function DataTable<T extends object>({
                                             <Skeleton className="size-4" />
                                         </TableCell>
                                     )}
+                                    {expandable && <TableCell className="w-8 px-4" />}
+                                    {numbered && <TableCell className="w-10 px-4" />}
                                     {columns.map((col) => (
                                         <TableCell key={col.key} className={col.className}>
                                             <Skeleton className="h-4 w-3/4" />
@@ -444,6 +468,9 @@ export function DataTable<T extends object>({
                                                         <ChevronLeft className="text-muted-foreground size-4" />
                                                     )}
                                                 </TableCell>
+                                            )}
+                                            {numbered && (
+                                                <TableCell className="text-muted-foreground w-10 px-4 py-3.5 text-sm tabular-nums">{serials[idx]}</TableCell>
                                             )}
                                             {columns.map((col) => (
                                                 <TableCell key={col.key} className={cn('px-4 py-3.5 text-sm', col.className)}>

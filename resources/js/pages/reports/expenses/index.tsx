@@ -204,6 +204,7 @@ export default function ExpenseReportIndex({
                             emptyState={EMPTY_STATE}
                             footer={
                                 <TableRow>
+                                    <TableCell />
                                     <TableCell className="font-bold">الإجمالي</TableCell>
                                     <TableCell className="font-bold">{totals.expenseCount}</TableCell>
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.total)}</TableCell>

@@ -223,6 +223,7 @@ export default function IncentiveReportIndex({
                                 keyExtractor={(row) => row.reason}
                                 footer={
                                     <TableRow>
+                                        <TableCell />
                                         <TableCell className="font-bold">الإجمالي</TableCell>
                                         <TableCell className="font-bold">{totals.deductionCount}</TableCell>
                                         <TableCell className="text-destructive font-bold">{formatCurrency(totals.deductions)}</TableCell>
@@ -249,6 +250,7 @@ export default function IncentiveReportIndex({
                             )}
                             footer={
                                 <TableRow>
+                                    <TableCell />
                                     <TableCell />
                                     <TableCell className="font-bold">الإجمالي</TableCell>
                                     {isSuperAdmin && <TableCell />}

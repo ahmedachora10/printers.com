@@ -200,7 +200,7 @@ export default function PurchaseRequestsIndex({ items, products, suppliers, bran
 
                 <ActiveFilterChips chips={chips} />
 
-                <DataTable columns={columns} data={items.data} keyExtractor={(item) => item.id} />
+                <DataTable rowOffset={Number(items.meta.from ?? 1) - 1} columns={columns} data={items.data} keyExtractor={(item) => item.id} />
 
                 <TablePagination
                     currentPage={items.meta.current_page as number}

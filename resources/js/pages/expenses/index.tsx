@@ -364,11 +364,13 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                     ولا تُجمع «سعر الوحدة» (متوسط لا مجموع) ولا «الكمية» (لتر وقطعة وكرتون معاً).
                 */}
                 <DataTable
+                    rowOffset={Number(items.meta.from ?? 1) - 1}
                     columns={columns}
                     data={items.data}
                     keyExtractor={(item) => item.id}
                     footer={
                         <TableRow>
+                            <TableCell />
                             <TableCell className="font-bold whitespace-nowrap">الإجمالي — {rangeLabel(applied.from, applied.to)}</TableCell>
                             <TableCell />
                             <TableCell />

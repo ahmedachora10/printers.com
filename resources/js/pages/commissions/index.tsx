@@ -204,6 +204,7 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                     </CardHeader>
                     <CardContent>
                         <DataTable
+                            rowOffset={Number(payments.meta.from ?? 1) - 1}
                             columns={paymentColumns}
                             data={payments.data}
                             keyExtractor={(item) => item.id}

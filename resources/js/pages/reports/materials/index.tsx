@@ -230,6 +230,7 @@ export default function MaterialsReportIndex({
                             emptyState={EMPTY_STATE}
                             footer={
                                 <TableRow>
+                                    <TableCell />
                                     <TableCell className="font-bold">الإجمالي</TableCell>
                                     <TableCell className="font-bold tabular-nums">{formatQty(totals.netQty)}</TableCell>
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.netCost)}</TableCell>

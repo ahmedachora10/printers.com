@@ -210,6 +210,7 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
                 </div>
 
                 <DataTable
+                    rowOffset={Number(branches.meta.from ?? 1) - 1}
                     columns={columns}
                     data={branches.data}
                     keyExtractor={(branch) => branch.id}
