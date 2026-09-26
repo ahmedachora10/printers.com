@@ -3,6 +3,7 @@ import { DataTable, TablePagination, type ColumnDef } from '@/components/data-ta
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
@@ -15,7 +16,7 @@ import {
     type PaginatedCommissionPayment,
 } from '@/types/commission';
 import { router } from '@inertiajs/react';
-import { Banknote, TrendingUp, Wallet } from 'lucide-react';
+import { Banknote, Coins, TrendingUp, Wallet, WalletCards } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'العمولات', href: '/commissions' }];
@@ -26,7 +27,7 @@ interface Props {
     payments: PaginatedCommissionPayment;
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
-    filters: { branch?: string };
+    filters: { branch?: string; month: string };
 }
 
 export default function CommissionsIndex({ employees, summary, payments, branches, isSuperAdmin, filters }: Props) {
@@ -38,10 +39,11 @@ export default function CommissionsIndex({ employees, summary, payments, branche
         setPayOpen(true);
     }
 
-    function handleBranchChange(val: string) {
+    function applyFilters(next: { branch?: string; month?: string }) {
+        const branch = next.branch ?? filters.branch;
         router.get(
             commissions.index().url,
-            { ...(val && val !== 'all' && { branch: val }) },
+            { ...(branch && branch !== 'all' && { branch }), month: next.month ?? filters.month },
             { preserveState: true, replace: true },
         );
     }
@@ -52,6 +54,11 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                 key: 'userName',
                 header: 'الموظف',
                 cell: (item) => <span className="font-medium">{item.userName}</span>,
+            },
+            {
+                key: 'salary',
+                header: 'الراتب',
+                cell: (item) => formatCurrency(item.salary),
             },
             {
                 key: 'totalEarned',
@@ -79,6 +86,11 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                     ) : (
                         <span className="text-muted-foreground">—</span>
                     ),
+            },
+            {
+                key: 'salaryPlusCommission',
+                header: 'إجمالي الراتب مع العمولة',
+                cell: (item) => <span className="font-semibold">{formatCurrency(item.salaryPlusCommission)}</span>,
             },
             {
                 key: 'actions',
@@ -135,24 +147,34 @@ export default function CommissionsIndex({ employees, summary, payments, branche
             <div className="p-6">
                 <div className="mb-6 flex items-center justify-between">
                     <h1 className="text-2xl font-bold">العمولات</h1>
-                    {isSuperAdmin && branches.length > 0 && (
-                        <Select value={filters.branch ?? 'all'} onValueChange={handleBranchChange}>
-                            <SelectTrigger className="w-48">
-                                <SelectValue placeholder="كل الفروع" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">كل الفروع</SelectItem>
-                                {branches.map((b) => (
-                                    <SelectItem key={b.id} value={b.id.toString()}>
-                                        {b.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Input
+                            type="month"
+                            className="w-44"
+                            dir="ltr"
+                            aria-label="الشهر"
+                            value={filters.month}
+                            onChange={(e) => e.target.value && applyFilters({ month: e.target.value })}
+                        />
+                        {isSuperAdmin && branches.length > 0 && (
+                            <Select value={filters.branch ?? 'all'} onValueChange={(val) => applyFilters({ branch: val })}>
+                                <SelectTrigger className="w-48">
+                                    <SelectValue placeholder="كل الفروع" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">كل الفروع</SelectItem>
+                                    {branches.map((b) => (
+                                        <SelectItem key={b.id} value={b.id.toString()}>
+                                            {b.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        )}
+                    </div>
                 </div>
 
-                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
                     <Card>
                         <CardHeader className="pb-2">
                             <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -181,6 +203,26 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                         </CardHeader>
                         <CardContent>
                             <p className="text-2xl font-bold text-amber-600">{formatCurrency(summary.pending)}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                <Coins className="size-4" /> إجمالي الرواتب
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-2xl font-bold">{formatCurrency(summary.totalSalaries)}</p>
+                        </CardContent>
+                    </Card>
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                <WalletCards className="size-4" /> إجمالي الرواتب + العمولات
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <p className="text-2xl font-bold">{formatCurrency(summary.totalSalariesPlusCommissions)}</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -228,6 +270,7 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                 open={payOpen}
                 onOpenChange={setPayOpen}
                 employee={paying}
+                month={filters.month}
             />
         </AppLayout>
     );
