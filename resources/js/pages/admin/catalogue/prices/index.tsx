@@ -244,7 +244,7 @@ export default function CatalogPricesIndex({ subcategory, prices, filters, branc
                     />
                 </div>
 
-                <DataTable columns={columns} data={prices.data} keyExtractor={(p) => p.id} />
+                <DataTable rowOffset={Number(prices.meta.from ?? 1) - 1} columns={columns} data={prices.data} keyExtractor={(p) => p.id} />
 
                 <TablePagination
                     currentPage={prices.meta.current_page as number}

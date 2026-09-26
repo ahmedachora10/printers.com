@@ -179,6 +179,7 @@ export default function CitiesIndex({ cities, filters }: Props) {
                 </div>
 
                 <DataTable
+                    rowOffset={Number(cities.meta.from ?? 1) - 1}
                     columns={columns}
                     data={cities.data}
                     keyExtractor={(city) => city.id}

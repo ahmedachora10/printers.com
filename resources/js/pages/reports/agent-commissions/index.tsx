@@ -196,6 +196,7 @@ export default function AgentCommissionReportIndex({ rows, lines, totals, filter
                             footer={
                                 <TableRow>
                                     <TableCell />
+                                    <TableCell />
                                     <TableCell className="font-bold">الإجمالي</TableCell>
                                     <TableCell className="font-bold">{totals.invoiceCount}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.sales)}</TableCell>

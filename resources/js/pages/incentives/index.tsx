@@ -362,7 +362,7 @@ export default function IncentivesIndex({
 
                 <ActiveFilterChips chips={chips} />
 
-                <DataTable columns={columns} data={plans.data} keyExtractor={(p) => p.id} />
+                <DataTable rowOffset={Number(plans.meta.from ?? 1) - 1} columns={columns} data={plans.data} keyExtractor={(p) => p.id} />
 
                 <TablePagination
                     currentPage={plans.meta.current_page as number}
@@ -401,11 +401,13 @@ export default function IncentivesIndex({
                 </div>
 
                 <DataTable
+                    rowOffset={Number(deductions.meta.from ?? 1) - 1}
                     columns={deductionColumns}
                     data={deductions.data}
                     keyExtractor={(d) => d.id}
                     footer={
                         <TableRow>
+                            <TableCell />
                             <TableCell className="font-bold whitespace-nowrap">الإجمالي — حسب التصفية</TableCell>
                             <TableCell />
                             {isSuperAdmin && <TableCell />}

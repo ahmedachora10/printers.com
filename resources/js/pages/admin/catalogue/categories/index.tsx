@@ -260,7 +260,7 @@ export default function CatalogCategoriesIndex({ categories, filters, branches, 
                     />
                 </div>
 
-                <DataTable columns={columns} data={categories.data} keyExtractor={(c) => c.id} />
+                <DataTable rowOffset={Number(categories.meta.from ?? 1) - 1} columns={columns} data={categories.data} keyExtractor={(c) => c.id} />
 
                 <TablePagination
                     currentPage={categories.meta.current_page as number}

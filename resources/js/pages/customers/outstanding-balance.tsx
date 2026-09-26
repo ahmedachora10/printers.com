@@ -131,6 +131,7 @@ export default function OutstandingBalance({ report }: Props) {
                             emptyState={<span className="text-muted-foreground">لا توجد مديونيات مستحقة</span>}
                             footer={
                                 <TableRow>
+                                    <TableCell />
                                     <TableCell colSpan={3} className="font-bold">
                                         الإجمالي
                                     </TableCell>

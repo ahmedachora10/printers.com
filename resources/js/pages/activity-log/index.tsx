@@ -140,6 +140,7 @@ export default function ActivityLogIndex({ activities, users: userOptions, logOp
                 <ActiveFilterChips chips={chips} />
 
                 <DataTable
+                    rowOffset={Number(activities.meta.from ?? 1) - 1}
                     columns={columns}
                     data={activities.data}
                     keyExtractor={(row) => row.id}

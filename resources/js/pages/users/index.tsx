@@ -355,6 +355,7 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                 </div>
 
                 <DataTable
+                    rowOffset={Number(items.meta.from ?? 1) - 1}
                     columns={columns}
                     data={items.data}
                     keyExtractor={(item) => item.id}

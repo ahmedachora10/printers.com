@@ -254,6 +254,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                             emptyState={<span className="text-muted-foreground">لا توجد أيام ضمن الفترة المحددة</span>}
                             footer={
                                 <TableRow>
+                                    <TableCell />
                                     <TableCell className="font-bold">الإجمالي</TableCell>
                                     <TableCell className="font-bold">{totals.lineCount}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.earned)}</TableCell>
@@ -282,6 +283,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                             renderSubRow={(row) => <DetailLines lines={linesByUser.get(row.userId) ?? []} />}
                             footer={
                                 <TableRow>
+                                    <TableCell />
                                     <TableCell />
                                     <TableCell className="font-bold">الإجمالي</TableCell>
                                     <TableCell className="font-bold">{totals.lineCount}</TableCell>

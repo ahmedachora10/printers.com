@@ -267,6 +267,7 @@ export default function DeliveriesIndex({
                     </CardHeader>
                     <CardContent>
                         <DataTable
+                            rowOffset={Number(deliveries.meta.from ?? 1) - 1}
                             columns={detailColumns}
                             data={deliveries.data}
                             keyExtractor={(row) => row.id}

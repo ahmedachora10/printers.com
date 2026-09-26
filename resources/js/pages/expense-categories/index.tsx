@@ -213,6 +213,7 @@ export default function ExpenseCategoriesIndex({ items, branches, filters }: Pro
                 </div>
 
                 <DataTable
+                    rowOffset={Number(items.meta.from ?? 1) - 1}
                     columns={columns}
                     data={items.data}
                     keyExtractor={(item) => item.id}

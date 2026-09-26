@@ -289,7 +289,7 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
                     />
                 </div>
 
-                <DataTable columns={columns} data={templates.data} keyExtractor={(t) => t.id} />
+                <DataTable rowOffset={Number(templates.meta.from ?? 1) - 1} columns={columns} data={templates.data} keyExtractor={(t) => t.id} />
 
                 <TablePagination
                     currentPage={templates.meta.current_page as number}
