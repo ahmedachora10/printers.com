@@ -236,6 +236,38 @@ describe('Expense Management', function () {
         ]);
     });
 
+    it('blocks an accountant from backdating an expense, keeps it for the branch admin (task 135)', function () {
+        $payload = fn (string $date) => [
+            'expense_category_id' => $this->category->id,
+            'qty' => 1,
+            'unit_price' => 10,
+            'paid_from' => 'cash_drawer',
+            'date' => $date,
+        ];
+        $yesterday = today()->subDay()->toDateString();
+
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole(Roles::ACCOUNTANT->value);
+        $this->actingAs($accountant);
+
+        $this->post(route('expenses.store'), $payload($yesterday))->assertSessionHasErrors('date');
+        $this->post(route('expenses.store'), $payload(today()->toDateString()))->assertSessionHasNoErrors();
+
+        // An expense already dated in the past stays editable as long as its date isn't moved back.
+        $old = Expense::factory()->create([
+            'branch_id' => $this->branch->id,
+            'expense_category_id' => $this->category->id,
+            'user_id' => $accountant->id,
+            'date' => today()->subDays(3),
+            'approved_at' => null,
+        ]);
+        $this->put(route('expenses.update', $old), $payload(today()->subDays(3)->toDateString()))->assertRedirect(route('expenses.index'));
+        $this->put(route('expenses.update', $old), $payload(today()->subDays(5)->toDateString()))->assertSessionHasErrors('date');
+
+        $this->actingAs($this->branchAdmin);
+        $this->post(route('expenses.store'), $payload($yesterday))->assertSessionHasNoErrors();
+    });
+
     // ── DELETE ─────────────────────────────────────────────────────
 
     it('soft deletes an expense', function () {

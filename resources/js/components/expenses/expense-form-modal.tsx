@@ -12,7 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type Expense, type ExpenseSource } from '@/types/expense';
-import { useForm } from '@inertiajs/react';
+import { type SharedData } from '@/types';
+import { useForm, usePage } from '@inertiajs/react';
 import { useCallback, useEffect, useState } from 'react';
 import InputError from '../input-error';
 
@@ -57,12 +58,16 @@ const FIELD_LABELS: Record<string, string> = {
 const NO_INVOICE: AsyncOption = { value: 'none', label: '— بلا ربط —' };
 
 function todayIso(): string {
-    return new Date().toISOString().slice(0, 10);
+    // Local day, not UTC — after midnight in Riyadh UTC is still yesterday.
+    return new Date().toLocaleDateString('en-CA');
 }
 
 export default function ExpenseFormModal({ open, onOpenChange, expense, categories, branches }: Props) {
     const isEdit = !!expense;
     const isSuperAdmin = Array.isArray(branches);
+    // تاسك 135: التاريخ القديم لمدير الفرع ومدير النظام فقط (والتاريخ الحالي للمصروف يبقى).
+    const { role } = usePage<SharedData>().props.auth;
+    const canBackdate = role === 'super-admin' || role === 'branch-admin';
 
     const { data, setData, post, transform, processing, errors, reset } = useForm({
         branch_id: expense?.branchId?.toString() ?? (branches?.[0]?.id?.toString() ?? ''),
@@ -201,6 +206,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                                 type="date"
                                 value={data.date}
                                 onChange={(e) => setData('date', e.target.value)}
+                                min={canBackdate ? undefined : [expense?.date, todayIso()].filter(Boolean).sort()[0]}
                                 dir="ltr"
                             />
                             <InputError message={errors.date} />

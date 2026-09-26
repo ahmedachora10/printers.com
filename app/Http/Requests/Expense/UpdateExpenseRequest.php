@@ -32,7 +32,17 @@ class UpdateExpenseRequest extends FormRequest
             // تاسك 112: مستند إثبات + ربطٌ اختياري بطلبٍ من فرع المصروف نفسه.
             'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
             'service_invoice_id' => ['nullable', 'integer', Rule::exists('service_invoices', 'id')->where('branch_id', $branchId)->whereNull('deleted_at')],
-            'date' => ['required', 'date'],
+            // تاسك 135: المحاسب لا ينقل مصروفاً إلى تاريخٍ قديم — تاريخه الحالي يبقى مقبولاً.
+            'date' => ['required', 'date', Rule::when(
+                ! StoreExpenseRequest::canBackdate() && $this->input('date') !== $this->route('expense')->date?->toDateString(),
+                ['after_or_equal:today'],
+            )],
         ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return ['date.after_or_equal' => 'تسجيل مصروف بتاريخ قديم متاح لمدير الفرع ومدير النظام فقط.'];
     }
 }

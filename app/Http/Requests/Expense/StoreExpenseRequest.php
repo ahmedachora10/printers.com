@@ -25,6 +25,13 @@ class StoreExpenseRequest extends FormRequest
         }
     }
 
+    public static function canBackdate(): bool
+    {
+        $role = Auth::user()->roleName;
+
+        return (bool) ($role?->isSuperAdmin() || $role?->isBranchAdmin());
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
@@ -43,7 +50,14 @@ class StoreExpenseRequest extends FormRequest
             // تاسك 112: مستند إثبات + ربطٌ اختياري بطلبٍ من فرع المصروف نفسه.
             'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
             'service_invoice_id' => ['nullable', 'integer', Rule::exists('service_invoices', 'id')->where('branch_id', $this->input('branch_id'))->whereNull('deleted_at')],
-            'date' => ['required', 'date'],
+            // تاسك 135: التاريخ القديم لمدير الفرع ومدير النظام فقط.
+            'date' => ['required', 'date', Rule::when(! self::canBackdate(), ['after_or_equal:today'])],
         ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return ['date.after_or_equal' => 'تسجيل مصروف بتاريخ قديم متاح لمدير الفرع ومدير النظام فقط.'];
     }
 }
