@@ -47,6 +47,7 @@ class AccountReconciliationController extends Controller
         $autoTotal = $live ? $live['autoTotal'] : (float) $reconciliation->auto_total;
 
         $history = AccountReconciliation::query()
+            ->with('approvedBy:id,name')
             ->where('branch_id', $branchId)
             ->orderByDesc('date')
             ->paginate(15)
@@ -88,6 +89,8 @@ class AccountReconciliationController extends Controller
             'history' => $this->pagedProp($history, fn (AccountReconciliation $r) => [
                 'date' => $r->date,
                 'devicesTotal' => (float) $r->devices_total,
+                'systemNet' => $r->isApproved() ? (float) $r->system_net : null,
+                'approvedBy' => $r->approvedBy?->name,
                 'difference' => $r->isApproved()
                     ? round((float) $r->devices_total + (float) $r->auto_total - (float) $r->system_net, 2)
                     : null,

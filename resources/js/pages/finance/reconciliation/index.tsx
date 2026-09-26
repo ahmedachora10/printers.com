@@ -2,6 +2,7 @@ import { TablePagination } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -10,7 +11,8 @@ import { cn, formatSar } from '@/lib/utils';
 import finance from '@/routes/finance';
 import { type BreadcrumbItem, type Paginated } from '@/types';
 import { Head, router, useForm } from '@inertiajs/react';
-import { FileText, Lock, Plus, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, FileText, Lock, Plus, Trash2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 interface Option {
     id: number;
@@ -26,6 +28,9 @@ type Device = {
 interface HistoryRow {
     date: string;
     devicesTotal: number;
+    /** null = غير معتمدة — الرقم الحيّ يُرى بفتح اليوم */
+    systemNet: number | null;
+    approvedBy: string | null;
     /** null = غير معتمدة بعد — الفرق يُحسب حيّاً عند فتح اليوم */
     difference: number | null;
     approved: boolean;
@@ -60,6 +65,13 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'مطابقة الحسابات',
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 
+/** YYYY-MM-DD ± أيام، بلا انزياح المنطقة الزمنية. */
+const shiftDay = (date: string, days: number) => {
+    const d = new Date(`${date}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+};
+
 /** تاسك 121 — مساوٍ مطابق، أقل عجز، أكبر زيادة. */
 function result(difference: number) {
     if (difference === 0) return { label: 'مطابق', className: 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-300' };
@@ -79,7 +91,25 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
 
     const devicesTotal = round2(form.data.devices.reduce((sum, d) => sum + (Number(d.amount) || 0), 0));
     const difference = round2(devicesTotal + figures.autoTotal - figures.systemNet);
-    const status = result(difference);
+    // لا مطابقة محفوظة ولا أجهزة مُدخلة ← لا معنى لـ«مطابق».
+    const isEmpty = !reconciliation && form.data.devices.length === 0;
+    const status = isEmpty ? { label: 'لا توجد مطابقة بعد', className: 'bg-muted/50 text-muted-foreground' } : result(difference);
+    const today = new Date().toLocaleDateString('en-CA');
+    const [confirmingApprove, setConfirmingApprove] = useState(false);
+
+    // تحذير قبل مغادرة اليوم أو الصفحة بتعديلات غير محفوظة.
+    useEffect(() => {
+        if (!form.isDirty) return;
+        const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+        window.addEventListener('beforeunload', warn);
+        const off = router.on('before', (event) => {
+            if (event.detail.visit.method === 'get' && !window.confirm('لديك تعديلات غير محفوظة. هل تريد المغادرة دون حفظ؟')) event.preventDefault();
+        });
+        return () => {
+            window.removeEventListener('beforeunload', warn);
+            off();
+        };
+    }, [form.isDirty]);
 
     const visit = (params: { branch?: number | null; date?: string; page?: number }) =>
         router.get(finance.reconciliation.index().url, {
@@ -124,7 +154,24 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                     )}
                     <div className="grid gap-1.5">
                         <Label htmlFor="rec-date">التاريخ</Label>
-                        <Input id="rec-date" type="date" className="w-44" value={filters.date} onChange={(e) => e.target.value && visit({ date: e.target.value })} />
+                        <div className="flex items-center gap-1">
+                            <Button variant="outline" size="icon" aria-label="اليوم السابق" onClick={() => visit({ date: shiftDay(filters.date, -1) })}>
+                                <ChevronRight className="size-4" />
+                            </Button>
+                            <Input id="rec-date" type="date" className="w-44" value={filters.date} onChange={(e) => e.target.value && visit({ date: e.target.value })} />
+                            <Button
+                                variant="outline"
+                                size="icon"
+                                aria-label="اليوم التالي"
+                                disabled={filters.date >= today}
+                                onClick={() => visit({ date: shiftDay(filters.date, 1) })}
+                            >
+                                <ChevronLeft className="size-4" />
+                            </Button>
+                            <Button variant="ghost" disabled={filters.date === today} onClick={() => visit({ date: today })}>
+                                اليوم
+                            </Button>
+                        </div>
                     </div>
                     {reconciliation?.settlementFileUrl && (
                         <Button variant="outline" asChild>
@@ -159,8 +206,13 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                         <span className="text-sm font-medium">النتيجة</span>
                         <span className="text-xl font-semibold">
                             {status.label}
-                            {difference !== 0 && ` ${formatSar(Math.abs(difference))}`}
+                            {!isEmpty && difference !== 0 && ` ${formatSar(Math.abs(difference))}`}
                         </span>
+                        {!isEmpty && (
+                            <span className="mt-1 text-xs tabular-nums opacity-80" title="الأجهزة + الحوالات − صافي النظام">
+                                <bdi>{formatSar(devicesTotal)}</bdi> + <bdi>{formatSar(figures.autoTotal)}</bdi> − <bdi>{formatSar(figures.systemNet)}</bdi>
+                            </span>
+                        )}
                     </div>
                 </div>
 
@@ -256,7 +308,7 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                                         variant="outline"
                                         disabled={form.isDirty || form.processing}
                                         title={form.isDirty ? 'احفظ التعديلات أولاً' : undefined}
-                                        onClick={() => router.post(finance.reconciliation.approve(reconciliation.id).url, {}, { preserveScroll: true })}
+                                        onClick={() => setConfirmingApprove(true)}
                                     >
                                         اعتماد
                                     </Button>
@@ -313,14 +365,22 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                             <thead className="text-muted-foreground border-b text-start">
                                 <tr>
                                     <th className="py-2 text-start font-medium">التاريخ</th>
+                                    <th className="py-2 text-start font-medium">صافي النظام</th>
                                     <th className="py-2 text-start font-medium">موازنات الأجهزة</th>
                                     <th className="py-2 text-start font-medium">النتيجة</th>
+                                    <th className="py-2 text-start font-medium">المعتمِد</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y">
                                 {history.data.map((row) => (
-                                    <tr key={row.date} className="hover:bg-muted/50 cursor-pointer" onClick={() => visit({ date: row.date })}>
+                                    <tr
+                                        key={row.date}
+                                        aria-current={row.date === filters.date ? 'date' : undefined}
+                                        className={cn('hover:bg-muted/50 cursor-pointer', row.date === filters.date && 'bg-muted font-medium')}
+                                        onClick={() => visit({ date: row.date })}
+                                    >
                                         <td className="py-2">{row.date.split('-').reverse().join('/')}</td>
+                                        <td className="py-2 tabular-nums">{row.systemNet === null ? '—' : formatSar(row.systemNet)}</td>
                                         <td className="py-2 tabular-nums">{formatSar(row.devicesTotal)}</td>
                                         <td className="py-2">
                                             {row.difference === null ? (
@@ -332,11 +392,12 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                                                 </Badge>
                                             )}
                                         </td>
+                                        <td className="py-2">{row.approvedBy ?? '—'}</td>
                                     </tr>
                                 ))}
                                 {history.data.length === 0 && (
                                     <tr>
-                                        <td colSpan={3} className="text-muted-foreground py-6 text-center">
+                                        <td colSpan={5} className="text-muted-foreground py-6 text-center">
                                             لا مطابقات محفوظة لهذا الفرع.
                                         </td>
                                     </tr>
@@ -356,6 +417,32 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                     </CardContent>
                 </Card>
             </div>
+
+            <Dialog open={confirmingApprove} onOpenChange={setConfirmingApprove}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>اعتماد مطابقة {filters.date.split('-').reverse().join('/')}</DialogTitle>
+                        <DialogDescription>بعد الاعتماد تُجمَّد الأرقام ولا يمكن تعديل الأجهزة إلا بإلغاء الاعتماد.</DialogDescription>
+                    </DialogHeader>
+                    <div className={cn('rounded-lg border p-3 text-sm font-semibold', status.className)}>
+                        النتيجة: {status.label}
+                        {difference !== 0 && ` ${formatSar(Math.abs(difference))}`}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setConfirmingApprove(false)}>
+                            إلغاء
+                        </Button>
+                        <Button
+                            onClick={() =>
+                                reconciliation &&
+                                router.post(finance.reconciliation.approve(reconciliation.id).url, {}, { preserveScroll: true, onFinish: () => setConfirmingApprove(false) })
+                            }
+                        >
+                            تأكيد الاعتماد
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }
