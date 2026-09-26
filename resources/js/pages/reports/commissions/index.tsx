@@ -19,7 +19,7 @@ import {
     type CommissionReportSummaryRow,
     type CommissionReportTotals,
 } from '@/types/report';
-import { Banknote, Handshake, Package, TrendingUp, Wallet } from 'lucide-react';
+import { Banknote, Coins, Handshake, Package, Receipt, TrendingUp, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير العمولات', href: '/reports/commissions' }];
@@ -41,10 +41,19 @@ interface Props {
 
 const dayColumns: ColumnDef<CommissionReportDayRow>[] = [
     { key: 'date', header: 'التاريخ', className: 'font-medium', cell: (row) => formatDate(row.date) },
+    { key: 'invoiceCount', header: 'عدد الفواتير', cell: (row) => row.invoiceCount },
     { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
+    { key: 'revenue', header: 'الإجمالي', className: 'font-semibold', cell: (row) => formatCurrency(row.revenue) },
+    { key: 'vat', header: 'الضريبة', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.vat) },
     { key: 'earned', header: 'عمولات الموظفين', cell: (row) => formatCurrency(row.earned) },
     { key: 'lineCommission', header: 'عمولات خارجية', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
     { key: 'materials', header: 'تكلفة الخامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.materials) },
+    {
+        key: 'afterMaterials',
+        header: <span title="الإجمالي − تكلفة الخامات − العمولات الخارجية">الإجمالي بعد تكلفة الخامات</span>,
+        className: 'font-semibold',
+        cell: (row) => formatCurrency(row.afterMaterials),
+    },
     { key: 'paid', header: 'المصروف', className: 'text-green-600', cell: (row) => formatCurrency(row.paid) },
     { key: 'pending', header: 'المستحق', className: 'text-amber-600', cell: (row) => formatCurrency(row.pending) },
 ];
@@ -208,10 +217,16 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                 <ActiveFilterChips chips={chips} />
 
                 {/* Summary cards */}
-                {/* Six tracks only once the window is wider than the sidebar plus
-                    six readable cards — at lg the content column is ~712px and the
-                    currency figures overflow their tracks. */}
-                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                {/* Seven cards: four tracks at xl, all seven only on very wide
+                    screens — narrower tracks let the currency figures overflow. */}
+                <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
+                    <SummaryCard icon={<Coins className="size-4" />} label="إجمالي الإيرادات" value={formatCurrency(totals.revenue)} />
+                    <SummaryCard
+                        icon={<Receipt className="size-4" />}
+                        label="إجمالي الضريبة"
+                        value={formatCurrency(totals.vat)}
+                        valueClass="text-muted-foreground"
+                    />
                     <SummaryCard icon={<TrendingUp className="size-4" />} label="عمولات الموظفين" value={formatCurrency(totals.earned)} />
                     <SummaryCard
                         icon={<Banknote className="size-4" />}
@@ -256,10 +271,14 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                                 <TableRow>
                                     <TableCell />
                                     <TableCell className="font-bold">الإجمالي</TableCell>
+                                    <TableCell className="font-bold">{totals.invoiceCount}</TableCell>
                                     <TableCell className="font-bold">{totals.lineCount}</TableCell>
+                                    <TableCell className="font-bold">{formatCurrency(totals.revenue)}</TableCell>
+                                    <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.vat)}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.earned)}</TableCell>
                                     <TableCell className="font-bold text-sky-600">{formatCurrency(totals.lineCommission)}</TableCell>
                                     <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.materials)}</TableCell>
+                                    <TableCell className="font-bold">{formatCurrency(totals.afterMaterials)}</TableCell>
                                     <TableCell className="font-bold text-green-600">{formatCurrency(totals.paid)}</TableCell>
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.pending)}</TableCell>
                                 </TableRow>

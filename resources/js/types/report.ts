@@ -22,6 +22,12 @@ export interface CommissionReportDayRow {
     tahazir: number;
     lineCommission: number;
     materials: number;
+    /** تاسك 133: فواتير معتمدة بـpaid_at في اليوم — شاملة الضريبة. */
+    invoiceCount: number;
+    revenue: number;
+    vat: number;
+    /** revenue − materials − lineCommission (عمولة الموظف لا تُطرح). */
+    afterMaterials: number;
 }
 
 export interface CommissionReportLine {
@@ -52,6 +58,10 @@ export interface CommissionReportTotals {
     lineCommission: number;
     materials: number;
     lineCount: number;
+    revenue: number;
+    vat: number;
+    invoiceCount: number;
+    afterMaterials: number;
 }
 
 export interface CommissionReportFilters {
