@@ -37,7 +37,7 @@ class ReturnServiceInvoiceAction
         private readonly ConsumeServiceMaterialsAction $consumeMaterials,
     ) {}
 
-    public function handle(ServiceInvoice $invoice, User $actor, ?string $reason = null): ServiceInvoice
+    public function handle(ServiceInvoice $invoice, User $actor, ?string $reason = null, ?int $paymentMethodId = null): ServiceInvoice
     {
         if ($invoice->status === InvoiceStatusEnum::RETURNED) {
             throw ValidationException::withMessages([
@@ -57,7 +57,7 @@ class ReturnServiceInvoiceAction
             ]);
         }
 
-        return DB::transaction(function () use ($invoice, $actor, $reason) {
+        return DB::transaction(function () use ($invoice, $actor, $reason, $paymentMethodId) {
             $wasSettled = $invoice->status === InvoiceStatusEnum::PAID;
             $refundable = $this->refundableCollected($invoice);
 
@@ -73,6 +73,7 @@ class ReturnServiceInvoiceAction
                     // الخامات تعود مع هذا المرتجع، فيحمل صفُّه راية عكس المخزون
                     // ولا يُعرض إرجاعها ثانيةً على الفاتورة نفسها.
                     'reverse_stock' => true,
+                    'payment_method_id' => $paymentMethodId,
                 ], $actor);
             } else {
                 // المرتجع الكامل يحرّر سعة الكوبون بنفسه، فلا تُردُّ مرتين. ولا
@@ -104,7 +105,7 @@ class ReturnServiceInvoiceAction
      * أو مجموع دفعاتها إن كان قد قُبض عليها عربون — منقوصاً منه ما سبق ردّه.
      * الفاتورة الآجلة لم يُقبض منها شيء فلا يُردّ عنها شيء.
      */
-    private function refundableCollected(ServiceInvoice $invoice): float
+    public function refundableCollected(ServiceInvoice $invoice): float
     {
         $alreadyRefunded = (float) Refund::query()
             ->where('invoice_type', $invoice->getMorphClass())

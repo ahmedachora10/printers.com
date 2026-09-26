@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/utils';
 import { type InvoiceLookupResult } from '@/types/refund';
 import { useForm } from '@inertiajs/react';
@@ -36,6 +37,7 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
         amount: '' as number | string,
         reason: '',
         reverse_stock: false as boolean,
+        payment_method_id: '' as string,
     });
 
     // When opened for a specific invoice, resolve it immediately.
@@ -180,6 +182,24 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
                                     dir="ltr"
                                 />
                                 <InputError message={errors.amount} />
+                            </div>
+
+                            {/* تاسك 131: منها يُطرح المرتجع في تقرير المبيعات يوم تنفيذه. */}
+                            <div className="space-y-1">
+                                <Label htmlFor="refund-method">طريقة ردّ المبلغ</Label>
+                                <Select value={data.payment_method_id} onValueChange={(v) => setData('payment_method_id', v)}>
+                                    <SelectTrigger id="refund-method">
+                                        <SelectValue placeholder="نقداً أو تحويل بنكي…" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {invoice.paymentMethods.map((m) => (
+                                            <SelectItem key={m.id} value={String(m.id)}>
+                                                {m.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <InputError message={errors.payment_method_id} />
                             </div>
 
                             <div className="space-y-1">

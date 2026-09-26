@@ -32,7 +32,7 @@ class RefundController extends Controller
         $branchId = Auth::user()->roleName->isSuperAdmin() ? null : Auth::user()->branchId;
 
         $refunds = Refund::query()
-            ->with(['invoice', 'user:id,name'])
+            ->with(['invoice', 'user:id,name', 'paymentMethod:id,name'])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->when($request->filled('source_type'), fn ($q) => $q->where('source_type', $request->input('source_type')))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('created_at', '>=', $request->input('date_from')))
@@ -165,6 +165,9 @@ class RefundController extends Controller
                     'hasProducts' => $hasProducts,
                     'hasMaterials' => $hasMaterials,
                     'stockReversed' => $stockReversed,
+                    // تاسك 131: طرق فرع الفاتورة لاختيار طريقة ردّ المبلغ.
+                    'paymentMethods' => $invoice->branch?->enabledPaymentMethods()
+                        ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name]) ?? [],
                 ],
             ]);
         }

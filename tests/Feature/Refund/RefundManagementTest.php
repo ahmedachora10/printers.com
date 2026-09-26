@@ -145,6 +145,7 @@ describe('Refunds', function () {
             ->post(route('refunds.store'), [
                 'source_type' => 'product',
                 'invoice_id' => $invoice->id,
+                'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
                 'amount' => 10,
                 'reason' => 'test',
             ])->assertForbidden();
@@ -163,6 +164,7 @@ describe('Refunds', function () {
             ->post(route('refunds.store'), [
                 'source_type' => 'product',
                 'invoice_id' => $invoice->id,
+                'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
                 'amount' => 10,
                 'reason' => 'بعد الاعتماد',
             ])->assertForbidden();
@@ -188,6 +190,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 10,
             'reason' => 'قرار إداري',
         ])->assertRedirect();
@@ -213,6 +216,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => $invoice->total_amount,
             'reason' => 'منتج تالف',
             'reverse_stock' => true,
@@ -240,6 +244,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 10,
             'reason' => 'استرداد جزئي',
         ])->assertRedirect();
@@ -257,6 +262,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 575, // half of 1150
             'reason' => 'إلغاء الخدمة',
         ])->assertRedirect();
@@ -282,6 +288,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 1150,
             'reason' => 'مرتجع كامل',
         ])->assertRedirect();
@@ -297,6 +304,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => (float) $invoice->total_amount + 100,
             'reason' => 'مبالغة',
         ])->assertSessionHasErrors('amount');
@@ -310,6 +318,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 100,
             'reason' => 'جزئي أول',
         ])->assertRedirect();
@@ -317,6 +326,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 50,
             'reason' => 'جزئي ثانٍ',
         ])->assertSessionHasErrors('amount');
@@ -331,6 +341,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 10,
             'reason' => 'ملغاة',
         ])->assertSessionHasErrors('invoice_id');
@@ -342,6 +353,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 10,
             'reason' => 'أول',
             'reverse_stock' => true,
@@ -350,6 +362,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 5,
             'reason' => 'ثانٍ',
             'reverse_stock' => true,
@@ -391,6 +404,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 50,
             'reason' => 'استرداد جزئي',
         ])->assertRedirect();
@@ -412,6 +426,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => $invoice->total_amount,
             'reason' => 'مرتجع كامل',
         ])->assertRedirect();
@@ -436,6 +451,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 115,
             'reason' => 'مرتجع كامل',
         ])->assertRedirect();
@@ -449,6 +465,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 15,
             'reason' => 'مرتجع جزئي',
         ])->assertRedirect();
@@ -462,6 +479,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 15,
             'reason' => 'الدفعة الأولى',
         ])->assertRedirect();
@@ -471,6 +489,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 100,
             'reason' => 'الباقي',
         ])->assertRedirect();
@@ -485,6 +504,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 10,
             'reason' => 'مرتجع ثانٍ',
         ])->assertSessionHasErrors('invoice_id');
@@ -501,6 +521,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 100,
             'reason' => 'ردّ نقدي على فاتورة آجلة',
         ])->assertSessionHasErrors('invoice_id');
@@ -522,6 +543,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 500,
             'reason' => 'أكثر من المقبوض',
         ])->assertSessionHasErrors('amount');
@@ -532,6 +554,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 300,
             'reason' => 'ردّ العربون',
         ])->assertRedirect();
@@ -550,6 +573,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 50,
             'reason' => 'جزئي — لا يحرّر الكوبون',
         ])->assertRedirect();
@@ -559,6 +583,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 65,
             'reason' => 'إتمام المرتجع',
         ])->assertRedirect();
@@ -573,7 +598,7 @@ describe('Refunds', function () {
         $invoice->update(['coupon_id' => $coupon->id]);
 
         $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'العميل ألغى الطلب'])
+            ->post(route('pos.service.return', $invoice), ['reason' => 'العميل ألغى الطلب', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertRedirect();
 
         expect($coupon->refresh()->used_count)->toBe(2)
@@ -588,6 +613,7 @@ describe('Refunds', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'product',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 15,
             'reason' => 'مرتجع جزئي',
         ])->assertRedirect();

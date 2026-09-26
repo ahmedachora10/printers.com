@@ -172,7 +172,7 @@ describe('تقرير استهلاك الخامات', function () {
         $invoice = reportInvoice($service, 3);
 
         $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار'])
+            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertRedirect();
 
         $this->actingAs($this->branchAdmin)
@@ -291,6 +291,7 @@ describe('تقرير استهلاك الخامات', function () {
             ->post(route('refunds.store'), [
                 'source_type' => 'product',
                 'invoice_id' => $invoice->id,
+                'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
                 'amount' => $invoice->total_amount,
                 'reason' => 'اختبار',
                 'reverse_stock' => true,

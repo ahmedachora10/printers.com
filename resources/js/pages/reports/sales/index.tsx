@@ -428,6 +428,13 @@ function PaymentMethodCard({
         { key: 'name', header: 'طريقة الدفع', className: 'font-medium', cell: (row) => row.methodName },
         { key: 'count', header: 'عدد الفواتير', cell: (row) => row.count },
         { key: 'total', header: 'الإجمالي', className: 'font-medium', cell: (row) => formatCurrency(row.total) },
+        // تاسك 131: ما رُدّ بهذه الطريقة في الفترة — مطروحٌ أصلاً من «الإجمالي».
+        {
+            key: 'refunds',
+            header: <HintedHeader label="المرتجعات" hint="ما رُدّ للعملاء بهذه الطريقة يوم تنفيذ الاسترجاع — والإجمالي بعد طرحها." />,
+            className: 'text-rose-600',
+            cell: (row) => (row.refunds > 0 ? formatCurrency(row.refunds) : '—'),
+        },
         {
             key: 'expenses',
             header: 'مصروفات نقد',
@@ -484,6 +491,7 @@ function PaymentMethodCard({
                             <TableCell className="font-bold">الإجمالي</TableCell>
                             <TableCell />
                             <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
+                            <TableCell className="font-bold text-rose-600">{totals.refunds > 0 ? formatCurrency(totals.refunds) : '—'}</TableCell>
                             <TableCell className="font-bold text-amber-600">{formatCurrency(totals.cashExpenses)}</TableCell>
                             <TableCell className="font-bold text-amber-600">{formatCurrency(totals.transferExpenses)}</TableCell>
                             <TableCell className="font-bold">

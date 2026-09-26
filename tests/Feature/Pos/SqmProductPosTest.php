@@ -265,6 +265,7 @@ describe('Products priced by the square metre (تاسك 51)', function () {
             ->post(route('refunds.store'), [
                 'source_type' => 'product',
                 'invoice_id' => $invoice->id,
+                'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
                 'amount' => (float) $invoice->total_amount,
                 'reason' => 'العميل ألغى الطلب',
                 'reverse_stock' => true,

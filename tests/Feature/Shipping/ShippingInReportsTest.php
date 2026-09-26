@@ -99,6 +99,7 @@ describe('Shipping stands apart in the reports', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 120,
             'reason' => 'الطلب لم يُشحن',
             'refund_shipping' => true,
@@ -115,6 +116,7 @@ describe('Shipping stands apart in the reports', function () {
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
             'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
             'amount' => 40,
             'reason' => 'مرتجع بضاعة — السائق ذهب فعلاً',
         ])->assertRedirect();
