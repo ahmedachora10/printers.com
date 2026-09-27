@@ -417,7 +417,9 @@ describe('Refunds', function () {
                 ->where('invoice.isFullyRefunded', false)
                 ->where('invoice.canRefund', true)
                 ->has('invoice.refunds', 1)
-                ->where('invoice.refunds.0.amount', 50));
+                ->where('invoice.refunds.0.amount', 50)
+                ->where('invoice.refunds.0.paymentMethodName', Refund::sole()->paymentMethod->name)
+                ->where('invoice.userName', $this->admin->name));
     });
 
     it('marks an invoice fully refunded and disables further refunds', function () {

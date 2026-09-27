@@ -248,6 +248,8 @@ class InvoiceResource extends JsonResource
                     'reason' => $refund->reason,
                     'stockReversed' => (bool) $refund->stock_reversed,
                     'userName' => $refund->user?->name,
+                    // تاسك 140: طريقة ردّ المبلغ — null للمرتجعات السابقة لتاسك 131.
+                    'paymentMethodName' => $refund->paymentMethod?->name,
                     'createdAt' => $refund->created_at?->toIso8601String(),
                 ])->values()->all()),
             'branch' => [

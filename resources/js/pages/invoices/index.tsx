@@ -423,8 +423,16 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'paymentMethodName',
                 header: 'طريقة الدفع',
-                className: 'whitespace-nowrap',
-                cell: (item) => item.paymentMethodName ?? <span className="text-muted-foreground">—</span>,
+                // تاسك 136: الدفعات المتعددة تضمّ طرقها بـ«+»، فيلتفّ النص على سطرين بدل أن يمدّ الجدول.
+                className: 'min-w-40 max-w-56 whitespace-normal',
+                cell: (item) =>
+                    item.paymentMethodName ? (
+                        <span className="line-clamp-2 leading-snug" title={item.paymentMethodName}>
+                            {item.paymentMethodName}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground">—</span>
+                    ),
             },
             {
                 key: 'remainingAmount',

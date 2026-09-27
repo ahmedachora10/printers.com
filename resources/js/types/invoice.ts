@@ -43,6 +43,7 @@ export interface InvoiceRefund {
     amount: number;
     reason: string;
     stockReversed: boolean;
+    paymentMethodName: string | null;
     userName: string | null;
     createdAt: string | null;
 }

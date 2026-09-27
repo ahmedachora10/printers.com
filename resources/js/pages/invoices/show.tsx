@@ -571,6 +571,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                             <span className="text-destructive font-semibold tabular-nums" dir="ltr">
                                                 −{formatCurrency(refund.amount)}
                                             </span>
+                                            <span className="text-muted-foreground">{refund.paymentMethodName ?? '—'}</span>
                                             <span className="text-muted-foreground">{refund.userName ?? '—'}</span>
                                         </div>
                                     </div>
@@ -744,6 +745,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                 </>
                             )}
                             {invoice.paidAt && <MetaRow label="تاريخ الدفع" value={formatDateTime(invoice.paidAt)} />}
+                            <MetaRow label="الموظف" value={invoice.userName ?? '—'} />
                             {invoice.employeeCommission !== null && (
                                 <MetaRow label="عمولة الموظف" value={<span dir="ltr">{formatCurrency(invoice.employeeCommission)}</span>} />
                             )}
