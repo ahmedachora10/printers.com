@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
-import { cn, formatSar } from '@/lib/utils';
+import { cn, formatSar, shiftDay } from '@/lib/utils';
 import finance from '@/routes/finance';
 import { type BreadcrumbItem, type Paginated } from '@/types';
 import { Head, router, useForm } from '@inertiajs/react';
@@ -64,13 +64,6 @@ interface Props {
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'مطابقة الحسابات', href: finance.reconciliation.index().url }];
 
 const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-
-/** YYYY-MM-DD ± أيام، بلا انزياح المنطقة الزمنية. */
-const shiftDay = (date: string, days: number) => {
-    const d = new Date(`${date}T00:00:00Z`);
-    d.setUTCDate(d.getUTCDate() + days);
-    return d.toISOString().slice(0, 10);
-};
 
 /** تاسك 121 — مساوٍ مطابق، أقل عجز، أكبر زيادة. */
 function result(difference: number) {
