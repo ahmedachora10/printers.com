@@ -171,9 +171,7 @@ describe('تقرير استهلاك الخامات', function () {
 
         $invoice = reportInvoice($service, 3);
 
-        $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
-            ->assertRedirect();
+        returnServiceInvoice($invoice, ['reason' => 'اختبار'])->assertSessionHasNoErrors();
 
         $this->actingAs($this->branchAdmin)
             ->get(route('reports.materials'))

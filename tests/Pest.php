@@ -1,9 +1,11 @@
 <?php
 
+use App\Models\InvoiceReturnRequest;
 use App\Models\PaymentMethod;
 use App\Models\ServiceInvoice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 /*
@@ -122,4 +124,29 @@ function payable(ServiceInvoice $invoice): ServiceInvoice
     $invoice->forceFill(['payment_method_id' => $method->id])->save();
 
     return $invoice->refresh();
+}
+
+/**
+ * تاسك 135 — استرجاع الموظف لفاتورته. ما حُصِّل منه مالٌ يرفع طلباً فقط، فتُكمل
+ * هذه الدالة دورته: يعتمده مدير الفرع (مالك الفرع) بطريقة ردٍّ من طرق فرعها.
+ * تُرجع استجابة الاعتماد — أو استجابة الموظف متى لم يُرفع طلب — ويعود
+ * الموظف هو المستخدم الفاعل بعدها.
+ */
+function returnServiceInvoice(ServiceInvoice $invoice, array $data = []): TestResponse
+{
+    $employee = User::findOrFail($invoice->user_id);
+    $response = test()->actingAs($employee)->post(route('pos.service.return', $invoice), $data);
+
+    $request = InvoiceReturnRequest::query()
+        ->where('service_invoice_id', $invoice->id)
+        ->where('status', 'pending')
+        ->first();
+
+    if ($request !== null) {
+        $response = test()->actingAs($invoice->branch->owner)
+            ->post(route('refunds.requests.approve', $request), ['payment_method_id' => paymentMethodId($invoice->branch_id)]);
+        test()->actingAs($employee);
+    }
+
+    return $response;
 }

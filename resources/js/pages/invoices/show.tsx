@@ -135,7 +135,6 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     const [approving, setApproving] = useState(false);
     const [returnOpen, setReturnOpen] = useState(false);
     const [returnReason, setReturnReason] = useState('');
-    const [returnMethodId, setReturnMethodId] = useState('');
     const [returning, setReturning] = useState(false);
     const [deliverOpen, setDeliverOpen] = useState(false);
     const [delivering, setDelivering] = useState(false);
@@ -290,8 +289,13 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
         setReturning(true);
         router.post(
             posService.return(invoice.id).url,
-            { reason: returnReason.trim(), payment_method_id: returnMethodId || null },
+            { reason: returnReason.trim() },
             {
+                preserveScroll: true,
+                onSuccess: () => {
+                    setReturnOpen(false);
+                    toast.success(invoice.refundableRemaining > 0 ? 'تم رفع طلب الاسترجاع — تحت المراجعة.' : 'تم استرجاع الفاتورة.');
+                },
                 onError: (e) => {
                     toast.error((Object.values(e)[0] as string) ?? 'تعذّر استرجاع الفاتورة.');
                     setReturning(false);
@@ -327,6 +331,11 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                             </Badge>
                             <Badge variant="secondary">{invoice.typeLabel}</Badge>
                             <Badge variant="outline">{invoiceDocumentTitle(invoice)}</Badge>
+                            {invoice.returnRequest?.status === 'pending' && (
+                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                                    طلب استرجاع — {invoice.returnRequest.statusLabel}
+                                </Badge>
+                            )}
                             {invoice.isFullyRefunded && invoice.status !== 'returned' && (
                                 <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
                                     مُرتجعة
@@ -417,6 +426,20 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                         )}
                     </div>
                 </div>
+
+                {/* تاسك 135: سبب رفض طلب الاسترجاع يصل الموظف. */}
+                {invoice.returnRequest?.status === 'rejected' && invoice.status !== 'returned' && (
+                    <div
+                        role="alert"
+                        className="mb-6 flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+                    >
+                        <Undo2 className="mt-0.5 size-4 shrink-0" />
+                        <div className="space-y-1">
+                            <p className="text-sm font-semibold">رُفض طلب الاسترجاع</p>
+                            <p className="text-sm whitespace-pre-line">{invoice.returnRequest.rejectionReason}</p>
+                        </div>
+                    </div>
+                )}
 
                 {/* Why the reviewer rejected the invoice — shown to everyone who may
                     view it, the employee who raised it above all (تاسك 18). */}
@@ -1001,13 +1024,19 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
             <Dialog open={returnOpen} onOpenChange={(open) => !open && !returning && setReturnOpen(false)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>استرجاع الفاتورة</DialogTitle>
+                        <DialogTitle>{invoice.refundableRemaining > 0 ? 'طلب استرجاع الفاتورة' : 'استرجاع الفاتورة'}</DialogTitle>
                         <DialogDescription>
-                            تبقى الفاتورة {invoice.invoiceNumber} ظاهرة في القوائم بحالة «مرتجع» ولا تُحذف
-                            {invoice.status === 'paid'
-                                ? '، ويُسجَّل لها مرتجع بكامل المتبقي مع عكس العمولة غير المدفوعة وسحب نقاط الولاء المكتسبة واسترجاع أي نقاط مستبدلة.'
-                                : '، مع عكس العمولة غير المدفوعة واسترجاع أي نقاط مستبدلة.'}{' '}
-                            لا يمكن التراجع عن هذا الإجراء.
+                            {invoice.refundableRemaining > 0 ? (
+                                <>
+                                    حُصِّل من الفاتورة {formatCurrency(invoice.refundableRemaining)}، فيُرفع طلب استرجاع يعتمده المحاسب أو
+                                    الإدارة ويحدّد طريقة ردّ المبلغ للعميل. لا تتغيّر الفاتورة حتى يُعتمد الطلب.
+                                </>
+                            ) : (
+                                <>
+                                    تبقى الفاتورة {invoice.invoiceNumber} ظاهرة في القوائم بحالة «مرتجع» ولا تُحذف، مع عكس العمولة
+                                    غير المدفوعة واسترجاع أي نقاط مستبدلة. لا يمكن التراجع عن هذا الإجراء.
+                                </>
+                            )}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-1">
@@ -1024,26 +1053,6 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                             className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                         />
                     </div>
-                    {/* تاسك 131: ما حُصِّل يُردّ بمرتجع، فيحتاج طريقة ردّه كمرتجع المحاسب. */}
-                    {invoice.refundableRemaining > 0 && (
-                        <div className="space-y-1">
-                            <label htmlFor="invoice-return-method" className="text-sm font-medium">
-                                طريقة ردّ {formatCurrency(invoice.refundableRemaining)} للعميل
-                            </label>
-                            <Select value={returnMethodId} onValueChange={setReturnMethodId} disabled={returning}>
-                                <SelectTrigger id="invoice-return-method">
-                                    <SelectValue placeholder="نقداً أو تحويل بنكي…" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {paymentMethodOptions.map((m) => (
-                                        <SelectItem key={m.id} value={String(m.id)}>
-                                            {m.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
-                    )}
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setReturnOpen(false)} disabled={returning}>
                             تراجع
@@ -1051,9 +1060,9 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                         <Button
                             variant="destructive"
                             onClick={confirmReturn}
-                            disabled={returning || (invoice.refundableRemaining > 0 && !returnMethodId)}
+                            disabled={returning}
                         >
-                            <Undo2 className="size-4" /> تأكيد الاسترجاع
+                            <Undo2 className="size-4" /> {invoice.refundableRemaining > 0 ? 'رفع الطلب' : 'تأكيد الاسترجاع'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

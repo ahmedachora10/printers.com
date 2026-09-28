@@ -241,9 +241,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
         expect($product->refresh()->current_stock)->toEqual(94.0);
 
         // الاسترجاع صلاحية الموظف صاحب الفاتورة وحده (ServiceInvoicePolicy).
-        $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
-            ->assertRedirect();
+        returnServiceInvoice($invoice, ['reason' => 'اختبار'])->assertSessionHasNoErrors();
 
         expect($product->refresh()->current_stock)->toEqual(100.0);
 
@@ -265,9 +263,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
         $material->update(['qty_per_unit' => 10]);
 
         // الاسترجاع صلاحية الموظف صاحب الفاتورة وحده (ServiceInvoicePolicy).
-        $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
-            ->assertRedirect();
+        returnServiceInvoice($invoice, ['reason' => 'اختبار'])->assertSessionHasNoErrors();
 
         expect($product->refresh()->current_stock)->toEqual(100.0);
     });
@@ -281,9 +277,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
         $invoice = ServiceInvoice::firstOrFail();
 
         // الاسترجاع صلاحية الموظف صاحب الفاتورة وحده (ServiceInvoicePolicy).
-        $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
-            ->assertRedirect();
+        returnServiceInvoice($invoice, ['reason' => 'اختبار'])->assertSessionHasNoErrors();
 
         expect($product->refresh()->current_stock)->toEqual(100.0)
             ->and(StockMovement::where('reference_type', ServiceInvoice::class)->count())->toBe(0);
@@ -388,9 +382,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
 
         expect($product->refresh()->current_stock)->toEqual(95.0);
 
-        $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
-            ->assertRedirect();
+        returnServiceInvoice($invoice, ['reason' => 'اختبار'])->assertSessionHasNoErrors();
 
         expect($product->refresh()->current_stock)->toEqual(100.0);
     });
@@ -505,9 +497,7 @@ describe('Service materials drawn from stock (تاسك 50 + شقّ المخزو�
         expect(StockMovement::where('type', StockMovementTypeEnum::SALE_OUT)->firstOrFail()->service_invoice_line_id)
             ->toBe($lineId);
 
-        $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'اختبار', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
-            ->assertRedirect();
+        returnServiceInvoice($invoice, ['reason' => 'اختبار'])->assertSessionHasNoErrors();
 
         // حركة الإرجاع تحمل النسبة نفسها، فيتوازن التقرير على مستوى الخدمة.
         expect(StockMovement::where('type', StockMovementTypeEnum::RETURN_IN)->firstOrFail()->service_invoice_line_id)

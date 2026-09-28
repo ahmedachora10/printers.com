@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Agent\ListBranchAgentsAction;
 use App\Actions\Customer\UpdateCustomerAction;
+use App\Actions\InvoiceReturnRequest\CreateInvoiceReturnRequestAction;
 use App\Actions\Loyalty\ResolveAvailablePointsAction;
 use App\Actions\ServiceInvoice\AttachServiceInvoiceCustomerAction;
 use App\Actions\ServiceInvoice\CalculateServiceInvoiceAction;
@@ -38,6 +39,7 @@ use App\Models\User;
 use App\Models\UserFavoriteService;
 use App\Models\UserService;
 use App\Notifications\DueInvoiceNotification;
+use App\Notifications\ReturnRequestNotification;
 use App\Notifications\ServiceInvoiceReviewedNotification;
 use App\Support\BranchNotifiables;
 use Illuminate\Http\RedirectResponse;
@@ -262,11 +264,29 @@ class ServiceInvoiceController extends Controller
      * and — for a settled invoice — an M14 refund is booked. Only the invoice's
      * owner may do this, never an accountant.
      */
-    public function returnInvoice(ReturnServiceInvoiceRequest $request, ServiceInvoice $invoice, ReturnServiceInvoiceAction $action): RedirectResponse
-    {
+    public function returnInvoice(
+        ReturnServiceInvoiceRequest $request,
+        ServiceInvoice $invoice,
+        ReturnServiceInvoiceAction $action,
+        CreateInvoiceReturnRequestAction $createRequest,
+    ): RedirectResponse {
         Gate::authorize('returnInvoice', $invoice);
 
-        $action->handle($invoice, Auth::user(), $request->validated('reason'), $request->validated('payment_method_id'));
+        // تاسك 135: ما حُصِّل منه مالٌ لا يُردّ إلا بطلبٍ يعتمده المحاسب أو الإدارة؛
+        // الآجلة بلا تحصيل تُسترجع فوراً كما كانت.
+        if ($action->refundableCollected($invoice) > 0) {
+            $returnRequest = $createRequest->handle($invoice, Auth::user(), $request->validated('reason'));
+
+            Notification::send(
+                BranchNotifiables::forBranch($invoice->branch_id, [Roles::BRANCH_ADMIN->value, Roles::ACCOUNTANT->value]),
+                new ReturnRequestNotification($returnRequest, $invoice->invoice_number),
+            );
+
+            return back(fallback: route('invoices.index'))
+                ->with('success', "تم رفع طلب استرجاع الفاتورة {$invoice->invoice_number} — تحت المراجعة");
+        }
+
+        $action->handle($invoice, Auth::user(), $request->validated('reason'));
 
         return to_route('invoices.index')
             ->with('success', "تم استرجاع الفاتورة {$invoice->invoice_number} بنجاح");

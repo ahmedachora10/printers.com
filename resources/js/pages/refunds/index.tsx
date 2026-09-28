@@ -1,4 +1,5 @@
 import RefundFormModal from '@/components/refunds/refund-form-modal';
+import RefundTabs from '@/components/refunds/refund-tabs';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
@@ -146,9 +147,8 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">المرتجعات</h1>
-                </div>
+                <h1 className="mb-4 text-2xl font-bold">المرتجعات</h1>
+                <RefundTabs active="refunds" />
 
                 <div className="mb-6">
                     <FilterBar

@@ -335,9 +335,7 @@ describe('Service invoice edit/return', function () {
 
         expect((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(2.61);
 
-        $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'العميل ألغى الطلب', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
-            ->assertRedirect(route('invoices.index'));
+        returnServiceInvoice($invoice, ['reason' => 'العميل ألغى الطلب'])->assertSessionHasNoErrors();
 
         $invoice->refresh();
         $refund = Refund::where('invoice_id', $invoice->id)->where('invoice_type', $invoice->getMorphClass())->sole();
@@ -346,22 +344,25 @@ describe('Service invoice edit/return', function () {
             ->and($invoice->status->value)->toBe('returned')
             ->and((float) $refund->amount)->toBe(30.00)
             ->and($refund->reason)->toBe('العميل ألغى الطلب')
-            ->and($refund->user_id)->toBe($this->employee->id)
+            // تاسك 135: المرتجع باسم من اعتمد الطلب وردّ المبلغ.
+            ->and($refund->user_id)->toBe($this->branchAdmin->id)
             // The reversal is a new negative row — the ledger is never mutated.
             ->and(CommissionLedger::where('user_id', $this->employee->id)->count())->toBe(2)
             ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(0.00)
             ->and($refund->payment_method_id)->toBe(paymentMethodId($invoice->branch_id));
     });
 
-    // تاسك 131: ما حُصِّل يُردّ بمرتجع، فلا استرجاع بلا طريقة ردّ.
-    it('requires the refund method when returning an invoice that collected money', function () {
+    // تاسك 135: ما حُصِّل منه مالٌ لا يُرجعه الموظف بنفسه — يرفع طلباً فقط.
+    it('only raises a return request when the employee returns an invoice that collected money', function () {
         $invoice = makeOwnedDueInvoice();
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
 
         $this->actingAs($this->employee)->post(route('pos.service.return', $invoice))
-            ->assertSessionHasErrors('payment_method_id');
+            ->assertSessionHasNoErrors();
 
-        expect($invoice->refresh()->status->value)->toBe('paid');
+        expect($invoice->refresh()->status->value)->toBe('paid')
+            ->and(Refund::where('invoice_id', $invoice->id)->count())->toBe(0)
+            ->and($invoice->returnRequests()->sole()->status->value)->toBe('pending');
     });
 
     it('refunds only the remainder when the invoice was already partially refunded', function () {
@@ -376,8 +377,7 @@ describe('Service invoice edit/return', function () {
             'reason' => 'مرتجع جزئي',
         ])->assertSessionHasNoErrors();
 
-        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])
-            ->assertRedirect(route('invoices.index'));
+        returnServiceInvoice($invoice)->assertSessionHasNoErrors();
 
         $invoice->refresh();
 
@@ -418,8 +418,7 @@ describe('Service invoice edit/return', function () {
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
         expect($customer->refresh()->points_balance)->toBe(26);
 
-        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])
-            ->assertRedirect(route('invoices.index'));
+        returnServiceInvoice($invoice)->assertSessionHasNoErrors();
 
         $customer->refresh();
         expect($invoice->refresh()->status->value)->toBe('returned')
@@ -462,7 +461,7 @@ describe('Service invoice edit/return', function () {
         expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
             ->and((float) $customer->cumulative_spend)->toBe(30.00);
 
-        $this->actingAs($this->employee)->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)]);
+        returnServiceInvoice($invoice);
 
         // والإرجاع يعيد الإنفاق إلى الصفر فتسقط الفئة معه.
         expect($customer->refresh()->tier)->toBe(CustomerTierEnum::None)

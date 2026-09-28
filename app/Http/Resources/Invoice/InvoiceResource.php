@@ -241,6 +241,14 @@ class InvoiceResource extends JsonResource
             'canEditCustomer' => $canEditCustomer,
             'canEditPaymentMethod' => $canEditPaymentMethod,
             'canReturn' => $canReturn,
+            // تاسك 135: آخر طلب استرجاع للموظف — شارة الحالة وسبب الرفض.
+            'returnRequest' => $isServiceInvoice && ($returnRequest = $this->resource->returnRequests()->first())
+                ? [
+                    'status' => $returnRequest->status->value,
+                    'statusLabel' => $returnRequest->status->label(),
+                    'rejectionReason' => $returnRequest->rejection_reason,
+                ]
+                : null,
             'refunds' => $this->whenLoaded('refunds', fn () => $this->refunds
                 ->map(fn (Refund $refund) => [
                     'id' => $refund->id,

@@ -599,9 +599,7 @@ describe('Refunds', function () {
         $invoice = refundableServiceInvoice($this->branch, $this->employee);
         $invoice->update(['coupon_id' => $coupon->id]);
 
-        $this->actingAs($this->employee)
-            ->post(route('pos.service.return', $invoice), ['reason' => 'العميل ألغى الطلب', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
-            ->assertRedirect();
+        returnServiceInvoice($invoice, ['reason' => 'العميل ألغى الطلب'])->assertSessionHasNoErrors();
 
         expect($coupon->refresh()->used_count)->toBe(2)
             ->and($invoice->refresh()->status)->toBe(InvoiceStatusEnum::RETURNED);

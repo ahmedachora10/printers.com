@@ -198,6 +198,8 @@ export interface Invoice {
     /** تعديل طريقة كل دفعة — لفاتورةٍ سُدّدت بدفعات (تاسك 99) */
     canEditPaymentRows: boolean;
     canReturn: boolean;
+    /** تاسك 135 — آخر طلب استرجاع للموظف على الفاتورة */
+    returnRequest: { status: 'pending' | 'completed' | 'rejected'; statusLabel: string; rejectionReason: string | null } | null;
     refunds?: InvoiceRefund[];
     branch: InvoiceBranch;
 }

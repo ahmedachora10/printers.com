@@ -39,23 +39,7 @@ class ReturnServiceInvoiceAction
 
     public function handle(ServiceInvoice $invoice, User $actor, ?string $reason = null, ?int $paymentMethodId = null): ServiceInvoice
     {
-        if ($invoice->status === InvoiceStatusEnum::RETURNED) {
-            throw ValidationException::withMessages([
-                'status' => 'الفاتورة مُرتجعة بالفعل.',
-            ]);
-        }
-
-        if ($invoice->status === InvoiceStatusEnum::CANCELLED) {
-            throw ValidationException::withMessages([
-                'status' => 'لا يمكن استرجاع فاتورة ملغاة.',
-            ]);
-        }
-
-        if ($invoice->invoiceAgents()->whereNotNull('agent_payment_id')->exists()) {
-            throw ValidationException::withMessages([
-                'invoice' => 'لا يمكن استرجاع فاتورة مُدرجة ضمن دفعة مندوب.',
-            ]);
-        }
+        $this->assertReturnable($invoice);
 
         return DB::transaction(function () use ($invoice, $actor, $reason, $paymentMethodId) {
             $wasSettled = $invoice->status === InvoiceStatusEnum::PAID;
@@ -98,6 +82,31 @@ class ReturnServiceInvoiceAction
 
             return $invoice;
         });
+    }
+
+    /**
+     * حرّاس الاسترجاع — يُفحصون أيضاً عند رفع طلب الاسترجاع (تاسك 135) حتى لا
+     * يُرفع طلبٌ لن يُعتمد.
+     */
+    public function assertReturnable(ServiceInvoice $invoice): void
+    {
+        if ($invoice->status === InvoiceStatusEnum::RETURNED) {
+            throw ValidationException::withMessages([
+                'status' => 'الفاتورة مُرتجعة بالفعل.',
+            ]);
+        }
+
+        if ($invoice->status === InvoiceStatusEnum::CANCELLED) {
+            throw ValidationException::withMessages([
+                'status' => 'لا يمكن استرجاع فاتورة ملغاة.',
+            ]);
+        }
+
+        if ($invoice->invoiceAgents()->whereNotNull('agent_payment_id')->exists()) {
+            throw ValidationException::withMessages([
+                'invoice' => 'لا يمكن استرجاع فاتورة مُدرجة ضمن دفعة مندوب.',
+            ]);
+        }
     }
 
     /**
