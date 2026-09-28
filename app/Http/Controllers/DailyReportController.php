@@ -363,16 +363,14 @@ class DailyReportController extends Controller
     {
         $rows = collect();
 
-        // تاسك 139: ضريبة الدفعة بنسبة فاتورتها (لا 15% ثابتة — الفرع قد يغيّرها).
-        $paymentVat = 'COALESCE(SUM(p.amount * i.vat_amount * 1.0 / NULLIF(i.total_amount, 0)), 0) as vat';
-
         foreach ([ProductInvoice::class, ServiceInvoice::class] as $model) {
             $table = (new $model)->getTable();
 
             $columns = [
                 DB::raw('DATE(p.paid_at) as day'),
                 DB::raw('COALESCE(SUM(p.amount), 0) as collected'),
-                DB::raw($paymentVat),
+                // تاسك 139: ضريبة الدفعة بنسبة فاتورتها (لا 15% ثابتة — الفرع قد يغيّرها).
+                DB::raw('COALESCE(SUM(p.amount * i.vat_amount * 1.0 / NULLIF(i.total_amount, 0)), 0) as vat'),
             ];
 
             $direct = [
