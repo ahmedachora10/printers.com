@@ -21,11 +21,14 @@ class ApproveInvoiceReturnRequestRequest extends FormRequest
     public function rules(): array
     {
         $invoice = $this->route('returnRequest')->invoice;
+        $refundable = app(ReturnServiceInvoiceAction::class)->refundableCollected($invoice);
 
         return [
-            'payment_method_id' => app(ReturnServiceInvoiceAction::class)->refundableCollected($invoice) > 0
+            'payment_method_id' => $refundable > 0
                 ? ['required', 'integer', Rule::in($invoice->branch?->enabledPaymentMethods()->pluck('id')->all() ?? [])]
                 : ['nullable'],
+            // مبلغٌ أقلّ مما حُصِّل = مرتجع جزئي؛ الفارغ = الاسترجاع الكامل.
+            'amount' => $refundable > 0 ? ['nullable', 'numeric', 'gt:0', "max:{$refundable}"] : ['prohibited'],
         ];
     }
 
@@ -34,6 +37,8 @@ class ApproveInvoiceReturnRequestRequest extends FormRequest
         return [
             'payment_method_id.required' => 'طريقة ردّ المبلغ مطلوبة.',
             'payment_method_id.in' => 'طريقة الردّ غير متاحة لفرع الفاتورة.',
+            'amount.gt' => 'مبلغ الردّ يجب أن يكون أكبر من صفر.',
+            'amount.max' => 'مبلغ الردّ يتجاوز ما حُصِّل من الفاتورة.',
         ];
     }
 }

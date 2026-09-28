@@ -2,7 +2,9 @@
 
 namespace App\Actions\InvoiceReturnRequest;
 
+use App\Actions\Refund\CreateRefundAction;
 use App\Actions\ServiceInvoice\ReturnServiceInvoiceAction;
+use App\Enums\InvoiceTypeEnum;
 use App\Enums\ReturnRequestStatusEnum;
 use App\Models\InvoiceReturnRequest;
 use App\Models\Refund;
@@ -16,11 +18,19 @@ use Illuminate\Support\Facades\DB;
  */
 class ApproveInvoiceReturnRequestAction
 {
-    public function __construct(private readonly ReturnServiceInvoiceAction $returnInvoice) {}
+    public function __construct(
+        private readonly ReturnServiceInvoiceAction $returnInvoice,
+        private readonly CreateRefundAction $createRefund,
+    ) {}
 
-    public function handle(InvoiceReturnRequest $request, User $actor, ?int $paymentMethodId): InvoiceReturnRequest
+    /**
+     * $amount أقلّ مما حُصِّل = مرتجع جزئي بمسار مرتجع مدير الفرع نفسه: تبقى
+     * الفاتورة قائمة وتُعكس العمولة والولاء نسبياً ولا تعود الخامات. الفارغ أو
+     * كامل المحصَّل = الاسترجاع الكامل.
+     */
+    public function handle(InvoiceReturnRequest $request, User $actor, ?int $paymentMethodId, ?float $amount = null): InvoiceReturnRequest
     {
-        return DB::transaction(function () use ($request, $actor, $paymentMethodId) {
+        return DB::transaction(function () use ($request, $actor, $paymentMethodId, $amount) {
             $request = $request->lockPending();
 
             $invoice = $request->invoice;
@@ -29,7 +39,17 @@ class ApproveInvoiceReturnRequestAction
                 ->where('invoice_id', $invoice->id);
             $lastRefundId = (int) (clone $refunds)->max('id');
 
-            $this->returnInvoice->handle($invoice, $actor, $request->reason, $paymentMethodId);
+            if ($amount !== null && round($amount, 2) < $this->returnInvoice->refundableCollected($invoice)) {
+                $this->createRefund->handle([
+                    'source_type' => InvoiceTypeEnum::SERVICE->value,
+                    'invoice_id' => $invoice->id,
+                    'amount' => $amount,
+                    'reason' => $request->reason ?: "استرجاع جزئي للفاتورة {$invoice->invoice_number}",
+                    'payment_method_id' => $paymentMethodId,
+                ], $actor);
+            } else {
+                $this->returnInvoice->handle($invoice, $actor, $request->reason, $paymentMethodId);
+            }
 
             // المرتجع الذي كتبه الاسترجاع للتو — null إن لم يبقَ ما يُردّ.
             $refundId = $refunds->where('id', '>', $lastRefundId)->value('id');

@@ -3,6 +3,7 @@ import { DataTable, TablePagination, type ColumnDef } from '@/components/data-ta
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
@@ -38,6 +39,7 @@ export default function ReturnRequestsIndex({ items, paymentMethods, statuses, f
     const [approving, setApproving] = useState<ReturnRequestItem | null>(null);
     const [rejecting, setRejecting] = useState<ReturnRequestItem | null>(null);
     const [methodId, setMethodId] = useState('');
+    const [amount, setAmount] = useState('');
     const [rejectionReason, setRejectionReason] = useState('');
     const [processing, setProcessing] = useState(false);
 
@@ -45,7 +47,13 @@ export default function ReturnRequestsIndex({ items, paymentMethods, statuses, f
         setApproving(null);
         setRejecting(null);
         setMethodId('');
+        setAmount('');
         setRejectionReason('');
+    }
+
+    function startApproving(item: ReturnRequestItem) {
+        setApproving(item);
+        setAmount(item.amount > 0 ? String(item.amount) : '');
     }
 
     function submit(url: string, data: Record<string, string | null>, success: string) {
@@ -125,7 +133,7 @@ export default function ReturnRequestsIndex({ items, paymentMethods, statuses, f
                 cell: (item) =>
                     item.canDecide && (
                         <div className="flex gap-2">
-                            <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setApproving(item)}>
+                            <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => startApproving(item)}>
                                 <Check className="size-4" /> اعتماد
                             </Button>
                             <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setRejecting(item)}>
@@ -139,7 +147,11 @@ export default function ReturnRequestsIndex({ items, paymentMethods, statuses, f
     );
 
     const methods = approving ? (paymentMethods[approving.branchId] ?? []) : [];
-    const needsMethod = (approving?.amount ?? 0) > 0;
+    const refundable = approving?.amount ?? 0;
+    const needsMethod = refundable > 0;
+    const amountValue = Number(amount);
+    const amountValid = !needsMethod || (amountValue > 0 && amountValue <= refundable);
+    const isPartial = needsMethod && amountValid && amountValue < refundable;
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -184,10 +196,33 @@ export default function ReturnRequestsIndex({ items, paymentMethods, statuses, f
                     <DialogHeader>
                         <DialogTitle>اعتماد طلب الاسترجاع</DialogTitle>
                         <DialogDescription>
-                            تُسترجع الفاتورة {approving?.invoiceNumber} فوراً: تصير «مرتجع»، ويُسجَّل مرتجع بمبلغ {formatCurrency(approving?.amount ?? 0)}، وتُعكس
-                            العمولة غير المدفوعة ونقاط الولاء. لا يمكن التراجع عن هذا الإجراء.
+                            {isPartial
+                                ? `استرجاع جزئي: يُسجَّل مرتجع بمبلغ ${formatCurrency(amountValue)} وتبقى الفاتورة ${approving?.invoiceNumber} قائمة، وتُعكس العمولة غير المدفوعة ونقاط الولاء بنسبة المبلغ. يُغلق الطلب بعد الاعتماد.`
+                                : `تُسترجع الفاتورة ${approving?.invoiceNumber} فوراً: تصير «مرتجع»، ويُسجَّل مرتجع بمبلغ ${formatCurrency(refundable)}، وتُعكس العمولة غير المدفوعة ونقاط الولاء.`}{' '}
+                            لا يمكن التراجع عن هذا الإجراء.
                         </DialogDescription>
                     </DialogHeader>
+                    {needsMethod && (
+                        <div className="space-y-1">
+                            <label htmlFor="approve-amount" className="text-sm font-medium">
+                                مبلغ الردّ (الحدّ الأقصى {formatCurrency(refundable)})
+                            </label>
+                            <Input
+                                id="approve-amount"
+                                type="number"
+                                inputMode="decimal"
+                                min="0.01"
+                                max={refundable}
+                                step="0.01"
+                                dir="ltr"
+                                value={amount}
+                                onChange={(e) => setAmount(e.target.value)}
+                                disabled={processing}
+                                aria-invalid={!amountValid}
+                            />
+                            {!amountValid && <p className="text-xs text-destructive">أدخل مبلغاً أكبر من صفر ولا يتجاوز ما حُصِّل.</p>}
+                        </div>
+                    )}
                     {needsMethod && (
                         <div className="space-y-1">
                             <label htmlFor="approve-method" className="text-sm font-medium">
@@ -213,13 +248,17 @@ export default function ReturnRequestsIndex({ items, paymentMethods, statuses, f
                         </Button>
                         <Button
                             className="bg-emerald-600 text-white hover:bg-emerald-700"
-                            disabled={processing || (needsMethod && !methodId)}
+                            disabled={processing || (needsMethod && !methodId) || !amountValid}
                             onClick={() =>
                                 approving &&
-                                submit(refunds.requests.approve(approving.id).url, { payment_method_id: methodId || null }, 'تم اعتماد الطلب واسترجاع الفاتورة.')
+                                submit(
+                                    refunds.requests.approve(approving.id).url,
+                                    { payment_method_id: methodId || null, amount: isPartial ? amount : null },
+                                    isPartial ? 'تم اعتماد الطلب وتسجيل مرتجع جزئي.' : 'تم اعتماد الطلب واسترجاع الفاتورة.',
+                                )
                             }
                         >
-                            <Check className="size-4" /> اعتماد واسترجاع
+                            <Check className="size-4" /> {isPartial ? 'اعتماد مرتجع جزئي' : 'اعتماد واسترجاع'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -128,6 +128,34 @@ describe('طلبات الاسترجاع (تاسك 135)', function () {
         expect(Refund::count())->toBe(1);
     });
 
+    it('lets the accountant approve a partial amount, keeping the invoice paid and closing the request', function () {
+        $request = raiseReturnRequest();
+
+        $this->actingAs($this->accountant)
+            ->post(route('refunds.requests.approve', $request), ['payment_method_id' => $this->method, 'amount' => 575])
+            ->assertSessionHasNoErrors();
+
+        $refund = Refund::sole();
+
+        expect($this->invoice->refresh()->status)->toBe(InvoiceStatusEnum::PAID)
+            ->and($request->refresh()->status->value)->toBe('completed')
+            ->and($request->refund_id)->toBe($refund->id)
+            ->and((float) $refund->amount)->toBe(575.00)
+            ->and($refund->user_id)->toBe($this->accountant->id)
+            ->and((float) CommissionLedger::sum('amount'))->toBe(50.00);
+    });
+
+    it('refuses a partial amount above what was collected', function () {
+        $request = raiseReturnRequest();
+
+        $this->actingAs($this->accountant)
+            ->post(route('refunds.requests.approve', $request), ['payment_method_id' => $this->method, 'amount' => 1150.01])
+            ->assertSessionHasErrors('amount');
+
+        expect($request->refresh()->status->value)->toBe('pending')
+            ->and(Refund::count())->toBe(0);
+    });
+
     it('requires the refund method on approval', function () {
         $request = raiseReturnRequest();
 

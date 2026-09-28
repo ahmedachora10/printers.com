@@ -67,9 +67,10 @@ class InvoiceReturnRequestController extends Controller
     ): RedirectResponse {
         Gate::authorize('updateStatus', $returnRequest->invoice);
 
-        $action->handle($returnRequest, Auth::user(), $request->validated('payment_method_id'));
+        $amount = $request->validated('amount');
+        $action->handle($returnRequest, Auth::user(), $request->validated('payment_method_id'), $amount === null ? null : (float) $amount);
 
-        return $this->decided($returnRequest->refresh(), 'تم اعتماد الطلب واسترجاع الفاتورة');
+        return $this->decided($returnRequest->refresh(), 'تم اعتماد الطلب وتسجيل المرتجع');
     }
 
     public function reject(
