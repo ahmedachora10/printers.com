@@ -186,6 +186,7 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
                         label="الضريبة"
                         value={formatCurrency(totals.vat)}
                         valueClass="text-muted-foreground"
+                        hint="من المحصَّل بعد المرتجعات"
                     />
                     {showPurchases && (
                         <SummaryCard
