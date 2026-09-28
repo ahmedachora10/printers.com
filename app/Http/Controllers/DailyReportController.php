@@ -26,6 +26,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * Daily employee/branch report: one row per calendar day with product and
  * service sales **including VAT** (تاسك 58), realized employee commission,
  * purchases (expenses + received stock), VAT, and the remaining cash amount.
+ * VAT is the tax inside «المحصَّل», not inside «الإجمالي» (تاسك 139).
  *
  * «المبلغ المتبقي» = المبيعات الشاملة − المرتجعات القابلة للخصم − المشتريات.
  * لا تُطرح العمولة ولا الضريبة — رقمٌ نقدي إجمالي بطلب العميل، بينما تقرير
@@ -181,7 +182,6 @@ class DailyReportController extends Controller
                 // الإجمالي يجمع البيع والشحن معاً: هو ما على الفاتورة، ويقابل
                 // عمود «المحصَّل» فلا ينكسر التطابق بينهما.
                 $buckets[$day][$employeeId]['total'] += (float) $row->gross + (float) $row->shipping;
-                $buckets[$day][$employeeId]['vat'] += (float) $row->vat;
             }
         }
 
@@ -190,6 +190,7 @@ class DailyReportController extends Controller
             $employeeId = $detailed ? (int) $row->user_id : 0;
             $ensure($day, $employeeId);
             $buckets[$day][$employeeId]['collected'] += (float) $row->collected;
+            $buckets[$day][$employeeId]['vat'] += (float) $row->vat;
         }
 
         // المرتجعات تُعرض في عمودها كاملةً — العميل يريد رؤيتها، لا إخفاء صفوفها —
@@ -201,6 +202,8 @@ class DailyReportController extends Controller
             $ensure($day, $employeeId);
             $buckets[$day][$employeeId]['refunds'] += (float) $row->refunded;
             $buckets[$day][$employeeId]['refundsDeductible'] += (float) $row->deductible;
+            // الضريبة تتبع المحصَّل: ما يُطرح منه تُطرح ضريبته.
+            $buckets[$day][$employeeId]['vat'] -= (float) $row->deductible_vat;
         }
 
         foreach ($this->commissionDaily($scope, $employeeIds, $detailed) as $row) {
@@ -230,6 +233,7 @@ class DailyReportController extends Controller
                 // لكن الجزء القابل للخصم فقط، وإلا خرجت الفاتورة المرتجعة كلياً
                 // مرتين فصار المحصَّل بالسالب.
                 $row['collected'] -= $row['refundsDeductible'];
+                $row['vat'] = round($row['vat'], 2);
                 // المتبقي = المبيعات (شاملة الضريبة) − المرتجعات − المشتريات.
                 // العمولة والضريبة عمودا عرض لا تُطرحان (تاسك 58): نصّ العميل
                 // يقول «+ عمولة الموظفين + الضريبة» ومثاله الرقمي في الجدول نفسه
@@ -284,7 +288,7 @@ class DailyReportController extends Controller
     }
 
     /**
-     * Net sales (before VAT) and VAT for one invoice table, grouped by the day
+     * Sales (VAT-inclusive) and shipping for one invoice table, grouped by the day
      * the accountant approved the invoice (and by employee in detailed mode).
      * Only approved invoices are counted; soft-deleted rows are filtered
      * explicitly because DB::table() bypasses the SoftDeletes scope.
@@ -323,7 +327,6 @@ class DailyReportController extends Controller
             DB::raw('DATE('.$approvedAt.') as day'),
             DB::raw('COALESCE(SUM('.$table.'.total_amount - '.$shipping.'), 0) as gross'),
             DB::raw('COALESCE(SUM('.$shipping.'), 0) as shipping'),
-            DB::raw('COALESCE(SUM('.$table.'.vat_amount), 0) as vat'),
         ];
 
         if ($detailed) {
@@ -360,17 +363,22 @@ class DailyReportController extends Controller
     {
         $rows = collect();
 
+        // تاسك 139: ضريبة الدفعة بنسبة فاتورتها (لا 15% ثابتة — الفرع قد يغيّرها).
+        $paymentVat = 'COALESCE(SUM(p.amount * i.vat_amount * 1.0 / NULLIF(i.total_amount, 0)), 0) as vat';
+
         foreach ([ProductInvoice::class, ServiceInvoice::class] as $model) {
             $table = (new $model)->getTable();
 
             $columns = [
                 DB::raw('DATE(p.paid_at) as day'),
                 DB::raw('COALESCE(SUM(p.amount), 0) as collected'),
+                DB::raw($paymentVat),
             ];
 
             $direct = [
                 DB::raw('DATE(i.paid_at) as day'),
                 DB::raw('COALESCE(SUM(i.total_amount), 0) as collected'),
+                DB::raw('COALESCE(SUM(i.vat_amount), 0) as vat'),
             ];
 
             if ($detailed) {
@@ -446,6 +454,7 @@ class DailyReportController extends Controller
                 DB::raw('DATE(r.created_at) as day'),
                 DB::raw('COALESCE(SUM(r.amount), 0) as refunded'),
                 DB::raw('COALESCE(SUM(CASE WHEN i.status IN ('.$excluded.') THEN 0 ELSE r.amount END), 0) as deductible'),
+                DB::raw('COALESCE(SUM(CASE WHEN i.status IN ('.$excluded.') THEN 0 ELSE r.amount * i.vat_amount * 1.0 / NULLIF(i.total_amount, 0) END), 0) as deductible_vat'),
             ];
 
             if ($detailed) {

@@ -72,3 +72,10 @@ export const formatDateTime = (date: string | Date, locale: string = 'ar'): stri
         minute: '2-digit',
     }).format(dateObj);
 };
+
+/** YYYY-MM-DD ± أيام، بلا انزياح المنطقة الزمنية. */
+export const shiftDay = (date: string, days: number): string => {
+    const d = new Date(`${date}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + days);
+    return d.toISOString().slice(0, 10);
+};

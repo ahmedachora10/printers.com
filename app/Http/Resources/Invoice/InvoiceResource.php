@@ -241,6 +241,14 @@ class InvoiceResource extends JsonResource
             'canEditCustomer' => $canEditCustomer,
             'canEditPaymentMethod' => $canEditPaymentMethod,
             'canReturn' => $canReturn,
+            // تاسك 135: آخر طلب استرجاع للموظف — شارة الحالة وسبب الرفض.
+            'returnRequest' => $isServiceInvoice && ($returnRequest = $this->resource->returnRequests()->first())
+                ? [
+                    'status' => $returnRequest->status->value,
+                    'statusLabel' => $returnRequest->status->label(),
+                    'rejectionReason' => $returnRequest->rejection_reason,
+                ]
+                : null,
             'refunds' => $this->whenLoaded('refunds', fn () => $this->refunds
                 ->map(fn (Refund $refund) => [
                     'id' => $refund->id,
@@ -248,6 +256,8 @@ class InvoiceResource extends JsonResource
                     'reason' => $refund->reason,
                     'stockReversed' => (bool) $refund->stock_reversed,
                     'userName' => $refund->user?->name,
+                    // تاسك 140: طريقة ردّ المبلغ — null للمرتجعات السابقة لتاسك 131.
+                    'paymentMethodName' => $refund->paymentMethod?->name,
                     'createdAt' => $refund->created_at?->toIso8601String(),
                 ])->values()->all()),
             'branch' => [

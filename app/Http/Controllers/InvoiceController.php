@@ -223,7 +223,7 @@ class InvoiceController extends Controller
             'user:id,name',
             'paymentMethod:id,name',
             'branch',
-            'refunds' => fn ($q) => $q->with('user:id,name')->latest(),
+            'refunds' => fn ($q) => $q->with(['user:id,name', 'paymentMethod:id,name'])->latest(),
             // بطاقة «الدفعات»: العربون وما تلاه، مع من سجّلها وبأي طريقة.
             // media يُحمَّل مسبقاً لأن receiptUrl() يقرأه لكل دفعة على حدة.
             'payments' => fn ($q) => $q->with(['paymentMethod:id,name', 'recordedBy:id,name', 'media'])->oldest('paid_at'),

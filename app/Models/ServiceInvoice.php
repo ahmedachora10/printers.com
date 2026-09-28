@@ -224,6 +224,12 @@ class ServiceInvoice extends Model implements HasMedia
         return $this->morphMany(Refund::class, 'invoice');
     }
 
+    /** تاسك 135 — طلبات استرجاع الموظف؛ الأحدث أولاً. */
+    public function returnRequests(): HasMany
+    {
+        return $this->hasMany(InvoiceReturnRequest::class)->latest('id');
+    }
+
     /** المحادثة الداخلية (تاسك 100). @return HasMany<InvoiceMessage, $this> */
     public function messages(): HasMany
     {

@@ -350,7 +350,8 @@ describe('Daily Report', function () {
             ->get(route('reports.daily'))
             ->assertInertia(fn ($page) => $page
                 ->where('totals.products', 115)
-                ->where('totals.vat', 15)
+                // تاسك 139: الضريبة من المحصَّل — 40 × 15/115.
+                ->where('totals.vat', 5.22)
                 ->where('totals.collected', 40));
     });
 
@@ -445,8 +446,37 @@ describe('Daily Report', function () {
                 ->where('totals.refunds', 10)
                 ->where('totals.purchases', 10)
                 ->where('totals.commission', 45)
-                ->where('totals.vat', 15)
+                // تاسك 139: ضريبة المحصَّل بعد المرتجع — (115 − 10) × 15/115.
+                ->where('totals.vat', 13.7)
                 ->where('totals.remaining', 95));
+    });
+
+    it('takes VAT from what was collected, not from the invoice totals (task 139)', function () {
+        // لقطة ملاحظات 16/04/1448: الإجمالي 130، المرتجعات 30، المحصَّل 100 ⇒
+        // الضريبة 13.04 (= 100 × 15/115) لا 16.95 (ضريبة الـ130 كاملة).
+        $invoice = dailyServiceInvoice($this->branch, $this->branchAdmin, [
+            'subtotal' => 86.96, 'vat_amount' => 13.04, 'total_amount' => 100,
+        ]);
+        dailyServiceInvoice($this->branch, $this->branchAdmin, [
+            'subtotal' => 26.09, 'vat_amount' => 3.91, 'total_amount' => 30,
+        ]);
+
+        Refund::create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'invoice_type' => ServiceInvoice::class,
+            'amount' => 30,
+            'reason' => 'مرتجع جزئي',
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.total', 130)
+                ->where('totals.collected', 100)
+                ->where('totals.vat', 13.04));
     });
 
     // ── EMPLOYEE FILTER ────────────────────────────────────────────

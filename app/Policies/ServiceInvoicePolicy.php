@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Enums\InvoiceStatusEnum;
+use App\Enums\ReturnRequestStatusEnum;
 use App\Models\InvoiceMessage;
 use App\Models\ServiceInvoice;
 use App\Models\User;
@@ -191,6 +192,8 @@ class ServiceInvoicePolicy
         return $user->roleName->isEmployee()
             && $user->id === $invoice->user_id
             && $invoice->status !== InvoiceStatusEnum::CANCELLED
-            && $invoice->status !== InvoiceStatusEnum::RETURNED;
+            && $invoice->status !== InvoiceStatusEnum::RETURNED
+            // تاسك 135: طلبٌ مفتوح واحد لكل فاتورة.
+            && ! $invoice->returnRequests()->where('status', ReturnRequestStatusEnum::PENDING)->exists();
     }
 }

@@ -134,6 +134,8 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     const [returnItem, setReturnItem] = useState<InvoiceListItem | null>(null);
     const [returnReason, setReturnReason] = useState('');
     const [returning, setReturning] = useState(false);
+    // تاسك 135: ما حُصِّل منه مالٌ يمرّ بطلب استرجاع؛ الخادم صاحب القرار نفسه.
+    const returnNeedsRequest = !!returnItem && returnItem.paidAmount - returnItem.refundedAmount > 0;
     // «تم تسليم العمل»: ختم لا رجعة فيه، فيمرّ بتأكيد ولو كان زراً سريعاً في الصف.
     const [deliverItem, setDeliverItem] = useState<InvoiceListItem | null>(null);
     const [delivering, setDelivering] = useState(false);
@@ -187,6 +189,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             { reason: returnReason.trim() },
             {
                 preserveScroll: true,
+                onSuccess: () => toast.success(returnNeedsRequest ? 'تم رفع طلب الاسترجاع — تحت المراجعة.' : 'تم استرجاع الفاتورة.'),
                 onError: (e) => toast.error((Object.values(e)[0] as string) ?? 'تعذّر استرجاع الفاتورة.'),
                 onFinish: () => {
                     setReturning(false);
@@ -423,8 +426,13 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'paymentMethodName',
                 header: 'طريقة الدفع',
-                className: 'whitespace-nowrap',
-                cell: (item) => item.paymentMethodName ?? <span className="text-muted-foreground">—</span>,
+                // تاسك 136: الدفعات المتعددة تضمّ طرقها بـ«+»، فيلتفّ النص على سطرين بدل أن يمدّ الجدول.
+                className: 'min-w-40 max-w-56 whitespace-normal',
+                cell: (item) => (
+                    <span className={cn('line-clamp-2 leading-snug', !item.paymentMethodName && 'text-muted-foreground')} title={item.paymentMethodName ?? undefined}>
+                        {item.paymentMethodName ?? '—'}
+                    </span>
+                ),
             },
             {
                 key: 'remainingAmount',
@@ -769,13 +777,11 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             <Dialog open={!!returnItem} onOpenChange={(open) => !open && !returning && setReturnItem(null)}>
                 <DialogContent>
                     <DialogHeader>
-                        <DialogTitle>استرجاع الفاتورة</DialogTitle>
+                        <DialogTitle>{returnNeedsRequest ? 'طلب استرجاع الفاتورة' : 'استرجاع الفاتورة'}</DialogTitle>
                         <DialogDescription>
-                            تبقى الفاتورة {returnItem?.invoiceNumber} ظاهرة في القوائم بحالة «مرتجع» ولا تُحذف
-                            {returnItem?.status === 'paid'
-                                ? '، ويُسجَّل لها مرتجع بكامل المتبقي مع عكس العمولة غير المدفوعة وسحب نقاط الولاء المكتسبة واسترجاع أي نقاط مستبدلة.'
-                                : '، مع عكس العمولة غير المدفوعة واسترجاع أي نقاط مستبدلة.'}{' '}
-                            لا يمكن التراجع عن هذا الإجراء.
+                            {returnNeedsRequest
+                                ? `حُصِّل من الفاتورة ${returnItem?.invoiceNumber} مبلغ، فيُرفع طلب استرجاع يعتمده المحاسب أو الإدارة ويحدّد طريقة ردّ المبلغ للعميل. لا تتغيّر الفاتورة حتى يُعتمد الطلب.`
+                                : `تبقى الفاتورة ${returnItem?.invoiceNumber} ظاهرة في القوائم بحالة «مرتجع» ولا تُحذف، مع عكس العمولة غير المدفوعة واسترجاع أي نقاط مستبدلة. لا يمكن التراجع عن هذا الإجراء.`}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="space-y-1">
@@ -797,7 +803,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                             تراجع
                         </Button>
                         <Button variant="destructive" onClick={confirmReturn} disabled={returning}>
-                            <Undo2 className="size-4" /> تأكيد الاسترجاع
+                            <Undo2 className="size-4" /> {returnNeedsRequest ? 'رفع الطلب' : 'تأكيد الاسترجاع'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

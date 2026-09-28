@@ -42,6 +42,7 @@ use App\Http\Controllers\InvoiceMessageController;
 use App\Http\Controllers\InvoicePaymentController;
 use App\Http\Controllers\InvoicePaymentMethodController;
 use App\Http\Controllers\InvoiceReceiptController;
+use App\Http\Controllers\InvoiceReturnRequestController;
 use App\Http\Controllers\LoyaltyController;
 use App\Http\Controllers\MaterialsReportController;
 use App\Http\Controllers\MyIncentiveController;
@@ -216,6 +217,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('invoices.service.review');
 
         Route::get('refunds', [RefundController::class, 'index'])->name('refunds.index');
+        // تاسك 135 — طلبات استرجاع الموظفين (تبويب في «المرتجعات»).
+        Route::get('refunds/requests', [InvoiceReturnRequestController::class, 'index'])->name('refunds.requests.index');
 
         // تاسك 93 — كشف توصيلات اليوم: متابعةٌ تشغيلية قراءةً فقط.
         // تاسك 127: والمحاسب منها، والسياسة (`viewDeliveries`) هي الحارس الفعلي.
@@ -271,6 +274,8 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('refunds/lookup', [RefundController::class, 'lookup'])->name('refunds.lookup');
         Route::post('refunds', [RefundController::class, 'store'])->name('refunds.store');
+        Route::post('refunds/requests/{returnRequest}/approve', [InvoiceReturnRequestController::class, 'approve'])->name('refunds.requests.approve');
+        Route::post('refunds/requests/{returnRequest}/reject', [InvoiceReturnRequestController::class, 'reject'])->name('refunds.requests.reject');
 
         Route::get('expenses/invoice-options', [ExpenseController::class, 'invoiceOptions'])->name('expenses.invoice-options');
         Route::get('expenses/{expense}/attachment', [ExpenseController::class, 'attachment'])->name('expenses.attachment');
