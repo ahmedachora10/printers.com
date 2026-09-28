@@ -8,7 +8,6 @@ use App\Models\InvoiceReturnRequest;
 use App\Models\Refund;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 /**
  * تاسك 135 — الاعتماد والتنفيذ نقرةٌ واحدة: المعتمد يختار طريقة الردّ فيجري
@@ -22,11 +21,7 @@ class ApproveInvoiceReturnRequestAction
     public function handle(InvoiceReturnRequest $request, User $actor, ?int $paymentMethodId): InvoiceReturnRequest
     {
         return DB::transaction(function () use ($request, $actor, $paymentMethodId) {
-            $request = InvoiceReturnRequest::query()->lockForUpdate()->findOrFail($request->id);
-
-            if ($request->status !== ReturnRequestStatusEnum::PENDING) {
-                throw ValidationException::withMessages(['status' => 'تم البتّ في هذا الطلب بالفعل.']);
-            }
+            $request = $request->lockPending();
 
             $invoice = $request->invoice;
             $refunds = Refund::query()

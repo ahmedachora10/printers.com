@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ReturnRequestStatusEnum;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Validation\ValidationException;
 
 /**
  * تاسك 135 — طلب استرجاع فاتورة خدمةٍ حُصِّل منها مبلغ. الموظف يرفعه،
@@ -34,11 +35,6 @@ class InvoiceReturnRequest extends Model
         return $this->belongsTo(ServiceInvoice::class, 'service_invoice_id');
     }
 
-    public function branch(): BelongsTo
-    {
-        return $this->belongsTo(Branch::class);
-    }
-
     public function requester(): BelongsTo
     {
         return $this->belongsTo(User::class, 'requested_by');
@@ -52,5 +48,15 @@ class InvoiceReturnRequest extends Model
     public function refund(): BelongsTo
     {
         return $this->belongsTo(Refund::class);
+    }
+
+    /** يقفل الطلب داخل المعاملة ويرفض ما بُتّ فيه — لا قرار مرتين. */
+    public function lockPending(): self
+    {
+        $request = self::query()->lockForUpdate()->findOrFail($this->id);
+
+        throw_if($request->status !== ReturnRequestStatusEnum::PENDING, ValidationException::withMessages(['status' => 'تم البتّ في هذا الطلب بالفعل.']));
+
+        return $request;
     }
 }

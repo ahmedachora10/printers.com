@@ -34,7 +34,7 @@ class InvoiceReturnRequestController extends Controller
         $status = $request->input('status', ReturnRequestStatusEnum::PENDING->value);
 
         $requests = InvoiceReturnRequest::query()
-            ->with(['invoice', 'branch:id,name', 'requester:id,name', 'decider:id,name', 'refund.paymentMethod:id,name'])
+            ->with(['invoice', 'requester:id,name', 'decider:id,name', 'refund.paymentMethod:id,name'])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->when($status !== 'all', fn ($q) => $q->where('status', $status))
             ->latest('id')

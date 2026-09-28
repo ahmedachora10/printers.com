@@ -23,8 +23,6 @@ class InvoiceReturnRequestResource extends JsonResource
             'invoiceId' => $this->service_invoice_id,
             'invoiceNumber' => $this->invoice?->invoice_number,
             'branchId' => $this->branch_id,
-            'branchName' => $this->branch?->name,
-            'totalAmount' => (float) $this->invoice?->total_amount,
             // ما سيُردّ للعميل لو اعتُمد الآن؛ وبعد الإتمام مبلغ مرتجعه.
             'amount' => $isPending
                 ? app(ReturnServiceInvoiceAction::class)->refundableCollected($this->invoice)

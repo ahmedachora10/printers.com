@@ -6,8 +6,6 @@ export interface ReturnRequestItem {
     invoiceId: number;
     invoiceNumber: string | null;
     branchId: number;
-    branchName: string | null;
-    totalAmount: number;
     /** ما سيُردّ لو اعتُمد الآن، أو مبلغ المرتجع بعد الإتمام */
     amount: number;
     paymentMethodName: string | null;
