@@ -328,7 +328,8 @@ describe('Sales Report', function () {
 
     it('does not subtract twice when the refund empties the invoice', function () {
         // المرتجع الكامل يجعل الحالة `returned`، فتسقط الفاتورة من التقرير كلياً؛
-        // طرحُ صفّ مرتجعها فوق ذلك كان سيُخرج الإيراد بالسالب.
+        // طرحُ صفّ مرتجعها فوق ذلك كان سيُخرج الإيراد بالسالب. لكنه يظهر في
+        // «المرتجعات» كما في التقرير اليومي.
         $invoice = paidProductInvoice($this->branch, $this->branchAdmin); // total 115
 
         $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
@@ -343,7 +344,9 @@ describe('Sales Report', function () {
             ->get(route('reports.sales'))
             ->assertInertia(fn ($page) => $page
                 ->where('totals.total', 0)
-                ->where('totals.refunds', 0)
+                ->where('totals.subtotal', 0)
+                ->where('totals.vat', 0)
+                ->where('totals.refunds', 115)
                 ->where('totals.invoiceCount', 0));
     });
 

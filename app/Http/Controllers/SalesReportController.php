@@ -311,6 +311,7 @@ class SalesReportController extends Controller
                 // التوصيل يتبع الحصّة كبقية أرقام الفاتورة: دفعةٌ جزئية تحمل
                 // جزءاً من الشحن كما تحمل جزءاً من الضريبة.
                 DB::raw("{$shipping} * ({$share}) as shipping_share"),
+                DB::raw('0 as refunded'),
             ]);
 
         $direct = DB::table($table.' as i')
@@ -332,19 +333,23 @@ class SalesReportController extends Controller
                 DB::raw("{$discounts} as discounts_share"),
                 DB::raw('i.vat_amount as vat_share'),
                 DB::raw("{$shipping} as shipping_share"),
+                DB::raw('0 as refunded'),
             ]);
 
-        // C. المرتجعات — أحداثٌ سالبة بحصّتها من الفاتورة. تُقصر على الفواتير
-        // التي ما زالت محسوبةً هنا: الفاتورة المرتجعة بالكامل حالتها `returned`
-        // فسقطت من الفرعين أعلاه، وطرحُ مرتجعها فوق ذلك خصمٌ ثانٍ لنفس المبلغ.
-        $refundShare = '(r.amount * 1.0) / NULLIF(i.total_amount, 0)';
+        // C. المرتجعات — أحداثٌ سالبة بحصّتها من الفاتورة. الفاتورة المرتجعة
+        // بالكامل حالتها `returned` فسقطت من الفرعين أعلاه، فطرحُ مرتجعها فوق
+        // ذلك خصمٌ ثانٍ لنفس المبلغ: صفُّها يُصفَّر أثرُه على الإيراد ويبقى
+        // `refunded` وحده، فيظهر في «المرتجعات» كما يظهر في التقرير اليومي.
+        $collected = collect(self::COLLECTED_STATUSES)->map(fn (string $s) => "'{$s}'")->implode(', ');
+        $counted = "CASE WHEN i.status IN ({$collected}) THEN 1 ELSE 0 END";
+        $refundShare = "(r.amount * 1.0) / NULLIF(i.total_amount, 0) * {$counted}";
 
         $refunds = DB::table('refunds as r')
             ->join($table.' as i', 'i.id', '=', 'r.invoice_id')
             ->where('r.invoice_type', $morphClass)
             ->whereNull('r.deleted_at')
             ->whereNull('i.deleted_at')
-            ->whereIn('i.status', self::COLLECTED_STATUSES)
+            ->whereIn('i.status', [...self::COLLECTED_STATUSES, InvoiceStatusEnum::RETURNED->value])
             ->select([
                 DB::raw('i.id as invoice_id'),
                 DB::raw('NULL as payment_id'),
@@ -358,14 +363,15 @@ class SalesReportController extends Controller
                 // طريقة يبقى على طريقة فاتورته كما كان.
                 DB::raw('COALESCE(r.payment_method_id, i.payment_method_id) as payment_method_id'),
                 DB::raw('r.created_at as realized_at'),
-                DB::raw('-r.amount as realized'),
+                DB::raw("-r.amount * {$counted} as realized"),
                 DB::raw("-i.subtotal * ({$refundShare}) as subtotal_share"),
                 DB::raw("-{$discounts} * ({$refundShare}) as discounts_share"),
                 DB::raw("-i.vat_amount * ({$refundShare}) as vat_share"),
                 // ما رُدّ من الشحن مكتوبٌ على صفّ المرتجع بقرار المحاسب، فلا
                 // يُوزَّع نسبياً كبقية الأرقام: مرتجعٌ لم يُردّ شحنه لا يُنقص
                 // جملة التوصيل، ومرتجعٌ رُدّ يُنقصها بما رُدّ بالضبط.
-                DB::raw("-{$shippingRefunded} as shipping_share"),
+                DB::raw("-{$shippingRefunded} * {$counted} as shipping_share"),
+                DB::raw('r.amount as refunded'),
             ]);
 
         return DB::query()
@@ -389,8 +395,8 @@ class SalesReportController extends Controller
      */
     private const COUNT_EXPR = 'COUNT(DISTINCT CASE WHEN events.realized > 0 THEN events.invoice_id END)';
 
-    /** جملة ما رُدّ للعملاء، موجبةً، إلى جانب الإيراد الصافي منها. */
-    private const REFUNDS_EXPR = 'COALESCE(SUM(CASE WHEN events.realized < 0 THEN -events.realized ELSE 0 END), 0)';
+    /** جملة ما رُدّ للعملاء، موجبةً، شاملةً المرتجع الكامل — كعمود التقرير اليومي. */
+    private const REFUNDS_EXPR = 'COALESCE(SUM(events.refunded), 0)';
 
     /**
      * The aggregate columns every breakdown selects — an invoice may span
@@ -763,6 +769,7 @@ class SalesReportController extends Controller
                     DB::raw('events.vat_share as vat'),
                     DB::raw('events.shipping_share as shipping'),
                     DB::raw('events.realized as total'),
+                    DB::raw('events.refunded as refunded'),
                 ]);
 
             foreach ($records as $r) {
@@ -771,7 +778,12 @@ class SalesReportController extends Controller
                     'type' => $typeLabel,
                     // الحدث السالب مرتجع، وما عداه تحصيل — فلا يقرأ القارئ رقماً
                     // سالباً في ورقةٍ بلا تفسير.
-                    'kind' => (float) $r->total < 0 ? 'مرتجع' : 'تحصيل',
+                    // المرتجع الكامل صفرٌ هنا: فاتورته خارج الإيراد أصلاً.
+                    'kind' => match (true) {
+                        (float) $r->total < 0 => 'مرتجع',
+                        (float) $r->refunded > 0 => 'مرتجع كامل',
+                        default => 'تحصيل',
+                    },
                     'branchName' => $r->branch_name,
                     'userName' => $r->user_name,
                     'methodName' => $r->method_name ?? 'غير محدد',
