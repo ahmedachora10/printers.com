@@ -37,11 +37,21 @@ class InvoiceController extends Controller
      */
     private const STATUS_UNSETTLED = 'unsettled';
 
+    /** تاسك 147 — فلاتر آخر زيارة لقائمة الفواتير، يتنقّل بها «السابقة/التالية». */
+    private const LIST_FILTERS_SESSION_KEY = 'invoices.list_filters';
+
+    private const LIST_FILTER_KEYS = [
+        'search', 'type', 'status', 'date_from', 'date_to', 'time_from', 'time_to', 'branch_id', 'delivery',
+        'user_id', 'payment_method_id', 'branch_service_id',
+    ];
+
     public function index(Request $request): Response
     {
         $user = Auth::user();
         $isSuperAdmin = $user->roleName->isSuperAdmin();
         $branchId = $isSuperAdmin ? null : $user->branchId;
+        $filters = $request->only(self::LIST_FILTER_KEYS);
+        $request->session()->put(self::LIST_FILTERS_SESSION_KEY, $filters);
 
         $allowedTypes = $this->allowedTypesFor();
 
@@ -105,10 +115,7 @@ class InvoiceController extends Controller
                 ),
             ),
             'filterOptions' => $this->filterOptions($isSuperAdmin, $branchId),
-            'filters' => $request->only([
-                'search', 'type', 'status', 'date_from', 'date_to', 'time_from', 'time_to', 'branch_id', 'delivery',
-                'user_id', 'payment_method_id', 'branch_service_id',
-            ]),
+            'filters' => $filters,
         ]);
     }
 
@@ -277,12 +284,7 @@ class InvoiceController extends Controller
                     'byName' => $a->causer?->name,
                     'at' => $a->created_at?->toIso8601String(),
                 ]),
-            // تاسك 147: الفاتورة السابقة/التالية من النوع نفسه وبنطاق قائمة الفواتير
-            // (الفرع، والموظف فواتيره وحده). المحذوفة تسقط بـSoftDeletes.
-            'neighbours' => fn () => [
-                'prevId' => $this->neighbourId($invoice, '<', 'desc'),
-                'nextId' => $this->neighbourId($invoice, '>', 'asc'),
-            ],
+            'neighbours' => fn () => $this->neighbourIds(InvoiceTypeEnum::from($type), $invoice->id),
             'hasThread' => $hasThread,
             // مؤجَّلة: الصفحة لا تنتظرها، والاستطلاع يطلبها وحدها. وقراءتها تقدّم
             // موضع قراءة الناظر.
@@ -397,23 +399,35 @@ class InvoiceController extends Controller
         ]);
     }
 
-    private function neighbourId(ProductInvoice|ServiceInvoice $invoice, string $operator, string $direction): ?int
+    /**
+     * تاسك 147 — الفاتورة السابقة/التالية من النوع نفسه، بنطاق قائمة الفواتير
+     * وفلاترها كما تركها المستخدم: استعلامُ القائمة نفسه (buildTypeQuery)
+     * بأعمدة المعرّف وحده، فلا يفترق التنقّل عن القائمة.
+     *
+     * @return array{prevId: ?int, nextId: ?int}
+     */
+    private function neighbourIds(InvoiceTypeEnum $type, int $id): array
     {
         $user = Auth::user();
+        $isSuperAdmin = $user->roleName->isSuperAdmin();
+        $table = $type->table();
+        $filters = Request::create('/', 'GET', session(self::LIST_FILTERS_SESSION_KEY, []));
 
-        return $invoice::query()
-            ->where('id', $operator, $invoice->id)
-            ->when(! $user->roleName->isSuperAdmin(), fn ($q) => $q->where('branch_id', $user->branchId))
-            ->when($user->roleName->isEmployee(), fn ($q) => $q->where('user_id', $user->id))
-            ->orderBy('id', $direction)
-            ->value('id');
+        $list = fn () => $this->buildTypeQuery($type, $filters, $isSuperAdmin, $isSuperAdmin ? null : $user->branchId)
+            ->select("{$table}.id")
+            ->when($user->roleName->isEmployee(), fn ($q) => $q->where("{$table}.user_id", $user->id));
+
+        return [
+            'prevId' => $list()->where("{$table}.id", '<', $id)->orderByDesc("{$table}.id")->value("{$table}.id"),
+            'nextId' => $list()->where("{$table}.id", '>', $id)->orderBy("{$table}.id")->value("{$table}.id"),
+        ];
     }
 
     /**
      * تاسك 150 — إشعار مرتجع. يُطبع لمن يطبع الفاتورة نفسها (سياسة عرضها ومجموعة
      * مسارات الطباعة)، والضريبة مستخرجة من المبلغ بنسبة الفاتورة.
      */
-    public function printRefund(string $type, int $id, int $refund, Request $request): Response
+    public function printRefund(string $type, int $id, int $refund, Request $request, GenerateZatcaQrAction $qrAction): Response
     {
         $invoice = $this->resolveInvoice($type, $id);
         Gate::authorize('view', $invoice);
@@ -428,7 +442,10 @@ class InvoiceController extends Controller
 
         return Inertia::render('invoices/refund-print', [
             'format' => $request->input('format') === 'thermal' ? 'thermal' : 'a4',
+            // رمز ZATCA بمبلغ المرتجع وضريبته — إشعارٌ دائن على فاتورة ضريبية.
+            'zatcaQr' => $qrAction->forAmounts($invoice->branch, $refund->created_at, $amount, $vat),
             'notice' => [
+                'noticeNumber' => $refund->notice_number,
                 'invoiceNumber' => $invoice->invoice_number,
                 'invoiceDate' => $invoice->created_at?->toIso8601String(),
                 'customerName' => $invoice->customer?->full_name,

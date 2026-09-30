@@ -18,6 +18,7 @@ class Refund extends Model
     use HasFactory, LogsActivity, SoftDeletes;
 
     protected $fillable = [
+        'notice_number',
         'branch_id',
         'user_id',
         'source_type',

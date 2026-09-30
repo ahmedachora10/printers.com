@@ -198,6 +198,23 @@ describe('Refunds', function () {
         expect(Refund::where('invoice_id', $invoice->id)->count())->toBe(1);
     });
 
+    it('numbers each refund notice per branch (تاسك 150)', function () {
+        [$invoice] = refundableProductInvoice($this->branch, $this->admin);
+        $payload = [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
+            'amount' => 10,
+            'reason' => 'مرتجع جزئي',
+        ];
+
+        $this->post(route('refunds.store'), $payload)->assertRedirect();
+        $this->post(route('refunds.store'), $payload)->assertRedirect();
+
+        expect(Refund::where('invoice_id', $invoice->id)->orderBy('id')->pluck('notice_number')->all())
+            ->toBe([sprintf('CN-%03d-00001', $this->branch->id), sprintf('CN-%03d-00002', $this->branch->id)]);
+    });
+
     it('keeps the refunds screen open to the accountant', function () {
         // المنع على إنشاء المرتجع لفاتورة معتمدة، لا على الشاشة والتقارير.
         $accountant = User::factory()->create(['branch_id' => $this->branch->id]);

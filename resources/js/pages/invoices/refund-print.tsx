@@ -1,11 +1,14 @@
-import { ThermalBranchHeader } from '@/components/invoices/print-header';
+import { BranchIdentity, ThermalBranchHeader } from '@/components/invoices/print-header';
 import { cn, formatCurrency, formatDateTime } from '@/lib/utils';
 import { type InvoiceBranch } from '@/types/invoice';
 import { Head } from '@inertiajs/react';
 import { Printer } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, type ReactNode } from 'react';
 
 interface RefundNotice {
+    /** null لمرتجعٍ لم يُرقَّم (لا يحدث بعد ترحيل الترقيم). */
+    noticeNumber: string | null;
     invoiceNumber: string;
     invoiceDate: string | null;
     customerName: string | null;
@@ -23,13 +26,14 @@ interface RefundNotice {
 interface Props {
     notice: RefundNotice;
     format: 'a4' | 'thermal';
+    zatcaQr: string;
 }
 
 /**
- * تاسك 150 — «إشعار مرتجع» لصفّ مرتجع واحد. ورقة واحدة للمقاسين: الحراري
- * يضيّق العرض والخط فقط، فالمحتوى صفوفُ «تسمية — قيمة» في الحالتين.
+ * تاسك 150 — «إشعار مرتجع» لصفّ مرتجع واحد. ورقة واحدة للمقاسين: ترويسة A4
+ * كترويسة الفاتورة (البيانات يميناً والشعار يساراً)، والحراري يضيّق العرض والخط.
  */
-export default function RefundPrint({ notice, format }: Props) {
+export default function RefundPrint({ notice, format, zatcaQr }: Props) {
     const thermal = format === 'thermal';
 
     useEffect(() => {
@@ -38,6 +42,7 @@ export default function RefundPrint({ notice, format }: Props) {
     }, []);
 
     const rows: [string, ReactNode][] = [
+        ['رقم الإشعار', notice.noticeNumber && <span dir="ltr">{notice.noticeNumber}</span>],
         ['رقم الفاتورة', <span dir="ltr">{notice.invoiceNumber}</span>],
         ['تاريخ الفاتورة', notice.invoiceDate ? formatDateTime(notice.invoiceDate) : '—'],
         ['تاريخ المرتجع', notice.refundedAt ? formatDateTime(notice.refundedAt) : '—'],
@@ -50,7 +55,7 @@ export default function RefundPrint({ notice, format }: Props) {
 
     return (
         <div className="bg-white">
-            <Head title={`إشعار مرتجع ${notice.invoiceNumber}`} />
+            <Head title={`إشعار مرتجع ${notice.noticeNumber ?? notice.invoiceNumber}`} />
             <div className="mx-auto flex max-w-3xl justify-end px-4 pt-4 print:hidden">
                 <button
                     type="button"
@@ -62,10 +67,20 @@ export default function RefundPrint({ notice, format }: Props) {
             </div>
 
             <div dir="rtl" className={cn('mx-auto bg-white font-sans text-black', thermal ? 'max-w-sm p-4 text-xs' : 'max-w-3xl p-10 text-sm')}>
-                <div className="text-center">
-                    <ThermalBranchHeader branch={notice.branch} />
-                    <h2 className={cn('mt-3 font-bold', thermal ? 'text-sm' : 'text-lg')}>إشعار مرتجع</h2>
-                </div>
+                {thermal ? (
+                    <div className="text-center">
+                        <ThermalBranchHeader branch={notice.branch} />
+                    </div>
+                ) : (
+                    <div className="flex items-start justify-between gap-6 border-b-2 border-black pb-6">
+                        <div className="space-y-1">
+                            <h1 className="text-xl font-bold">{notice.branch.name ?? 'مركز الناسخ للطباعة'}</h1>
+                            <BranchIdentity branch={notice.branch} className="space-y-1 text-xs" />
+                        </div>
+                        {notice.branch.logoUrl && <img src={notice.branch.logoUrl} alt="" className="h-20 w-auto object-contain" />}
+                    </div>
+                )}
+                <h2 className={cn('text-center font-bold', thermal ? 'mt-2 text-sm' : 'my-6 text-lg')}>إشعار مرتجع</h2>
 
                 <div className="my-3 border-t border-dashed border-black" />
 
@@ -96,6 +111,10 @@ export default function RefundPrint({ notice, format }: Props) {
                         <span>المبلغ المرتجع</span>
                         <span>{formatCurrency(notice.amount)}</span>
                     </div>
+                </div>
+
+                <div className="mt-4 flex justify-center">
+                    <QRCodeSVG value={zatcaQr} size={thermal ? 96 : 120} />
                 </div>
             </div>
         </div>
