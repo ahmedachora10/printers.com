@@ -123,4 +123,16 @@ describe('Expense attachment & invoice link', function () {
             ->get(route('invoices.print', ['type' => 'service', 'id' => $this->invoice->id]))
             ->assertInertia(fn ($page) => $page->has('invoice.linkedExpenses', 0));
     });
+
+    // تاسك 149: نافذة «تسجيل مصروف» من الفاتورة — لمن يسجّل المصروفات وحده.
+    it('passes the expense form to whoever may record expenses, not to the employee', function () {
+        $show = route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]);
+
+        $this->actingAs($this->accountant)->get($show)->assertInertia(fn ($page) => $page
+            ->where('expenseForm.categories.0.name', 'توصيل')
+            ->where('expenseForm.branches', null));
+
+        $this->actingAs($this->employee)->get($show)
+            ->assertInertia(fn ($page) => $page->where('expenseForm', null));
+    });
 });
