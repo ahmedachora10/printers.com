@@ -31,7 +31,7 @@ import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice, type InvoiceThread as InvoiceThreadData, type InvoicePayment, type PaymentMethodChange } from '@/types/invoice';
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/react';
 import { Ban, Bike, CheckCircle2, ChevronLeft, ChevronRight, Coins, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { type ComponentProps, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 interface Props {
@@ -42,7 +42,7 @@ interface Props {
     hasThread: boolean;
     neighbours: { prevId: number | null; nextId: number | null };
     /** تاسك 149: لمن يسجّل المصروفات، وفي فاتورة الخدمات وحدها. */
-    expenseForm: { categories: { id: number; name: string; branchId: number | null }[]; branches: { id: number; name: string }[] | null } | null;
+    expenseForm: Pick<ComponentProps<typeof ExpenseFormModal>, 'categories' | 'branches'> | null;
     thread?: InvoiceThreadData | null;
 }
 
