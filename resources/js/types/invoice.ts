@@ -216,6 +216,7 @@ export interface InvoiceListItem {
     remainingAmount: number;
     /** مجموع ما استُرجع من الفاتورة — أكبر من صفر مع حالة غير «مرتجع» يعني مرتجعاً جزئياً */
     refundedAmount: number;
+    hasPendingReturnRequest: boolean;
     status: InvoiceStatus;
     statusLabel: string;
     /** Why a reviewer rejected the invoice — service invoices only. */

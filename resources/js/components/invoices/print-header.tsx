@@ -1,5 +1,7 @@
 import { type InvoiceBranch } from '@/types/invoice';
 import { type PosBranch } from '@/types/pos';
+import { Printer } from 'lucide-react';
+import { useEffect } from 'react';
 
 /** الحد الأدنى من بيانات الفرع الذي تحتاجه الترويسة — يغطّي فاتورة محفوظة وفاتورة نقطة بيع. */
 export type PrintBranch = InvoiceBranch | PosBranch;
@@ -43,5 +45,25 @@ export function ThermalBranchHeader({ branch }: { branch: PrintBranch }) {
             <h1 className="text-base font-bold">{branch.name ?? 'مركز الناسخ للطباعة'}</h1>
             <BranchIdentity branch={branch} className="text-xs" />
         </>
+    );
+}
+
+/** زرّ «طباعة» فوق الورقة (لا يُطبع)، ويفتح نافذة الطباعة تلقائياً عند التحميل. */
+export function PrintToolbar() {
+    useEffect(() => {
+        const timer = setTimeout(() => window.print(), 400);
+        return () => clearTimeout(timer);
+    }, []);
+
+    return (
+        <div className="mb-4 flex items-center justify-end gap-2 print:hidden">
+            <button
+                type="button"
+                onClick={() => window.print()}
+                className="bg-primary text-primary-foreground flex items-center gap-1 rounded-md px-3 py-1.5 text-sm"
+            >
+                <Printer className="size-4" /> طباعة
+            </button>
+        </div>
     );
 }

@@ -412,6 +412,9 @@ Route::middleware(['auth'])->group(function () {
         Route::prefix('invoices')->name('invoices.')->group(function () {
             Route::get('{type}/{id}/print', [InvoiceController::class, 'print'])
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('print');
+            // تاسك 150 — «إشعار مرتجع» لكل صفّ مرتجع (الجزئي خاصةً: لا ورقة له غيرها).
+            Route::get('{type}/{id}/refunds/{refund}/print', [InvoiceController::class, 'printRefund'])
+                ->whereIn('type', ['product', 'service'])->whereNumber('id')->whereNumber('refund')->name('refund-print');
             Route::get('{type}/{id}/receipt', [InvoiceReceiptController::class, 'show'])
                 ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('receipt');
 

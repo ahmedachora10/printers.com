@@ -35,6 +35,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property string|null $payment_method_name
  * @property bool|int|null $payment_requires_attachment
  * @property int|string|null $receipt_count
+ * @property int|string|null $pending_return_requests
  * @property int|null $unread_messages
  */
 class InvoiceListResource extends JsonResource
@@ -102,6 +103,8 @@ class InvoiceListResource extends JsonResource
             // أما الجزئي فيترك الفاتورة قائمةً — وهذا الرقم هو ما يُظهر أنّ
             // عليها مرتجعاً بدل أن يمرّ صامتاً.
             'refundedAmount' => round((float) $this->refunded_amount, 2),
+            // تاسك 148: شارة «طلب استرجاع — تحت المراجعة» في القائمة.
+            'hasPendingReturnRequest' => (int) $this->pending_return_requests > 0,
             'status' => $status->value,
             'statusLabel' => $status->label(),
             // Feeds the tooltip on the "ملغاة" badge so the employee sees why

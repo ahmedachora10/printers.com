@@ -3,8 +3,11 @@
 use App\Actions\Invoice\GenerateZatcaQrAction;
 use App\Enums\Roles;
 use App\Models\Branch;
+use App\Models\Customer;
+use App\Models\InvoiceReturnRequest;
 use App\Models\ProductInvoice;
 use App\Models\ProductInvoiceLine;
+use App\Models\Refund;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\User;
@@ -289,13 +292,99 @@ describe('Invoice View (M13)', function () {
     });
 
     it('carries the customer phone into a reprint (تاسك 143)', function () {
-        $customer = \App\Models\Customer::factory()->create(['branch_id' => $this->branch->id, 'phone' => '0551234567']);
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'phone' => '0551234567']);
         $invoice = makeServiceInvoice($this->branch, $this->admin, ['customer_id' => $customer->id]);
 
         $this->get(route('invoices.print', ['type' => 'service', 'id' => $invoice->id, 'format' => 'thermal']))
             ->assertOk()
             ->assertInertia(fn ($page) => $page->component('invoices/print')
                 ->where('invoice.customerPhone', '0551234567'));
+    });
+
+    it('links the previous and next invoice within the viewer list scope (تاسك 147)', function () {
+        $employee = User::factory()->create(['branch_id' => $this->branch->id]);
+        $employee->addRole(Roles::EMPLOYEE->value);
+        $colleague = User::factory()->create(['branch_id' => $this->branch->id]);
+        $colleague->addRole(Roles::EMPLOYEE->value);
+
+        $first = makeServiceInvoice($this->branch, $employee);
+        $middle = makeServiceInvoice($this->branch, $colleague);
+        $last = makeServiceInvoice($this->branch, $employee);
+
+        // مدير الفرع يرى الفرع كله.
+        $this->get(route('invoices.show', ['type' => 'service', 'id' => $first->id]))
+            ->assertInertia(fn ($page) => $page->where('neighbours.prevId', null)->where('neighbours.nextId', $middle->id));
+
+        // الموظف يتخطّى فاتورة زميله كما في قائمته.
+        $this->actingAs($employee)
+            ->get(route('invoices.show', ['type' => 'service', 'id' => $first->id]))
+            ->assertInertia(fn ($page) => $page->where('neighbours.nextId', $last->id));
+    });
+
+    it('follows the invoice list filters when moving between invoices (تاسك 147)', function () {
+        $first = makeServiceInvoice($this->branch, $this->admin);
+        makeServiceInvoice($this->branch, $this->admin, ['status' => 'due', 'paid_at' => null]);
+        $third = makeServiceInvoice($this->branch, $this->admin);
+
+        // القائمة مصفّاة على «مدفوعة» ⇒ التالية تتخطّى الآجلة.
+        $this->get(route('invoices.index', ['status' => 'paid']))->assertOk();
+
+        $this->get(route('invoices.show', ['type' => 'service', 'id' => $first->id]))
+            ->assertInertia(fn ($page) => $page->where('neighbours.nextId', $third->id));
+    });
+
+    it('flags a pending return request on the invoice list (تاسك 148)', function () {
+        $invoice = makeServiceInvoice($this->branch, $this->admin);
+        makeProductInvoice($this->branch, $this->admin);
+        $request = InvoiceReturnRequest::create([
+            'service_invoice_id' => $invoice->id,
+            'branch_id' => $this->branch->id,
+            'requested_by' => $this->admin->id,
+            'status' => 'pending',
+        ]);
+
+        $flags = fn () => collect($this->get(route('invoices.index'))->viewData('page')['props']['items']['data'])
+            ->mapWithKeys(fn ($row) => [$row['type'] => $row['hasPendingReturnRequest']]);
+
+        expect($flags()->all())->toEqual(['service' => true, 'product' => false]);
+
+        $request->update(['status' => 'completed']);
+        expect($flags()['service'])->toBeFalse();
+    });
+
+    it('prints a refund notice with the VAT drawn out at the invoice rate (تاسك 150)', function () {
+        $invoice = makeServiceInvoice($this->branch, $this->admin); // 230 شاملة 30 ضريبة
+        $refund = Refund::create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->admin->id,
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'invoice_type' => ServiceInvoice::class,
+            'amount' => 115,
+            'reason' => 'مرتجع جزئي',
+        ]);
+
+        $this->get(route('invoices.refund-print', ['type' => 'service', 'id' => $invoice->id, 'refund' => $refund->id]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('invoices/refund-print')
+                ->where('notice.noticeNumber', sprintf('CN-%03d-00001', $this->branch->id))
+                ->where('notice.invoiceNumber', $invoice->invoice_number)
+                ->where('zatcaQr', app(GenerateZatcaQrAction::class)->forAmounts($invoice->branch, $refund->created_at, 115, 15))
+                ->where('notice.amount', 115)
+                ->where('notice.vatAmount', 15)
+                ->where('notice.netAmount', 100));
+
+        // مرتجعٌ لا يخصّ الفاتورة المذكورة في المسار.
+        $other = makeServiceInvoice($this->branch, $this->admin);
+        $this->get(route('invoices.refund-print', ['type' => 'service', 'id' => $other->id, 'refund' => $refund->id]))
+            ->assertNotFound();
+
+        // فرعٌ آخر.
+        $outsider = User::factory()->create(['branch_id' => Branch::factory()->create()->id]);
+        $outsider->addRole(Roles::ACCOUNTANT->value);
+        $this->actingAs($outsider)
+            ->get(route('invoices.refund-print', ['type' => 'service', 'id' => $invoice->id, 'refund' => $refund->id]))
+            ->assertForbidden();
     });
 
     it('carries the employee name onto a quotation too', function () {

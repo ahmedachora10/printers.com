@@ -29,7 +29,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice, type InvoiceThread as InvoiceThreadData, type InvoicePayment, type PaymentMethodChange } from '@/types/invoice';
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/react';
-import { Ban, Bike, CheckCircle2, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
+import { Ban, Bike, CheckCircle2, ChevronLeft, ChevronRight, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -39,6 +39,7 @@ interface Props {
     paymentMethodHistory: PaymentMethodChange[];
     /** تاسك 100: فاتورة خدمات ولمن يرى محادثتها */
     hasThread: boolean;
+    neighbours: { prevId: number | null; nextId: number | null };
     thread?: InvoiceThreadData | null;
 }
 
@@ -123,7 +124,7 @@ function TotalRow({ label, value, strong = false }: { label: string; value: stri
     );
 }
 
-export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory, hasThread, thread }: Props) {
+export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory, hasThread, thread, neighbours }: Props) {
     const { props } = usePage<SharedData>();
     // تاسك 125: مراجع الحسابات يطّلع على الشاشة ولا يطبع — ومسارات الطباعة خارج مجموعته.
     const canPrint = props.auth.role !== 'auditor';
@@ -312,6 +313,27 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     ];
 
     const printBase = `/invoices/${invoice.type}/${invoice.id}/print`;
+    const refundPrintLink = (refundId: number, format: 'thermal' | 'a4', icon: React.ReactNode) => (
+        <a
+            href={`/invoices/${invoice.type}/${invoice.id}/refunds/${refundId}/print?format=${format}`}
+            target="_blank"
+            rel="noreferrer"
+            title={`طباعة إشعار المرتجع — ${format === 'thermal' ? 'حراري' : 'A4'}`}
+            className="text-muted-foreground hover:text-foreground"
+        >
+            {icon}
+        </a>
+    );
+    const neighbourButton = (id: number | null, label: React.ReactNode) =>
+        id ? (
+            <Button variant="outline" asChild>
+                <Link href={`/invoices/${invoice.type}/${id}`}>{label}</Link>
+            </Button>
+        ) : (
+            <Button variant="outline" disabled>
+                {label}
+            </Button>
+        );
     const hasPayments = (invoice.payments?.length ?? 0) > 0;
 
     return (
@@ -346,6 +368,9 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                     </div>
                     {/* Full-width pairs on a phone; a single inline row once there is room. */}
                     <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
+                        {/* تاسك 147 — التنقّل بين فواتير النوع نفسه بترتيب الإنشاء. */}
+                        {neighbourButton(neighbours.prevId, <><ChevronRight className="size-4" /> الفاتورة السابقة</>)}
+                        {neighbourButton(neighbours.nextId, <>الفاتورة التالية <ChevronLeft className="size-4" /></>)}
                         {/* تاسك 59: لا اعتماد بلا طريقة دفع، ولا اعتماد لطريقة
                             تشترط مرفقاً بلا إيصالها. الخادم يرفض الاثنين أيضاً،
                             فالتعطيل هنا توضيحٌ لا حارس — وكلاهما يُستدرك من
@@ -596,6 +621,12 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                             </span>
                                             <span className="text-muted-foreground">{refund.paymentMethodName ?? '—'}</span>
                                             <span className="text-muted-foreground">{refund.userName ?? '—'}</span>
+                                            {canPrint && (
+                                                <>
+                                                    {refundPrintLink(refund.id, 'thermal', <ReceiptText className="size-4" />)}
+                                                    {refundPrintLink(refund.id, 'a4', <Printer className="size-4" />)}
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 ))}
