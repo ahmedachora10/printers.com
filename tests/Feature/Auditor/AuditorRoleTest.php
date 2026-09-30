@@ -100,7 +100,7 @@ describe('what the auditor may see', function () {
         }
     });
 
-    it('lists exactly the thirteen sidebar items of the client list', function () {
+    it('lists exactly the fourteen sidebar items of the client list', function () {
         $groups = $this->actingAs($this->auditor)->get(route('reports.sales'))
             ->viewData('page')['props']['auth']['sidebarItems'];
 
@@ -111,6 +111,8 @@ describe('what the auditor may see', function () {
             'تقرير المبيعات', 'تقرير العمولات', 'عمولات المناديب', 'تقرير المصروفات',
             'استهلاك الخامات', 'الحوافز والخصومات', 'كشف التوصيل', 'التقرير اليومي',
             'التحليلات المتقدمة',
+            // تاسك 146 — تقرير قراءة كبقية التقارير.
+            'مبالغ الشبكة',
         ]);
     });
 });
