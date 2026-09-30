@@ -25,12 +25,14 @@ class StoreAccountReconciliationRequest extends FormRequest
             'branch' => [Rule::excludeIf(! $isSuper), 'required', 'integer', 'exists:branches,id'],
             'date' => ['required', 'date_format:Y-m-d'],
             'devices' => ['present', 'array'],
-            // طريقة شبكة يراها الفرع (عامةً أو ملكه) — عدة أجهزة لنفس الطريقة مسموحة.
-            'devices.*.payment_method_id' => ['required', 'integer', Rule::exists('payment_methods', 'id')
-                ->where('is_network', true)
-                ->whereNull('deleted_at')
-                ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $this->branchId()))],
-            'devices.*.device_label' => ['required', 'string', 'max:100'],
+            // تاسك 146: جهاز نشط من فرع المطابقة + نوع بطاقة نشط؛ طريقة الدفع تُشتقّ من الجهاز.
+            'devices.*.network_device_id' => ['required', 'integer', Rule::exists('network_devices', 'id')
+                ->where('branch_id', $this->branchId())
+                ->where('is_active', true)
+                ->whereNull('deleted_at')],
+            'devices.*.card_type_id' => ['required', 'integer', Rule::exists('card_types', 'id')
+                ->where('is_active', true)
+                ->whereNull('deleted_at')],
             'devices.*.amount' => ['required', 'numeric', 'min:0', 'max:9999999999.99'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];

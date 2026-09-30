@@ -21,11 +21,38 @@ interface Option {
     name: string;
 }
 
-type Device = {
-    paymentMethodId: number | null;
-    deviceLabel: string;
-    amount: string;
+/** تاسك 146 — جهاز واحد بمبلغٍ لكل نوع بطاقة (المفتاح = id النوع). */
+type DeviceBlock = {
+    networkDeviceId: number | null;
+    amounts: Record<number, string>;
 };
+
+interface NetworkDeviceOption {
+    id: number;
+    name: string;
+    number: string;
+    isDefault: boolean;
+}
+
+interface SavedDevice {
+    networkDeviceId: number | null;
+    cardTypeId: number | null;
+    paymentMethodName: string | null;
+    deviceLabel: string;
+    amount: number;
+}
+
+/** الصفوف المحفوظة مجمَّعةً بالجهاز؛ صفوف ما قبل تاسك 146 (بلا جهاز) خارجها. */
+function toBlocks(devices: SavedDevice[]): DeviceBlock[] {
+    const blocks = new Map<number, DeviceBlock>();
+    for (const d of devices) {
+        if (d.networkDeviceId == null || d.cardTypeId == null) continue;
+        const block = blocks.get(d.networkDeviceId) ?? { networkDeviceId: d.networkDeviceId, amounts: {} };
+        block.amounts[d.cardTypeId] = String(d.amount);
+        blocks.set(d.networkDeviceId, block);
+    }
+    return [...blocks.values()];
+}
 
 interface HistoryRow {
     date: string;
@@ -43,7 +70,8 @@ interface Props {
     /** تاسك 144: على المعتمد ضمن مدى السجل؛ pending = غير المعتمد (لا يدخل المجموع). */
     historyTotals: { surplus: number; shortage: number; net: number; pending: number };
     branches: Option[];
-    networkMethods: Option[];
+    networkDevices: NetworkDeviceOption[];
+    cardTypes: Option[];
     figures: {
         systemNet: number;
         autoTotal: number;
@@ -53,7 +81,7 @@ interface Props {
     };
     reconciliation: {
         id: number;
-        devices: { paymentMethodId: number; deviceLabel: string; amount: number }[];
+        devices: SavedDevice[];
         notes: string | null;
         createdBy: string | null;
         approvedBy: string | null;
@@ -76,20 +104,28 @@ function result(difference: number) {
     return { label: 'زيادة', className: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300' };
 }
 
-export default function ReconciliationIndex({ filters, branches, networkMethods, figures, reconciliation, history, historyTotals }: Props) {
+export default function ReconciliationIndex({ filters, branches, networkDevices, cardTypes, figures, reconciliation, history, historyTotals }: Props) {
     const approved = reconciliation?.approvedAt != null;
+    const legacyDevices = reconciliation?.devices.filter((d) => d.networkDeviceId == null) ?? [];
+    const defaultDevice = networkDevices.find((d) => d.isDefault) ?? networkDevices[0];
 
-    const form = useForm<{ branch: number | null; date: string; devices: Device[]; notes: string }>({
+    const form = useForm<{ branch: number | null; date: string; devices: DeviceBlock[]; notes: string }>({
         branch: filters.branch,
         date: filters.date,
-        devices: reconciliation?.devices.map((d) => ({ ...d, amount: String(d.amount) })) ?? [],
+        // مطابقة جديدة تُفتح بالجهاز الافتراضي.
+        devices: reconciliation ? toBlocks(reconciliation.devices) : defaultDevice ? [{ networkDeviceId: defaultDevice.id, amounts: {} }] : [],
         notes: reconciliation?.notes ?? '',
     });
 
-    const devicesTotal = round2(form.data.devices.reduce((sum, d) => sum + (Number(d.amount) || 0), 0));
+    const devicesTotal = round2(
+        legacyDevices.reduce((sum, d) => sum + d.amount, 0) +
+            form.data.devices.reduce((sum, b) => sum + Object.values(b.amounts).reduce((s, a) => s + (Number(a) || 0), 0), 0),
+    );
     const difference = round2(devicesTotal + figures.autoTotal - figures.systemNet);
-    // لا مطابقة محفوظة ولا أجهزة مُدخلة ← لا معنى لـ«مطابق».
-    const isEmpty = !reconciliation && form.data.devices.length === 0;
+    // لا مطابقة محفوظة ولا مبالغ مُدخلة ← لا معنى لـ«مطابق».
+    const isEmpty = !reconciliation && !form.isDirty;
+    const usedDeviceIds = form.data.devices.map((b) => b.networkDeviceId);
+    const nextDevice = networkDevices.find((d) => !usedDeviceIds.includes(d.id));
     const status = isEmpty ? { label: 'لا توجد مطابقة بعد', className: 'bg-muted/50 text-muted-foreground' } : result(difference);
     const today = new Date().toLocaleDateString('en-CA');
     const [confirmingApprove, setConfirmingApprove] = useState(false);
@@ -136,13 +172,18 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
             ...(params.page && { page: params.page }),
         });
 
-    const setDevice = (index: number, patch: Partial<Device>) =>
-        form.setData('devices', form.data.devices.map((d, i) => (i === index ? { ...d, ...patch } : d)));
+    const setBlock = (index: number, patch: Partial<DeviceBlock>) =>
+        form.setData('devices', form.data.devices.map((b, i) => (i === index ? { ...b, ...patch } : b)));
 
     const save = (onSuccess?: () => void) => {
         form.transform((data) => ({
             ...data,
-            devices: data.devices.map((d) => ({ payment_method_id: d.paymentMethodId, device_label: d.deviceLabel, amount: d.amount })),
+            // صفٌّ لكل (جهاز × نوع) بمبلغٍ موجب؛ الفارغ والصفر لا يُحفظان.
+            devices: data.devices.flatMap((b) =>
+                Object.entries(b.amounts)
+                    .filter(([, amount]) => Number(amount) > 0)
+                    .map(([cardTypeId, amount]) => ({ network_device_id: b.networkDeviceId, card_type_id: Number(cardTypeId), amount })),
+            ),
         }));
         // بعد الحفظ تصير القيم الحالية هي «المحفوظة» فلا يعود التنبيه.
         form.post(finance.reconciliation.store().url, {
@@ -245,11 +286,11 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                     <Card className="lg:col-span-2">
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>موازنات أجهزة الشبكة</CardTitle>
-                            {!approved && (
+                            {!approved && nextDevice && (
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => form.setData('devices', [...form.data.devices, { paymentMethodId: networkMethods[0]?.id ?? null, deviceLabel: '', amount: '' }])}
+                                    onClick={() => form.setData('devices', [...form.data.devices, { networkDeviceId: nextDevice.id, amounts: {} }])}
                                 >
                                     <Plus className="size-4" />
                                     إضافة جهاز
@@ -257,56 +298,78 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                             )}
                         </CardHeader>
                         <CardContent className="flex flex-col gap-3">
-                            {networkMethods.length === 0 && (
-                                <p className="text-muted-foreground text-sm">لا توجد طرق دفع معلَّمة «شبكة» — فعّلها من الإعدادات ← طرق الدفع.</p>
+                            {networkDevices.length === 0 && (
+                                <p className="text-muted-foreground text-sm">لا توجد أجهزة شبكة — أضفها من الإعدادات ← أجهزة الشبكة.</p>
                             )}
-                            {form.data.devices.map((device, i) => (
-                                <div key={i} className="grid grid-cols-[1fr_1fr_8rem_auto] items-start gap-2">
-                                    <Select
-                                        disabled={approved}
-                                        value={device.paymentMethodId ? String(device.paymentMethodId) : ''}
-                                        onValueChange={(v) => setDevice(i, { paymentMethodId: Number(v) })}
-                                    >
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="الطريقة" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {networkMethods.map((m) => (
-                                                <SelectItem key={m.id} value={String(m.id)}>
-                                                    {m.name}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    <Input disabled={approved} placeholder="رقم الجهاز" value={device.deviceLabel} onChange={(e) => setDevice(i, { deviceLabel: e.target.value })} />
-                                    <Input
-                                        disabled={approved}
-                                        type="number"
-                                        min="0"
-                                        step="0.01"
-                                        inputMode="decimal"
-                                        placeholder="المبلغ"
-                                        value={device.amount}
-                                        onChange={(e) => setDevice(i, { amount: e.target.value })}
-                                    />
-                                    {!approved && (
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            aria-label="حذف الجهاز"
-                                            onClick={() => form.setData('devices', form.data.devices.filter((_, j) => j !== i))}
-                                        >
-                                            <Trash2 className="size-4" />
-                                        </Button>
-                                    )}
-                                    {Object.entries(form.errors)
-                                        .filter(([key]) => key.startsWith(`devices.${i}.`))
-                                        .map(([key, message]) => (
-                                            <p key={key} className="text-destructive col-span-full text-xs">
-                                                {message}
-                                            </p>
-                                        ))}
+                            {legacyDevices.length > 0 && (
+                                <div className="bg-muted/40 rounded-md border p-3 text-sm">
+                                    <p className="text-muted-foreground mb-1 text-xs">إدخالات سابقة لقائمة الأجهزة (تُحتسب ولا تُعدَّل):</p>
+                                    {legacyDevices.map((d, i) => (
+                                        <div key={i} className="flex justify-between gap-2 tabular-nums">
+                                            <span>
+                                                {d.paymentMethodName} — <bdi>{d.deviceLabel}</bdi>
+                                            </span>
+                                            <span>{formatSar(d.amount)}</span>
+                                        </div>
+                                    ))}
                                 </div>
+                            )}
+                            {form.data.devices.map((block, i) => (
+                                <div key={i} className="grid gap-2 rounded-md border p-3">
+                                    <div className="flex items-center gap-2">
+                                        <Select
+                                            disabled={approved}
+                                            value={block.networkDeviceId ? String(block.networkDeviceId) : ''}
+                                            onValueChange={(v) => setBlock(i, { networkDeviceId: Number(v) })}
+                                        >
+                                            <SelectTrigger className="flex-1">
+                                                <SelectValue placeholder="الجهاز" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {networkDevices
+                                                    .filter((d) => d.id === block.networkDeviceId || !usedDeviceIds.includes(d.id))
+                                                    .map((d) => (
+                                                        <SelectItem key={d.id} value={String(d.id)}>
+                                                            {d.name} — <bdi>{d.number}</bdi>
+                                                        </SelectItem>
+                                                    ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {!approved && (
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label="حذف الجهاز"
+                                                onClick={() => form.setData('devices', form.data.devices.filter((_, j) => j !== i))}
+                                            >
+                                                <Trash2 className="size-4" />
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2">
+                                        {cardTypes.map((type) => (
+                                            <div key={type.id} className="grid gap-1">
+                                                <Label className="text-muted-foreground text-xs">{type.name}</Label>
+                                                <Input
+                                                    disabled={approved}
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                    inputMode="decimal"
+                                                    placeholder="0.00"
+                                                    value={block.amounts[type.id] ?? ''}
+                                                    onChange={(e) => setBlock(i, { amounts: { ...block.amounts, [type.id]: e.target.value } })}
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                            {/* أخطاء الصفوف مفهرسةٌ على الصفوف المسطَّحة لا على الكتل — تُعرض مجمَّعة. */}
+                            {[...new Set(Object.entries(form.errors).filter(([key]) => key.startsWith('devices.')).map(([, message]) => message))].map((message) => (
+                                <p key={message} className="text-destructive text-xs">
+                                    {message}
+                                </p>
                             ))}
                             {form.errors.devices && <p className="text-destructive text-sm">{form.errors.devices}</p>}
 

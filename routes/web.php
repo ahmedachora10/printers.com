@@ -10,6 +10,7 @@ use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AppSettingController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchServiceController;
+use App\Http\Controllers\CardTypeController;
 use App\Http\Controllers\CatalogCategoryController;
 use App\Http\Controllers\CatalogPriceController;
 use App\Http\Controllers\CatalogSubcategoryController;
@@ -46,6 +47,8 @@ use App\Http\Controllers\InvoiceReturnRequestController;
 use App\Http\Controllers\LoyaltyController;
 use App\Http\Controllers\MaterialsReportController;
 use App\Http\Controllers\MyIncentiveController;
+use App\Http\Controllers\NetworkDeviceController;
+use App\Http\Controllers\NetworkReportController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
@@ -153,6 +156,14 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
             ->name('payment-methods.toggle-status');
 
+        // تاسك 146 — أجهزة الشبكة (مدير الفرع لفرعه) وأنواع البطاقات (المدير العام؛ السياسة تحرس).
+        Route::resource('network-devices', NetworkDeviceController::class)
+            ->parameters(['network-devices' => 'networkDevice'])
+            ->only(['store', 'update', 'destroy']);
+        Route::resource('card-types', CardTypeController::class)
+            ->parameters(['card-types' => 'cardType'])
+            ->only(['store', 'update', 'destroy']);
+
         Route::prefix('admin/catalogue')->name('admin.catalogue.')->group(function () {
             // Full-catalogue Excel export / import (categories + subcategories + prices)
 
@@ -232,6 +243,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('reports/daily', [DailyReportController::class, 'index'])->name('reports.daily');
         Route::get('reports/expenses', [ExpenseReportController::class, 'index'])->name('reports.expenses');
         Route::get('reports/materials', [MaterialsReportController::class, 'index'])->name('reports.materials');
+        Route::get('reports/network', [NetworkReportController::class, 'index'])->name('reports.network');
         Route::get('reports/agent-commissions', [AgentCommissionReportController::class, 'index'])
             ->name('reports.agent-commissions');
 
@@ -486,6 +498,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.expenses.export');
         Route::get('reports/materials/export', [MaterialsReportController::class, 'export'])
             ->name('reports.materials.export');
+        Route::get('reports/network/export', [NetworkReportController::class, 'export'])
+            ->name('reports.network.export');
         Route::get('reports/agent-commissions/export', [AgentCommissionReportController::class, 'export'])
             ->name('reports.agent-commissions.export');
     });
