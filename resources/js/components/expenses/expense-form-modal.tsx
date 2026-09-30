@@ -35,6 +35,8 @@ interface Props {
     expense?: Expense;
     categories: Category[];
     branches?: Branch[] | null;
+    /** تاسك 149: قيمٌ مسبقة لمصروفٍ جديد يُسجَّل من صفحة الفاتورة. */
+    defaults?: { unit_price: string; service_invoice_id: string; invoiceLabel: string };
 }
 
 const SOURCES: { value: ExpenseSource; label: string }[] = [
@@ -62,7 +64,7 @@ function todayIso(): string {
     return new Date().toLocaleDateString('en-CA');
 }
 
-export default function ExpenseFormModal({ open, onOpenChange, expense, categories, branches }: Props) {
+export default function ExpenseFormModal({ open, onOpenChange, expense, categories, branches, defaults }: Props) {
     const isEdit = !!expense;
     const isSuperAdmin = Array.isArray(branches);
     // تاسك 135: التاريخ القديم لمدير الفرع ومدير النظام فقط (والتاريخ الحالي للمصروف يبقى).
@@ -73,7 +75,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         branch_id: expense?.branchId?.toString() ?? (branches?.[0]?.id?.toString() ?? ''),
         expense_category_id: expense?.expenseCategoryId?.toString() ?? '',
         qty:                 expense?.qty?.toString() ?? '1',
-        unit_price:          expense?.unitPrice?.toString() ?? '',
+        unit_price:          expense?.unitPrice?.toString() ?? defaults?.unit_price ?? '',
         // تاسك 110: بلا اختيار مسبق — المستخدم يحدّد المصدر صراحةً.
         paid_from:           expense?.paidFrom ?? '',
         supplier_name:       expense?.supplierName ?? '',
@@ -81,10 +83,10 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         comment:             expense?.comment ?? '',
         date:                expense?.date ?? todayIso(),
         // تاسك 112
-        service_invoice_id:  expense?.serviceInvoiceId?.toString() ?? '',
+        service_invoice_id:  expense?.serviceInvoiceId?.toString() ?? defaults?.service_invoice_id ?? '',
         attachment:          null as File | null,
     });
-    const [invoiceLabel, setInvoiceLabel] = useState(expense?.invoiceNumber ?? '');
+    const [invoiceLabel, setInvoiceLabel] = useState(expense?.invoiceNumber ?? defaults?.invoiceLabel ?? '');
 
     useEffect(() => {
         if (expense) {
@@ -104,6 +106,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
             setInvoiceLabel(expense.invoiceNumber ?? '');
         } else {
             reset();
+            setInvoiceLabel(defaults?.invoiceLabel ?? '');
         }
     }, [expense, open]);
 

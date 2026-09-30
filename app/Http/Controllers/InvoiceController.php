@@ -12,6 +12,7 @@ use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
 use App\Models\Branch;
 use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\InvoiceMessage;
 use App\Models\InvoicePayment;
 use App\Models\PaymentMethod;
@@ -283,6 +284,16 @@ class InvoiceController extends Controller
                     'at' => $a->created_at?->toIso8601String(),
                 ]),
             'neighbours' => fn () => $this->neighbourIds(InvoiceTypeEnum::from($type), $invoice->id),
+            // تاسك 149: «تسجيل مصروف» من فاتورة الخدمات — فئات فرع الفاتورة، والفرع
+            // ثابتٌ عليها (السوبر أدمن يستلمه قائمةً من فرعٍ واحد).
+            'expenseForm' => $invoice instanceof ServiceInvoice && Gate::allows('create', Expense::class)
+                ? fn () => [
+                    'categories' => ExpenseCategory::activeOptionsFor($invoice->branch_id),
+                    'branches' => Auth::user()->roleName?->isSuperAdmin()
+                        ? [['id' => $invoice->branch_id, 'name' => $invoice->branch?->name]]
+                        : null,
+                ]
+                : null,
             'hasThread' => $hasThread,
             // مؤجَّلة: الصفحة لا تنتظرها، والاستطلاع يطلبها وحدها. وقراءتها تقدّم
             // موضع قراءة الناظر.

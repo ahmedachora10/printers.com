@@ -7,6 +7,7 @@ import LineInternals from '@/components/invoices/line-internals';
 import MaterialsShortageDialog from '@/components/invoices/materials-shortage-dialog';
 import { ReceiptField } from '@/components/invoices/receipt-field';
 import RecordPaymentModal, { type PaymentMethodOption } from '@/components/invoices/record-payment-modal';
+import ExpenseFormModal from '@/components/expenses/expense-form-modal';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,8 +30,8 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice, type InvoiceThread as InvoiceThreadData, type InvoicePayment, type PaymentMethodChange } from '@/types/invoice';
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/react';
-import { Ban, Bike, CheckCircle2, ChevronLeft, ChevronRight, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { Ban, Bike, CheckCircle2, ChevronLeft, ChevronRight, Coins, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
+import { type ComponentProps, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 interface Props {
@@ -40,6 +41,8 @@ interface Props {
     /** تاسك 100: فاتورة خدمات ولمن يرى محادثتها */
     hasThread: boolean;
     neighbours: { prevId: number | null; nextId: number | null };
+    /** تاسك 149: لمن يسجّل المصروفات، وفي فاتورة الخدمات وحدها. */
+    expenseForm: Pick<ComponentProps<typeof ExpenseFormModal>, 'categories' | 'branches'> | null;
     thread?: InvoiceThreadData | null;
 }
 
@@ -124,11 +127,12 @@ function TotalRow({ label, value, strong = false }: { label: string; value: stri
     );
 }
 
-export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory, hasThread, thread, neighbours }: Props) {
+export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory, hasThread, thread, neighbours, expenseForm }: Props) {
     const { props } = usePage<SharedData>();
     // تاسك 125: مراجع الحسابات يطّلع على الشاشة ولا يطبع — ومسارات الطباعة خارج مجموعته.
     const canPrint = props.auth.role !== 'auditor';
     const [refundOpen, setRefundOpen] = useState(false);
+    const [expenseOpen, setExpenseOpen] = useState(false);
     const [paymentOpen, setPaymentOpen] = useState(false);
     const [approveOpen, setApproveOpen] = useState(false);
     // نص عجز الخامات كما ردّه الخادم — وجودُه يفتح حوار الإقرار.
@@ -191,6 +195,8 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
         shippingFee: invoice.shippingFee ?? 0,
         discounts: [invoice.tierDiscountAmount, invoice.couponDiscount, invoice.agentDiscount, invoice.pointsDiscount],
     });
+
+    const materialsTotal = invoice.lines.reduce((sum, line) => sum + (line.materialsTotal ?? 0), 0);
 
     useEffect(() => {
         if (props.success) {
@@ -420,6 +426,11 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                         {invoice.canReturn && (
                             <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setReturnOpen(true)}>
                                 <Undo2 className="size-4" /> استرجاع الفاتورة
+                            </Button>
+                        )}
+                        {expenseForm && (
+                            <Button variant="outline" onClick={() => setExpenseOpen(true)}>
+                                <Coins className="size-4" /> تسجيل مصروف
                             </Button>
                         )}
                         {canPrint && invoice.status !== 'cancelled' && (
@@ -872,6 +883,21 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                     invoiceNumber={invoice.invoiceNumber}
                     remaining={invoice.paymentRemaining}
                     paymentMethods={paymentMethodOptions}
+                />
+            )}
+
+            {expenseForm && (
+                <ExpenseFormModal
+                    open={expenseOpen}
+                    onOpenChange={setExpenseOpen}
+                    categories={expenseForm.categories}
+                    branches={expenseForm.branches}
+                    // تاسك 149: سعر الوحدة = تكلفة خامات الفاتورة (فارغٌ إن لم تكن)، والفاتورة مربوطة.
+                    defaults={{
+                        unit_price: materialsTotal > 0 ? materialsTotal.toFixed(2) : '',
+                        service_invoice_id: String(invoice.id),
+                        invoiceLabel: invoice.invoiceNumber,
+                    }}
                 />
             )}
 
