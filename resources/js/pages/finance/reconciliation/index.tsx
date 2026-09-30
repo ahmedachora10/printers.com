@@ -388,14 +388,12 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                     <CardContent className="space-y-4 overflow-x-auto">
                         <DateRangeBar filters={historyFilters} from={filters.historyFrom} to={filters.historyTo} fromKey="history_from" toKey="history_to" extended />
                         <div className="grid gap-3 sm:grid-cols-3">
-                            <div className="rounded-lg border p-3">
-                                <p className="text-muted-foreground text-xs">إجمالي الزيادة</p>
-                                <p className="text-lg font-semibold tabular-nums">{formatSar(historyTotals.surplus)}</p>
-                            </div>
-                            <div className="rounded-lg border p-3">
-                                <p className="text-muted-foreground text-xs">إجمالي العجز</p>
-                                <p className="text-lg font-semibold tabular-nums">{formatSar(historyTotals.shortage)}</p>
-                            </div>
+                            {([['إجمالي الزيادة', historyTotals.surplus], ['إجمالي العجز', historyTotals.shortage]] as const).map(([label, value]) => (
+                                <div key={label} className="rounded-lg border p-3">
+                                    <p className="text-muted-foreground text-xs">{label}</p>
+                                    <p className="text-lg font-semibold tabular-nums">{formatSar(value)}</p>
+                                </div>
+                            ))}
                             <div className={cn('rounded-lg border p-3', result(historyTotals.net).className)}>
                                 <p className="text-xs">الفرق</p>
                                 <p className="text-lg font-semibold tabular-nums">
