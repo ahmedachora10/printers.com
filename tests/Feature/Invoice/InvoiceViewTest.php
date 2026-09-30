@@ -288,6 +288,16 @@ describe('Invoice View (M13)', function () {
                 ->where('invoice.userName', 'موظف الفاتورة'));
     });
 
+    it('carries the customer phone into a reprint (تاسك 143)', function () {
+        $customer = \App\Models\Customer::factory()->create(['branch_id' => $this->branch->id, 'phone' => '0551234567']);
+        $invoice = makeServiceInvoice($this->branch, $this->admin, ['customer_id' => $customer->id]);
+
+        $this->get(route('invoices.print', ['type' => 'service', 'id' => $invoice->id, 'format' => 'thermal']))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page->component('invoices/print')
+                ->where('invoice.customerPhone', '0551234567'));
+    });
+
     it('carries the employee name onto a quotation too', function () {
         $invoice = makeServiceInvoice($this->branch, $this->admin, ['status' => 'due', 'paid_at' => null]);
 
