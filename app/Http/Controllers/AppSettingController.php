@@ -101,10 +101,8 @@ class AppSettingController extends Controller
                     'name' => $d->name,
                     'number' => $d->number,
                     'isDefault' => $d->is_default,
-                    'isActive' => $d->is_active,
                 ]),
-            'cardTypes' => CardType::query()->orderBy('sort_order')->orderBy('id')->get(['id', 'name', 'sort_order', 'is_active'])
-                ->map(fn (CardType $c) => ['id' => $c->id, 'name' => $c->name, 'sortOrder' => $c->sort_order, 'isActive' => $c->is_active]),
+            'cardTypes' => CardType::query()->orderBy('id')->get(['id', 'name']),
             'canManageNetworkDevices' => Gate::allows('create', NetworkDevice::class),
             'isSuperAdmin' => $isSuperAdmin,
             'loyaltyConfig' => $loyaltyConfig ? [

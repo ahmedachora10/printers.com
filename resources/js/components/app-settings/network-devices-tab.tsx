@@ -22,14 +22,11 @@ export interface NetworkDevice {
     name: string;
     number: string;
     isDefault: boolean;
-    isActive: boolean;
 }
 
 export interface CardType {
     id: number;
     name: string;
-    sortOrder: number;
-    isActive: boolean;
 }
 
 interface Props {
@@ -40,12 +37,6 @@ interface Props {
     isSuperAdmin: boolean;
     canManageDevices: boolean;
 }
-
-const inactiveBadge = (
-    <Badge variant="outline" className="border-border bg-muted/60 text-muted-foreground">
-        غير نشط
-    </Badge>
-);
 
 /** تاسك 146 — أجهزة الشبكة (لكل فرع، واحدٌ افتراضي) وأنواع البطاقات (قائمة عامة). */
 export default function NetworkDevicesTab({ devices, cardTypes, paymentMethods, branches, isSuperAdmin, canManageDevices }: Props) {
@@ -93,7 +84,6 @@ export default function NetworkDevicesTab({ devices, cardTypes, paymentMethods, 
                                             <Star className="size-3" /> افتراضي
                                         </Badge>
                                     )}
-                                    {!d.isActive && inactiveBadge}
                                 </div>
                                 {canManageDevices && (
                                     <div className="flex items-center gap-2">
@@ -132,10 +122,7 @@ export default function NetworkDevicesTab({ devices, cardTypes, paymentMethods, 
                 <ul className="divide-y">
                     {cardTypes.map((c) => (
                         <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                            <div className="flex items-center gap-2">
-                                <span className="font-medium">{c.name}</span>
-                                {!c.isActive && inactiveBadge}
-                            </div>
+                            <span className="font-medium">{c.name}</span>
                             {isSuperAdmin && (
                                 <div className="flex items-center gap-2">
                                     <Button variant="outline" size="sm" aria-label="تعديل" onClick={() => setCardType(c)}>
@@ -190,7 +177,6 @@ function DeviceDialog({
         name: device?.name ?? '',
         number: device?.number ?? '',
         is_default: device?.isDefault ?? false,
-        is_active: device?.isActive ?? true,
     });
 
     // طرق «شبكة» يراها فرع الجهاز: العامة + ما يخصّه.
@@ -264,12 +250,6 @@ function DeviceDialog({
                             الجهاز الافتراضي للفرع
                         </Label>
                     </div>
-                    <div className="flex items-center gap-2">
-                        <Checkbox id="nd-active" checked={form.data.is_active} onCheckedChange={(c) => form.setData('is_active', c === true)} />
-                        <Label htmlFor="nd-active" className="cursor-pointer">
-                            نشط
-                        </Label>
-                    </div>
                 </form>
                 <DialogFooter>
                     <Button type="button" variant="outline" onClick={onClose} disabled={form.processing}>
@@ -285,11 +265,7 @@ function DeviceDialog({
 }
 
 function CardTypeDialog({ cardType, onClose }: { cardType: CardType | null; onClose: () => void }) {
-    const form = useForm({
-        name: cardType?.name ?? '',
-        sort_order: String(cardType?.sortOrder ?? 0),
-        is_active: cardType?.isActive ?? true,
-    });
+    const form = useForm({ name: cardType?.name ?? '' });
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -309,17 +285,6 @@ function CardTypeDialog({ cardType, onClose }: { cardType: CardType | null; onCl
                         <Label htmlFor="ct-name">الاسم</Label>
                         <Input id="ct-name" value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} placeholder="مثال: أمريكان إكسبريس" autoFocus />
                         <InputError message={form.errors.name} />
-                    </div>
-                    <div className="space-y-1">
-                        <Label htmlFor="ct-sort">الترتيب</Label>
-                        <Input id="ct-sort" type="number" min="0" value={form.data.sort_order} onChange={(e) => form.setData('sort_order', e.target.value)} />
-                        <InputError message={form.errors.sort_order} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                        <Checkbox id="ct-active" checked={form.data.is_active} onCheckedChange={(c) => form.setData('is_active', c === true)} />
-                        <Label htmlFor="ct-active" className="cursor-pointer">
-                            نشط
-                        </Label>
                     </div>
                 </form>
                 <DialogFooter>

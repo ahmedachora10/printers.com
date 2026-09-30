@@ -32,7 +32,7 @@ class NetworkReportController extends Controller
         return Inertia::render('reports/network/index', [
             'rows' => $rows,
             'total' => round((float) $rows->sum('amount'), 2),
-            'byCardType' => $this->groupTotals($rows, 'cardTypeName'),
+            'byCardType' => $this->groupTotals($rows, fn (array $r) => $r['cardTypeName']),
             'byDevice' => $this->groupTotals($rows, fn (array $r) => "{$r['deviceName']} — {$r['deviceNumber']}"),
             'filters' => [
                 'from' => $scope['from']->toDateString(),
@@ -48,7 +48,7 @@ class NetworkReportController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'number'])
                 ->map(fn (NetworkDevice $d) => ['id' => $d->id, 'name' => "{$d->name} — {$d->number}"]),
-            'cardTypes' => CardType::withTrashed()->orderBy('sort_order')->orderBy('id')->get(['id', 'name']),
+            'cardTypes' => CardType::withTrashed()->orderBy('id')->get(['id', 'name']),
             'isSuperAdmin' => $scope['isSuper'],
         ]);
     }
@@ -99,7 +99,7 @@ class NetworkReportController extends Controller
             ->whereBetween('r.date', [$scope['from']->toDateString(), $scope['to']->toDateString()])
             ->orderByDesc('r.date')
             ->orderBy('n.name')
-            ->orderBy('c.sort_order')
+            ->orderBy('c.id')
             ->get(['d.id', 'r.date', 'b.name as branch_name', 'n.name as device_name', 'd.device_label',
                 'c.name as card_type_name', 'd.amount', 'r.approved_at'])
             ->map(fn ($row) => [
@@ -118,7 +118,7 @@ class NetworkReportController extends Controller
      * @param  Collection<int, array<string, mixed>>  $rows
      * @return list<array{name: string, count: int, total: float}>
      */
-    private function groupTotals(Collection $rows, string|callable $key): array
+    private function groupTotals(Collection $rows, callable $key): array
     {
         return $rows->groupBy($key)
             ->map(fn (Collection $g, string $name) => ['name' => $name, 'count' => $g->count(), 'total' => round((float) $g->sum('amount'), 2)])

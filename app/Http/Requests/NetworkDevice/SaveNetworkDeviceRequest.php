@@ -8,11 +8,6 @@ use Illuminate\Validation\Rule;
 /** تاسك 146 — إضافة/تعديل جهاز شبكة. غير المدير العام مثبَّتٌ على فرعه مهما أرسل. */
 class SaveNetworkDeviceRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     protected function prepareForValidation(): void
     {
         $user = $this->user();
@@ -40,7 +35,6 @@ class SaveNetworkDeviceRequest extends FormRequest
                 ->whereNull('deleted_at')
                 ->ignore($this->route('networkDevice'))],
             'is_default' => ['boolean'],
-            'is_active' => ['boolean'],
         ];
     }
 

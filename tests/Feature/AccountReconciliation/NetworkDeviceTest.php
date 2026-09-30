@@ -62,7 +62,7 @@ describe('Network devices and card types', function () {
         $super = User::factory()->create();
         $super->addRole(Roles::SUPER_ADMIN->value);
 
-        $this->actingAs($super)->post(route('card-types.store'), ['name' => 'أمريكان إكسبريس', 'sort_order' => 4])->assertSessionHasNoErrors();
+        $this->actingAs($super)->post(route('card-types.store'), ['name' => 'أمريكان إكسبريس'])->assertSessionHasNoErrors();
 
         expect(CardType::pluck('name')->all())->toBe(['مدى', 'فيزا', 'ماستر كارد', 'أمريكان إكسبريس']);
     });
@@ -70,7 +70,7 @@ describe('Network devices and card types', function () {
     it('reports network amounts filtered by device and card type', function () {
         $d1 = ($this->makeDevice)($this->branch, '111');
         $d2 = ($this->makeDevice)($this->branch, '222');
-        [$mada, $visa] = CardType::orderBy('sort_order')->get();
+        [$mada, $visa] = CardType::orderBy('id')->get();
 
         $reconciliation = AccountReconciliation::create([
             'branch_id' => $this->branch->id, 'date' => today()->toDateString(), 'created_by' => $this->branchAdmin->id,

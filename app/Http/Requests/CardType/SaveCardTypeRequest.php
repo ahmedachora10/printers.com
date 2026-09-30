@@ -8,11 +8,6 @@ use Illuminate\Validation\Rule;
 /** تاسك 146 — إضافة/تعديل نوع بطاقة. */
 class SaveCardTypeRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     /** @return array<string, mixed> */
     public function rules(): array
     {
@@ -20,8 +15,6 @@ class SaveCardTypeRequest extends FormRequest
             'name' => ['required', 'string', 'max:100', Rule::unique('card_types', 'name')
                 ->whereNull('deleted_at')
                 ->ignore($this->route('cardType'))],
-            'sort_order' => ['nullable', 'integer', 'min:0', 'max:65535'],
-            'is_active' => ['boolean'],
         ];
     }
 

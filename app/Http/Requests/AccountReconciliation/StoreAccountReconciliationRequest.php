@@ -25,14 +25,11 @@ class StoreAccountReconciliationRequest extends FormRequest
             'branch' => [Rule::excludeIf(! $isSuper), 'required', 'integer', 'exists:branches,id'],
             'date' => ['required', 'date_format:Y-m-d'],
             'devices' => ['present', 'array'],
-            // تاسك 146: جهاز نشط من فرع المطابقة + نوع بطاقة نشط؛ طريقة الدفع تُشتقّ من الجهاز.
+            // تاسك 146: جهاز غير محذوف من فرع المطابقة + نوع بطاقة غير محذوف؛ طريقة الدفع تُشتقّ من الجهاز.
             'devices.*.network_device_id' => ['required', 'integer', Rule::exists('network_devices', 'id')
                 ->where('branch_id', $this->branchId())
-                ->where('is_active', true)
                 ->whereNull('deleted_at')],
-            'devices.*.card_type_id' => ['required', 'integer', Rule::exists('card_types', 'id')
-                ->where('is_active', true)
-                ->whereNull('deleted_at')],
+            'devices.*.card_type_id' => ['required', 'integer', Rule::exists('card_types', 'id')->whereNull('deleted_at')],
             'devices.*.amount' => ['required', 'numeric', 'min:0', 'max:9999999999.99'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];

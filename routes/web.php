@@ -156,13 +156,14 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
             ->name('payment-methods.toggle-status');
 
-        // تاسك 146 — أجهزة الشبكة (مدير الفرع لفرعه) وأنواع البطاقات (المدير العام؛ السياسة تحرس).
+        // تاسك 146 — أجهزة الشبكة (مدير الفرع لفرعه) وأنواع البطاقات (المدير العام وحده).
         Route::resource('network-devices', NetworkDeviceController::class)
             ->parameters(['network-devices' => 'networkDevice'])
             ->only(['store', 'update', 'destroy']);
         Route::resource('card-types', CardTypeController::class)
             ->parameters(['card-types' => 'cardType'])
-            ->only(['store', 'update', 'destroy']);
+            ->only(['store', 'update', 'destroy'])
+            ->middleware('role:super-admin');
 
         Route::prefix('admin/catalogue')->name('admin.catalogue.')->group(function () {
             // Full-catalogue Excel export / import (categories + subcategories + prices)

@@ -23,7 +23,6 @@ return new class extends Migration
             $table->string('name', 100);
             $table->string('number', 50);
             $table->boolean('is_default')->default(false);
-            $table->boolean('is_active')->default(true);
             $table->timestamps();
             $table->softDeletes();
         });
@@ -31,19 +30,14 @@ return new class extends Migration
         Schema::create('card_types', function (Blueprint $table) {
             $table->id();
             $table->string('name', 100);
-            $table->unsignedSmallInteger('sort_order')->default(0);
-            $table->boolean('is_active')->default(true);
             $table->timestamps();
             $table->softDeletes();
         });
 
-        DB::table('card_types')->insert(array_map(fn ($name, $i) => [
-            'name' => $name,
-            'sort_order' => $i + 1,
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ], $names = ['مدى', 'فيزا', 'ماستر كارد'], array_keys($names)));
+        DB::table('card_types')->insert(array_map(
+            fn ($name) => ['name' => $name, 'created_at' => now(), 'updated_at' => now()],
+            ['مدى', 'فيزا', 'ماستر كارد'],
+        ));
 
         Schema::table('account_reconciliation_devices', function (Blueprint $table) {
             $table->foreignId('network_device_id')->nullable()->after('payment_method_id')->constrained();
