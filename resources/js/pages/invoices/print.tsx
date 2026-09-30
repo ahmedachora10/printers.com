@@ -75,6 +75,12 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
                         <span>{invoice.customerName}</span>
                     </div>
                 )}
+                {invoice.customerPhone && (
+                    <div className="flex justify-between">
+                        <span>الجوال</span>
+                        <span dir="ltr">{invoice.customerPhone}</span>
+                    </div>
+                )}
                 {invoice.customerTaxNumber && (
                     <div className="flex justify-between">
                         <span>الرقم الضريبي للعميل</span>
@@ -204,6 +210,12 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
                     <span className="text-neutral-500">العميل</span>
                     <span>{invoice.customerName ?? 'عميل نقدي'}</span>
                 </div>
+                {invoice.customerPhone && (
+                    <div className="flex justify-between">
+                        <span className="text-neutral-500">الجوال</span>
+                        <span dir="ltr">{invoice.customerPhone}</span>
+                    </div>
+                )}
                 {invoice.paymentMethod && (
                     <div className="flex justify-between">
                         <span className="text-neutral-500">طريقة الدفع</span>

@@ -100,7 +100,8 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
         const warn = (e: BeforeUnloadEvent) => e.preventDefault();
         window.addEventListener('beforeunload', warn);
         const off = router.on('before', (event) => {
-            if (leaving.current || event.detail.visit.method !== 'get') return;
+            // prefetch الروابط يُطلق عند مجرد المرور بالماوس — ليس مغادرة.
+            if (leaving.current || event.detail.visit.prefetch || event.detail.visit.method !== 'get') return;
             event.preventDefault();
             setPendingUrl(event.detail.visit.url.href);
         });
@@ -131,7 +132,14 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
             ...data,
             devices: data.devices.map((d) => ({ payment_method_id: d.paymentMethodId, device_label: d.deviceLabel, amount: d.amount })),
         }));
-        form.post(finance.reconciliation.store().url, { preserveScroll: true, onSuccess });
+        // بعد الحفظ تصير القيم الحالية هي «المحفوظة» فلا يعود التنبيه.
+        form.post(finance.reconciliation.store().url, {
+            preserveScroll: true,
+            onSuccess: () => {
+                form.setDefaults();
+                onSuccess?.();
+            },
+        });
     };
 
     return (

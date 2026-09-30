@@ -83,7 +83,21 @@ interface PosCartTableProps<T extends PosCartLineBase> {
  */
 const CONTROL_HEIGHT = 'h-11 md:h-8';
 
+/**
+ * الكمية تُكتب مباشرة أيضاً (تاسك 151): مسوّدة أثناء الكتابة، وعند المغادرة أو
+ * Enter تُسلَّم فرقاً عن الكمية الحالية — فيبقى عقد الدلتا وحدود المستدعي
+ * (حدّ المخزون في نقطة المنتجات) كما هي. قيمة غير صالحة تعود للسابقة.
+ */
 function QuantityStepper({ qty, onChange }: { qty: number; onChange: (delta: number) => void }) {
+    const [draft, setDraft] = useState<string | null>(null);
+
+    const commit = () => {
+        if (draft === null) return;
+        const value = Number(draft);
+        setDraft(null);
+        if (Number.isInteger(value) && value >= 1 && value !== qty) onChange(value - qty);
+    };
+
     return (
         <div className={cn('bg-background inline-flex items-center overflow-hidden rounded-md border', CONTROL_HEIGHT)}>
             <Button
@@ -96,7 +110,22 @@ function QuantityStepper({ qty, onChange }: { qty: number; onChange: (delta: num
             >
                 <Minus className="size-3" />
             </Button>
-            <span className="w-8 text-center text-sm font-medium tabular-nums">{qty}</span>
+            <input
+                type="text"
+                inputMode="numeric"
+                aria-label="الكمية"
+                value={draft ?? qty}
+                onChange={(e) => setDraft(e.target.value)}
+                onFocus={(e) => e.target.select()}
+                onBlur={commit}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        e.currentTarget.blur();
+                    }
+                }}
+                className="h-full w-10 bg-transparent text-center text-sm font-medium tabular-nums outline-none focus:bg-accent/60"
+            />
             <Button
                 type="button"
                 size="icon"

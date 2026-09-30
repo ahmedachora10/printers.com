@@ -1081,6 +1081,35 @@ export default function ServicePos({
               { title: 'فاتورة خدمة', href: service.create().url },
           ];
 
+    // أزرار الحفظ مرّتين: أسفل العمود الجانبي وفوق البحث عن الخدمات (تاسك 142) —
+    // مع سلة طويلة لا يمرّر الموظف للأسفل في كل فاتورة.
+    const saveActions = (full: string) =>
+        isEditing ? (
+            <>
+                <Button type="button" className={full} disabled={submitting || cart.length === 0 || hasPriceCapViolation} onClick={() => submit(false)}>
+                    <Save className="size-4" /> تحديث الفاتورة
+                </Button>
+                <Button type="button" variant="outline" className={full} disabled={submitting} onClick={() => router.get(`/invoices/service/${invoice!.id}`)}>
+                    <X className="size-4" /> إلغاء
+                </Button>
+            </>
+        ) : (
+            <>
+                <Button type="button" className={full} disabled={submitting || cart.length === 0 || hasPriceCapViolation} onClick={() => submit(false)}>
+                    <Save className="size-4" /> حفظ الفاتورة
+                </Button>
+                <Button
+                    type="button"
+                    variant="outline"
+                    className={full}
+                    disabled={submitting || cart.length === 0 || hasPriceCapViolation}
+                    onClick={() => submit(true)}
+                >
+                    <Printer className="size-4" /> طباعة وحفظ
+                </Button>
+            </>
+        );
+
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <Head title={isEditing ? `تعديل فاتورة ${invoice!.invoiceNumber}` : 'نقطة البيع — فاتورة خدمة'} />
@@ -1712,43 +1741,12 @@ export default function ServicePos({
                     </Card>
 
                     {/* Actions */}
-                    <div className="space-y-2">
-                        {isEditing ? (
-                            <>
-                                <Button type="button" className="w-full" disabled={submitting || cart.length === 0 || hasPriceCapViolation} onClick={() => submit(false)}>
-                                    <Save className="size-4" /> تحديث الفاتورة
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="w-full"
-                                    disabled={submitting}
-                                    onClick={() => router.get(`/invoices/service/${invoice!.id}`)}
-                                >
-                                    <X className="size-4" /> إلغاء
-                                </Button>
-                            </>
-                        ) : (
-                            <>
-                                <Button type="button" className="w-full" disabled={submitting || cart.length === 0 || hasPriceCapViolation} onClick={() => submit(false)}>
-                                    <Save className="size-4" /> حفظ الفاتورة
-                                </Button>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    className="w-full"
-                                    disabled={submitting || cart.length === 0 || hasPriceCapViolation}
-                                    onClick={() => submit(true)}
-                                >
-                                    <Printer className="size-4" /> طباعة وحفظ
-                                </Button>
-                            </>
-                        )}
-                    </div>
+                    <div className="space-y-2">{saveActions('w-full')}</div>
                 </div>
 
                 {/* Main — search + line editor */}
                 <div className="order-1 space-y-4 lg:order-none lg:col-span-2">
+                    <div className="flex gap-2">{saveActions('flex-1')}</div>
                     <div className="relative">
                         <Search className="text-muted-foreground absolute top-1/2 right-3 size-4 -translate-y-1/2" />
                         <Input
