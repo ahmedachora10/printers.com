@@ -11,12 +11,9 @@ class NetworkDevice extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['branch_id', 'payment_method_id', 'name', 'number', 'is_default', 'is_active'];
+    protected $fillable = ['branch_id', 'payment_method_id', 'name', 'number', 'is_default'];
 
-    protected $casts = [
-        'is_default' => 'boolean',
-        'is_active' => 'boolean',
-    ];
+    protected $casts = ['is_default' => 'boolean'];
 
     public function branch(): BelongsTo
     {

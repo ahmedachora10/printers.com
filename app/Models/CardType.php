@@ -10,7 +10,5 @@ class CardType extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['name', 'sort_order', 'is_active'];
-
-    protected $casts = ['is_active' => 'boolean'];
+    protected $fillable = ['name'];
 }

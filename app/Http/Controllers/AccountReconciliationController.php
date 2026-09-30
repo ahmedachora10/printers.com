@@ -79,19 +79,18 @@ class AccountReconciliationController extends Controller
                 'pending' => (int) $totals->pending,
             ],
             'branches' => $branches,
-            // تاسك 146: النشط + ما تشير إليه هذه المطابقة (وإن عُطِّل بعدها) كي لا تفرغ قوائمها.
+            // تاسك 146: غير المحذوف + ما تشير إليه هذه المطابقة (وإن عُطِّل بعدها) كي لا تفرغ قوائمها.
             'networkDevices' => NetworkDevice::withTrashed()
                 ->where('branch_id', $branchId)
-                ->where(fn ($q) => $q->where(fn ($q) => $q->where('is_active', true)->whereNull('deleted_at'))
+                ->where(fn ($q) => $q->whereNull('deleted_at')
                     ->orWhereIn('id', $reconciliation?->devices->pluck('network_device_id')->filter() ?? []))
                 ->orderByDesc('is_default')
                 ->orderBy('name')
                 ->get(['id', 'name', 'number', 'is_default'])
                 ->map(fn (NetworkDevice $d) => ['id' => $d->id, 'name' => $d->name, 'number' => $d->number, 'isDefault' => $d->is_default]),
             'cardTypes' => CardType::withTrashed()
-                ->where(fn ($q) => $q->where(fn ($q) => $q->where('is_active', true)->whereNull('deleted_at'))
+                ->where(fn ($q) => $q->whereNull('deleted_at')
                     ->orWhereIn('id', $reconciliation?->devices->pluck('card_type_id')->filter() ?? []))
-                ->orderBy('sort_order')
                 ->orderBy('id')
                 ->get(['id', 'name']),
             'figures' => [

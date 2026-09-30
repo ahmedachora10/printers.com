@@ -52,7 +52,7 @@ describe('Account reconciliation', function () {
             'branch_id' => $this->branch->id, 'payment_method_id' => $this->mada->id,
             'name' => 'جهاز الشبكة 1', 'number' => '123456', 'is_default' => true,
         ]);
-        $this->cardTypes = CardType::orderBy('sort_order')->get();
+        $this->cardTypes = CardType::orderBy('id')->get();
 
         $this->save = fn (User $as, array $amounts, array $extra = []) => $this->actingAs($as)
             ->post(route('finance.reconciliation.store'), [
@@ -145,18 +145,19 @@ describe('Account reconciliation', function () {
         expect((float) $reconciliation->fresh()->devices_total)->toBe(100.0);
     });
 
-    it('pins the accountant to their branch and accepts that branch\'s active devices only', function () {
+    it('pins the accountant to their branch and accepts that branch\'s live devices only', function () {
         ($this->save)($this->accountant, [100], ['branch' => $this->otherBranch->id]);
         expect(AccountReconciliation::sole()->branch_id)->toBe($this->branch->id);
 
         $foreign = NetworkDevice::create([
             'branch_id' => $this->otherBranch->id, 'payment_method_id' => $this->mada->id, 'name' => 'x', 'number' => '9',
         ]);
-        $inactive = NetworkDevice::create([
-            'branch_id' => $this->branch->id, 'payment_method_id' => $this->mada->id, 'name' => 'y', 'number' => '8', 'is_active' => false,
+        $deleted = NetworkDevice::create([
+            'branch_id' => $this->branch->id, 'payment_method_id' => $this->mada->id, 'name' => 'y', 'number' => '8',
         ]);
+        $deleted->delete();
 
-        foreach ([$foreign, $inactive] as $device) {
+        foreach ([$foreign, $deleted] as $device) {
             $this->actingAs($this->accountant)
                 ->post(route('finance.reconciliation.store'), [
                     'date' => today()->toDateString(),
