@@ -3,8 +3,10 @@
 use App\Enums\Roles;
 use App\Models\AccountReconciliation;
 use App\Models\Branch;
+use App\Models\CardType;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\NetworkDevice;
 use App\Models\PaymentMethod;
 use App\Models\ServiceInvoice;
 use App\Models\User;
@@ -45,12 +47,19 @@ describe('Account reconciliation', function () {
             'payment_method_id' => $method->id,
         ]);
 
+        // تاسك 146: صفّ = جهاز + نوع بطاقة (مدى، فيزا، ماستر كارد من الـmigration).
+        $this->device = NetworkDevice::create([
+            'branch_id' => $this->branch->id, 'payment_method_id' => $this->mada->id,
+            'name' => 'جهاز الشبكة 1', 'number' => '123456', 'is_default' => true,
+        ]);
+        $this->cardTypes = CardType::orderBy('sort_order')->get();
+
         $this->save = fn (User $as, array $amounts, array $extra = []) => $this->actingAs($as)
             ->post(route('finance.reconciliation.store'), [
                 'date' => today()->toDateString(),
                 'devices' => array_map(fn ($a, $i) => [
-                    'payment_method_id' => $this->mada->id,
-                    'device_label' => 'جهاز '.($i + 1),
+                    'network_device_id' => $this->device->id,
+                    'card_type_id' => $this->cardTypes[$i]->id,
                     'amount' => $a,
                 ], $amounts, array_keys($amounts)),
                 ...$extra,
@@ -136,16 +145,57 @@ describe('Account reconciliation', function () {
         expect((float) $reconciliation->fresh()->devices_total)->toBe(100.0);
     });
 
-    it('pins the accountant to their branch and accepts network methods only', function () {
+    it('pins the accountant to their branch and accepts that branch\'s active devices only', function () {
         ($this->save)($this->accountant, [100], ['branch' => $this->otherBranch->id]);
         expect(AccountReconciliation::sole()->branch_id)->toBe($this->branch->id);
 
-        $this->actingAs($this->accountant)
-            ->post(route('finance.reconciliation.store'), [
-                'date' => today()->toDateString(),
-                'devices' => [['payment_method_id' => $this->rajhi->id, 'device_label' => 'x', 'amount' => 10]],
+        $foreign = NetworkDevice::create([
+            'branch_id' => $this->otherBranch->id, 'payment_method_id' => $this->mada->id, 'name' => 'x', 'number' => '9',
+        ]);
+        $inactive = NetworkDevice::create([
+            'branch_id' => $this->branch->id, 'payment_method_id' => $this->mada->id, 'name' => 'y', 'number' => '8', 'is_active' => false,
+        ]);
+
+        foreach ([$foreign, $inactive] as $device) {
+            $this->actingAs($this->accountant)
+                ->post(route('finance.reconciliation.store'), [
+                    'date' => today()->toDateString(),
+                    'devices' => [['network_device_id' => $device->id, 'card_type_id' => $this->cardTypes[0]->id, 'amount' => 10]],
+                ])
+                ->assertSessionHasErrors('devices.0.network_device_id');
+        }
+    });
+
+    // تاسك 146 — الجهاز يحمل طريقته ورقمه، والافتراضي يُعبَّأ في مطابقة جديدة.
+    it('snapshots the device method and number, and offers the default device', function () {
+        ($this->save)($this->accountant, [500, 200])->assertSessionHasNoErrors();
+
+        expect(AccountReconciliation::sole()->devices()->orderBy('id')->get(['payment_method_id', 'device_label', 'card_type_id', 'amount'])->toArray())
+            ->toBe([
+                ['payment_method_id' => $this->mada->id, 'device_label' => '123456', 'card_type_id' => $this->cardTypes[0]->id, 'amount' => '500.00'],
+                ['payment_method_id' => $this->mada->id, 'device_label' => '123456', 'card_type_id' => $this->cardTypes[1]->id, 'amount' => '200.00'],
             ])
-            ->assertSessionHasErrors('devices.0.payment_method_id');
+            ->and((float) AccountReconciliation::sole()->devices_total)->toBe(700.0);
+
+        $this->actingAs($this->accountant)
+            ->get(route('finance.reconciliation.index', ['date' => today()->subDay()->toDateString()]))
+            ->assertInertia(fn ($page) => $page
+                ->where('networkDevices.0.id', $this->device->id)
+                ->where('networkDevices.0.isDefault', true)
+                ->where('cardTypes.0.name', 'مدى')
+                ->has('cardTypes', 3));
+    });
+
+    it('keeps rows saved before task 146 when the day is saved again', function () {
+        $reconciliation = AccountReconciliation::create([
+            'branch_id' => $this->branch->id, 'date' => today()->toDateString(), 'created_by' => $this->accountant->id,
+        ]);
+        $reconciliation->devices()->create(['payment_method_id' => $this->mada->id, 'device_label' => 'قديم', 'amount' => 50]);
+
+        ($this->save)($this->accountant, [100])->assertSessionHasNoErrors();
+
+        expect($reconciliation->devices()->count())->toBe(2)
+            ->and((float) $reconciliation->fresh()->devices_total)->toBe(150.0);
     });
 
     it('keeps another branch\'s reconciliation from its branch admin', function () {

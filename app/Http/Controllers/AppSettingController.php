@@ -16,8 +16,10 @@ use App\Http\Resources\Branch\BranchResource;
 use App\Http\Resources\City\CityResource;
 use App\Http\Resources\PaymentMethod\PaymentMethodResource;
 use App\Models\Branch;
+use App\Models\CardType;
 use App\Models\City;
 use App\Models\LoyaltyConfig;
+use App\Models\NetworkDevice;
 use App\Models\PaymentMethod;
 use App\Models\Setting;
 use Illuminate\Http\RedirectResponse;
@@ -82,6 +84,28 @@ class AppSettingController extends Controller
             'paymentMethods' => PaymentMethodResource::collection($paymentMethods),
             'enabledPaymentMethodIds' => $enabledPaymentMethodIds,
             'canManagePaymentMethods' => Gate::allows('create', PaymentMethod::class),
+            // تاسك 146 — أجهزة الشبكة (فرعه، أو الكل للمدير العام) وأنواع البطاقات.
+            'networkDevices' => NetworkDevice::query()
+                ->with(['branch:id,name', 'paymentMethod:id,name'])
+                ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $branchId))
+                ->orderBy('branch_id')
+                ->orderByDesc('is_default')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (NetworkDevice $d) => [
+                    'id' => $d->id,
+                    'branchId' => $d->branch_id,
+                    'branchName' => $d->branch?->name,
+                    'paymentMethodId' => $d->payment_method_id,
+                    'paymentMethodName' => $d->paymentMethod?->name,
+                    'name' => $d->name,
+                    'number' => $d->number,
+                    'isDefault' => $d->is_default,
+                    'isActive' => $d->is_active,
+                ]),
+            'cardTypes' => CardType::query()->orderBy('sort_order')->orderBy('id')->get(['id', 'name', 'sort_order', 'is_active'])
+                ->map(fn (CardType $c) => ['id' => $c->id, 'name' => $c->name, 'sortOrder' => $c->sort_order, 'isActive' => $c->is_active]),
+            'canManageNetworkDevices' => Gate::allows('create', NetworkDevice::class),
             'isSuperAdmin' => $isSuperAdmin,
             'loyaltyConfig' => $loyaltyConfig ? [
                 'isActive' => (bool) $loyaltyConfig->is_active,

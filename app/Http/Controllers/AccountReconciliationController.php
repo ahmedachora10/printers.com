@@ -9,7 +9,8 @@ use App\Http\Controllers\Concerns\BuildsPagedProps;
 use App\Http\Requests\AccountReconciliation\StoreAccountReconciliationRequest;
 use App\Models\AccountReconciliation;
 use App\Models\Branch;
-use App\Models\PaymentMethod;
+use App\Models\CardType;
+use App\Models\NetworkDevice;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -37,7 +38,7 @@ class AccountReconciliationController extends Controller
         $date = $request->date('date')?->toDateString() ?? today()->toDateString();
 
         $reconciliation = AccountReconciliation::query()
-            ->with(['devices', 'creator:id,name', 'approvedBy:id,name', 'media'])
+            ->with(['devices.paymentMethod:id,name', 'creator:id,name', 'approvedBy:id,name', 'media'])
             ->where('branch_id', $branchId)
             ->where('date', $date)
             ->first();
@@ -78,11 +79,20 @@ class AccountReconciliationController extends Controller
                 'pending' => (int) $totals->pending,
             ],
             'branches' => $branches,
-            'networkMethods' => PaymentMethod::query()
-                ->visibleToBranch($branchId)
-                ->isNetwork()
-                ->where('is_active', true)
+            // تاسك 146: النشط + ما تشير إليه هذه المطابقة (وإن عُطِّل بعدها) كي لا تفرغ قوائمها.
+            'networkDevices' => NetworkDevice::withTrashed()
+                ->where('branch_id', $branchId)
+                ->where(fn ($q) => $q->where(fn ($q) => $q->where('is_active', true)->whereNull('deleted_at'))
+                    ->orWhereIn('id', $reconciliation?->devices->pluck('network_device_id')->filter() ?? []))
+                ->orderByDesc('is_default')
                 ->orderBy('name')
+                ->get(['id', 'name', 'number', 'is_default'])
+                ->map(fn (NetworkDevice $d) => ['id' => $d->id, 'name' => $d->name, 'number' => $d->number, 'isDefault' => $d->is_default]),
+            'cardTypes' => CardType::withTrashed()
+                ->where(fn ($q) => $q->where(fn ($q) => $q->where('is_active', true)->whereNull('deleted_at'))
+                    ->orWhereIn('id', $reconciliation?->devices->pluck('card_type_id')->filter() ?? []))
+                ->orderBy('sort_order')
+                ->orderBy('id')
                 ->get(['id', 'name']),
             'figures' => [
                 'systemNet' => $systemNet,
@@ -93,7 +103,10 @@ class AccountReconciliationController extends Controller
             'reconciliation' => $reconciliation ? [
                 'id' => $reconciliation->id,
                 'devices' => $reconciliation->devices->map(fn ($d) => [
-                    'paymentMethodId' => $d->payment_method_id,
+                    'networkDeviceId' => $d->network_device_id,
+                    'cardTypeId' => $d->card_type_id,
+                    // صفوف ما قبل تاسك 146 تُعرض بطريقتها ورقمها النصّي فقط.
+                    'paymentMethodName' => $d->paymentMethod?->name,
                     'deviceLabel' => $d->device_label,
                     'amount' => (float) $d->amount,
                 ]),

@@ -9,6 +9,7 @@ import {
 } from '@/actions/App/Http/Controllers/AppSettingController';
 import BranchProfileTab from '@/components/app-settings/branch-profile-tab';
 import LoyaltyTab from '@/components/app-settings/loyalty-tab';
+import NetworkDevicesTab, { type CardType, type NetworkDevice } from '@/components/app-settings/network-devices-tab';
 import PaymentMethodFormModal from '@/components/app-settings/payment-method-form-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -39,7 +40,7 @@ import { Banknote, CreditCard, Paperclip, Pencil, Plus, Trash2 } from 'lucide-re
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 
-const VALID_TABS = ['general', 'branch-profile', 'payment-methods', 'loyalty', 'inventory-alerts'] as const;
+const VALID_TABS = ['general', 'branch-profile', 'payment-methods', 'network-devices', 'loyalty', 'inventory-alerts'] as const;
 type TabValue = (typeof VALID_TABS)[number];
 
 function getInitialTab(isSuperAdmin: boolean, hasBranchProfile: boolean): TabValue {
@@ -75,6 +76,10 @@ interface Props {
     enabledPaymentMethodIds: number[];
     /** تاسك 59: مدير الفرع يضيف ويحذف طرق فرعه، لا الطرق العامة. */
     canManagePaymentMethods: boolean;
+    /** تاسك 146 */
+    networkDevices: NetworkDevice[];
+    cardTypes: CardType[];
+    canManageNetworkDevices: boolean;
     isSuperAdmin: boolean;
     loyaltyConfig: AppSettingsLoyaltyData | null;
     canConfigureLoyalty: boolean;
@@ -92,6 +97,9 @@ export default function AppSettingsIndex({
     paymentMethods,
     enabledPaymentMethodIds,
     canManagePaymentMethods,
+    networkDevices,
+    cardTypes,
+    canManageNetworkDevices,
     isSuperAdmin,
     loyaltyConfig,
     canConfigureLoyalty,
@@ -177,6 +185,7 @@ export default function AppSettingsIndex({
                         {isSuperAdmin && <TabsTrigger value="general">عام</TabsTrigger>}
                         {branchProfile && <TabsTrigger value="branch-profile">بيانات الفرع</TabsTrigger>}
                         <TabsTrigger value="payment-methods">طرق الدفع</TabsTrigger>
+                        <TabsTrigger value="network-devices">أجهزة الشبكة</TabsTrigger>
                         <TabsTrigger value="loyalty">برنامج الولاء</TabsTrigger>
                         <TabsTrigger value="inventory-alerts">تنبيهات المخزون</TabsTrigger>
                     </TabsList>
@@ -332,6 +341,18 @@ export default function AppSettingsIndex({
                                 </ul>
                             )}
                         </div>
+                    </TabsContent>
+
+                    {/* ── Network devices & card types (تاسك 146) ───────── */}
+                    <TabsContent value="network-devices">
+                        <NetworkDevicesTab
+                            devices={networkDevices}
+                            cardTypes={cardTypes}
+                            paymentMethods={paymentMethods}
+                            branches={loyaltyBranches}
+                            isSuperAdmin={isSuperAdmin}
+                            canManageDevices={canManageNetworkDevices}
+                        />
                     </TabsContent>
 
                     {/* ── Loyalty Program ──────────────────────────────── */}

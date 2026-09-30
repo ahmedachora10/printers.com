@@ -386,6 +386,14 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             [
+                // تاسك 146 — مبالغ أجهزة الشبكة حسب الجهاز ونوع البطاقة.
+                'title' => 'مبالغ الشبكة',
+                'url' => route('reports.network'),
+                'icon' => 'CreditCard',
+                'group' => 'reports',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
+            ],
+            [
                 'title' => 'الحوافز والخصومات',
                 'url' => route('reports.incentives'),
                 'icon' => 'Trophy',
