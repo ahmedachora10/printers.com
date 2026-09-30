@@ -46,15 +46,37 @@ class AccountReconciliationController extends Controller
         $systemNet = $live ? $live['systemNet'] : (float) $reconciliation->system_net;
         $autoTotal = $live ? $live['autoTotal'] : (float) $reconciliation->auto_total;
 
-        $history = AccountReconciliation::query()
-            ->with('approvedBy:id,name')
+        // تاسك 144: السجل بمدى تاريخ (افتراضياً الشهر الحالي) منفصلٍ عن يوم المطابقة المفتوحة.
+        $historyFrom = $request->date('history_from')?->toDateString() ?? today()->startOfMonth()->toDateString();
+        $historyTo = $request->date('history_to')?->toDateString() ?? today()->toDateString();
+        $historyQuery = AccountReconciliation::query()
             ->where('branch_id', $branchId)
+            ->whereBetween('date', [$historyFrom, $historyTo]);
+
+        // المجاميع على المعتمد وحده — غيره بلا فرقٍ مجمَّد.
+        $diff = 'devices_total + auto_total - system_net';
+        $totals = (clone $historyQuery)->selectRaw(
+            "SUM(CASE WHEN approved_at IS NOT NULL AND $diff > 0 THEN $diff ELSE 0 END) AS surplus,
+             SUM(CASE WHEN approved_at IS NOT NULL AND $diff < 0 THEN -($diff) ELSE 0 END) AS shortage,
+             SUM(CASE WHEN approved_at IS NULL THEN 1 ELSE 0 END) AS pending"
+        )->toBase()->first();
+        $surplus = round((float) $totals->surplus, 2);
+        $shortage = round((float) $totals->shortage, 2);
+
+        $history = $historyQuery
+            ->with('approvedBy:id,name')
             ->orderByDesc('date')
             ->paginate(15)
             ->withQueryString();
 
         return Inertia::render('finance/reconciliation/index', [
-            'filters' => ['branch' => $isSuper ? $branchId : null, 'date' => $date],
+            'filters' => ['branch' => $isSuper ? $branchId : null, 'date' => $date, 'historyFrom' => $historyFrom, 'historyTo' => $historyTo],
+            'historyTotals' => [
+                'surplus' => $surplus,
+                'shortage' => $shortage,
+                'net' => round($surplus - $shortage, 2),
+                'pending' => (int) $totals->pending,
+            ],
             'branches' => $branches,
             'networkMethods' => PaymentMethod::query()
                 ->visibleToBranch($branchId)

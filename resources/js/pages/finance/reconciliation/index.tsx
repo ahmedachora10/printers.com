@@ -1,4 +1,5 @@
 import { TablePagination } from '@/components/data-table';
+import DateRangeBar from '@/components/reports/date-range-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -6,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useReportFilters } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { cn, formatSar, shiftDay } from '@/lib/utils';
 import finance from '@/routes/finance';
@@ -37,7 +39,9 @@ interface HistoryRow {
 }
 
 interface Props {
-    filters: { branch: number | null; date: string };
+    filters: { branch: number | null; date: string; historyFrom: string; historyTo: string };
+    /** تاسك 144: على المعتمد ضمن مدى السجل؛ pending = غير المعتمد (لا يدخل المجموع). */
+    historyTotals: { surplus: number; shortage: number; net: number; pending: number };
     branches: Option[];
     networkMethods: Option[];
     figures: {
@@ -72,7 +76,7 @@ function result(difference: number) {
     return { label: 'زيادة', className: 'border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-900 dark:bg-sky-950 dark:text-sky-300' };
 }
 
-export default function ReconciliationIndex({ filters, branches, networkMethods, figures, reconciliation, history }: Props) {
+export default function ReconciliationIndex({ filters, branches, networkMethods, figures, reconciliation, history, historyTotals }: Props) {
     const approved = reconciliation?.approvedAt != null;
 
     const form = useForm<{ branch: number | null; date: string; devices: Device[]; notes: string }>({
@@ -117,10 +121,18 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
         router.visit(url);
     };
 
+    const historyFilters = useReportFilters(
+        finance.reconciliation.index().url,
+        { branch: String(filters.branch ?? ''), date: filters.date, history_from: filters.historyFrom, history_to: filters.historyTo },
+        { branch: '', date: '', history_from: '', history_to: '' },
+    );
+
     const visit = (params: { branch?: number | null; date?: string; page?: number }) =>
         router.get(finance.reconciliation.index().url, {
             branch: params.branch ?? filters.branch ?? undefined,
             date: params.date ?? filters.date,
+            history_from: filters.historyFrom,
+            history_to: filters.historyTo,
             ...(params.page && { page: params.page }),
         });
 
@@ -373,7 +385,27 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                     <CardHeader>
                         <CardTitle>سجل المطابقات</CardTitle>
                     </CardHeader>
-                    <CardContent className="overflow-x-auto">
+                    <CardContent className="space-y-4 overflow-x-auto">
+                        <DateRangeBar filters={historyFilters} from={filters.historyFrom} to={filters.historyTo} fromKey="history_from" toKey="history_to" extended />
+                        <div className="grid gap-3 sm:grid-cols-3">
+                            <div className="rounded-lg border p-3">
+                                <p className="text-muted-foreground text-xs">إجمالي الزيادة</p>
+                                <p className="text-lg font-semibold tabular-nums">{formatSar(historyTotals.surplus)}</p>
+                            </div>
+                            <div className="rounded-lg border p-3">
+                                <p className="text-muted-foreground text-xs">إجمالي العجز</p>
+                                <p className="text-lg font-semibold tabular-nums">{formatSar(historyTotals.shortage)}</p>
+                            </div>
+                            <div className={cn('rounded-lg border p-3', result(historyTotals.net).className)}>
+                                <p className="text-xs">الفرق</p>
+                                <p className="text-lg font-semibold tabular-nums">
+                                    {formatSar(Math.abs(historyTotals.net))} {result(historyTotals.net).label}
+                                </p>
+                            </div>
+                        </div>
+                        {historyTotals.pending > 0 && (
+                            <p className="text-muted-foreground text-xs">{historyTotals.pending} مطابقة غير معتمدة في الفترة لا تدخل في المجموع.</p>
+                        )}
                         <table className="w-full text-sm">
                             <thead className="text-muted-foreground border-b text-start">
                                 <tr>
@@ -411,7 +443,7 @@ export default function ReconciliationIndex({ filters, branches, networkMethods,
                                 {history.data.length === 0 && (
                                     <tr>
                                         <td colSpan={5} className="text-muted-foreground py-6 text-center">
-                                            لا مطابقات محفوظة لهذا الفرع.
+                                            لا مطابقات محفوظة في هذه الفترة.
                                         </td>
                                     </tr>
                                 )}
