@@ -11,7 +11,7 @@ import refunds from '@/routes/refunds';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type PaginatedRefund, type RefundFilters, type RefundListItem } from '@/types/refund';
 import { Link, router, usePage } from '@inertiajs/react';
-import { Plus } from 'lucide-react';
+import { Plus, Printer } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'المرتجعات', href: '/refunds' }];
@@ -140,8 +140,29 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
                 header: 'التاريخ',
                 cell: (item) => <span className="text-sm text-muted-foreground" dir="ltr">{item.createdAt ?? '—'}</span>,
             },
+            // تاسك 150: إشعار المرتجع — والمراجع لا يطبع (من لا يُنشئ لا يطبع).
+            ...(canCreate
+                ? [
+                      {
+                          key: 'print',
+                          header: '',
+                          cell: (item: RefundListItem) =>
+                              item.invoiceId && (
+                                  <a
+                                      href={`/invoices/${item.sourceType}/${item.invoiceId}/refunds/${item.id}/print`}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      title="طباعة إشعار المرتجع"
+                                      className="text-muted-foreground hover:text-foreground"
+                                  >
+                                      <Printer className="size-4" />
+                                  </a>
+                              ),
+                      },
+                  ]
+                : []),
         ],
-        [],
+        [canCreate],
     );
 
     return (

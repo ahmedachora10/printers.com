@@ -7,6 +7,7 @@ use App\Actions\InvoiceMessage\BuildInvoiceThreadAction;
 use App\Actions\InvoicePayment\ChangePaymentMethodAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
+use App\Enums\ReturnRequestStatusEnum;
 use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
 use App\Models\Branch;
@@ -57,7 +58,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as delivered_at, null as payment_method_id, null as payment_method_name, null as payment_requires_attachment, null as paid_amount, null as refunded_amount, null as receipt_count');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as delivered_at, null as payment_method_id, null as payment_method_name, null as payment_requires_attachment, null as paid_amount, null as refunded_amount, null as receipt_count, null as pending_return_requests');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -276,6 +277,12 @@ class InvoiceController extends Controller
                     'byName' => $a->causer?->name,
                     'at' => $a->created_at?->toIso8601String(),
                 ]),
+            // تاسك 147: الفاتورة السابقة/التالية من النوع نفسه وبنطاق قائمة الفواتير
+            // (الفرع، والموظف فواتيره وحده). المحذوفة تسقط بـSoftDeletes.
+            'neighbours' => fn () => [
+                'prevId' => $this->neighbourId($invoice, '<', 'desc'),
+                'nextId' => $this->neighbourId($invoice, '>', 'asc'),
+            ],
             'hasThread' => $hasThread,
             // مؤجَّلة: الصفحة لا تنتظرها، والاستطلاع يطلبها وحدها. وقراءتها تقدّم
             // موضع قراءة الناظر.
@@ -390,6 +397,60 @@ class InvoiceController extends Controller
         ]);
     }
 
+    private function neighbourId(ProductInvoice|ServiceInvoice $invoice, string $operator, string $direction): ?int
+    {
+        $user = Auth::user();
+
+        return $invoice::query()
+            ->where('id', $operator, $invoice->id)
+            ->when(! $user->roleName->isSuperAdmin(), fn ($q) => $q->where('branch_id', $user->branchId))
+            ->when($user->roleName->isEmployee(), fn ($q) => $q->where('user_id', $user->id))
+            ->orderBy('id', $direction)
+            ->value('id');
+    }
+
+    /**
+     * تاسك 150 — إشعار مرتجع. يُطبع لمن يطبع الفاتورة نفسها (سياسة عرضها ومجموعة
+     * مسارات الطباعة)، والضريبة مستخرجة من المبلغ بنسبة الفاتورة.
+     */
+    public function printRefund(string $type, int $id, int $refund, Request $request): Response
+    {
+        $invoice = $this->resolveInvoice($type, $id);
+        Gate::authorize('view', $invoice);
+
+        $refund = $invoice->refunds()->with(['user:id,name', 'paymentMethod:id,name'])->findOrFail($refund);
+        $invoice->load(['customer:id,full_name,phone', 'branch']);
+
+        $amount = (float) $refund->amount;
+        $vat = (float) $invoice->total_amount > 0
+            ? round($amount * (float) $invoice->vat_amount / (float) $invoice->total_amount, 2)
+            : 0.0;
+
+        return Inertia::render('invoices/refund-print', [
+            'format' => $request->input('format') === 'thermal' ? 'thermal' : 'a4',
+            'notice' => [
+                'invoiceNumber' => $invoice->invoice_number,
+                'invoiceDate' => $invoice->created_at?->toIso8601String(),
+                'customerName' => $invoice->customer?->full_name,
+                'customerPhone' => $invoice->customer?->phone,
+                'refundedAt' => $refund->created_at?->toIso8601String(),
+                'amount' => $amount,
+                'vatAmount' => $vat,
+                'netAmount' => round($amount - $vat, 2),
+                'reason' => $refund->reason,
+                'paymentMethodName' => $refund->paymentMethod?->name,
+                'userName' => $refund->user?->name,
+                'branch' => [
+                    'name' => $invoice->branch?->name,
+                    'phone' => $invoice->branch?->phone,
+                    'address' => $invoice->branch?->address,
+                    'taxNumber' => $invoice->branch?->tax_number,
+                    'logoUrl' => $invoice->branch?->logoUrl(),
+                ],
+            ],
+        ]);
+    }
+
     /**
      * Resolve {type}/{id} to the concrete invoice model, or 404.
      */
@@ -479,6 +540,11 @@ class InvoiceController extends Controller
             ->where('media.model_type', $type->modelClass())
             ->where('media.collection_name', 'receipt')
             ->whereColumn('media.model_id', "{$table}.id");
+
+        // تاسك 148: طلب استرجاعٍ ينتظر المراجعة — للخدمات وحدها، وفرع المنتجات يحشوه.
+        $pendingReturnSelect = $type === InvoiceTypeEnum::SERVICE
+            ? DB::raw("(select count(*) from invoice_return_requests where invoice_return_requests.service_invoice_id = {$table}.id and invoice_return_requests.status = '".ReturnRequestStatusEnum::PENDING->value."') as pending_return_requests")
+            : DB::raw('0 as pending_return_requests');
 
         $delivery = $request->input('delivery');
 
@@ -595,6 +661,7 @@ class InvoiceController extends Controller
             ])
             ->selectSub($paidSub, 'paid_amount')
             ->selectSub($refundedSub, 'refunded_amount')
-            ->selectSub($receiptSub, 'receipt_count');
+            ->selectSub($receiptSub, 'receipt_count')
+            ->addSelect($pendingReturnSelect);
     }
 }

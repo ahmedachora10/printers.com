@@ -482,16 +482,26 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                     // ومحتسبة في المبيعات، ويُطرح صفُّ مرتجعها وحده. فبغير هذا
                     // الوسم يمرّ المرتجع صامتاً في القائمة. أما المرتجع الكامل
                     // فيقلب الحالة نفسها إلى «مرتجع» فيغني عنه.
-                    if (item.refundedAmount <= 0 || item.status === 'returned') {
+                    const partialRefund = item.refundedAmount > 0 && item.status !== 'returned';
+
+                    if (!partialRefund && !item.hasPendingReturnRequest) {
                         return primary;
                     }
 
                     return (
                         <div className="flex flex-col items-start gap-1">
                             {primary}
-                            <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300">
-                                مرتجع جزئي · {formatCurrency(item.refundedAmount)}
-                            </Badge>
+                            {partialRefund && (
+                                <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300">
+                                    مرتجع جزئي · {formatCurrency(item.refundedAmount)}
+                                </Badge>
+                            )}
+                            {/* تاسك 148 */}
+                            {item.hasPendingReturnRequest && (
+                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
+                                    طلب استرجاع — تحت المراجعة
+                                </Badge>
+                            )}
                         </div>
                     );
                 },
