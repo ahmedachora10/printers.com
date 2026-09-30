@@ -18,7 +18,6 @@ class Refund extends Model
     use HasFactory, LogsActivity, SoftDeletes;
 
     protected $fillable = [
-        'notice_number',
         'branch_id',
         'user_id',
         'source_type',
@@ -37,6 +36,18 @@ class Refund extends Model
         'shipping_refunded' => 'decimal:2',
         'stock_reversed' => 'boolean',
     ];
+
+    /**
+     * تاسك 150 — رقم إشعار المرتجع CN-{الفرع}-{التسلسل} بنمط أرقام الفواتير،
+     * يُختم عند الإنشاء أيّاً كان طريقه (الإجراء، الاسترجاع الكامل، المصانع).
+     */
+    protected static function booted(): void
+    {
+        static::creating(function (Refund $refund) {
+            $seq = static::withTrashed()->where('branch_id', $refund->branch_id)->lockForUpdate()->count() + 1;
+            $refund->notice_number = sprintf('CN-%03d-%05d', $refund->branch_id, $seq);
+        });
+    }
 
     public function getActivitylogOptions(): LogOptions
     {

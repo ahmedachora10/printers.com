@@ -40,17 +40,15 @@ class InvoiceController extends Controller
     /** تاسك 147 — فلاتر آخر زيارة لقائمة الفواتير، يتنقّل بها «السابقة/التالية». */
     private const LIST_FILTERS_SESSION_KEY = 'invoices.list_filters';
 
-    private const LIST_FILTER_KEYS = [
-        'search', 'type', 'status', 'date_from', 'date_to', 'time_from', 'time_to', 'branch_id', 'delivery',
-        'user_id', 'payment_method_id', 'branch_service_id',
-    ];
-
     public function index(Request $request): Response
     {
         $user = Auth::user();
         $isSuperAdmin = $user->roleName->isSuperAdmin();
         $branchId = $isSuperAdmin ? null : $user->branchId;
-        $filters = $request->only(self::LIST_FILTER_KEYS);
+        $filters = $request->only([
+            'search', 'type', 'status', 'date_from', 'date_to', 'time_from', 'time_to', 'branch_id', 'delivery',
+            'user_id', 'payment_method_id', 'branch_service_id',
+        ]);
         $request->session()->put(self::LIST_FILTERS_SESSION_KEY, $filters);
 
         $allowedTypes = $this->allowedTypesFor();

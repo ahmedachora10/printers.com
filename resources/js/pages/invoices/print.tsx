@@ -1,13 +1,11 @@
 import InvoiceNotes from '@/components/invoices/invoice-notes';
-import { BranchIdentity, ThermalBranchHeader } from '@/components/invoices/print-header';
+import { BranchIdentity, PrintToolbar, ThermalBranchHeader } from '@/components/invoices/print-header';
 import { ThermalTotals, printTotals } from '@/components/invoices/print-totals';
 import { QUOTATION_DISCLAIMER, formatLineSize, formatLineUnitPrice, invoiceDocument } from '@/lib/invoice';
 import { formatCurrency, formatDateTime, formatDateTimeNumeric, formatQty } from '@/lib/utils';
 import { type Invoice } from '@/types/invoice';
 import { Head } from '@inertiajs/react';
-import { Printer } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useEffect } from 'react';
 
 interface Props {
     invoice: Invoice;
@@ -17,20 +15,6 @@ interface Props {
 
 /** تسميات الخصومات في مقاس A4، بترتيب مصفوفة printTotals. */
 const A4_DISCOUNT_LABELS = ['خصم الفئة', 'خصم الكوبون', 'خصم المندوب', 'استبدال النقاط'];
-
-function PrintToolbar() {
-    return (
-        <div className="mb-4 flex items-center justify-end gap-2 print:hidden">
-            <button
-                type="button"
-                onClick={() => window.print()}
-                className="bg-primary text-primary-foreground flex items-center gap-1 rounded-md px-3 py-1.5 text-sm"
-            >
-                <Printer className="size-4" /> طباعة
-            </button>
-        </div>
-    );
-}
 
 function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | null }) {
     const doc = invoiceDocument(invoice);
@@ -332,11 +316,6 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
 }
 
 export default function InvoicePrint({ invoice, format, zatcaQr }: Props) {
-    useEffect(() => {
-        const timer = setTimeout(() => window.print(), 400);
-        return () => clearTimeout(timer);
-    }, []);
-
     return (
         <div className="bg-white">
             <Head title={`${invoiceDocument(invoice).title} ${invoice.invoiceNumber}`} />

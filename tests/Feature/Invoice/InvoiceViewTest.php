@@ -355,7 +355,6 @@ describe('Invoice View (M13)', function () {
     it('prints a refund notice with the VAT drawn out at the invoice rate (تاسك 150)', function () {
         $invoice = makeServiceInvoice($this->branch, $this->admin); // 230 شاملة 30 ضريبة
         $refund = Refund::create([
-            'notice_number' => 'CN-001-00007',
             'branch_id' => $this->branch->id,
             'user_id' => $this->admin->id,
             'source_type' => 'service',
@@ -368,7 +367,7 @@ describe('Invoice View (M13)', function () {
         $this->get(route('invoices.refund-print', ['type' => 'service', 'id' => $invoice->id, 'refund' => $refund->id]))
             ->assertOk()
             ->assertInertia(fn ($page) => $page->component('invoices/refund-print')
-                ->where('notice.noticeNumber', 'CN-001-00007')
+                ->where('notice.noticeNumber', sprintf('CN-%03d-00001', $this->branch->id))
                 ->where('notice.invoiceNumber', $invoice->invoice_number)
                 ->where('zatcaQr', app(GenerateZatcaQrAction::class)->forAmounts($invoice->branch, $refund->created_at, 115, 15))
                 ->where('notice.amount', 115)

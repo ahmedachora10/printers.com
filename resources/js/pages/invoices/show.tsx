@@ -313,6 +313,17 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     ];
 
     const printBase = `/invoices/${invoice.type}/${invoice.id}/print`;
+    const refundPrintLink = (refundId: number, format: 'thermal' | 'a4', icon: React.ReactNode) => (
+        <a
+            href={`/invoices/${invoice.type}/${invoice.id}/refunds/${refundId}/print?format=${format}`}
+            target="_blank"
+            rel="noreferrer"
+            title={`طباعة إشعار المرتجع — ${format === 'thermal' ? 'حراري' : 'A4'}`}
+            className="text-muted-foreground hover:text-foreground"
+        >
+            {icon}
+        </a>
+    );
     const neighbourButton = (id: number | null, label: React.ReactNode) =>
         id ? (
             <Button variant="outline" asChild>
@@ -612,24 +623,8 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                             <span className="text-muted-foreground">{refund.userName ?? '—'}</span>
                                             {canPrint && (
                                                 <>
-                                                    <a
-                                                        href={`/invoices/${invoice.type}/${invoice.id}/refunds/${refund.id}/print?format=thermal`}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        title="طباعة إشعار المرتجع — حراري"
-                                                        className="text-muted-foreground hover:text-foreground"
-                                                    >
-                                                        <ReceiptText className="size-4" />
-                                                    </a>
-                                                    <a
-                                                        href={`/invoices/${invoice.type}/${invoice.id}/refunds/${refund.id}/print`}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        title="طباعة إشعار المرتجع — A4"
-                                                        className="text-muted-foreground hover:text-foreground"
-                                                    >
-                                                        <Printer className="size-4" />
-                                                    </a>
+                                                    {refundPrintLink(refund.id, 'thermal', <ReceiptText className="size-4" />)}
+                                                    {refundPrintLink(refund.id, 'a4', <Printer className="size-4" />)}
                                                 </>
                                             )}
                                         </div>

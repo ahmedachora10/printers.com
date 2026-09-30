@@ -23,6 +23,10 @@ return new class extends Migration
             DB::table('refunds')->where('id', $row->id)
                 ->update(['notice_number' => sprintf('CN-%03d-%05d', $row->branch_id, $seq[$row->branch_id])]);
         });
+
+        Schema::table('refunds', function (Blueprint $table) {
+            $table->string('notice_number', 30)->nullable(false)->change();
+        });
     }
 
     public function down(): void

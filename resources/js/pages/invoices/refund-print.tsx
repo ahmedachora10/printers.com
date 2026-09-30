@@ -1,14 +1,12 @@
-import { BranchIdentity, ThermalBranchHeader } from '@/components/invoices/print-header';
+import { BranchIdentity, PrintToolbar, ThermalBranchHeader } from '@/components/invoices/print-header';
 import { cn, formatCurrency, formatDateTime } from '@/lib/utils';
 import { type InvoiceBranch } from '@/types/invoice';
 import { Head } from '@inertiajs/react';
-import { Printer } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-import { useEffect, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 interface RefundNotice {
-    /** null لمرتجعٍ لم يُرقَّم (لا يحدث بعد ترحيل الترقيم). */
-    noticeNumber: string | null;
+    noticeNumber: string;
     invoiceNumber: string;
     invoiceDate: string | null;
     customerName: string | null;
@@ -36,13 +34,8 @@ interface Props {
 export default function RefundPrint({ notice, format, zatcaQr }: Props) {
     const thermal = format === 'thermal';
 
-    useEffect(() => {
-        const timer = setTimeout(() => window.print(), 400);
-        return () => clearTimeout(timer);
-    }, []);
-
     const rows: [string, ReactNode][] = [
-        ['رقم الإشعار', notice.noticeNumber && <span dir="ltr">{notice.noticeNumber}</span>],
+        ['رقم الإشعار', <span dir="ltr">{notice.noticeNumber}</span>],
         ['رقم الفاتورة', <span dir="ltr">{notice.invoiceNumber}</span>],
         ['تاريخ الفاتورة', notice.invoiceDate ? formatDateTime(notice.invoiceDate) : '—'],
         ['تاريخ المرتجع', notice.refundedAt ? formatDateTime(notice.refundedAt) : '—'],
@@ -55,15 +48,9 @@ export default function RefundPrint({ notice, format, zatcaQr }: Props) {
 
     return (
         <div className="bg-white">
-            <Head title={`إشعار مرتجع ${notice.noticeNumber ?? notice.invoiceNumber}`} />
-            <div className="mx-auto flex max-w-3xl justify-end px-4 pt-4 print:hidden">
-                <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="bg-primary text-primary-foreground flex items-center gap-1 rounded-md px-3 py-1.5 text-sm"
-                >
-                    <Printer className="size-4" /> طباعة
-                </button>
+            <Head title={`إشعار مرتجع ${notice.noticeNumber}`} />
+            <div className="mx-auto max-w-3xl px-4 pt-4">
+                <PrintToolbar />
             </div>
 
             <div dir="rtl" className={cn('mx-auto bg-white font-sans text-black', thermal ? 'max-w-sm p-4 text-xs' : 'max-w-3xl p-10 text-sm')}>

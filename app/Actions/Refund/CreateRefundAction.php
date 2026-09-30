@@ -134,7 +134,6 @@ class CreateRefundAction
             $shippingRefunded = $this->resolveShippingRefunded($invoice, $type, $data, $amount);
 
             $refund = Refund::create([
-                'notice_number' => $this->generateNoticeNumber($invoice->branch_id),
                 'branch_id' => $invoice->branch_id,
                 'user_id' => $actor->id,
                 'source_type' => $type,
@@ -290,16 +289,5 @@ class CreateRefundAction
                 'earned_at' => now(),
             ]);
         }
-    }
-
-    /** تاسك 150 — رقم إشعار المرتجع بنمط أرقام الفواتير (CN-{الفرع}-{التسلسل}). */
-    private function generateNoticeNumber(int $branchId): string
-    {
-        $seq = Refund::withTrashed()
-            ->where('branch_id', $branchId)
-            ->lockForUpdate()
-            ->count() + 1;
-
-        return sprintf('CN-%03d-%05d', $branchId, $seq);
     }
 }
