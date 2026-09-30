@@ -159,4 +159,31 @@ describe('Account reconciliation', function () {
             ->post(route('finance.reconciliation.approve', $other))
             ->assertForbidden();
     });
+
+    // تاسك 144: مثال العميل — زيادة وعجزان ⇒ الفرق عجز؛ غير المعتمد وخارج المدى لا يدخلان.
+    it('totals the approved surplus and shortage within the history range', function () {
+        $row = fn (string $date, float $devices, bool $approved = true) => AccountReconciliation::create([
+            'branch_id' => $this->branch->id,
+            'date' => $date,
+            'created_by' => $this->branchAdmin->id,
+            'system_net' => 1000,
+            'auto_total' => 0,
+            'devices_total' => $devices,
+            'approved_at' => $approved ? now() : null,
+        ]);
+        $row('2026-09-01', 1100);
+        $row('2026-09-02', 950);
+        $row('2026-09-03', 919.95);
+        $row('2026-09-04', 500, approved: false);
+        $row('2026-08-31', 5000);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('finance.reconciliation.index', ['history_from' => '2026-09-01', 'history_to' => '2026-09-30']))
+            ->assertInertia(fn ($page) => $page
+                ->where('historyTotals.surplus', 100)
+                ->where('historyTotals.shortage', 130.05)
+                ->where('historyTotals.net', -30.05)
+                ->where('historyTotals.pending', 1)
+                ->has('history.data', 4));
+    });
 });
