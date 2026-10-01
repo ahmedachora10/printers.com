@@ -123,7 +123,7 @@ class ServiceInvoiceController extends Controller
         $user = Auth::user();
         $branchId = (int) $invoice->branch_id;
 
-        $invoice->load(['lines', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'customer.addresses', 'invoiceAgents:id,service_invoice_id,agent_id']);
+        $invoice->load(['lines', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'customer.addresses', 'invoiceAgents:id,service_invoice_id,agent_id,discount_amount,rebate_amount,line_commission_amount']);
 
         $loyalty = LoyaltyConfig::forBranch($branchId);
         $loyaltyActive = (bool) $loyalty->is_active;
@@ -150,7 +150,11 @@ class ServiceInvoiceController extends Controller
                     $loyaltyActive,
                     $invoice->customer_id !== null ? $availablePoints->reserved((int) $invoice->customer_id, $invoice) : 0,
                 ),
-                'agentIds' => $invoice->invoiceAgents->pluck('agent_id')->values(),
+                // صفّ أنشأته عمولة بندٍ وحدها ليس مندوبَ فاتورة: لو عاد هنا لطُبّق
+                // وضعه (خصم) على الفاتورة كلها عند التعديل. مندوب البند محفوظ على بنده.
+                'agentIds' => $invoice->invoiceAgents
+                    ->reject(fn ($a) => (float) $a->discount_amount == 0 && (float) $a->rebate_amount == 0 && (float) $a->line_commission_amount > 0)
+                    ->pluck('agent_id')->values(),
                 'coupon' => $coupon ? [
                     'code' => $coupon->code,
                     'type' => $coupon->discount_type->value,

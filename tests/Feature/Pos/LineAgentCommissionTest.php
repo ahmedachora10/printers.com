@@ -426,4 +426,27 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
         expect($invoice->invoiceAgents()->count())->toBe(0)
             ->and($invoice->lines()->whereNotNull('agent_id')->count())->toBe(0);
     });
+
+    it('does not reopen a line-only owner as an invoice-level agent on edit', function () {
+        // A discount-mode owner picked on the line only: the edit form must not
+        // seed them into agentIds, or their 20% would come off the whole invoice.
+        setAgentBranchTerms($this->agent, $this->branch->id, ['discount_mode' => 'discount', 'rate' => 20]);
+        $invoiceLevel = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        setAgentBranchTerms($invoiceLevel, $this->branch->id, ['discount_mode' => 'rebate', 'rate' => 10]);
+
+        $this->post(route('pos.service.store'), [
+            ...lineWithAgent([
+                'agent_id' => $this->agent->id,
+                'agent_commission_type' => 'fixed',
+                'agent_commission_value' => 20,
+            ], ['qty' => 1, 'unit_price' => 100]),
+            'agent_ids' => [$invoiceLevel->id],
+        ])->assertRedirect();
+
+        $invoice = ServiceInvoice::firstOrFail();
+        expect((float) $invoice->total_amount)->toBe(100.00);
+
+        $this->get(route('pos.service.edit', $invoice))
+            ->assertInertia(fn ($page) => $page->where('invoice.agentIds', [$invoiceLevel->id]));
+    });
 });
