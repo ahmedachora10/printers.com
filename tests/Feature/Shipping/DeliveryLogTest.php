@@ -196,7 +196,7 @@ describe('Delivery log', function () {
             ->assertForbidden();
     });
 
-    // تاسك 127 — «إضافة الصلاحية للمحاسب بكشف التوصيل»: يرى ولا يسوّي.
+    // تاسك 127 — «إضافة الصلاحية للمحاسب بكشف التوصيل»؛ تاسك 152: ويسوّي على فرعه.
     describe('accountant access', function () {
         beforeEach(function () {
             $this->accountant = User::factory()->create(['branch_id' => $this->branch->id]);
@@ -218,19 +218,7 @@ describe('Delivery log', function () {
                 ->assertInertia(fn ($page) => $page
                     ->where('totals.deliveries', 1)
                     ->where('totals.fees', 20)
-                    ->where('canSettle', false));
-        });
-
-        it('forbids an accountant from settling a driver payout', function () {
-            $invoice = deliveredInvoice($this->branch, $this->admin, $this->driver, 20);
-
-            $this->actingAs($this->accountant)
-                ->post(route('shipping.deliveries.settle', $invoice), [
-                    'amount' => 15,
-                    'paid_from' => 'cash_drawer',
-                    'date' => now()->toDateString(),
-                ])
-                ->assertForbidden();
+                    ->where('canSettle', true));
         });
 
         it('keeps the accountant out of the driver management screen', function () {

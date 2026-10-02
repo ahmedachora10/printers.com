@@ -15,7 +15,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 /**
- * تاسك 111 — «استلام مبلغ التوصيل»: مصروفٌ معتمد مربوطٌ بالطلب وسائقه. النقدي
+ * تاسك 111 — «تسليم مبلغ التوصيل»: مصروفٌ معتمد مربوطٌ بالطلب وسائقه. النقدي
  * يُطرح من نقد الدرج والتحويل لا يمسّه، وحالة الفاتورة لا تتغيّر.
  */
 describe('Delivery settlement', function () {
@@ -96,7 +96,6 @@ describe('Delivery settlement', function () {
         $expense = Expense::firstOrFail();
 
         $this->actingAs($this->admin)->delete(route('expenses.destroy', $expense))->assertForbidden();
-        $this->actingAs($this->accountant)->post(route('shipping.deliveries.settle', $this->invoice), [])->assertForbidden();
 
         $this->actingAs($this->admin)
             ->delete(route('shipping.settlements.destroy', $expense), ['reason' => 'مبلغ خاطئ'])
@@ -104,5 +103,45 @@ describe('Delivery settlement', function () {
 
         $this->assertSoftDeleted($expense);
         ($this->settle)('cash_drawer', 30)->assertSessionHasNoErrors();
+    });
+
+    // تاسك 152 — «تسليم مبلغ التوصيل» عند المحاسب، على فرعه فقط.
+    it('lets the branch accountant settle and cancel a delivery', function () {
+        $this->actingAs($this->accountant)
+            ->post(route('shipping.deliveries.settle', $this->invoice), [
+                'amount' => 25,
+                'paid_from' => 'cash_drawer',
+                'expense_category_id' => $this->category->id,
+            ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect();
+
+        $expense = Expense::firstOrFail();
+        expect($expense->user_id)->toBe($this->accountant->id)
+            ->and($expense->isApproved())->toBeTrue();
+
+        $this->actingAs($this->accountant)
+            ->delete(route('shipping.settlements.destroy', $expense), ['reason' => 'مبلغ خاطئ'])
+            ->assertRedirect();
+
+        $this->assertSoftDeleted($expense);
+    });
+
+    it('forbids a foreign-branch accountant and an employee', function () {
+        $foreignAdmin = User::factory()->create();
+        $foreignAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        $foreignBranch = Branch::factory()->create(['owner_id' => $foreignAdmin->id]);
+        $foreignAccountant = User::factory()->create(['branch_id' => $foreignBranch->id]);
+        $foreignAccountant->addRole(Roles::ACCOUNTANT->value);
+
+        $employee = User::factory()->create(['branch_id' => $this->branch->id]);
+        $employee->addRole(Roles::EMPLOYEE->value);
+
+        $payload = ['amount' => 25, 'paid_from' => 'cash_drawer', 'expense_category_id' => $this->category->id];
+
+        $this->actingAs($foreignAccountant)->post(route('shipping.deliveries.settle', $this->invoice), $payload)->assertForbidden();
+        $this->actingAs($employee)->post(route('shipping.deliveries.settle', $this->invoice), $payload)->assertForbidden();
+
+        expect(Expense::count())->toBe(0);
     });
 });

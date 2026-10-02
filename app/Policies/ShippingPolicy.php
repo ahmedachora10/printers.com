@@ -54,12 +54,14 @@ class ShippingPolicy
     /**
      * تاسك 111 — تسوية أجر السائق وإلغاؤها، في فرع الطلب.
      *
-     * تاسك 127: تبقى للإدارة — المحاسب يرى الكشف ولا يسوّي عليه.
+     * تاسك 152: والمحاسب على فرعه، استلاماً وإلغاءً كمديره. التسوية تُنشأ
+     * معتمدةً مع أن المحاسب لا يعتمد المصروفات (`approveAny`) — استثناءٌ مقصود،
+     * فمصروف التسوية لا يُدار إلا من الكشف و`ExpensePolicy` يقفله هناك.
      */
     public function settle(User $user, int $branchId): bool
     {
         return $user->roleName->isSuperAdmin()
-            || ($user->roleName->isBranchAdmin() && $user->branchId === $branchId);
+            || (($user->roleName->isBranchAdmin() || $user->roleName->isAccountant()) && $user->branchId === $branchId);
     }
 
     private function owns(User $user, DeliveryProvider|DeliveryZone $model): bool

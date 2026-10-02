@@ -261,6 +261,13 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
+        // تاسك 111 — تسوية أجر السائق لكل طلب. تاسك 152: والمحاسب منها،
+        // والسياسة (`settle`) تحصرها في فرعه.
+        Route::post('shipping/deliveries/{invoice}/settle', [DeliverySettlementController::class, 'store'])
+            ->name('shipping.deliveries.settle');
+        Route::delete('shipping/settlements/{expense}', [DeliverySettlementController::class, 'destroy'])
+            ->name('shipping.settlements.destroy');
+
         Route::prefix('pos')->name('pos.')->group(function () {
             Route::get('product', [ProductInvoiceController::class, 'create'])->name('product.create');
             Route::post('product', [ProductInvoiceController::class, 'store'])->name('product.store');
@@ -598,12 +605,6 @@ Route::middleware(['auth'])->group(function () {
         // تاسك 93 — التوصيل: شاشةٌ واحدة بتبويبين، ومورِدان يكتب كلٌّ منهما
         // في جدوله. `toggle-status` قبل الـresource وإلا التقطه `{id}`.
         Route::get('shipping', [ShippingController::class, 'index'])->name('shipping.index');
-
-        // تاسك 111 — تسوية أجر السائق لكل طلب.
-        Route::post('shipping/deliveries/{invoice}/settle', [DeliverySettlementController::class, 'store'])
-            ->name('shipping.deliveries.settle');
-        Route::delete('shipping/settlements/{expense}', [DeliverySettlementController::class, 'destroy'])
-            ->name('shipping.settlements.destroy');
 
         Route::patch('delivery-providers/{deliveryProvider}/toggle-status', [DeliveryProviderController::class, 'toggleStatus'])
             ->name('delivery-providers.toggle-status');
