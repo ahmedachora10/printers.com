@@ -1,4 +1,5 @@
 import { destroy, duplicate as duplicateRoute, index, reorder } from '@/actions/App/Http/Controllers/ServiceTemplateController';
+import { type AgentCommission, type BranchAgent } from '@/components/branch-services/branch-service-agents-modal';
 import { type BranchEmployee, type EmployeeCommission } from '@/components/branch-services/branch-service-employees-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
@@ -26,13 +27,15 @@ interface Props {
     branches: BranchOption[];
     branchEmployees: Record<number, BranchEmployee[]>;
     employeeCommissions: Record<number, EmployeeCommission[]>;
+    branchAgents: Record<number, BranchAgent[]>;
+    agentCommissions: Record<number, AgentCommission[]>;
     filters: {
         search?: string;
         status?: string;
     };
 }
 
-export default function ServiceTemplatesIndex({ templates, branches, branchEmployees, employeeCommissions, filters }: Props) {
+export default function ServiceTemplatesIndex({ templates, branches, branchEmployees, employeeCommissions, branchAgents, agentCommissions, filters }: Props) {
     const [formOpen, setFormOpen] = useState(false);
     const [editingTemplateId, setEditingTemplateId] = useState<number | null>(null);
     const editingTemplate = editingTemplateId ? (templates.data.find((t) => t.id === editingTemplateId) ?? null) : null;
@@ -345,6 +348,8 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
                 branches={branches}
                 branchEmployees={branchEmployees}
                 employeeCommissions={employeeCommissions}
+                branchAgents={branchAgents}
+                agentCommissions={agentCommissions}
             />
         </AppLayout>
     );

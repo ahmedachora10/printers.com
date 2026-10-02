@@ -2,6 +2,7 @@
 
 use App\Enums\Roles;
 use App\Models\Agent;
+use App\Models\AgentService;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\CommissionLedger;
@@ -448,5 +449,100 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
 
         $this->get(route('pos.service.edit', $invoice))
             ->assertInertia(fn ($page) => $page->where('invoice.agentIds', [$invoiceLevel->id]));
+    });
+
+    // تاسك 153: عمولة المندوب المحدَّدة لكل خدمة.
+    it('forces the admin-set agent commission on an employee, ignoring what was sent', function () {
+        AgentService::create([
+            'agent_id' => $this->agent->id,
+            'branch_service_id' => $this->service->id,
+            'commission_type' => 'fixed',
+            'commission_value' => 2,
+        ]);
+
+        $this->post(route('pos.service.store'), lineWithAgent([
+            'agent_id' => $this->agent->id,
+            'agent_commission_type' => 'percentage',
+            'agent_commission_value' => 90,
+        ]))->assertRedirect();
+
+        // 2 ر.س × 3 قطع = 6 — لا 90% التي أرسلها الموظف.
+        $line = ServiceInvoice::firstOrFail()->lines->firstOrFail();
+        expect($line->agent_commission_type->value)->toBe('fixed')
+            ->and((float) $line->agent_commission_value)->toBe(2.00)
+            ->and((float) $line->agent_commission_amount)->toBe(6.00);
+    });
+
+    it('lets the branch admin override the admin-set agent commission', function () {
+        AgentService::create([
+            'agent_id' => $this->agent->id,
+            'branch_service_id' => $this->service->id,
+            'commission_type' => 'fixed',
+            'commission_value' => 2,
+        ]);
+
+        $this->actingAs($this->branchAdmin)
+            ->post(route('pos.service.store'), lineWithAgent([
+                'agent_id' => $this->agent->id,
+                'agent_commission_type' => 'fixed',
+                'agent_commission_value' => 5,
+            ]))->assertRedirect();
+
+        expect((float) ServiceInvoice::firstOrFail()->lines->firstOrFail()->agent_commission_amount)->toBe(15.00);
+    });
+
+    it('passes the agent terms to the POS per service', function () {
+        AgentService::create([
+            'agent_id' => $this->agent->id,
+            'branch_service_id' => $this->service->id,
+            'commission_type' => 'percentage',
+            'commission_value' => 12.5,
+        ]);
+
+        $this->get(route('pos.service.create'))
+            ->assertInertia(fn ($page) => $page
+                ->where('services.0.agentTerms.'.$this->agent->id.'.type', 'percentage')
+                ->where('services.0.agentTerms.'.$this->agent->id.'.value', 12.5));
+    });
+
+    it('saves and clears agent commissions for a branch service', function () {
+        $this->actingAs($this->branchAdmin)
+            ->put(route('branch-services.agent-commissions.update', $this->service), [
+                'commissions' => [['agent_id' => $this->agent->id, 'commission_type' => 'percentage', 'commission_value' => 8]],
+            ])->assertSessionHasNoErrors();
+
+        expect(AgentService::firstOrFail()->commission_value)->toEqual('8.00');
+
+        $this->actingAs($this->branchAdmin)
+            ->put(route('branch-services.agent-commissions.update', $this->service), [
+                'commissions' => [['agent_id' => $this->agent->id, 'commission_type' => null, 'commission_value' => null]],
+            ])->assertSessionHasNoErrors();
+
+        expect(AgentService::count())->toBe(0);
+    });
+
+    it('rejects agent commission settings from another branch admin and from employees', function () {
+        $otherAdmin = User::factory()->create();
+        $otherAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        Branch::factory()->create(['owner_id' => $otherAdmin->id]);
+
+        $payload = ['commissions' => [['agent_id' => $this->agent->id, 'commission_type' => 'fixed', 'commission_value' => 1]]];
+
+        $this->actingAs($otherAdmin)
+            ->put(route('branch-services.agent-commissions.update', $this->service), $payload)
+            ->assertForbidden();
+
+        $this->actingAs($this->employee)
+            ->put(route('branch-services.agent-commissions.update', $this->service), $payload)
+            ->assertForbidden();
+
+        expect(AgentService::count())->toBe(0);
+    });
+
+    it('refuses a per-unit agent commission on a unit-priced service', function () {
+        $this->actingAs($this->branchAdmin)
+            ->put(route('branch-services.agent-commissions.update', $this->service), [
+                'commissions' => [['agent_id' => $this->agent->id, 'commission_type' => 'per_sqm', 'commission_value' => 3]],
+            ])->assertSessionHasErrors('commissions.0.commission_type');
     });
 });

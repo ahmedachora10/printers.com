@@ -24,6 +24,7 @@ use App\Http\Requests\ServiceInvoice\ReviewQueueFilterRequest;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
 use App\Http\Requests\ServiceInvoice\UpdateServiceInvoiceRequest;
+use App\Models\AgentService;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\BranchServiceMaterial;
@@ -896,6 +897,7 @@ class ServiceInvoiceController extends Controller
                 // خامات المخزون ومتاحُها — استعلامان ثابتان لا واحدٌ لكل خدمة.
                 'materials.product:id,name,unit_id,is_sqm,current_stock',
                 'materials.product.unit:id,name',
+                'agentCommissions',
             ])
             // تاسك 82: ترتيب البائع هو ترتيب القالب — ضمٌّ صريح لأن الترتيب
             // على جدول القوالب لا على خدمات الفرع. ترتيبٌ لا يراه البائع لا قيمة له.
@@ -915,6 +917,10 @@ class ServiceInvoiceController extends Controller
                 'pricingType' => $service->pricing_type?->value ?? 'unit',
                 'pricePerSqm' => (float) $service->price_per_sqm,
                 'agentCommissionPerSqm' => (float) $service->agent_commission_per_sqm,
+                // تاسك 153: عمولة كل مندوب المحدَّدة لهذه الخدمة — تُعبَّأ وتُقفل على الموظف.
+                'agentTerms' => $service->agentCommissions->mapWithKeys(fn (AgentService $t) => [
+                    $t->agent_id => ['type' => $t->commission_type->value, 'value' => (float) $t->commission_value],
+                ])->all(),
                 // Ready-made detail phrases; the POS joins them into the
                 // placeholder of the line's free-text detail box.
                 'noteExamples' => array_values($service->note_examples ?? []),

@@ -30,6 +30,8 @@ export interface PosService {
     pricingType: ServicePricingType;
     pricePerSqm: number;
     agentCommissionPerSqm: number;
+    /** تاسك 153: عمولة المندوب المحدَّدة لهذه الخدمة، بمعرّف المندوب — مقفلة على الموظف */
+    agentTerms: Record<number, { type: LineAgentCommissionType; value: number }>;
     /** ready-made detail phrases set by the branch admin for this service */
     noteExamples: string[];
     isTahazir: boolean;

@@ -12,6 +12,7 @@ use App\Enums\CustomerTypeEnum;
 use App\Enums\LineAgentCommissionTypeEnum;
 use App\Enums\ServicePricingTypeEnum;
 use App\Models\Agent;
+use App\Models\AgentService;
 use App\Models\BranchService;
 use App\Models\Coupon;
 use App\Models\Customer;
@@ -75,6 +76,16 @@ class CalculateServiceInvoiceAction
             ->pluck('commission_override_pct', 'branch_service_id');
 
         $lineAgents = $this->resolveLineAgents($data, $branchId);
+
+        // تاسك 153: عمولة المندوب المحدَّدة للخدمة تُفرض على الموظف وحده — مدير
+        // الفرع ومدير النظام يكتبان فوقها. والقرار من المستخدم الفاعل، كسقف السعر.
+        $lockedAgentTerms = $lineAgents->isNotEmpty() && $this->actorBoundByPriceCap()
+            ? AgentService::query()
+                ->whereIn('agent_id', $lineAgents->keys())
+                ->whereIn('branch_service_id', $branchServiceIds)
+                ->get()
+                ->keyBy(fn (AgentService $t) => $t->agent_id.'-'.$t->branch_service_id)
+            : collect();
 
         // تاسك 54: تكلفة الخامات تُخصم من أساس عمولة الموظف (تاسك 7)، فلا يكتبها
         // الموظف على نفسه. القرار يُتّخذ مرة واحدة هنا من المستخدم الفاعل — لا من
@@ -179,6 +190,7 @@ class CalculateServiceInvoiceAction
                 $this->lineAgentCommission(
                     $line, $branchService, $lineAgents, $lineSubtotal, $qty,
                     $units, $vatPct, $branchId, $materialsTotal,
+                    $lockedAgentTerms->get(((int) ($line['agent_id'] ?? 0)).'-'.$branchService->id),
                 );
 
             $subtotal += $lineSubtotal;
@@ -798,6 +810,7 @@ class CalculateServiceInvoiceAction
         float $vatPct,
         int $branchId,
         float $materialsTotal,
+        ?AgentService $lockedTerm = null,
     ): array {
         $agentId = (int) ($line['agent_id'] ?? 0);
 
@@ -815,7 +828,9 @@ class CalculateServiceInvoiceAction
             ]);
         }
 
-        $type = LineAgentCommissionTypeEnum::tryFrom((string) ($line['agent_commission_type'] ?? ''));
+        // تاسك 153: إعداد الإدارة يحلّ محلّ ما أرسله الموظف؛ ولا إعداد = ما أرسله.
+        $type = $lockedTerm?->commission_type
+            ?? LineAgentCommissionTypeEnum::tryFrom((string) ($line['agent_commission_type'] ?? ''));
 
         if ($type === null) {
             throw ValidationException::withMessages([
@@ -823,7 +838,7 @@ class CalculateServiceInvoiceAction
             ]);
         }
 
-        $value = (float) ($line['agent_commission_value'] ?? 0);
+        $value = (float) ($lockedTerm?->commission_value ?? $line['agent_commission_value'] ?? 0);
 
         if ($type === LineAgentCommissionTypeEnum::Percentage && $value > 100) {
             throw ValidationException::withMessages([

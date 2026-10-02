@@ -12,6 +12,8 @@ use App\Http\Requests\ServiceTemplate\ReorderServiceTemplatesRequest;
 use App\Http\Requests\ServiceTemplate\StoreServiceTemplateRequest;
 use App\Http\Requests\ServiceTemplate\UpdateServiceTemplateRequest;
 use App\Http\Resources\ServiceTemplate\ServiceTemplateResource;
+use App\Models\Agent;
+use App\Models\AgentService;
 use App\Models\Branch;
 use App\Models\ServiceTemplate;
 use App\Models\User;
@@ -72,11 +74,24 @@ class ServiceTemplateController extends Controller
                 'commissionPct' => (float) $r->commission_override_pct,
             ])->values());
 
+        // تاسك 153: مناديب كل فرع (الربط في agent_branch) وعمولاتهم لكل خدمة.
+        $branchAgents = Agent::query()
+            ->where('is_active', true)
+            ->whereHas('agentBranches', fn ($q) => $q->whereIn('branches.id', $branches->pluck('id')))
+            ->with(['agentBranches' => fn ($q) => $q->whereIn('branches.id', $branches->pluck('id'))->select('branches.id')])
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->flatMap(fn (Agent $a) => $a->agentBranches->map(fn (Branch $b) => ['branchId' => $b->id, 'id' => $a->id, 'name' => $a->name]))
+            ->groupBy('branchId')
+            ->map(fn ($rows) => $rows->map(fn (array $r) => ['id' => $r['id'], 'name' => $r['name']])->values());
+
         return Inertia::render('service-templates/index', [
             'templates' => ServiceTemplateResource::collection($templates),
             'branches' => $branches,
             'branchEmployees' => $branchEmployees,
             'employeeCommissions' => $employeeCommissions,
+            'branchAgents' => $branchAgents,
+            'agentCommissions' => AgentService::groupedByService($serviceIds),
             'filters' => [
                 'search' => $request->input('search'),
                 'status' => $request->input('status'),
