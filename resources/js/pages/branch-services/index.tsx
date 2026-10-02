@@ -331,7 +331,7 @@ export default function BranchServicesIndex({
                 open={importOpen}
                 onOpenChange={setImportOpen}
                 title="استيراد خدمات الفرع"
-                description="ملف Excel بورقتين: «خدمات الفرع» و«عمولات الموظفين». المطابقة باسم الخدمة — الموجودة تُحدّث، والاسم الجديد يُنشئ خدمةً مملوكة لفرعك، ولا يُحذف شيء. وعمودٌ غائب عن الملف يُترك كما هو."
+                description="ملف Excel بثلاث أوراق: «خدمات الفرع» و«عمولات الموظفين» و«عمولات المناديب». المطابقة باسم الخدمة — الموجودة تُحدّث، والاسم الجديد يُنشئ خدمةً مملوكة لفرعك، ولا يُحذف شيء. وعمودٌ غائب عن الملف يُترك كما هو."
                 previewUrl={branchServiceRoutes.importPreview.url()}
                 commitUrl={branchServiceRoutes.import.url()}
                 templateUrl={branchServiceRoutes.importTemplate.url()}

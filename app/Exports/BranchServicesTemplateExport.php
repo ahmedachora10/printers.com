@@ -5,7 +5,7 @@ namespace App\Exports;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 
 /**
- * نموذج استيراد خدمات الفرع: ورقتا التصدير نفسهما فارغتين، وفي كلٍّ صفُّ مثال.
+ * نموذج استيراد خدمات الفرع: أوراق التصدير نفسها فارغةً، وفي كلٍّ صفُّ مثال.
  *
  * العناوين تُطلب من BranchServicesExport لا تُكتب هنا، فنموذجٌ يخالف التصدير فخّ.
  */
@@ -24,6 +24,11 @@ class BranchServicesTemplateExport implements WithMultipleSheets
                 BranchServicesExport::commissionHeadings(),
                 [['طباعة ملونة A4', 'أحمد علي', 'ahmed', '12.00']],
                 BranchServicesExport::COMMISSIONS_SHEET,
+            ),
+            new ImportTemplateExport(
+                BranchServicesExport::agentCommissionHeadings(),
+                [['طباعة ملونة A4', 'مكتب النور', 'alnoor', 'نسبة مئوية', '5.00']],
+                BranchServicesExport::AGENT_COMMISSIONS_SHEET,
             ),
         ];
     }

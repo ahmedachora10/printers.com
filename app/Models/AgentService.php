@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\LineAgentCommissionTypeEnum;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Collection;
 
 /**
@@ -23,6 +24,12 @@ class AgentService extends Model
         'commission_type' => LineAgentCommissionTypeEnum::class,
         'commission_value' => 'decimal:2',
     ];
+
+    /** @return BelongsTo<Agent, $this> */
+    public function agent(): BelongsTo
+    {
+        return $this->belongsTo(Agent::class);
+    }
 
     /**
      * عمولات المناديب المحدَّدة لخدمات الصفحة، مجمّعةً بالخدمة لنافذة التعديل.

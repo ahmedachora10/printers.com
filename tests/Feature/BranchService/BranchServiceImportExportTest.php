@@ -2,6 +2,8 @@
 
 use App\Enums\Roles;
 use App\Exports\BranchServicesExport;
+use App\Models\Agent;
+use App\Models\AgentService;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\ServiceTemplate;
@@ -47,7 +49,7 @@ function branchServicesWorkbook(array $sheets): UploadedFile
  * @param  array<int, array<int, mixed>>  $services
  * @param  array<int, array<int, mixed>>|null  $commissions
  */
-function branchServicesSheet(array $services, ?array $commissions = null): UploadedFile
+function branchServicesSheet(array $services, ?array $commissions = null, ?array $agentCommissions = null): UploadedFile
 {
     $sheets = [[
         'title' => BranchServicesExport::SERVICES_SHEET,
@@ -55,11 +57,20 @@ function branchServicesSheet(array $services, ?array $commissions = null): Uploa
         'rows' => $services,
     ]];
 
-    if ($commissions !== null) {
+    // الأوراق تُطابَق بالفهرس، فورقة المناديب تحتاج ورقة الموظفين قبلها ولو فارغة.
+    if ($commissions !== null || $agentCommissions !== null) {
         $sheets[] = [
             'title' => BranchServicesExport::COMMISSIONS_SHEET,
             'headings' => BranchServicesExport::commissionHeadings(),
-            'rows' => $commissions,
+            'rows' => $commissions ?? [],
+        ];
+    }
+
+    if ($agentCommissions !== null) {
+        $sheets[] = [
+            'title' => BranchServicesExport::AGENT_COMMISSIONS_SHEET,
+            'headings' => BranchServicesExport::agentCommissionHeadings(),
+            'rows' => $agentCommissions,
         ];
     }
 
@@ -131,6 +142,13 @@ beforeEach(function () {
         'branch_id' => $this->branch->id,
     ]);
     $this->employee->addRole(Roles::EMPLOYEE->value);
+
+    $this->agent = Agent::factory()->create([
+        'name' => 'مكتب النور',
+        'username' => 'alnoor',
+        'branch_id' => $this->branch->id,
+    ]);
+    setAgentBranchTerms($this->agent, $this->branch->id, ['discount_mode' => 'rebate', 'rate' => 0]);
 
     $this->actingAs($this->admin);
 });
@@ -435,7 +453,62 @@ describe('preview', function () {
             ->assertForbidden();
     });
 
-    it('serves a two-sheet template', function () {
+    // تاسك 153: الورقة الثالثة — عمولات المناديب.
+    it('exports the agent commissions sheet', function () {
+        $service = attachedService($this->branch, 'طباعة ملونة');
+        AgentService::create([
+            'agent_id' => $this->agent->id,
+            'branch_service_id' => $service->id,
+            'commission_type' => 'fixed',
+            'commission_value' => 3,
+        ]);
+
+        $sheets = (new BranchServicesExport($this->branch->id))->sheets();
+
+        expect($sheets[2]->collection()->first())->toBe(['طباعة ملونة', 'مكتب النور', 'alnoor', 'مبلغ ثابت', '3.00']);
+    });
+
+    it('sets an agent commission the third sheet names', function () {
+        $this->post(route('branch-services.import'), [
+            'file' => branchServicesSheet([serviceRow('تجليد')], null, [['تجليد', 'مكتب النور', 'alnoor', 'نسبة مئوية', '6.50']]),
+        ])->assertOk();
+
+        $rate = AgentService::sole();
+        expect($rate->agent_id)->toBe($this->agent->id)
+            ->and($rate->commission_type->value)->toBe('percentage')
+            ->and((float) $rate->commission_value)->toBe(6.5);
+    });
+
+    it('clears an agent commission whose type the sheet emptied', function () {
+        $service = attachedService($this->branch, 'تجليد');
+        AgentService::create([
+            'agent_id' => $this->agent->id,
+            'branch_service_id' => $service->id,
+            'commission_type' => 'fixed',
+            'commission_value' => 3,
+        ]);
+
+        $this->post(route('branch-services.import'), [
+            'file' => branchServicesSheet([serviceRow('تجليد')], null, [['تجليد', 'مكتب النور', 'alnoor', '', '']]),
+        ])->assertOk();
+
+        expect(AgentService::count())->toBe(0);
+    });
+
+    it('skips an agent not linked to this branch and a per-unit rate on a unit service', function () {
+        Agent::factory()->create(['name' => 'غريب', 'username' => 'stranger']);
+
+        $this->post(route('branch-services.import'), [
+            'file' => branchServicesSheet([serviceRow('تجليد')], null, [
+                ['تجليد', 'غريب', 'stranger', 'مبلغ ثابت', '2'],
+                ['تجليد', 'مكتب النور', 'alnoor', 'لكل وحدة قياس', '2'],
+            ]),
+        ])->assertOk();
+
+        expect(AgentService::count())->toBe(0);
+    });
+
+    it('serves the import template', function () {
         $this->get(route('branch-services.import.template'))
             ->assertOk()
             ->assertDownload('branch-services-template.xlsx');

@@ -3,6 +3,7 @@
 namespace App\Actions\ServiceTemplate;
 
 use App\Actions\UserService\SeedUserServiceCommissionsAction;
+use App\Models\AgentService;
 use App\Models\BranchService;
 use App\Models\ServiceTemplate;
 use App\Models\UserService;
@@ -55,6 +56,7 @@ class DuplicateServiceTemplateAction
                     ->firstOrFail();
 
                 $this->copyEmployeeRates($source->id, $new->id);
+                $this->copyAgentRates($source->id, $new->id);
             }
 
             return $copy;
@@ -85,6 +87,27 @@ class DuplicateServiceTemplateAction
 
         if ($rows !== []) {
             UserService::query()->insert($rows);
+        }
+    }
+
+    /** تاسك 153: وعمولات المناديب المحدَّدة كذلك — التوأم يقفل ما قفله الأصل. */
+    private function copyAgentRates(int $sourceBranchServiceId, int $newBranchServiceId): void
+    {
+        $rows = AgentService::query()
+            ->where('branch_service_id', $sourceBranchServiceId)
+            ->get()
+            ->map(fn (AgentService $rate) => [
+                'agent_id' => $rate->agent_id,
+                'branch_service_id' => $newBranchServiceId,
+                'commission_type' => $rate->commission_type->value,
+                'commission_value' => $rate->commission_value,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ])
+            ->all();
+
+        if ($rows !== []) {
+            AgentService::query()->insert($rows);
         }
     }
 
