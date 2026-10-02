@@ -13,6 +13,7 @@ use App\Models\Branch;
 use App\Models\InvoicePayment;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
+use App\Support\MediaZip;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response as HttpResponse;
@@ -23,7 +24,6 @@ use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
-use ZipArchive;
 
 /**
  * Realized-revenue sales report (M17).
@@ -232,21 +232,7 @@ class SalesReportController extends Controller
             return back()->with('error', 'عدد الإيصالات '.count($files).' — ضيّق المدى');
         }
 
-        $path = tempnam(sys_get_temp_dir(), 'receipts');
-        $zip = new ZipArchive;
-        $zip->open($path, ZipArchive::OVERWRITE);
-
-        $used = [];
-        foreach ($files as [$media, $name]) {
-            $name = str_replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], '-', $name);
-            $n = $used[$name] = ($used[$name] ?? 0) + 1;
-            $zip->addFile($media->getPath(), $name.($n > 1 ? " ({$n})" : '').'.'.$media->extension);
-        }
-        $zip->close();
-
-        return response()
-            ->download($path, "إيصالات-{$scope['from']->toDateString()}-{$scope['to']->toDateString()}.zip")
-            ->deleteFileAfterSend();
+        return MediaZip::download($files, "إيصالات-{$scope['from']->toDateString()}-{$scope['to']->toDateString()}.zip");
     }
 
     /**

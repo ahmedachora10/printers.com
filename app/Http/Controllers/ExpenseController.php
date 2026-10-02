@@ -16,6 +16,7 @@ use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\ServiceInvoice;
+use App\Support\MediaZip;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -24,6 +25,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as FileResponse;
 
 class ExpenseController extends Controller
@@ -54,6 +56,8 @@ class ExpenseController extends Controller
             // تاسك 113: لنافذة تأكيد «اعتماد جميع المصروفات».
             'pendingSummary' => ['count' => (clone $pending)->count(), 'total' => (float) $pending->sum('total')],
             'canApproveAll' => Gate::allows('approveAny', Expense::class),
+            // تاسك 161: زرّ «تنزيل المرفقات» يظهر حين يوجد ما يُنزَّل تحت الفلاتر.
+            'attachmentsCount' => (clone $base)->whereHas('media', fn ($q) => $q->where('collection_name', Expense::ATTACHMENT))->count(),
             // تاسك 123: خيارات فلتر المصدر من الـenum نفسه، فلا تُكتب مرتين.
             'sources' => array_map(
                 fn (ExpenseSourceEnum $c) => ['value' => $c->value, 'label' => $c->label()],
@@ -135,6 +139,36 @@ class ExpenseController extends Controller
         $count = $action->handle($this->filteredQuery($request));
 
         return back()->with('success', "تم اعتماد {$count} مصروف");
+    }
+
+    /** تاسك 161 — مرفقات القائمة المصفّاة (نفس filteredQuery) في ملف ZIP واحد. */
+    public function attachments(Request $request): BinaryFileResponse|RedirectResponse
+    {
+        Gate::authorize('viewAny', Expense::class);
+
+        $expenses = $this->filteredQuery($request)
+            ->whereHas('media', fn ($q) => $q->where('collection_name', Expense::ATTACHMENT))
+            ->with(['media', 'category:id,name'])
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get();
+
+        if ($expenses->isEmpty()) {
+            return back()->with('error', 'لا توجد مرفقات في هذه التصفية');
+        }
+
+        // ponytail: يُبنى متزامناً بحدّ 500 مرفق كإيصالات التحويل؛ طابورٌ إن وقع الحدّ فعلاً.
+        if ($expenses->count() > 500) {
+            return back()->with('error', 'عدد المرفقات '.$expenses->count().' — ضيّق التصفية');
+        }
+
+        $files = $expenses->map(fn (Expense $e) => [$e->attachment(), implode('-', [
+            $e->date->format('Y-m-d'),
+            $e->supplier_name ?: ($e->category?->name ?? 'مصروف'),
+            $e->id,
+        ])])->all();
+
+        return MediaZip::download($files, 'مرفقات-المصروفات-'.now()->format('Y-m-d').'.zip');
     }
 
     /**

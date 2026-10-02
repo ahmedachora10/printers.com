@@ -8,9 +8,8 @@ use Illuminate\Validation\Rule;
 /**
  * فلاتر «سجل الدفعات» في شاشة مدفوعات المناديب (تاسك 57).
  *
- * المدى التاريخي يُطبَّق على `paid_at` — يوم صرف الدفعة — لا على تواريخ فواتير
- * الفترة المسدَّدة: خلط الاثنين يُنتج مجاميع لا تُطابق أي تسوية، لأن دفعةً
- * تُصرف في أغسطس قد تغطي فواتير يوليو.
+ * تاسك 164: المدى يُطبَّق على **الفترة المدفوع عنها** (`period_start/period_end`)
+ * — دفعةٌ تتداخل فترتها مع المدى تظهر — لا على `paid_at`، بطلب العميل.
  */
 class AgentPaymentFilterRequest extends FormRequest
 {
@@ -28,7 +27,7 @@ class AgentPaymentFilterRequest extends FormRequest
         return [
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
-            'search' => ['nullable', 'string', 'max:255'],
+            'agent' => ['nullable', 'integer'],
             'sort' => ['nullable', Rule::in(self::SORTABLE)],
             'dir' => ['nullable', Rule::in(['asc', 'desc'])],
         ];
@@ -40,6 +39,7 @@ class AgentPaymentFilterRequest extends FormRequest
         return [
             'from' => 'من تاريخ',
             'to' => 'إلى تاريخ',
+            'agent' => 'المندوب',
         ];
     }
 

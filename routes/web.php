@@ -299,6 +299,7 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('expenses/invoice-options', [ExpenseController::class, 'invoiceOptions'])->name('expenses.invoice-options');
         Route::get('expenses/{expense}/attachment', [ExpenseController::class, 'attachment'])->name('expenses.attachment');
+        Route::get('expenses/attachments', [ExpenseController::class, 'attachments'])->name('expenses.attachments');
         Route::post('expenses/approve-all', [ExpenseController::class, 'approveAll'])->name('expenses.approve-all');
         Route::post('expenses/{expense}/approve', [ExpenseController::class, 'approve'])->name('expenses.approve');
         Route::post('expenses/{expense}/unapprove', [ExpenseController::class, 'unapprove'])->name('expenses.unapprove');

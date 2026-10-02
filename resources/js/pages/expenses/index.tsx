@@ -1,4 +1,4 @@
-import { approve, approveAll, destroy, index, unapprove } from '@/actions/App/Http/Controllers/ExpenseController';
+import { approve, approveAll, attachments, destroy, index, unapprove } from '@/actions/App/Http/Controllers/ExpenseController';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import ExpenseFormModal from '@/components/expenses/expense-form-modal';
 import { FilterBar } from '@/components/filter-bar';
@@ -10,10 +10,10 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { TableCell, TableRow } from '@/components/ui/table';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
-import { type BreadcrumbItem } from '@/types';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Expense, type PaginatedExpense } from '@/types/expense';
-import { Link, router } from '@inertiajs/react';
-import { CheckCheck, CheckCircle2, Paperclip, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react';
+import { Link, router, usePage } from '@inertiajs/react';
+import { CheckCheck, CheckCircle2, FileArchive, Paperclip, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'المصروفات', href: '/expenses' }];
@@ -30,6 +30,8 @@ interface Props {
     /** تاسك 113 — غير المعتمد تحت الفلاتر الحالية، لنافذة «اعتماد الكل» */
     pendingSummary: { count: number; total: number };
     canApproveAll: boolean;
+    /** تاسك 161 — مصروفات بمرفق تحت الفلاتر الحالية. */
+    attachmentsCount: number;
     categories: Category[];
     /** تاسك 123 — خيارات فلتر مصدر المصروف، من ExpenseSourceEnum. */
     sources: { value: string; label: string }[];
@@ -70,7 +72,7 @@ function rangeLabel(from: string, to: string): string {
     return from ? `من ${shortDate(from)}` : `حتى ${shortDate(to)}`;
 }
 
-export default function ExpensesIndex({ items, periodTotal, pendingSummary, canApproveAll, categories, sources, branches, filters, defaultDate }: Props) {
+export default function ExpensesIndex({ items, periodTotal, pendingSummary, canApproveAll, attachmentsCount, categories, sources, branches, filters, defaultDate }: Props) {
     const [approvingAll, setApprovingAll] = useState(false);
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Expense | null>(null);
@@ -231,6 +233,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
     };
     const dateFilters = useReportFilters(index.url(), applied, dateDefaults);
     const showsAllPeriods = filters.range === 'all';
+    const { error } = usePage<SharedData>().props;
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
@@ -312,6 +315,8 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                     )}
                 </Card>
 
+                {typeof error === 'string' && <p role="alert" className="mb-3 text-sm text-rose-600">{error}</p>}
+
                 <div className="mb-6">
                     <FilterBar
                         searchable
@@ -345,6 +350,14 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                         onClearAll={handleClearAll}
                         actions={
                             <div className="flex items-center gap-2">
+                                {/* تاسك 161: نفس فلاتر القائمة، فيُنزَّل ما يُرى فقط. */}
+                                {attachmentsCount > 0 && (
+                                    <Button size="sm" variant="outline" asChild>
+                                        <a href={attachments.url({ query: buildQuery({}) })}>
+                                            <FileArchive className="size-4" /> تنزيل المرفقات ({attachmentsCount})
+                                        </a>
+                                    </Button>
+                                )}
                                 {canApproveAll && pendingSummary.count > 0 && (
                                     <Button size="sm" variant="outline" onClick={() => setApprovingAll(true)}>
                                         <CheckCheck className="size-4" /> اعتماد جميع المصروفات
