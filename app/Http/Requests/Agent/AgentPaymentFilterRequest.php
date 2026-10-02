@@ -39,7 +39,6 @@ class AgentPaymentFilterRequest extends FormRequest
         return [
             'from' => 'من تاريخ',
             'to' => 'إلى تاريخ',
-            'agent' => 'المندوب',
         ];
     }
 

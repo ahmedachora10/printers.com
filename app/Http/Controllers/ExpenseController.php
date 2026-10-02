@@ -149,8 +149,6 @@ class ExpenseController extends Controller
         $expenses = $this->filteredQuery($request)
             ->whereHas('media', fn ($q) => $q->where('collection_name', Expense::ATTACHMENT))
             ->with(['media', 'category:id,name'])
-            ->orderBy('date')
-            ->orderBy('id')
             ->get();
 
         if ($expenses->isEmpty()) {

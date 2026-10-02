@@ -65,10 +65,7 @@ export default function AgentPaymentsIndex({ agents, payments, paymentTotals, fi
 
     // تاسك 164: قائمة المناديب من صفوف «العمولات المستحقة» — المندوب متعدد الفروع
     // يتكرر فيها بفرعين، فيُدمج بالـid.
-    const agentOptions = useMemo(
-        () => [...new Map(agents.map((a) => [a.id, a.name])).entries()].map(([id, name]) => ({ value: String(id), label: name })),
-        [agents],
-    );
+    const agentOptions = [...new Map(agents.map((a) => [a.id, a.name]))].map(([id, name]) => ({ value: String(id), label: name }));
 
     // النقرة الأولى على عمودٍ تفرزه تنازلياً (الأحدث/الأكبر أولاً)، والثانية تقلبه.
     const handleSort = (key: string) =>
