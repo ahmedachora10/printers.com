@@ -48,6 +48,32 @@ function salesInvoice(int $branchId, int $userId, float $total, ?int $year = nul
     return $invoice;
 }
 
+/** تاسك 160 — خطة الشهر الجاري بهدف 1000، والباقي من $overrides. */
+function monthPlan(User $employee, array $overrides): IncentivePlan
+{
+    return IncentivePlan::create([
+        'user_id' => $employee->id,
+        'branch_id' => $employee->branch_id,
+        'period_month' => now()->month,
+        'period_year' => now()->year,
+        'target_amount' => 1000,
+        'bonus_type' => 'fixed',
+        'bonus_value' => 100,
+        ...$overrides,
+    ]);
+}
+
+function refundIncentiveInvoice(ServiceInvoice $invoice, float $amount, User $actor): void
+{
+    app(CreateRefundAction::class)->handle([
+        'source_type' => 'service',
+        'invoice_id' => $invoice->id,
+        'amount' => $amount,
+        'reason' => 'test',
+        'payment_method_id' => paymentMethodId($invoice->branch_id),
+    ], $actor);
+}
+
 describe('Incentives', function () {
     beforeEach(function () {
         $this->withoutVite();
@@ -65,17 +91,7 @@ describe('Incentives', function () {
 
     // تاسك 160 — المحقَّق عند الاعتماد، صافياً من المرتجعات.
     it('counts a sale only once approved, net of refunds, and drops it when fully returned', function () {
-        $plan = IncentivePlan::create([
-            'user_id' => $this->employee->id,
-            'branch_id' => $this->branch->id,
-            'period_month' => now()->month,
-            'period_year' => now()->year,
-            'target_amount' => 1000,
-            'bonus_type' => 'fixed',
-            'bonus_value' => 100,
-            'achieved_amount' => 0,
-            'status' => IncentivePlanStatusEnum::Active,
-        ]);
+        $plan = monthPlan($this->employee, ['achieved_amount' => 0, 'status' => IncentivePlanStatusEnum::Active]);
 
         $invoice = salesInvoice($this->branch->id, $this->employee->id, 500);
         $invoice->update(['status' => 'due', 'paid_at' => null]);
@@ -85,18 +101,10 @@ describe('Incentives', function () {
         app(MarkServiceInvoicePaidAction::class)->handle($invoice->fresh());
         expect((float) $plan->fresh()->achieved_amount)->toBe(500.0);
 
-        $refund = fn (float $amount) => app(CreateRefundAction::class)->handle([
-            'source_type' => 'service',
-            'invoice_id' => $invoice->id,
-            'amount' => $amount,
-            'reason' => 'test',
-            'payment_method_id' => paymentMethodId($this->branch->id),
-        ], $this->branchAdmin);
-
-        $refund(100);
+        refundIncentiveInvoice($invoice, 100, $this->branchAdmin);
         expect((float) $plan->fresh()->achieved_amount)->toBe(400.0);
 
-        $refund(400);
+        refundIncentiveInvoice($invoice, 400, $this->branchAdmin);
         expect($invoice->fresh()->status->value)->toBe('returned')
             ->and((float) $plan->fresh()->achieved_amount)->toBe(0.0);
     });
@@ -105,25 +113,9 @@ describe('Incentives', function () {
         Notification::fake();
 
         $invoice = salesInvoice($this->branch->id, $this->employee->id, 1000);
-        $plan = IncentivePlan::create([
-            'user_id' => $this->employee->id,
-            'branch_id' => $this->branch->id,
-            'period_month' => now()->month,
-            'period_year' => now()->year,
-            'target_amount' => 1000,
-            'bonus_type' => 'fixed',
-            'bonus_value' => 100,
-            'achieved_amount' => 1000,
-            'status' => IncentivePlanStatusEnum::Paid,
-        ]);
+        $plan = monthPlan($this->employee, ['achieved_amount' => 1000, 'status' => IncentivePlanStatusEnum::Paid]);
 
-        app(CreateRefundAction::class)->handle([
-            'source_type' => 'service',
-            'invoice_id' => $invoice->id,
-            'amount' => 200,
-            'reason' => 'test',
-            'payment_method_id' => paymentMethodId($this->branch->id),
-        ], $this->branchAdmin);
+        refundIncentiveInvoice($invoice, 200, $this->branchAdmin);
 
         expect((float) $plan->fresh()->achieved_amount)->toBe(1000.0)
             ->and($plan->fresh()->status)->toBe(IncentivePlanStatusEnum::Paid);

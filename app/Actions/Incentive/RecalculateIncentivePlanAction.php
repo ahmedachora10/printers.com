@@ -82,7 +82,6 @@ class RecalculateIncentivePlanAction
         }
 
         $approvedAt = CarbonImmutable::parse($approvedAt);
-
         $plan = IncentivePlan::query()
             ->where('user_id', $invoice->user_id)
             ->where('branch_id', $invoice->branch_id)
