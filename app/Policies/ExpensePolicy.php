@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Models\Expense;
+use App\Models\ServiceInvoice;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
@@ -49,7 +50,21 @@ class ExpensePolicy
     /** تاسك 113 — الاعتماد لمدير الفرع (فرعه) والسوبر أدمن. */
     public function approve(User $user, Expense $expense): bool
     {
-        return $this->approveAny($user) && $this->view($user, $expense) && ! $expense->isApproved();
+        return $this->approveAny($user) && $this->view($user, $expense) && ! $expense->isApproved() && ! $expense->isPendingRequest();
+    }
+
+    /** تاسك 157 — الموظف يطلب مصروفاً على فاتورته وحدها. */
+    public function request(User $user, ServiceInvoice $invoice): bool
+    {
+        return $user->roleName->isEmployee()
+            && $invoice->user_id === $user->id
+            && $invoice->branch_id === $user->branchId;
+    }
+
+    /** تاسك 157 — قبول الطلب أو رفضه: محاسب الفرع ومديره والسوبر أدمن. */
+    public function accept(User $user, Expense $expense): bool
+    {
+        return $expense->isPendingRequest() && $this->view($user, $expense);
     }
 
     public function unapprove(User $user, Expense $expense): bool

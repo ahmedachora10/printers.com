@@ -42,7 +42,7 @@ interface Props {
     hasThread: boolean;
     neighbours: { prevId: number | null; nextId: number | null };
     /** تاسك 149: لمن يسجّل المصروفات، وفي فاتورة الخدمات وحدها. */
-    expenseForm: Pick<ComponentProps<typeof ExpenseFormModal>, 'categories' | 'branches'> | null;
+    expenseForm: Pick<ComponentProps<typeof ExpenseFormModal>, 'categories' | 'branches' | 'isRequest'> | null;
     thread?: InvoiceThreadData | null;
 }
 
@@ -828,14 +828,22 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                             <CardTitle className="flex items-center justify-between gap-2 text-base">
                                 <span>مصروفات مرتبطة</span>
                                 <span className="text-amber-600" dir="ltr">
-                                    {formatCurrency(invoice.linkedExpenses.reduce((sum, e) => sum + e.total, 0))}
+                                    {/* تاسك 157: طلبٌ لم يُقبل خارج المجموع. */}
+                                    {formatCurrency(invoice.linkedExpenses.reduce((sum, e) => sum + (e.pendingRequest ? 0 : e.total), 0))}
                                 </span>
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="divide-y">
                             {invoice.linkedExpenses.map((expense) => (
                                 <div key={expense.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-                                    <span className="font-medium">{expense.categoryName ?? '—'}</span>
+                                    <span className="flex items-center gap-2 font-medium">
+                                        {expense.categoryName ?? '—'}
+                                        {expense.pendingRequest && (
+                                            <Badge variant="outline" className="text-amber-600">
+                                                بانتظار المحاسب
+                                            </Badge>
+                                        )}
+                                    </span>
                                     <span className="text-muted-foreground">
                                         {expense.date} — {expense.paidFromLabel}
                                     </span>
@@ -892,6 +900,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                     onOpenChange={setExpenseOpen}
                     categories={expenseForm.categories}
                     branches={expenseForm.branches}
+                    isRequest={expenseForm.isRequest}
                     // تاسك 149: سعر الوحدة = تكلفة خامات الفاتورة (فارغٌ إن لم تكن)، والفاتورة مربوطة.
                     defaults={{
                         unit_price: materialsTotal > 0 ? materialsTotal.toFixed(2) : '',

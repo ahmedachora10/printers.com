@@ -1,4 +1,4 @@
-import { approve, approveAll, attachments, destroy, index, unapprove } from '@/actions/App/Http/Controllers/ExpenseController';
+import { accept, approve, approveAll, attachments, destroy, index, reject, unapprove } from '@/actions/App/Http/Controllers/ExpenseController';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import ExpenseFormModal from '@/components/expenses/expense-form-modal';
 import { FilterBar } from '@/components/filter-bar';
@@ -13,7 +13,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Expense, type PaginatedExpense } from '@/types/expense';
 import { Link, router, usePage } from '@inertiajs/react';
-import { CheckCheck, CheckCircle2, FileArchive, Paperclip, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react';
+import { Check, CheckCheck, CheckCircle2, FileArchive, Paperclip, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'المصروفات', href: '/expenses' }];
@@ -77,6 +77,9 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Expense | null>(null);
     const [deleting, setDeleting] = useState<Expense | null>(null);
+    // تاسك 157: رفض طلب الموظف بسببٍ يصله في الإشعار.
+    const [rejecting, setRejecting] = useState<Expense | null>(null);
+    const [rejectReason, setRejectReason] = useState('');
 
     function openCreate() {
         setEditing(null);
@@ -166,7 +169,11 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                 key: 'approval',
                 header: 'الحالة',
                 cell: (item) =>
-                    item.approvedAt ? (
+                    item.pendingRequest ? (
+                        <Badge variant="outline" className="whitespace-nowrap text-sky-700" title={`طلب ${item.requestedByName ?? ''}`}>
+                            طلب موظف
+                        </Badge>
+                    ) : item.approvedAt ? (
                         <Badge variant="secondary" className="whitespace-nowrap text-green-700" title={`${item.approvedByName ?? ''} — ${item.approvedAt}`}>
                             معتمد
                         </Badge>
@@ -182,6 +189,24 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                 headerClassName: 'w-24',
                 cell: (item) => (
                     <div className="flex items-center gap-2">
+                        {item.canAccept && (
+                            <>
+                                <Button variant="outline" size="sm" onClick={() => router.post(accept.url(item), {}, { preserveScroll: true })}>
+                                    <Check className="h-3.5 w-3.5" /> قبول
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-destructive hover:text-destructive"
+                                    onClick={() => {
+                                        setRejectReason('');
+                                        setRejecting(item);
+                                    }}
+                                >
+                                    رفض
+                                </Button>
+                            </>
+                        )}
                         {item.canApprove && (
                             <Button variant="outline" size="sm" onClick={() => router.post(approve.url(item), {}, { preserveScroll: true })}>
                                 <CheckCircle2 className="h-3.5 w-3.5" /> اعتماد
@@ -335,6 +360,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                                 options: [
                                     { value: 'pending', label: 'غير معتمد' },
                                     { value: 'approved', label: 'معتمد' },
+                                    { value: 'requested', label: 'طلبات الموظفين' },
                                 ],
                             },
                             // تاسك 123 — مصدر المصروف. يمرّ عبر نفس الاستعلام،
@@ -447,6 +473,38 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                         </Button>
                         <Button variant="destructive" onClick={handleDelete}>
                             حذف
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!rejecting} onOpenChange={(open) => !open && setRejecting(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>رفض طلب المصروف</DialogTitle>
+                        <DialogDescription>يُحذف الطلب ويصل السبب إلى {rejecting?.requestedByName ?? 'الموظف'}.</DialogDescription>
+                    </DialogHeader>
+                    <textarea
+                        rows={3}
+                        value={rejectReason}
+                        onChange={(e) => setRejectReason(e.target.value)}
+                        placeholder="سبب الرفض"
+                        maxLength={500}
+                        className="border-input bg-background placeholder:text-muted-foreground focus-visible:ring-ring flex w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:outline-none"
+                    />
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setRejecting(null)}>
+                            إلغاء
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            disabled={!rejectReason.trim()}
+                            onClick={() =>
+                                rejecting &&
+                                router.post(reject.url(rejecting), { reason: rejectReason }, { preserveScroll: true, onSuccess: () => setRejecting(null) })
+                            }
+                        >
+                            رفض
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -245,9 +245,12 @@ class InvoiceController extends Controller
             // متداخل (`lines.lineAgent`) يُعيد استعلام `lines` من أوّله.
             $invoice->lines->loadMissing('lineAgent:id,name');
 
-            // تاسك 112: المصروفات المربوطة — لمن يدير المصروفات وحده (لا الموظف ولا المندوب).
+            // تاسك 112: المصروفات المربوطة — لمن يدير المصروفات (لا المندوب).
+            // تاسك 157: والموظف صاحب الفاتورة يرى طلباته هو وحدها.
             if (Gate::allows('viewAny', Expense::class)) {
                 $invoice->load(['expenses' => fn ($q) => $q->with(['category:id,name', 'media'])->oldest('date')]);
+            } elseif (Gate::allows('request', [Expense::class, $invoice])) {
+                $invoice->load(['expenses' => fn ($q) => $q->where('requested_by', Auth::id())->with(['category:id,name', 'media'])->oldest('date')]);
             }
         } else {
             $invoice->load('agent:id,name');
@@ -286,8 +289,10 @@ class InvoiceController extends Controller
             'neighbours' => fn () => $this->neighbourIds(InvoiceTypeEnum::from($type), $invoice->id),
             // تاسك 149: «تسجيل مصروف» من فاتورة الخدمات — فئات فرع الفاتورة، والفرع
             // ثابتٌ عليها (السوبر أدمن يستلمه قائمةً من فرعٍ واحد).
-            'expenseForm' => $invoice instanceof ServiceInvoice && Gate::allows('create', Expense::class)
+            // تاسك 157: والموظف صاحبها يفتح النافذة نفسها «طلباً» يقبله المحاسب.
+            'expenseForm' => $invoice instanceof ServiceInvoice && (Gate::allows('create', Expense::class) || Gate::allows('request', [Expense::class, $invoice]))
                 ? fn () => [
+                    'isRequest' => ! Gate::allows('create', Expense::class),
                     'categories' => ExpenseCategory::activeOptionsFor($invoice->branch_id),
                     'branches' => Auth::user()->roleName?->isSuperAdmin()
                         ? [['id' => $invoice->branch_id, 'name' => $invoice->branch?->name]]

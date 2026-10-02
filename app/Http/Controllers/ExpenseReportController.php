@@ -8,6 +8,7 @@ use App\Enums\ExpenseSourceEnum;
 use App\Exports\ExpenseReportExport;
 use App\Http\Requests\Report\ExpenseReportFilterRequest;
 use App\Models\Branch;
+use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Response as HttpResponse;
@@ -99,6 +100,8 @@ class ExpenseReportController extends Controller
     {
         return DB::table('expenses')
             ->whereNull('expenses.deleted_at')
+            // تاسك 157: طلب الموظف خارج التقرير حتى يقبله المحاسب.
+            ->where(Expense::counted())
             // تاسك 123: المعتمد وغيره معاً — الاعتماد قفلُ تعديلٍ لا قيدُ حساب.
             // وغير المعتمد يُحصى على حدة في `totals` كي لا يُقرأ الرقم مثبَّتاً.
             ->when($scope['branchId'], fn ($q) => $q->where('expenses.branch_id', $scope['branchId']))

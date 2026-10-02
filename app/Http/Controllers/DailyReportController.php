@@ -10,6 +10,7 @@ use App\Enums\StockMovementTypeEnum;
 use App\Exports\DailyReportExport;
 use App\Http\Requests\Report\DailyReportFilterRequest;
 use App\Models\Branch;
+use App\Models\Expense;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use App\Models\User;
@@ -530,6 +531,8 @@ class DailyReportController extends Controller
         $expenses = DB::table('expenses')
             ->whereNull('deleted_at')
             // تاسك 123: المعتمد وغيره معاً — الاعتماد قفلُ تعديلٍ لا قيدُ حساب.
+            // تاسك 157: أما طلب الموظف فلا يُحسب قبل قبول المحاسب.
+            ->where(Expense::counted())
             ->when($scope['branchId'], fn ($q) => $q->where('branch_id', $scope['branchId']))
             ->when($scope['from'], fn ($q) => $q->where('date', '>=', $scope['from']))
             ->when($scope['to'], fn ($q) => $q->where('date', '<=', $scope['to']))

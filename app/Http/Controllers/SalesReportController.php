@@ -10,6 +10,7 @@ use App\Exports\SalesReportExport;
 use App\Http\Requests\Report\SalesReportFilterRequest;
 use App\Models\AccountReconciliation;
 use App\Models\Branch;
+use App\Models\Expense;
 use App\Models\InvoicePayment;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
@@ -568,6 +569,8 @@ class SalesReportController extends Controller
             ->whereNull('deleted_at')
             // تاسك 123: المعتمد وغيره معاً — «زر اعتماد المصروف لا يعني تسجيله
             // أو إضافته للحسابات، وإنما تثبيته وقفل التعديل عليه». يعكس تاسك 113.
+            // تاسك 157: أما طلب الموظف فلا يُحسب قبل قبول المحاسب.
+            ->where(Expense::counted())
             ->when($scope['branchIds'], fn ($q) => $q->whereIn('branch_id', $scope['branchIds']))
             ->when($scope['from'], fn ($q) => $q->where('date', '>=', $scope['from']))
             ->when($scope['to'], fn ($q) => $q->where('date', '<=', $scope['to']))

@@ -132,9 +132,11 @@ describe('Expense attachment & invoice link', function () {
             ->where('expenseForm.categories.0.name', 'توصيل')
             ->where('expenseForm.branches', null));
 
+        // تاسك 157: صاحب الفاتورة يفتح النافذة نفسها طلباً يقبله المحاسب.
         $this->actingAs($this->employee)->get($show)
-            ->assertInertia(fn ($page) => $page->where('expenseForm', null));
+            ->assertInertia(fn ($page) => $page->where('expenseForm.isRequest', true));
     });
+
     // تاسك 161 — مرفقات القائمة المصفّاة في ملف ZIP واحد.
     it('zips the attachments of the filtered list only', function () {
         $other = ExpenseCategory::factory()->create(['name' => 'أحبار']);

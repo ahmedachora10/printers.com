@@ -132,6 +132,8 @@ export interface Invoice {
         date: string;
         paidFromLabel: string;
         attachmentUrl: string | null;
+        /** تاسك 157 — طلب موظفٍ لم يقبله المحاسب: يُعرض ولا يدخل المجموع. */
+        pendingRequest: boolean;
     }[];
     canEditInternalNotes: boolean;
     /** Why a reviewer rejected the invoice — service invoices only. */

@@ -49,6 +49,10 @@ class ExpenseResource extends JsonResource
             // تاسك 113: الاعتماد وما تسمح به السياسة لهذا المستخدم على هذا الصفّ.
             'approvedAt' => $this->approved_at?->format('d/m/Y H:i'),
             'approvedByName' => $this->approvedBy?->name,
+            // تاسك 157: طلب موظف — ينتظر قبول المحاسب قبل أن يُحسب.
+            'requestedByName' => $this->requested_by ? $this->requestedBy?->name : null,
+            'pendingRequest' => $this->isPendingRequest(),
+            'canAccept' => $request->user()->can('accept', $this->resource),
             'canApprove' => $request->user()->can('approve', $this->resource),
             'canUnapprove' => $request->user()->can('unapprove', $this->resource),
             'canUpdate' => $request->user()->can('update', $this->resource),

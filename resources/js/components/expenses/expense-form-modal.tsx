@@ -1,4 +1,4 @@
-import { store, update } from '@/actions/App/Http/Controllers/ExpenseController';
+import { request, store, update } from '@/actions/App/Http/Controllers/ExpenseController';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Button } from '@/components/ui/button';
 import {
@@ -37,6 +37,8 @@ interface Props {
     branches?: Branch[] | null;
     /** تاسك 149: قيمٌ مسبقة لمصروفٍ جديد يُسجَّل من صفحة الفاتورة. */
     defaults?: { unit_price: string; service_invoice_id: string; invoiceLabel: string };
+    /** تاسك 157: الموظف يرسل طلباً يقبله المحاسب، والفاتورة ثابتة. */
+    isRequest?: boolean;
 }
 
 const SOURCES: { value: ExpenseSource; label: string }[] = [
@@ -64,7 +66,7 @@ function todayIso(): string {
     return new Date().toLocaleDateString('en-CA');
 }
 
-export default function ExpenseFormModal({ open, onOpenChange, expense, categories, branches, defaults }: Props) {
+export default function ExpenseFormModal({ open, onOpenChange, expense, categories, branches, defaults, isRequest = false }: Props) {
     const isEdit = !!expense;
     const isSuperAdmin = Array.isArray(branches);
     // تاسك 135: التاريخ القديم لمدير الفرع ومدير النظام فقط (والتاريخ الحالي للمصروف يبقى).
@@ -143,7 +145,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                 onSuccess: () => { onOpenChange(false); reset(); },
             });
         } else {
-            post(store.url(), {
+            post(isRequest ? request.url() : store.url(), {
                 preserveScroll: true,
                 onSuccess: () => { onOpenChange(false); reset(); },
             });
@@ -154,7 +156,8 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>{isEdit ? 'تعديل مصروف' : 'تسجيل مصروف'}</DialogTitle>
+                    <DialogTitle>{isEdit ? 'تعديل مصروف' : isRequest ? 'طلب تسجيل مصروف' : 'تسجيل مصروف'}</DialogTitle>
+                    {isRequest && <p className="text-muted-foreground text-sm">يُرسل الطلب إلى المحاسب، ولا يُحتسب المصروف حتى يقبله.</p>}
                 </DialogHeader>
 
                 <form id="expense-form" onSubmit={handleSubmit} className="space-y-4 py-2">
@@ -306,6 +309,9 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                     <div className="grid gap-4 sm:grid-cols-2">
                         <div className="space-y-1">
                             <Label>ربط بفاتورة/طلب</Label>
+                            {isRequest ? (
+                                <Input value={invoiceLabel} readOnly disabled dir="ltr" />
+                            ) : (
                             <AsyncCombobox
                                 fetcher={fetchInvoices}
                                 value={data.service_invoice_id || NO_INVOICE.value}
@@ -321,6 +327,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                                 triggerClassName="w-full"
                                 className="w-[var(--radix-popover-trigger-width)] min-w-64"
                             />
+                            )}
                             <InputError message={errors.service_invoice_id} />
                         </div>
 

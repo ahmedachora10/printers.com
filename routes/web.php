@@ -303,6 +303,8 @@ Route::middleware(['auth'])->group(function () {
         Route::post('expenses/approve-all', [ExpenseController::class, 'approveAll'])->name('expenses.approve-all');
         Route::post('expenses/{expense}/approve', [ExpenseController::class, 'approve'])->name('expenses.approve');
         Route::post('expenses/{expense}/unapprove', [ExpenseController::class, 'unapprove'])->name('expenses.unapprove');
+        Route::post('expenses/{expense}/accept', [ExpenseController::class, 'accept'])->name('expenses.accept');
+        Route::post('expenses/{expense}/reject', [ExpenseController::class, 'reject'])->name('expenses.reject');
         Route::resource('expenses', ExpenseController::class)
             ->only(['index', 'store', 'update', 'destroy']);
 
@@ -404,6 +406,8 @@ Route::middleware(['auth'])->group(function () {
     // «حوافزي وحسوماتي»: وجه الموظف من شاشة الحوافز المغلقة على الإدارة. قراءةٌ
     // لصفوفه هو وحدها — المتحكّم لا يقرأ معرِّفاً من الطلب أصلاً.
     Route::middleware('role:employee')->group(function () {
+        // تاسك 157: طلب مصروف من صفحة الفاتورة، يقبله المحاسب.
+        Route::post('expenses/request', [ExpenseController::class, 'request'])->name('expenses.request');
         Route::get('my-incentives', [MyIncentiveController::class, 'index'])
             ->name('my-incentives.index');
     });
