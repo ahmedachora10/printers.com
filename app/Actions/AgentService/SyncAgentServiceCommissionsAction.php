@@ -19,7 +19,8 @@ class SyncAgentServiceCommissionsAction
             foreach ($rows as $row) {
                 $key = ['agent_id' => $row['agent_id'], 'branch_service_id' => $branchServiceId];
 
-                if ($row['commission_type'] === null) {
+                // مفتاحٌ غائب كقيمةٍ فارغة: الطلب يقبل النوع nullable.
+                if (($row['commission_type'] ?? null) === null) {
                     AgentService::query()->where($key)->delete();
 
                     continue;
@@ -27,7 +28,7 @@ class SyncAgentServiceCommissionsAction
 
                 AgentService::query()->updateOrCreate($key, [
                     'commission_type' => $row['commission_type'],
-                    'commission_value' => $row['commission_value'] ?? 0,
+                    'commission_value' => $row['commission_value'],
                 ]);
             }
         });

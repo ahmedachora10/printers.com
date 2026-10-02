@@ -138,13 +138,8 @@ class BranchServiceAgentCommissionsSheetImport implements ToCollection, WithHead
     /** يقبل التسمية العربية كما يكتبها التصدير، أو القيمة اللاتينية. */
     private function parseType(string $raw): ?LineAgentCommissionTypeEnum
     {
-        foreach (LineAgentCommissionTypeEnum::cases() as $case) {
-            if ($raw === $case->label() || mb_strtolower($raw) === $case->value) {
-                return $case;
-            }
-        }
-
-        return null;
+        return LineAgentCommissionTypeEnum::tryFrom(mb_strtolower($raw))
+            ?? collect(LineAgentCommissionTypeEnum::cases())->first(fn ($case) => $case->label() === $raw);
     }
 
     private function resolveService(string $name): ?BranchService

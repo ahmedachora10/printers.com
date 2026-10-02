@@ -805,6 +805,7 @@ export default function ServicePos({
         const s = services.find((x) => x.id === branchServiceId);
         if (!s) return;
         const cap = s.maxDiscountPct > 0 ? s.maxDiscountPct : 100;
+        const term = line.agentId ? s.agentTerms?.[line.agentId] : undefined;
         updateLine(line.key, {
             branchServiceId: s.id,
             name: s.name,
@@ -830,9 +831,7 @@ export default function ServicePos({
                 ? { agentCommissionType: 'percentage' as LineAgentCommissionType, agentCommissionValue: 0 }
                 : {}),
             // تاسك 153: الخدمة الجديدة قد تحمل عمولةً محدَّدة لصاحب العمولة نفسه.
-            ...(line.agentId && s.agentTerms?.[line.agentId]
-                ? { agentCommissionType: s.agentTerms[line.agentId].type, agentCommissionValue: s.agentTerms[line.agentId].value }
-                : {}),
+            ...(term ? { agentCommissionType: term.type, agentCommissionValue: term.value } : {}),
         });
     }
 
