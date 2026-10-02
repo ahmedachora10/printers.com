@@ -2,6 +2,7 @@
 
 namespace App\Actions\ServiceInvoice;
 
+use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
@@ -35,6 +36,7 @@ class MarkServiceInvoicePaidAction
         private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
         private readonly ConsumeServiceMaterialsAction $consumeMaterials,
         private readonly ResolveMaterialsRequirementAction $resolveRequirement,
+        private readonly RecalculateIncentivePlanAction $recalculateIncentive,
     ) {}
 
     public function handle(
@@ -91,6 +93,9 @@ class MarkServiceInvoicePaidAction
             // تاسك 50: الخدمة المنفَّذة استهلكت خاماتها — تُخصم من المخزون الآن.
             // المُنفِّذ هنا هو المعتمِد (المحاسب/مدير الفرع) لا صاحب الفاتورة.
             $this->consumeMaterials->consume($invoice, (int) (auth()->id() ?? $invoice->user_id));
+
+            // تاسك 160: الفاتورة المعتمدة تدخل محقَّق حوافز صاحبها.
+            $this->recalculateIncentive->refreshForInvoice($invoice);
 
             return $invoice;
         });

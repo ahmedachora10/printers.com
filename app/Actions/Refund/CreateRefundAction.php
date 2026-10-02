@@ -3,6 +3,7 @@
 namespace App\Actions\Refund;
 
 use App\Actions\Coupon\ReleaseCouponCapacity;
+use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\Loyalty\ReverseLoyaltyForRefundAction;
 use App\Actions\ServiceInvoice\ConsumeServiceMaterialsAction;
 use App\Actions\StockMovement\RecordStockMovementAction;
@@ -46,6 +47,7 @@ class CreateRefundAction
         private readonly RecordStockMovementAction $recordStockMovement,
         private readonly ReverseLoyaltyForRefundAction $reverseLoyalty,
         private readonly ConsumeServiceMaterialsAction $consumeMaterials,
+        private readonly RecalculateIncentivePlanAction $recalculateIncentive,
     ) {}
 
     /**
@@ -172,6 +174,11 @@ class CreateRefundAction
             if (round($alreadyRefunded + $amount, 2) >= round($collected, 2)) {
                 ReleaseCouponCapacity::apply($invoice);
                 $invoice->update(['status' => InvoiceStatusEnum::RETURNED]);
+            }
+
+            // تاسك 160: المرتجع يُطرح من محقَّق الحوافز في شهر اعتماد الفاتورة.
+            if ($invoice instanceof ServiceInvoice) {
+                $this->recalculateIncentive->refreshForInvoice($invoice);
             }
 
             return $refund;

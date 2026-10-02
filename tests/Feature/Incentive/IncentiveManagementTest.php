@@ -6,8 +6,13 @@ use App\Models\BonusPayment;
 use App\Models\Branch;
 use App\Models\EmployeeDeduction;
 use App\Models\IncentivePlan;
+use App\Actions\Incentive\RecalculateIncentivePlanAction;
+use App\Actions\Refund\CreateRefundAction;
+use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
 use App\Models\ServiceInvoice;
 use App\Models\User;
+use App\Notifications\IncentiveShortfallNotification;
+use Illuminate\Support\Facades\Notification;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -56,6 +61,73 @@ describe('Incentives', function () {
 
         $this->employee = User::factory()->create(['branch_id' => $this->branch->id]);
         $this->employee->addRole(Roles::EMPLOYEE->value);
+    });
+
+    // تاسك 160 — المحقَّق عند الاعتماد، صافياً من المرتجعات.
+    it('counts a sale only once approved, net of refunds, and drops it when fully returned', function () {
+        $plan = IncentivePlan::create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+            'target_amount' => 1000,
+            'bonus_type' => 'fixed',
+            'bonus_value' => 100,
+            'achieved_amount' => 0,
+            'status' => IncentivePlanStatusEnum::Active,
+        ]);
+
+        $invoice = salesInvoice($this->branch->id, $this->employee->id, 500);
+        $invoice->update(['status' => 'due', 'paid_at' => null]);
+
+        expect(app(RecalculateIncentivePlanAction::class)->achievedSales($plan))->toBe(0.0);
+
+        app(MarkServiceInvoicePaidAction::class)->handle($invoice->fresh());
+        expect((float) $plan->fresh()->achieved_amount)->toBe(500.0);
+
+        $refund = fn (float $amount) => app(CreateRefundAction::class)->handle([
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'amount' => $amount,
+            'reason' => 'test',
+            'payment_method_id' => paymentMethodId($this->branch->id),
+        ], $this->branchAdmin);
+
+        $refund(100);
+        expect((float) $plan->fresh()->achieved_amount)->toBe(400.0);
+
+        $refund(400);
+        expect($invoice->fresh()->status->value)->toBe('returned')
+            ->and((float) $plan->fresh()->achieved_amount)->toBe(0.0);
+    });
+
+    it('leaves a paid plan untouched by a refund and alerts the branch admin', function () {
+        Notification::fake();
+
+        $invoice = salesInvoice($this->branch->id, $this->employee->id, 1000);
+        $plan = IncentivePlan::create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+            'target_amount' => 1000,
+            'bonus_type' => 'fixed',
+            'bonus_value' => 100,
+            'achieved_amount' => 1000,
+            'status' => IncentivePlanStatusEnum::Paid,
+        ]);
+
+        app(CreateRefundAction::class)->handle([
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'amount' => 200,
+            'reason' => 'test',
+            'payment_method_id' => paymentMethodId($this->branch->id),
+        ], $this->branchAdmin);
+
+        expect((float) $plan->fresh()->achieved_amount)->toBe(1000.0)
+            ->and($plan->fresh()->status)->toBe(IncentivePlanStatusEnum::Paid);
+        Notification::assertSentTo($this->branchAdmin, IncentiveShortfallNotification::class);
     });
 
     it('allows branch-admin to view the incentives page', function () {
