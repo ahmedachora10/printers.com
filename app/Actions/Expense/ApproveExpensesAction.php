@@ -17,7 +17,8 @@ class ApproveExpensesAction
     public function handle(Builder $query): int
     {
         return DB::transaction(function () use ($query) {
-            $pending = (clone $query)->whereNull('approved_at');
+            // تاسك 157: طلب الموظف يُقبل أولاً — لا يُعتمد ما لم يُحسب بعد.
+            $pending = (clone $query)->whereNull('approved_at')->where(Expense::counted());
             $count = (clone $pending)->count();
             $total = (float) (clone $pending)->sum('total');
 

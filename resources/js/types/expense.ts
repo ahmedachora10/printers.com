@@ -24,6 +24,10 @@ export interface Expense {
     /** تاسك 113 — null = غير معتمد */
     approvedAt: string | null;
     approvedByName: string | null;
+    /** تاسك 157 — طلب موظف؛ pendingRequest = لم يقبله المحاسب بعد فلا يُحسب. */
+    requestedByName: string | null;
+    pendingRequest: boolean;
+    canAccept: boolean;
     canApprove: boolean;
     canUnapprove: boolean;
     canUpdate: boolean;

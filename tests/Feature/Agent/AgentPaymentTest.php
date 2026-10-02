@@ -299,37 +299,24 @@ describe('Agent Payments', function () {
 
     // ── تاسك 57: مدى تاريخي وفرز لسجل الدفعات ──────────────────────
 
-    it('keeps a payment outside the applied range out of the list and the totals', function () {
-        AgentPayment::factory()->create([
+    // تاسك 164: المدى يصفّي على الفترة المدفوع عنها (تداخل)، لا على يوم الصرف.
+    it('filters the payment log by the paid-for period, not the payout date', function () {
+        $pay = fn (string $start, string $end, float $total) => AgentPayment::factory()->create([
             'agent_id' => $this->agent->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id,
-            'total_rebate' => 100, 'paid_at' => now()->subMonths(2),
+            'period_start' => $start, 'period_end' => $end, 'total_rebate' => $total,
+            // Both paid inside September: a paid_at filter could not tell them apart.
+            'paid_at' => '2026-09-15 10:00:00',
         ]);
-        AgentPayment::factory()->create([
-            'agent_id' => $this->agent->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id,
-            'total_rebate' => 40, 'paid_at' => now(),
-        ]);
+        $pay('2026-08-01', '2026-08-31', 100);
+        $pay('2026-09-01', '2026-09-30', 40);
+        $pay('2026-08-20', '2026-09-05', 7); // straddles the boundary ⇒ overlaps September
 
-        $this->get(route('agent-payments.index', [
-            'from' => now()->subDays(3)->toDateString(),
-            'to' => now()->toDateString(),
-        ]))
+        $this->get(route('agent-payments.index', ['from' => '2026-09-01', 'to' => '2026-09-30']))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->has('payments.data', 1)
-                ->where('paymentTotals.paymentsCount', 1)
-                ->where('paymentTotals.paidTotal', 40));
-    });
-
-    it('counts a payment made today when the range ends today', function () {
-        // المدى يشمل اليوم كاملاً: بلا endOfDay كانت دفعة الظهيرة تسقط لأن
-        // «إلى = اليوم» تُقرأ منتصفَ ليله.
-        AgentPayment::factory()->create([
-            'agent_id' => $this->agent->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id,
-            'total_rebate' => 40, 'paid_at' => now()->setTime(13, 30),
-        ]);
-
-        $this->get(route('agent-payments.index', ['from' => today()->toDateString(), 'to' => today()->toDateString()]))
-            ->assertInertia(fn ($page) => $page->has('payments.data', 1)->where('paymentTotals.paidTotal', 40));
+                ->has('payments.data', 2)
+                ->where('paymentTotals.paymentsCount', 2)
+                ->where('paymentTotals.paidTotal', 47));
     });
 
     it('leaves the outstanding balance untouched whatever the range is', function () {
@@ -346,7 +333,7 @@ describe('Agent Payments', function () {
                 ->where('agents.0.outstandingInvoices', 1));
     });
 
-    it('searches the payment log by agent name', function () {
+    it('filters the payment log by agent from the dropdown', function () {
         $other = Agent::factory()->create(['branch_id' => $this->branch->id, 'name' => 'مؤسسة الريان']);
 
         AgentPayment::factory()->create([
@@ -356,11 +343,12 @@ describe('Agent Payments', function () {
             'agent_id' => $other->id, 'branch_id' => $this->branch->id, 'paid_by' => $this->branchAdmin->id, 'paid_at' => now(),
         ]);
 
-        $this->get(route('agent-payments.index', ['search' => 'الريان']))
+        $this->get(route('agent-payments.index', ['agent' => $other->id]))
             ->assertInertia(fn ($page) => $page
                 ->has('payments.data', 1)
                 ->where('payments.data.0.agentName', 'مؤسسة الريان')
-                ->where('paymentTotals.paymentsCount', 1));
+                ->where('paymentTotals.paymentsCount', 1)
+                ->where('filters.agent', (string) $other->id));
     });
 
     it('sorts the payment log by total rebate on request', function () {

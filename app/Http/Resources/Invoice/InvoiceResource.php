@@ -212,7 +212,10 @@ class InvoiceResource extends JsonResource
                     'total' => (float) $expense->total,
                     'date' => $expense->date->format('d/m/Y'),
                     'paidFromLabel' => $expense->paid_from->label(),
-                    'attachmentUrl' => $expense->attachment() ? route('expenses.attachment', $expense->id) : null,
+                    // تاسك 157: طلب موظفٍ لم يُقبل — يُعرض ولا يدخل المجموع.
+                    'pendingRequest' => $expense->isPendingRequest(),
+                    // تاسك 157: الموظف يرى طلبه ولا يفتح مسار المرفق (مسار المحاسبين).
+                    'attachmentUrl' => $expense->attachment() && $request->user()?->can('view', $expense) ? route('expenses.attachment', $expense->id) : null,
                 ])->all()
                 : [],
             'refundedTotal' => $refundedTotal,

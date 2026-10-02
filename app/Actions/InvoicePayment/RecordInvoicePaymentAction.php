@@ -2,6 +2,7 @@
 
 namespace App\Actions\InvoicePayment;
 
+use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
@@ -38,6 +39,7 @@ class RecordInvoicePaymentAction
         private readonly MarkServiceInvoicePaidAction $markServiceInvoicePaid,
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
         private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
+        private readonly RecalculateIncentivePlanAction $recalculateIncentive,
     ) {}
 
     /**
@@ -103,6 +105,11 @@ class RecordInvoicePaymentAction
                 $this->settle($invoice, $paidAt, $confirmedShortage);
             } else {
                 $invoice->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID]);
+
+                // تاسك 160: المدفوعة جزئياً معتمدة — تدخل المحقَّق من أول دفعة.
+                if ($invoice instanceof ServiceInvoice) {
+                    $this->recalculateIncentive->refreshForInvoice($invoice);
+                }
             }
 
             return $payment;

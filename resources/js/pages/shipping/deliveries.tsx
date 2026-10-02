@@ -55,7 +55,7 @@ const SOURCES = [
 /**
  * تاسك 93 — ما على كل سائق اليوم: كم رحلة، وإلى أين، وبكم.
  *
- * تاسك 111: «استلام مبلغ التوصيل» لكل طلب — مصروفٌ مربوطٌ بالطلب. لا أرصدة
+ * تاسك 111: «تسليم مبلغ التوصيل» لكل طلب — مصروفٌ مربوطٌ بالطلب. لا أرصدة
  * للسائقين ولا دفعات مجمَّعة.
  */
 export default function DeliveriesIndex({
@@ -194,7 +194,7 @@ export default function DeliveriesIndex({
                         </div>
                     ) : canSettle ? (
                         <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setSettling(row)}>
-                            <HandCoins className="size-4" /> استلام مبلغ التوصيل
+                            <HandCoins className="size-4" /> تسليم مبلغ التوصيل
                         </Button>
                     ) : (
                         dash
@@ -315,7 +315,7 @@ function SettleDialog({ row, categories, onClose }: { row: DeliveryLogRow; categ
             <DialogContent>
                 <DialogHeader>
                     <DialogTitle>
-                        استلام مبلغ التوصيل — <span dir="ltr">{row.invoiceNumber}</span>
+                        تسليم مبلغ التوصيل — <span dir="ltr">{row.invoiceNumber}</span>
                     </DialogTitle>
                 </DialogHeader>
                 <form id="settle-form" onSubmit={submit} className="space-y-4">
@@ -364,7 +364,7 @@ function SettleDialog({ row, categories, onClose }: { row: DeliveryLogRow; categ
                         إلغاء
                     </Button>
                     <Button type="submit" form="settle-form" disabled={processing}>
-                        تسجيل الاستلام
+                        تسجيل التسليم
                     </Button>
                 </DialogFooter>
             </DialogContent>
@@ -383,7 +383,7 @@ function CancelDialog({ row, onClose }: { row: DeliveryLogRow; onClose: () => vo
                         إلغاء تسوية <span dir="ltr">{row.invoiceNumber}</span>
                     </DialogTitle>
                 </DialogHeader>
-                <p className="text-muted-foreground text-sm">يُحذف مصروف التسوية ويُتاح تسجيل الاستلام من جديد. السبب يُحفظ في السجلّ.</p>
+                <p className="text-muted-foreground text-sm">يُحذف مصروف التسوية ويُتاح تسجيل التسليم من جديد. السبب يُحفظ في السجلّ.</p>
                 <div className="space-y-1">
                     <Label htmlFor="cancel-reason">السبب</Label>
                     <Input id="cancel-reason" value={form.data.reason} onChange={(e) => form.setData('reason', e.target.value)} />

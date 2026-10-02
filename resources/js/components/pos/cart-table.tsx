@@ -3,7 +3,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { cn, formatCurrency } from '@/lib/utils';
 import { ChevronDown, FileText, Minus, Plus, Trash2 } from 'lucide-react';
-import { Fragment, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState, type ComponentProps, type ReactNode } from 'react';
 
 export interface PosCartLineBase {
     key: string;
@@ -182,6 +182,30 @@ function EditableTotal({ total, onCommit }: { total: number; onCommit: (total: n
 }
 
 /**
+ * تاسك 154 — حقل رقمي يقبل المسح: الصفر يُعرض فارغاً (placeholder «0»)، وما
+ * يُكتب يبقى نصّاً حتى الخروج من الحقل فلا يرتدّ «0.» أو الفراغ إلى صفر أثناء
+ * الكتابة. القيمة تُرسل حيّةً مع كل حرف، والفراغ = 0.
+ */
+function DraftNumberInput({ value, onValueChange, ...props }: Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> & { value: number; onValueChange: (value: number) => void }) {
+    const [draft, setDraft] = useState<string | null>(null);
+
+    return (
+        <Input
+            {...props}
+            type="number"
+            inputMode="decimal"
+            placeholder="0"
+            value={draft ?? (value || '')}
+            onChange={(e) => {
+                setDraft(e.target.value);
+                onValueChange(Number(e.target.value) || 0);
+            }}
+            onBlur={() => setDraft(null)}
+        />
+    );
+}
+
+/**
  * A compact fact about a cart line, shown on the collapsed details bar so the
  * cashier can read a line's hidden settings without opening it.
  */
@@ -336,12 +360,11 @@ export function PosCartTable<T extends PosCartLineBase>({
 
         return (
             <div>
-                <Input
-                    type="number"
+                <DraftNumberInput
                     min={0}
                     step="0.01"
                     value={line.unitPrice}
-                    onChange={(e) => onPriceChange(line, Math.max(0, Number(e.target.value) || 0))}
+                    onValueChange={(value) => onPriceChange(line, Math.max(0, value))}
                     aria-invalid={priceError ? true : undefined}
                     className={cn(CONTROL_HEIGHT, 'text-center', priceError && 'border-destructive text-destructive focus-visible:ring-destructive')}
                 />
@@ -358,12 +381,11 @@ export function PosCartTable<T extends PosCartLineBase>({
     const qtyControl = (line: T) => renderQtyControl?.(line) ?? <QuantityStepper qty={line.qty} onChange={(delta) => onQtyChange(line, delta)} />;
 
     const discountControl = (line: T) => (
-        <Input
-            type="number"
+        <DraftNumberInput
             min={0}
             max={getMaxDiscount(line)}
             value={line.discountPct}
-            onChange={(e) => onDiscountChange(line, Number(e.target.value))}
+            onValueChange={(value) => onDiscountChange(line, value)}
             className={cn(CONTROL_HEIGHT, 'text-center')}
         />
     );

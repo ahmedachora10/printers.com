@@ -261,6 +261,13 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
+        // تاسك 111 — تسوية أجر السائق لكل طلب. تاسك 152: والمحاسب منها،
+        // والسياسة (`settle`) تحصرها في فرعه.
+        Route::post('shipping/deliveries/{invoice}/settle', [DeliverySettlementController::class, 'store'])
+            ->name('shipping.deliveries.settle');
+        Route::delete('shipping/settlements/{expense}', [DeliverySettlementController::class, 'destroy'])
+            ->name('shipping.settlements.destroy');
+
         Route::prefix('pos')->name('pos.')->group(function () {
             Route::get('product', [ProductInvoiceController::class, 'create'])->name('product.create');
             Route::post('product', [ProductInvoiceController::class, 'store'])->name('product.store');
@@ -292,9 +299,12 @@ Route::middleware(['auth'])->group(function () {
 
         Route::get('expenses/invoice-options', [ExpenseController::class, 'invoiceOptions'])->name('expenses.invoice-options');
         Route::get('expenses/{expense}/attachment', [ExpenseController::class, 'attachment'])->name('expenses.attachment');
+        Route::get('expenses/attachments', [ExpenseController::class, 'attachments'])->name('expenses.attachments');
         Route::post('expenses/approve-all', [ExpenseController::class, 'approveAll'])->name('expenses.approve-all');
         Route::post('expenses/{expense}/approve', [ExpenseController::class, 'approve'])->name('expenses.approve');
         Route::post('expenses/{expense}/unapprove', [ExpenseController::class, 'unapprove'])->name('expenses.unapprove');
+        Route::post('expenses/{expense}/accept', [ExpenseController::class, 'accept'])->name('expenses.accept');
+        Route::post('expenses/{expense}/reject', [ExpenseController::class, 'reject'])->name('expenses.reject');
         Route::resource('expenses', ExpenseController::class)
             ->only(['index', 'store', 'update', 'destroy']);
 
@@ -396,6 +406,8 @@ Route::middleware(['auth'])->group(function () {
     // «حوافزي وحسوماتي»: وجه الموظف من شاشة الحوافز المغلقة على الإدارة. قراءةٌ
     // لصفوفه هو وحدها — المتحكّم لا يقرأ معرِّفاً من الطلب أصلاً.
     Route::middleware('role:employee')->group(function () {
+        // تاسك 157: طلب مصروف من صفحة الفاتورة، يقبله المحاسب.
+        Route::post('expenses/request', [ExpenseController::class, 'request'])->name('expenses.request');
         Route::get('my-incentives', [MyIncentiveController::class, 'index'])
             ->name('my-incentives.index');
     });
@@ -558,6 +570,8 @@ Route::middleware(['auth'])->group(function () {
 
         Route::put('branch-services/{branchService}/employee-commissions', [BranchServiceController::class, 'updateEmployeeCommissions'])
             ->name('branch-services.employee-commissions.update');
+        Route::put('branch-services/{branchService}/agent-commissions', [BranchServiceController::class, 'updateAgentCommissions'])
+            ->name('branch-services.agent-commissions.update');
 
         // تاسك 50: خامات المخزون التي تستهلكها الخدمة — تُخصم عند اعتماد الفاتورة.
         Route::put('branch-services/{branchService}/materials', [BranchServiceController::class, 'updateMaterials'])
@@ -598,12 +612,6 @@ Route::middleware(['auth'])->group(function () {
         // تاسك 93 — التوصيل: شاشةٌ واحدة بتبويبين، ومورِدان يكتب كلٌّ منهما
         // في جدوله. `toggle-status` قبل الـresource وإلا التقطه `{id}`.
         Route::get('shipping', [ShippingController::class, 'index'])->name('shipping.index');
-
-        // تاسك 111 — تسوية أجر السائق لكل طلب.
-        Route::post('shipping/deliveries/{invoice}/settle', [DeliverySettlementController::class, 'store'])
-            ->name('shipping.deliveries.settle');
-        Route::delete('shipping/settlements/{expense}', [DeliverySettlementController::class, 'destroy'])
-            ->name('shipping.settlements.destroy');
 
         Route::patch('delivery-providers/{deliveryProvider}/toggle-status', [DeliveryProviderController::class, 'toggleStatus'])
             ->name('delivery-providers.toggle-status');

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\AgentService\SyncAgentServiceCommissionsAction;
 use App\Actions\BranchService\AttachBranchServiceAction;
 use App\Actions\BranchService\DetachBranchServiceAction;
 use App\Actions\BranchService\SyncBranchServiceMaterialsAction;
@@ -12,11 +13,14 @@ use App\Exports\BranchServicesExport;
 use App\Exports\BranchServicesTemplateExport;
 use App\Http\Controllers\Concerns\RunsExcelImports;
 use App\Http\Requests\BranchService\StoreBranchServiceRequest;
+use App\Http\Requests\BranchService\UpdateAgentCommissionsRequest;
 use App\Http\Requests\BranchService\UpdateBranchServiceMaterialsRequest;
 use App\Http\Requests\BranchService\UpdateBranchServiceRequest;
 use App\Http\Requests\BranchService\UpdateEmployeeCommissionsRequest;
 use App\Http\Resources\BranchService\BranchServiceResource;
 use App\Imports\BranchServicesImport;
+use App\Models\Agent;
+use App\Models\AgentService;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\Product;
@@ -104,6 +108,17 @@ class BranchServiceController extends Controller
                 'commissionPct' => (float) $r->commission_override_pct,
             ])->values());
 
+        // تاسك 153: مناديب الفرع وعمولاتهم المحدَّدة لكل خدمة في هذه الصفحة.
+        $agents = Agent::query()
+            ->forBranch($branchId)
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (Agent $a) => ['id' => $a->id, 'name' => $a->name])
+            ->values();
+
+        $agentCommissions = AgentService::groupedByService($serviceIds);
+
         // منتجات الفرع التي يجوز تعريفها خامةً لخدمة (تاسك 50). المنتج المسعّر
         // بالمتر المربع يُستهلك بالمتر، وغيره بوحدته — والتسمية تقول ذلك للمستخدم.
         $products = Product::query()
@@ -128,6 +143,8 @@ class BranchServiceController extends Controller
             'userBranch' => ['id' => $userBranch->id, 'name' => $userBranch->name],
             'employees' => $employees,
             'employeeCommissions' => $employeeCommissions,
+            'agents' => $agents,
+            'agentCommissions' => $agentCommissions,
             'filters' => $request->only(['search', 'status']),
         ]);
     }
@@ -199,6 +216,19 @@ class BranchServiceController extends Controller
         $action->handle($pairs);
 
         return back()->with('success', 'تم تحديث عمولات الموظفين بنجاح');
+    }
+
+    /** تاسك 153: عمولة كل مندوب على هذه الخدمة — تُقفل على الموظف في نقطة البيع. */
+    public function updateAgentCommissions(
+        UpdateAgentCommissionsRequest $request,
+        BranchService $branchService,
+        SyncAgentServiceCommissionsAction $action,
+    ): RedirectResponse {
+        Gate::authorize('update', $branchService);
+
+        $action->handle($branchService->id, $request->validated('commissions'));
+
+        return back()->with('success', 'تم تحديث عمولات المناديب بنجاح');
     }
 
     /** ورقتا الخدمات وعمولات الموظفين لهذا الفرع — انظر BranchServicesExport. */

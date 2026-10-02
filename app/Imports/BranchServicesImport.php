@@ -2,6 +2,7 @@
 
 namespace App\Imports;
 
+use App\Imports\Sheets\BranchServiceAgentCommissionsSheetImport;
 use App\Imports\Sheets\BranchServiceCommissionsSheetImport;
 use App\Imports\Sheets\BranchServicesSheetImport;
 use App\Support\Import\ImportReport;
@@ -33,6 +34,7 @@ class BranchServicesImport implements SkipsUnknownSheets, WithMultipleSheets
             ->declareCounter('servicesUpdated', 'خدمات محدَّثة', 'info')
             ->declareCounter('templatesCreated', 'قوالب خدمات أُنشئت', 'success')
             ->declareCounter('commissionsSet', 'عمولات موظفين محدَّثة', 'info')
+            ->declareCounter('agentCommissionsSet', 'عمولات مناديب محدَّثة', 'info')
             ->declareCounter('commissionsCleared', 'عمولات أُزيلت', 'warning')
             ->declareCounter('skipped', 'صفوف متجاهَلة', 'warning');
     }
@@ -43,6 +45,7 @@ class BranchServicesImport implements SkipsUnknownSheets, WithMultipleSheets
         return [
             0 => new BranchServicesSheetImport($this->branchId, $this->report),
             1 => new BranchServiceCommissionsSheetImport($this->branchId, $this->report),
+            2 => new BranchServiceAgentCommissionsSheetImport($this->branchId, $this->report),
         ];
     }
 

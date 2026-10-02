@@ -1,4 +1,5 @@
 import branchServiceRoutes, { destroy } from '@/actions/App/Http/Controllers/BranchServiceController';
+import BranchServiceAgentsModal, { type AgentCommission, type BranchAgent } from '@/components/branch-services/branch-service-agents-modal';
 import BranchServiceEmployeesModal, {
     type BranchEmployee,
     type EmployeeCommission,
@@ -18,7 +19,7 @@ import branchServicesRoute from '@/routes/branch-services';
 import { type BreadcrumbItem } from '@/types';
 import { type BranchProductOption, type BranchService } from '@/types/branch-service';
 import { router } from '@inertiajs/react';
-import { Download, Package, Pencil, Plus, Trash2, Upload, Users } from 'lucide-react';
+import { Download, Package, Pencil, Plus, Trash2, Upload, UserRoundCheck, Users } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'خدمات الفرع', href: '/branch-services' }];
@@ -49,6 +50,8 @@ interface Props {
     userBranch: BranchOption | null;
     employees: BranchEmployee[];
     employeeCommissions: Record<number, EmployeeCommission[]>;
+    agents: BranchAgent[];
+    agentCommissions: Record<number, AgentCommission[]>;
     filters: { search?: string; status?: string };
 }
 
@@ -59,6 +62,8 @@ export default function BranchServicesIndex({
     userBranch,
     employees,
     employeeCommissions,
+    agents,
+    agentCommissions,
     filters,
 }: Props) {
     const [formOpen, setFormOpen] = useState(false);
@@ -68,6 +73,9 @@ export default function BranchServicesIndex({
 
     const [employeesServiceId, setEmployeesServiceId] = useState<number | null>(null);
     const employeesService = employeesServiceId ? (branchServices.data.find((s) => s.id === employeesServiceId) ?? null) : null;
+
+    const [agentsServiceId, setAgentsServiceId] = useState<number | null>(null);
+    const agentsService = agentsServiceId ? (branchServices.data.find((s) => s.id === agentsServiceId) ?? null) : null;
 
     const [materialsServiceId, setMaterialsServiceId] = useState<number | null>(null);
     const materialsService = materialsServiceId ? (branchServices.data.find((s) => s.id === materialsServiceId) ?? null) : null;
@@ -201,6 +209,9 @@ export default function BranchServicesIndex({
                         <Button variant="outline" size="sm" title="عمولات الموظفين" onClick={() => setEmployeesServiceId(s.id)}>
                             <Users className="h-3.5 w-3.5" />
                         </Button>
+                        <Button variant="outline" size="sm" title="عمولات المناديب" onClick={() => setAgentsServiceId(s.id)}>
+                            <UserRoundCheck className="h-3.5 w-3.5" />
+                        </Button>
                         <Button variant="outline" size="sm" title="تعديل" onClick={() => openEdit(s)}>
                             <Pencil className="h-3.5 w-3.5" />
                         </Button>
@@ -320,7 +331,7 @@ export default function BranchServicesIndex({
                 open={importOpen}
                 onOpenChange={setImportOpen}
                 title="استيراد خدمات الفرع"
-                description="ملف Excel بورقتين: «خدمات الفرع» و«عمولات الموظفين». المطابقة باسم الخدمة — الموجودة تُحدّث، والاسم الجديد يُنشئ خدمةً مملوكة لفرعك، ولا يُحذف شيء. وعمودٌ غائب عن الملف يُترك كما هو."
+                description="ملف Excel بثلاث أوراق: «خدمات الفرع» و«عمولات الموظفين» و«عمولات المناديب». المطابقة باسم الخدمة — الموجودة تُحدّث، والاسم الجديد يُنشئ خدمةً مملوكة لفرعك، ولا يُحذف شيء. وعمودٌ غائب عن الملف يُترك كما هو."
                 previewUrl={branchServiceRoutes.importPreview.url()}
                 commitUrl={branchServiceRoutes.import.url()}
                 templateUrl={branchServiceRoutes.importTemplate.url()}
@@ -361,6 +372,18 @@ export default function BranchServicesIndex({
                 serviceName={employeesService?.serviceTemplateName ?? ''}
                 employees={employees}
                 current={employeesServiceId ? (employeeCommissions[employeesServiceId] ?? []) : []}
+            />
+
+            {/* تاسك 153: عمولة كل مندوب على الخدمة */}
+            <BranchServiceAgentsModal
+                key={agentsServiceId ?? 'agents'}
+                open={!!agentsServiceId}
+                onOpenChange={(open) => !open && setAgentsServiceId(null)}
+                branchServiceId={agentsServiceId}
+                serviceName={agentsService?.serviceTemplateName ?? ''}
+                measured={isMeasured(agentsService?.pricingType ?? 'unit')}
+                agents={agents}
+                current={agentsServiceId ? (agentCommissions[agentsServiceId] ?? []) : []}
             />
 
             {/* خامات المخزون التي تستهلكها الخدمة (تاسك 50) */}

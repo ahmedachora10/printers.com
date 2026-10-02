@@ -805,6 +805,7 @@ export default function ServicePos({
         const s = services.find((x) => x.id === branchServiceId);
         if (!s) return;
         const cap = s.maxDiscountPct > 0 ? s.maxDiscountPct : 100;
+        const term = line.agentId ? s.agentTerms?.[line.agentId] : undefined;
         updateLine(line.key, {
             branchServiceId: s.id,
             name: s.name,
@@ -829,7 +830,15 @@ export default function ServicePos({
             ...(!isMeasured(s.pricingType) && line.agentCommissionType === 'per_sqm'
                 ? { agentCommissionType: 'percentage' as LineAgentCommissionType, agentCommissionValue: 0 }
                 : {}),
+            // تاسك 153: الخدمة الجديدة قد تحمل عمولةً محدَّدة لصاحب العمولة نفسه.
+            ...(term ? { agentCommissionType: term.type, agentCommissionValue: term.value } : {}),
         });
+    }
+
+    /** تاسك 153: عمولة المندوب التي حدّدتها الإدارة لهذه الخدمة، إن وُجدت. */
+    function agentTermFor(branchServiceId: number | null, agentId: number | null) {
+        if (!branchServiceId || !agentId) return undefined;
+        return services.find((s) => s.id === branchServiceId)?.agentTerms?.[agentId];
     }
 
     /** Attach/replace a line's commission owner, prefilling their saved terms. */
@@ -840,6 +849,12 @@ export default function ServicePos({
         }
         const agent = agents.find((a) => a.id === agentId);
         if (!agent) return;
+        // تاسك 153: عمولة الإدارة لهذا المندوب على هذه الخدمة تسبق كل اقتراح.
+        const term = agentTermFor(line.branchServiceId, agentId);
+        if (term) {
+            updateLine(line.key, { agentId, agentCommissionType: term.type, agentCommissionValue: term.value });
+            return;
+        }
         // Sqm services default to the per-sqm rate from the service settings;
         // otherwise the agent's saved profile terms are the suggestion. Both stay
         // editable — the server recomputes the amount from what is submitted.
@@ -1969,6 +1984,8 @@ export default function ServicePos({
                                     const measured = isMeasured(line.pricingType);
                                     const isLinear = line.pricingType === 'linear';
                                     const hasAgent = !!line.agentId;
+                                    // تاسك 153: عمولةٌ حدّدتها الإدارة لا يغيّرها الموظف — والخادم يفرضها أيضاً.
+                                    const agentLocked = isEmployee && !!agentTermFor(line.branchServiceId, line.agentId);
 
                                     return (
                                         <>
@@ -2114,8 +2131,9 @@ export default function ServicePos({
 
                                                     {hasAgent && (
                                                         <div className="grid gap-3 sm:grid-cols-3">
-                                                            <LineField label="نوع العمولة">
+                                                            <LineField label={agentLocked ? 'نوع العمولة (محدَّدة من الإدارة)' : 'نوع العمولة'}>
                                                                 <Select
+                                                                    disabled={agentLocked}
                                                                     value={line.agentCommissionType ?? 'percentage'}
                                                                     onValueChange={(v) =>
                                                                         updateLine(line.key, { agentCommissionType: v as LineAgentCommissionType })
@@ -2151,6 +2169,8 @@ export default function ServicePos({
                                                                     min={0}
                                                                     step="0.01"
                                                                     max={line.agentCommissionType === 'percentage' ? 100 : undefined}
+                                                                    disabled={agentLocked}
+                                                                    title={agentLocked ? 'محدَّدة من الإدارة' : undefined}
                                                                     value={line.agentCommissionValue}
                                                                     onChange={(e) =>
                                                                         updateLine(line.key, {

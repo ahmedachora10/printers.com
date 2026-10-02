@@ -3,6 +3,7 @@ import {
     store as storeBranchService,
     update as updateBranchService,
 } from '@/actions/App/Http/Controllers/BranchServiceController';
+import BranchServiceAgentsModal, { type AgentCommission, type BranchAgent } from '@/components/branch-services/branch-service-agents-modal';
 import BranchServiceEmployeesModal, {
     type BranchEmployee,
     type EmployeeCommission,
@@ -11,7 +12,7 @@ import NoteExamplesField from '@/components/branch-services/note-examples-field'
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { meterLabel } from '@/lib/service-pricing';
+import { isMeasured, meterLabel } from '@/lib/service-pricing';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -22,7 +23,7 @@ import {
 } from '@/types/branch-service';
 import { type ServiceTemplate } from '@/types/service-template';
 import { router, useForm } from '@inertiajs/react';
-import { Copy, Pencil, Plus, Trash2, Users, X } from 'lucide-react';
+import { Copy, Pencil, Plus, Trash2, UserRoundCheck, Users, X } from 'lucide-react';
 import { useState } from 'react';
 import InputError from '../input-error';
 
@@ -38,14 +39,18 @@ interface Props {
     branches: BranchOption[];
     branchEmployees: Record<number, BranchEmployee[]>;
     employeeCommissions: Record<number, EmployeeCommission[]>;
+    branchAgents: Record<number, BranchAgent[]>;
+    agentCommissions: Record<number, AgentCommission[]>;
 }
 
 type ActiveAction = { type: 'attach'; branchId: number } | { type: 'edit'; serviceId: number } | null;
 
-export default function BranchServiceManageModal({ open, onOpenChange, template, branches, branchEmployees, employeeCommissions }: Props) {
+export default function BranchServiceManageModal({ open, onOpenChange, template, branches, branchEmployees, employeeCommissions, branchAgents, agentCommissions }: Props) {
     const [activeAction, setActiveAction] = useState<ActiveAction>(null);
     // The branch service whose per-employee rates are being edited.
     const [employeesService, setEmployeesService] = useState<BranchService | null>(null);
+    // تاسك 153: والخدمة التي تُعدَّل عمولات مناديبها.
+    const [agentsService, setAgentsService] = useState<BranchService | null>(null);
     // تاسك 79: الرابط الذي نُسخت منه شروط الربط الجاري — 0 يعني «بلا نسخ».
     const [copySourceId, setCopySourceId] = useState(0);
 
@@ -241,6 +246,15 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                                                         size="sm"
                                                         variant="outline"
                                                         className="h-7 gap-1 px-2 text-xs"
+                                                        onClick={() => setAgentsService(service)}
+                                                    >
+                                                        <UserRoundCheck className="size-3" />
+                                                        المناديب
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="h-7 gap-1 px-2 text-xs"
                                                         onClick={() => startEdit(service)}
                                                     >
                                                         <Pencil className="size-3" />
@@ -360,6 +374,17 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                 serviceName={template?.name ?? ''}
                 employees={employeesService ? (branchEmployees[employeesService.branchId] ?? []) : []}
                 current={employeesService ? (employeeCommissions[employeesService.id] ?? []) : []}
+            />
+
+            <BranchServiceAgentsModal
+                key={agentsService?.id ?? 'agents'}
+                open={agentsService !== null}
+                onOpenChange={(nextOpen) => !nextOpen && setAgentsService(null)}
+                branchServiceId={agentsService?.id ?? null}
+                serviceName={template?.name ?? ''}
+                measured={isMeasured(agentsService?.pricingType ?? 'unit')}
+                agents={agentsService ? (branchAgents[agentsService.branchId] ?? []) : []}
+                current={agentsService ? (agentCommissions[agentsService.id] ?? []) : []}
             />
         </Dialog>
     );

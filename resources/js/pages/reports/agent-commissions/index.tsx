@@ -18,7 +18,7 @@ import {
     type AgentCommissionRow,
     type AgentCommissionTotals,
 } from '@/types/agent-commission-report';
-import { Head } from '@inertiajs/react';
+import { Head, Link } from '@inertiajs/react';
 import { Banknote, Handshake, Receipt, Wallet } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -54,7 +54,15 @@ const detailColumns: ColumnDef<AgentCommissionLine>[] = [
         key: 'invoiceNumber',
         header: 'رقم الفاتورة',
         className: 'font-mono text-xs',
-        cell: (line) => <span dir="ltr">{line.invoiceNumber ?? '—'}</span>,
+        // تاسك 163: الرقم رابطٌ لصفحة الفاتورة.
+        cell: (line) =>
+            line.invoiceId ? (
+                <Link href={`/invoices/${line.type}/${line.invoiceId}`} className="text-primary hover:underline" dir="ltr">
+                    {line.invoiceNumber}
+                </Link>
+            ) : (
+                <span dir="ltr">{line.invoiceNumber ?? '—'}</span>
+            ),
     },
     { key: 'date', header: 'التاريخ', className: 'text-sm', cell: (line) => (line.date ? formatDate(line.date) : '—') },
     { key: 'employeeName', header: 'الموظف', cell: (line) => line.employeeName ?? '—' },

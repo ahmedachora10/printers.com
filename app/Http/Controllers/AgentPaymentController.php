@@ -52,14 +52,15 @@ class AgentPaymentController extends Controller
                 ]))
             ->values();
 
-        // تاسك 57: المدى والبحث والفرز تخصّ **سجل الدفعات** وحده. الاستعلام
+        // تاسك 57: المدى والمندوب والفرز تخصّ **سجل الدفعات** وحده. الاستعلام
         // نفسه يغذّي الإجماليات أدناه فلا يفترقان.
+        // تاسك 164: المدى يصفّي على **الفترة المدفوع عنها** (تداخل الفترتين)
+        // لا على يوم الصرف، والمندوب قائمة منسدلة بالـid لا بحثٌ بالاسم.
         $paymentsQuery = AgentPayment::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->when($request->date('from'), fn ($q, $from) => $q->where('paid_at', '>=', $from->startOfDay()))
-            ->when($request->date('to'), fn ($q, $to) => $q->where('paid_at', '<=', $to->endOfDay()))
-            ->when($request->string('search')->trim()->value(), fn ($q, $search) => $q
-                ->whereHas('agent', fn ($a) => $a->where('name', 'like', '%'.$search.'%')));
+            ->when($request->date('from'), fn ($q, $from) => $q->where('period_end', '>=', $from->toDateString()))
+            ->when($request->date('to'), fn ($q, $to) => $q->where('period_start', '<=', $to->toDateString()))
+            ->when($request->integer('agent'), fn ($q, $agentId) => $q->where('agent_id', $agentId));
 
         // الإجماليات تُقرأ من نسخة من الاستعلام قبل التصفّح، فتصف **المدى كله**
         // لا الصفحة المعروضة.
@@ -87,7 +88,7 @@ class AgentPaymentController extends Controller
             'filters' => [
                 'from' => $request->input('from'),
                 'to' => $request->input('to'),
-                'search' => $request->input('search'),
+                'agent' => $request->input('agent'),
                 'sort' => $request->sortColumn(),
                 'dir' => $request->sortDirection(),
             ],

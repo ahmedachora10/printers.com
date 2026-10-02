@@ -231,12 +231,13 @@ describe('Agent Commission Report', function () {
     // ── DRILL-DOWN & EXPORT ────────────────────────────────────────
 
     it('names the employee and the service on each drill-down row', function () {
-        agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20]);
+        $invoice = agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20]);
 
         $this->actingAs($this->accountant)
             ->get(route('reports.agent-commissions'))
             ->assertInertia(fn ($page) => $page
                 ->has('lines', 1)
+                ->where('lines.0.invoiceId', $invoice->id) // تاسك 163
                 ->where('lines.0.employeeName', 'موظف الفرع')
                 ->where('lines.0.itemsLabel', 'طباعة لوحة')
                 ->where('lines.0.amount', 20)

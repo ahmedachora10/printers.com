@@ -3,6 +3,7 @@
 namespace App\Exports;
 
 use App\Exports\Sheets\ReportSheet;
+use App\Models\AgentService;
 use App\Models\BranchService;
 use App\Models\UserService;
 use Illuminate\Support\Collection;
@@ -23,6 +24,9 @@ class BranchServicesExport implements WithMultipleSheets
     public const SERVICES_SHEET = 'خدمات الفرع';
 
     public const COMMISSIONS_SHEET = 'عمولات الموظفين';
+
+    /** تاسك 153: عمولة كل مندوب على كل خدمة — صفٌّ لكل (خدمة × مندوب). */
+    public const AGENT_COMMISSIONS_SHEET = 'عمولات المناديب';
 
     /** فاصل أمثلة الملاحظات داخل الخلية الواحدة — يقرأه الاستيراد نفسه. */
     public const NOTE_SEPARATOR = ' | ';
@@ -55,6 +59,12 @@ class BranchServicesExport implements WithMultipleSheets
         return ['الخدمة', 'الموظف', 'اسم المستخدم', 'نسبة العمولة'];
     }
 
+    /** @return array<int, string> */
+    public static function agentCommissionHeadings(): array
+    {
+        return ['الخدمة', 'المندوب', 'اسم المستخدم', 'نوع العمولة', 'قيمة العمولة'];
+    }
+
     /** @return array<int, object> */
     public function sheets(): array
     {
@@ -63,6 +73,7 @@ class BranchServicesExport implements WithMultipleSheets
         return [
             new ReportSheet(self::SERVICES_SHEET, self::serviceHeadings(), $this->serviceRows($services)),
             new ReportSheet(self::COMMISSIONS_SHEET, self::commissionHeadings(), $this->commissionRows($services)),
+            new ReportSheet(self::AGENT_COMMISSIONS_SHEET, self::agentCommissionHeadings(), $this->agentCommissionRows($services)),
         ];
     }
 
@@ -71,7 +82,7 @@ class BranchServicesExport implements WithMultipleSheets
     {
         return BranchService::query()
             ->where('branch_id', $this->branchId)
-            ->with(['serviceTemplate', 'userCommissions.user'])
+            ->with(['serviceTemplate', 'userCommissions.user', 'agentCommissions.agent'])
             ->get()
             ->sortBy(fn (BranchService $service) => $service->serviceTemplate?->name)
             ->values();
@@ -115,6 +126,25 @@ class BranchServicesExport implements WithMultipleSheets
                 $rate->user->name,
                 $rate->user->username,
                 $this->number($rate->commission_override_pct),
+            ])
+            ->values());
+    }
+
+    /**
+     * @param  Collection<int, BranchService>  $services
+     * @return Collection<int, array<int, mixed>>
+     */
+    private function agentCommissionRows(Collection $services): Collection
+    {
+        return $services->flatMap(fn (BranchService $service) => $service->agentCommissions
+            ->filter(fn (AgentService $rate) => $rate->agent !== null)
+            ->sortBy(fn (AgentService $rate) => $rate->agent->name)
+            ->map(fn (AgentService $rate) => [
+                $service->serviceTemplate?->name,
+                $rate->agent->name,
+                $rate->agent->username,
+                $rate->commission_type->label(),
+                $this->number($rate->commission_value),
             ])
             ->values());
     }

@@ -82,6 +82,12 @@ class BranchService extends Pivot
         return $this->hasMany(UserService::class, 'branch_service_id');
     }
 
+    /** @return HasMany<AgentService, $this> */
+    public function agentCommissions(): HasMany
+    {
+        return $this->hasMany(AgentService::class, 'branch_service_id');
+    }
+
     /**
      * خامات المخزون التي تستهلكها الخدمة (تاسك 50). منفصلة تماماً عن
      * `materials_cost` — ذاك رقم محاسبي يُخصم من أساس عمولة الموظف (تاسك 7)،

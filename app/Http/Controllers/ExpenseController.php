@@ -16,14 +16,19 @@ use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\ServiceInvoice;
+use App\Notifications\ExpenseRequestNotification;
+use App\Support\BranchNotifiables;
+use App\Support\MediaZip;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response as FileResponse;
 
 class ExpenseController extends Controller
@@ -37,14 +42,15 @@ class ExpenseController extends Controller
         $base = $this->filteredQuery($request);
 
         $items = (clone $base)
-            ->with(['category', 'user', 'media', 'invoice:id,invoice_number', 'approvedBy:id,name', 'activities.causer:id,name'])
+            ->with(['category', 'user', 'requestedBy:id,name', 'media', 'invoice:id,invoice_number', 'approvedBy:id,name', 'activities.causer:id,name'])
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->paginate(15)
             ->withQueryString();
 
-        $periodTotal = (float) (clone $base)->sum('total');
-        $pending = (clone $base)->whereNull('approved_at');
+        // تاسك 157: طلبات الموظفين تُعرض في القائمة لكنها خارج المجموع حتى تُقبل.
+        $periodTotal = (float) (clone $base)->where(Expense::counted())->sum('total');
+        $pending = (clone $base)->whereNull('approved_at')->where(Expense::counted());
 
         $categories = ExpenseCategory::activeOptionsFor($branchId);
 
@@ -54,6 +60,8 @@ class ExpenseController extends Controller
             // تاسك 113: لنافذة تأكيد «اعتماد جميع المصروفات».
             'pendingSummary' => ['count' => (clone $pending)->count(), 'total' => (float) $pending->sum('total')],
             'canApproveAll' => Gate::allows('approveAny', Expense::class),
+            // تاسك 161: زرّ «تنزيل المرفقات» يظهر حين يوجد ما يُنزَّل تحت الفلاتر.
+            'attachmentsCount' => (clone $base)->whereHas('media', fn ($q) => $q->where('collection_name', Expense::ATTACHMENT))->count(),
             // تاسك 123: خيارات فلتر المصدر من الـenum نفسه، فلا تُكتب مرتين.
             'sources' => array_map(
                 fn (ExpenseSourceEnum $c) => ['value' => $c->value, 'label' => $c->label()],
@@ -98,6 +106,8 @@ class ExpenseController extends Controller
             ->when($request->filled('expense_category_id'), fn ($q) => $q->where('expense_category_id', (int) $request->input('expense_category_id')))
             ->when($request->input('approval') === 'approved', fn ($q) => $q->whereNotNull('approved_at'))
             ->when($request->input('approval') === 'pending', fn ($q) => $q->whereNull('approved_at'))
+            // تاسك 157: طلبات الموظفين بانتظار قبول المحاسب.
+            ->when($request->input('approval') === 'requested', fn ($q) => $q->whereNotNull('requested_by')->whereNull('accepted_at'))
             // تاسك 123 — مصدر المصروف (تاسك 110). يمرّ عبر هذه المشتركة، فزرّ
             // «اعتماد الكل» يحترمه تلقائياً: المعروض هو المعتمَد.
             ->when(
@@ -135,6 +145,34 @@ class ExpenseController extends Controller
         $count = $action->handle($this->filteredQuery($request));
 
         return back()->with('success', "تم اعتماد {$count} مصروف");
+    }
+
+    /** تاسك 161 — مرفقات القائمة المصفّاة (نفس filteredQuery) في ملف ZIP واحد. */
+    public function attachments(Request $request): BinaryFileResponse|RedirectResponse
+    {
+        Gate::authorize('viewAny', Expense::class);
+
+        $expenses = $this->filteredQuery($request)
+            ->whereHas('media', fn ($q) => $q->where('collection_name', Expense::ATTACHMENT))
+            ->with(['media', 'category:id,name'])
+            ->get();
+
+        if ($expenses->isEmpty()) {
+            return back()->with('error', 'لا توجد مرفقات في هذه التصفية');
+        }
+
+        // ponytail: يُبنى متزامناً بحدّ 500 مرفق كإيصالات التحويل؛ طابورٌ إن وقع الحدّ فعلاً.
+        if ($expenses->count() > 500) {
+            return back()->with('error', 'عدد المرفقات '.$expenses->count().' — ضيّق التصفية');
+        }
+
+        $files = $expenses->map(fn (Expense $e) => [$e->attachment(), implode('-', [
+            $e->date->format('Y-m-d'),
+            $e->supplier_name ?: ($e->category?->name ?? 'مصروف'),
+            $e->id,
+        ])])->all();
+
+        return MediaZip::download($files, 'مرفقات-المصروفات-'.now()->format('Y-m-d').'.zip');
     }
 
     /**
@@ -210,6 +248,45 @@ class ExpenseController extends Controller
         $action->handle($request->validated());
 
         return back(fallback: route('expenses.index'))->with('success', 'تم تسجيل المصروف بنجاح');
+    }
+
+    /** تاسك 157 — الموظف يطلب مصروفاً على فاتورته؛ لا يُحسب حتى يقبله المحاسب. */
+    public function request(StoreExpenseRequest $request, CreateExpenseAction $action): RedirectResponse
+    {
+        $invoice = ServiceInvoice::findOrFail($request->validated('service_invoice_id'));
+        Gate::authorize('request', [Expense::class, $invoice]);
+
+        $expense = $action->handle([...$request->validated(), 'requested_by' => $request->user()->id]);
+
+        Notification::send(
+            BranchNotifiables::forBranch($expense->branch_id, ['branch-admin', 'accountant']),
+            new ExpenseRequestNotification($expense, ExpenseRequestNotification::SUBMITTED),
+        );
+
+        return back()->with('success', 'تم إرسال طلب المصروف إلى المحاسب');
+    }
+
+    /** تاسك 157 — قبول الطلب: يصير مصروفاً عادياً يُحسب ويمرّ بالاعتماد كالمعتاد. */
+    public function accept(Expense $expense): RedirectResponse
+    {
+        Gate::authorize('accept', $expense);
+
+        $expense->forceFill(['accepted_at' => now(), 'accepted_by' => auth()->id()])->save();
+        $expense->requestedBy?->notify(new ExpenseRequestNotification($expense, ExpenseRequestNotification::ACCEPTED));
+
+        return back()->with('success', 'تم قبول طلب المصروف');
+    }
+
+    /** تاسك 157 — الرفض = حذفٌ ناعم، والسبب يصل الموظف في الإشعار. */
+    public function reject(Request $request, Expense $expense, DeleteExpenseAction $action): RedirectResponse
+    {
+        Gate::authorize('accept', $expense);
+        $reason = $request->validate(['reason' => ['required', 'string', 'max:500']])['reason'];
+
+        $action->handle($expense);
+        $expense->requestedBy?->notify(new ExpenseRequestNotification($expense, ExpenseRequestNotification::REJECTED, $reason));
+
+        return back()->with('success', 'تم رفض طلب المصروف');
     }
 
     public function update(UpdateExpenseRequest $request, Expense $expense, UpdateExpenseAction $action): RedirectResponse

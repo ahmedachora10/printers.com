@@ -132,7 +132,40 @@ describe('Expense attachment & invoice link', function () {
             ->where('expenseForm.categories.0.name', 'توصيل')
             ->where('expenseForm.branches', null));
 
+        // تاسك 157: صاحب الفاتورة يفتح النافذة نفسها طلباً يقبله المحاسب.
         $this->actingAs($this->employee)->get($show)
-            ->assertInertia(fn ($page) => $page->where('expenseForm', null));
+            ->assertInertia(fn ($page) => $page->where('expenseForm.isRequest', true));
+    });
+
+    // تاسك 161 — مرفقات القائمة المصفّاة في ملف ZIP واحد.
+    it('zips the attachments of the filtered list only', function () {
+        $other = ExpenseCategory::factory()->create(['name' => 'أحبار']);
+        $expense = fn (array $attrs, bool $file = true) => tap(
+            Expense::factory()->create(['branch_id' => $this->branch->id, 'date' => today(), ...$attrs]),
+            fn (Expense $e) => $file && $e->addMedia(UploadedFile::fake()->image('r.jpg'))->toMediaCollection(Expense::ATTACHMENT),
+        );
+
+        $a = $expense(['expense_category_id' => $this->category->id, 'supplier_name' => 'مطبعة النور']);
+        $b = $expense(['expense_category_id' => $this->category->id, 'supplier_name' => null]);
+        $expense(['expense_category_id' => $this->category->id], file: false);
+        $expense(['expense_category_id' => $other->id]);
+
+        $this->actingAs($this->accountant)->get(route('expenses.index'))
+            ->assertInertia(fn ($page) => $page->where('attachmentsCount', 3));
+
+        $response = $this->actingAs($this->accountant)
+            ->get(route('expenses.attachments', ['expense_category_id' => $this->category->id]))
+            ->assertOk();
+
+        $zip = new ZipArchive;
+        $zip->open($response->baseResponse->getFile()->getPathname());
+        $names = array_map(fn ($i) => $zip->getNameIndex($i), range(0, $zip->numFiles - 1));
+        $zip->close();
+        $day = today()->format('Y-m-d');
+        expect($names)->toEqualCanonicalizing(["{$day}-مطبعة النور-{$a->id}.jpg", "{$day}-توصيل-{$b->id}.jpg"]);
+
+        $this->actingAs($this->accountant)->get(route('expenses.attachments', ['expense_category_id' => 999]))
+            ->assertRedirect()->assertSessionHas('error');
+        $this->actingAs($this->employee)->get(route('expenses.attachments'))->assertForbidden();
     });
 });

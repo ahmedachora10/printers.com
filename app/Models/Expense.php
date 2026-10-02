@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ExpenseSourceEnum;
+use Closure;
 use Database\Factories\ExpenseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -28,6 +29,7 @@ class Expense extends Model implements HasMedia
         'service_invoice_id',
         'delivery_provider_id',
         'user_id',
+        'requested_by',
         'qty',
         'unit_price',
         'total',
@@ -45,6 +47,7 @@ class Expense extends Model implements HasMedia
         'paid_from' => ExpenseSourceEnum::class,
         'date' => 'date',
         'approved_at' => 'datetime',
+        'accepted_at' => 'datetime',
     ];
 
     public function getActivitylogOptions(): LogOptions
@@ -57,6 +60,27 @@ class Expense extends Model implements HasMedia
     public function isApproved(): bool
     {
         return $this->approved_at !== null;
+    }
+
+    /** تاسك 157 — طلب موظفٍ لم يقبله المحاسب بعد: لا يُحسب في أي مجموع. */
+    public function isPendingRequest(): bool
+    {
+        return $this->requested_by !== null && $this->accepted_at === null;
+    }
+
+    /**
+     * تاسك 157 — شرط «يُحسب»: مصروفٌ عادي أو طلبٌ مقبول. يعمل على Eloquent وعلى
+     * DB::table معاً (`->where(Expense::counted())`)، فكل مجموعٍ للمصروفات يمرّ به.
+     */
+    public static function counted(): Closure
+    {
+        return fn ($q) => $q->whereNull('expenses.requested_by')->orWhereNotNull('expenses.accepted_at');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function requestedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'requested_by');
     }
 
     /** @return BelongsTo<User, $this> */

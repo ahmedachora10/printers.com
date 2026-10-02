@@ -5,15 +5,15 @@ import SortHeader from '@/components/reports/sort-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { type AgentOutstanding, type AgentPaymentRow, type PaginatedAgentPayment } from '@/types/agent-payment';
 import { router } from '@inertiajs/react';
-import { Receipt, Search, Wallet, X } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Receipt, Wallet, X } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'مدفوعات المناديب', href: '/agent-payments' }];
 
@@ -42,7 +42,7 @@ interface Props {
     filters: {
         from?: string | null;
         to?: string | null;
-        search?: string | null;
+        agent?: string | null;
         sort: string;
         dir: 'asc' | 'desc';
     };
@@ -54,26 +54,18 @@ export default function AgentPaymentsIndex({ agents, payments, paymentTotals, fi
     const applied: FilterValues = {
         from: filters.from ?? '',
         to: filters.to ?? '',
-        search: filters.search ?? '',
+        agent: filters.agent ?? '',
         sort: filters.sort,
         dir: filters.dir,
     };
 
     // الفرز الافتراضي (paid_at تنازلياً) لا يُكتب في الرابط — وإلا حمل كل تنقّل
     // معاملين لا يغيّران شيئاً.
-    const f = useReportFilters(PAGE_URL, applied, { from: '', to: '', search: '', sort: 'paid_at', dir: 'desc' });
+    const f = useReportFilters(PAGE_URL, applied, { from: '', to: '', agent: '', sort: 'paid_at', dir: 'desc' });
 
-    const [search, setSearch] = useState(applied.search);
-    const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // زرّ الرجوع يعيد الرابط بلا بحث، فيجب أن يتبعه الحقل.
-    useEffect(() => setSearch(filters.search ?? ''), [filters.search]);
-
-    const handleSearchChange = (value: string) => {
-        setSearch(value);
-        if (searchTimeout.current) clearTimeout(searchTimeout.current);
-        searchTimeout.current = setTimeout(() => f.replace('search', value), 400);
-    };
+    // تاسك 164: قائمة المناديب من صفوف «العمولات المستحقة» — المندوب متعدد الفروع
+    // يتكرر فيها بفرعين، فيُدمج بالـid.
+    const agentOptions = [...new Map(agents.map((a) => [a.id, a.name]))].map(([id, name]) => ({ value: String(id), label: name }));
 
     // النقرة الأولى على عمودٍ تفرزه تنازلياً (الأحدث/الأكبر أولاً)، والثانية تقلبه.
     const handleSort = (key: string) =>
@@ -187,21 +179,25 @@ export default function AgentPaymentsIndex({ agents, payments, paymentTotals, fi
                 <h2 className="mb-3 text-lg font-semibold">سجل الدفعات</h2>
 
                 <Card className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-md px-4 py-3.5 sm:px-5">
-                    <DateRangeBar filters={f} from={applied.from} to={applied.to} extended />
+                    <DateRangeBar filters={f} from={applied.from} to={applied.to} />
                     <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
-                        <div className="relative min-w-0 flex-1 sm:max-w-64">
-                            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 start-2.5 size-4 -translate-y-1/2" />
-                            <Input
-                                value={search}
-                                onChange={(e) => handleSearchChange(e.target.value)}
-                                placeholder="بحث باسم المندوب..."
-                                className="h-9 ps-8 sm:h-8"
-                            />
-                        </div>
+                        <Select value={applied.agent || 'all'} onValueChange={(v) => f.replace('agent', v === 'all' ? '' : v)}>
+                            <SelectTrigger className="h-9 min-w-0 flex-1 sm:h-8 sm:max-w-64">
+                                <SelectValue placeholder="كل المناديب" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">كل المناديب</SelectItem>
+                                {agentOptions.map((o) => (
+                                    <SelectItem key={o.value} value={o.value}>
+                                        {o.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                         {/* حقل type="date" لا يُفرَّغ بالكتابة، فالمسح يحتاج زرّاً. */}
-                        {(hasRange || applied.search) && (
+                        {(hasRange || applied.agent) && (
                             <Button type="button" variant="ghost" size="sm" onClick={f.reset}>
-                                <X className="size-3" /> كل الفترات
+                                <X className="size-3" /> مسح التصفية
                             </Button>
                         )}
                     </div>

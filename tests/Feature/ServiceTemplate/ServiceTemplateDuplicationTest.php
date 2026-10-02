@@ -1,6 +1,8 @@
 <?php
 
 use App\Enums\Roles;
+use App\Models\Agent;
+use App\Models\AgentService;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\City;
@@ -121,6 +123,36 @@ describe('Service template duplication', function () {
         expect($rates)->toHaveCount(1)
             ->and($rates->first()->user_id)->toBe($employee->id)
             ->and((float) $rates->first()->commission_override_pct)->toBe(6.25);
+    });
+
+    it('carries the per-agent commission terms onto the copy (task 153)', function () {
+        $agent = Agent::factory()->create(['branch_id' => $this->branch->id]);
+        setAgentBranchTerms($agent, $this->branch->id, ['discount_mode' => 'rebate', 'rate' => 0]);
+
+        $source = BranchService::query()
+            ->where('service_template_id', $this->template->id)
+            ->where('branch_id', $this->branch->id)
+            ->firstOrFail();
+
+        AgentService::create([
+            'agent_id' => $agent->id,
+            'branch_service_id' => $source->id,
+            'commission_type' => 'per_sqm',
+            'commission_value' => 4.5,
+        ]);
+
+        $this->actingAs($this->superAdmin)->post(route('service-templates.duplicate', $this->template));
+
+        $copied = BranchService::query()
+            ->where('service_template_id', '<>', $this->template->id)
+            ->where('branch_id', $this->branch->id)
+            ->firstOrFail();
+
+        $rate = AgentService::query()->where('branch_service_id', $copied->id)->sole();
+
+        expect($rate->agent_id)->toBe($agent->id)
+            ->and($rate->commission_type->value)->toBe('per_sqm')
+            ->and((float) $rate->commission_value)->toBe(4.5);
     });
 
     it('numbers the suffix when the name is already taken', function () {

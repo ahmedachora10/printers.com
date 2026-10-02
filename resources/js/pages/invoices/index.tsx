@@ -688,7 +688,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
 
                 <Card className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border px-4 py-3.5">
                     <FilterSearch filters={f} value={applied.search} placeholder="رقم الفاتورة أو اسم الموظف..." />
-                    <DateRangeBar filters={f} from={applied.date_from} to={applied.date_to} fromKey="date_from" toKey="date_to" extended />
+                    <DateRangeBar filters={f} from={applied.date_from} to={applied.date_to} fromKey="date_from" toKey="date_to" />
                 </Card>
 
                 <ActiveFilterChips chips={chips} />
