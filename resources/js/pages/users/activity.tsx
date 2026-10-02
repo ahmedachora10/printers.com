@@ -123,7 +123,7 @@ export default function UserActivity({ subject, activities, logOptions, filters,
 
                 <Card className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border px-4 py-3.5">
                     <FilterSearch filters={f} value={applied.search} placeholder="وصف العملية..." />
-                    <DateRangeBar filters={f} from={applied.from} to={applied.to} extended />
+                    <DateRangeBar filters={f} from={applied.from} to={applied.to} />
                 </Card>
 
                 <ActiveFilterChips chips={chips} />

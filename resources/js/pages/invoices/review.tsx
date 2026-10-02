@@ -330,7 +330,7 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                 </div>
 
                 <Card className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-md px-4 py-3.5 sm:px-5">
-                    <DateRangeBar filters={f} from={applied.from} to={applied.to} extended />
+                    <DateRangeBar filters={f} from={applied.from} to={applied.to} />
                     <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
                         <div className="relative min-w-0 flex-1 sm:max-w-64">
                             <Search className="text-muted-foreground pointer-events-none absolute top-1/2 start-2.5 size-4 -translate-y-1/2" />

@@ -55,10 +55,6 @@ const SHORTCUTS: Shortcut[] = [
     { label: 'أمس', range: () => ({ from: iso(shift(-1)), to: iso(shift(-1)) }) },
     { label: 'آخر 7 أيام', range: () => ({ from: iso(shift(-6)), to: iso(new Date()) }) },
     { label: 'هذا الشهر', range: () => ({ from: iso(startOfMonth()), to: iso(new Date()) }) },
-];
-
-/** Wider ranges — only useful on long-lived lists, so they are opt-in. */
-const EXTENDED_SHORTCUTS: Shortcut[] = [
     { label: 'آخر 30 يوماً', range: () => ({ from: iso(shift(-29)), to: iso(new Date()) }) },
     {
         label: 'الشهر الماضي',
@@ -82,22 +78,18 @@ interface Props {
     /** Query keys the range is stored under — list pages use date_from/date_to. */
     fromKey?: string;
     toKey?: string;
-    /** Append آخر 30 يوماً / الشهر الماضي to the shortcuts. */
-    extended?: boolean;
 }
 
 /**
- * Always-visible date range: four shortcuts plus من/إلى, applied immediately.
+ * Always-visible date range: six shortcuts (تاسك 162: «الشهر الماضي» في كل القوائم) plus من/إلى, applied immediately.
  * Sits above a report so the common case (today, yesterday, this month) never
  * costs a trip through the filter modal. Navigating through useReportFilters
  * keeps the page's other filters applied.
  */
-export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKey = 'to', extended = false }: Props) {
+export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKey = 'to' }: Props) {
     const go = (next: { from: string; to: string }) => filters.replaceMany({ [fromKey]: next.from, [toKey]: next.to });
 
     const isCurrent = (range: { from: string; to: string }) => range.from === from && range.to === to;
-
-    const shortcuts = extended ? [...SHORTCUTS, ...EXTENDED_SHORTCUTS] : SHORTCUTS;
 
     // Arrows as on the reconciliation screen: previous before من, next after إلى.
     const canStep = from !== '' && to !== '';
@@ -120,7 +112,7 @@ export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKe
         // its content width (~346px) and push a 360px page sideways.
         <div className="flex w-full min-w-0 flex-wrap items-end gap-x-4 gap-y-3 sm:w-auto">
             <div className="flex flex-wrap gap-1.5">
-                {shortcuts.map((shortcut) => {
+                {SHORTCUTS.map((shortcut) => {
                     const range = shortcut.range();
                     return (
                         <Button

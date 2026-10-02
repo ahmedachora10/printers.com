@@ -43,15 +43,24 @@ interface SavedDevice {
 }
 
 /** الصفوف المحفوظة مجمَّعةً بالجهاز؛ صفوف ما قبل تاسك 146 (بلا جهاز) خارجها. */
+/**
+ * تاسك 156: الجهاز يتكرّر (أكثر من موازنة له)، فلا تُجمَّع الصفوف بالجهاز. تُقرأ
+ * بترتيب حفظها، وتبدأ كتلةٌ جديدة حين يتغيّر الجهاز أو يتكرّر نوع البطاقة.
+ * ponytail: موازنتان متتاليتان لجهازٍ واحد ببطاقاتٍ لا تتقاطع تُعرضان كتلةً واحدة
+ * (المجموع نفسه)؛ عمود block_no إن أرادوا الفصل حرفياً.
+ */
 function toBlocks(devices: SavedDevice[]): DeviceBlock[] {
-    const blocks = new Map<number, DeviceBlock>();
+    const blocks: DeviceBlock[] = [];
     for (const d of devices) {
         if (d.networkDeviceId == null || d.cardTypeId == null) continue;
-        const block = blocks.get(d.networkDeviceId) ?? { networkDeviceId: d.networkDeviceId, amounts: {} };
+        let block = blocks.at(-1);
+        if (!block || block.networkDeviceId !== d.networkDeviceId || d.cardTypeId in block.amounts) {
+            block = { networkDeviceId: d.networkDeviceId, amounts: {} };
+            blocks.push(block);
+        }
         block.amounts[d.cardTypeId] = String(d.amount);
-        blocks.set(d.networkDeviceId, block);
     }
-    return [...blocks.values()];
+    return blocks;
 }
 
 interface HistoryRow {
@@ -124,8 +133,6 @@ export default function ReconciliationIndex({ filters, branches, networkDevices,
     const difference = round2(devicesTotal + figures.autoTotal - figures.systemNet);
     // لا مطابقة محفوظة ولا مبالغ مُدخلة ← لا معنى لـ«مطابق».
     const isEmpty = !reconciliation && !form.isDirty;
-    const usedDeviceIds = form.data.devices.map((b) => b.networkDeviceId);
-    const nextDevice = networkDevices.find((d) => !usedDeviceIds.includes(d.id));
     const status = isEmpty ? { label: 'لا توجد مطابقة بعد', className: 'bg-muted/50 text-muted-foreground' } : result(difference);
     const today = new Date().toLocaleDateString('en-CA');
     const [confirmingApprove, setConfirmingApprove] = useState(false);
@@ -249,12 +256,20 @@ export default function ReconciliationIndex({ filters, branches, networkDevices,
                     )}
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                     <Card>
                         <CardHeader className="pb-2">
                             <CardTitle className="text-muted-foreground text-sm font-medium">صافي المبلغ (النظام)</CardTitle>
                         </CardHeader>
                         <CardContent className="text-xl font-semibold">{formatSar(figures.systemNet)}</CardContent>
+                    </Card>
+                    {/* تاسك 158: محصَّل الشبكة في النظام = الصافي − التلقائي (التلقائي كل ما عدا الشبكة)،
+                        فيصحّ للمجمَّد أيضاً بلا عمودٍ جديد. */}
+                    <Card>
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-muted-foreground text-sm font-medium">الشبكة (النظام) — المطلوب مطابقته</CardTitle>
+                        </CardHeader>
+                        <CardContent className="text-xl font-semibold">{formatSar(round2(figures.systemNet - figures.autoTotal))}</CardContent>
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
@@ -286,14 +301,14 @@ export default function ReconciliationIndex({ filters, branches, networkDevices,
                     <Card className="lg:col-span-2">
                         <CardHeader className="flex flex-row items-center justify-between">
                             <CardTitle>موازنات أجهزة الشبكة</CardTitle>
-                            {!approved && nextDevice && (
+                            {!approved && defaultDevice && (
                                 <Button
                                     size="sm"
                                     variant="outline"
-                                    onClick={() => form.setData('devices', [...form.data.devices, { networkDeviceId: nextDevice.id, amounts: {} }])}
+                                    onClick={() => form.setData('devices', [...form.data.devices, { networkDeviceId: defaultDevice.id, amounts: {} }])}
                                 >
                                     <Plus className="size-4" />
-                                    إضافة جهاز
+                                    إضافة موازنة
                                 </Button>
                             )}
                         </CardHeader>
@@ -326,13 +341,11 @@ export default function ReconciliationIndex({ filters, branches, networkDevices,
                                                 <SelectValue placeholder="الجهاز" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {networkDevices
-                                                    .filter((d) => d.id === block.networkDeviceId || !usedDeviceIds.includes(d.id))
-                                                    .map((d) => (
-                                                        <SelectItem key={d.id} value={String(d.id)}>
-                                                            {d.name} — <bdi>{d.number}</bdi>
-                                                        </SelectItem>
-                                                    ))}
+                                                {networkDevices.map((d) => (
+                                                    <SelectItem key={d.id} value={String(d.id)}>
+                                                        {d.name} — <bdi>{d.number}</bdi>
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
                                         {!approved && (
@@ -449,7 +462,7 @@ export default function ReconciliationIndex({ filters, branches, networkDevices,
                         <CardTitle>سجل المطابقات</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4 overflow-x-auto">
-                        <DateRangeBar filters={historyFilters} from={filters.historyFrom} to={filters.historyTo} fromKey="history_from" toKey="history_to" extended />
+                        <DateRangeBar filters={historyFilters} from={filters.historyFrom} to={filters.historyTo} fromKey="history_from" toKey="history_to" />
                         <div className="grid gap-3 sm:grid-cols-3">
                             {([['إجمالي الزيادة', historyTotals.surplus], ['إجمالي العجز', historyTotals.shortage]] as const).map(([label, value]) => (
                                 <div key={label} className="rounded-lg border p-3">

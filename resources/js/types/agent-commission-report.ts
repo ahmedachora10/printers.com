@@ -18,6 +18,7 @@ export interface AgentCommissionRow {
 export interface AgentCommissionLine {
     agentId: number;
     type: 'service' | 'product';
+    invoiceId: number | null;
     invoiceNumber: string | null;
     employeeName: string | null;
     itemsLabel: string | null;

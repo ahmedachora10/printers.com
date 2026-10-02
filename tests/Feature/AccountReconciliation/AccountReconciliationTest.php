@@ -107,6 +107,7 @@ describe('Account reconciliation', function () {
         $this->actingAs($this->accountant)
             ->get(route('finance.reconciliation.index'))
             ->assertInertia(fn ($page) => $page
+                // تاسك 158: بطاقة «الشبكة (النظام)» = 450 − 250 = 200 (مدى) — تعتمد على هذا الثابت.
                 ->where('figures.systemNet', 450)
                 ->where('figures.autoTotal', 250)
                 ->where('figures.frozen', false)
@@ -185,6 +186,23 @@ describe('Account reconciliation', function () {
                 ->where('networkDevices.0.isDefault', true)
                 ->where('cardTypes.0.name', 'مدى')
                 ->has('cardTypes', 3));
+    });
+
+    // تاسك 156 — أكثر من موازنة لنفس الجهاز.
+    it('keeps two settlements of the same device and card type, in order', function () {
+        $row = fn (float $amount) => ['network_device_id' => $this->device->id, 'card_type_id' => $this->cardTypes[0]->id, 'amount' => $amount];
+
+        $this->actingAs($this->accountant)
+            ->post(route('finance.reconciliation.store'), ['date' => today()->toDateString(), 'devices' => [$row(50), $row(30)]])
+            ->assertSessionHasNoErrors();
+
+        $this->get(route('finance.reconciliation.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('reconciliation.devices', 2)
+                ->where('reconciliation.devices.0.amount', 50)
+                ->where('reconciliation.devices.1.amount', 30));
+
+        expect((float) AccountReconciliation::firstOrFail()->devices_total)->toBe(80.0);
     });
 
     it('keeps rows saved before task 146 when the day is saved again', function () {

@@ -185,7 +185,7 @@ export default function IncentiveReportIndex({
                 </div>
 
                 <div className="mb-6">
-                    <DateRangeBar filters={f} from={applied.from} to={applied.to} extended />
+                    <DateRangeBar filters={f} from={applied.from} to={applied.to} />
                 </div>
 
                 <ActiveFilterChips chips={chips} />

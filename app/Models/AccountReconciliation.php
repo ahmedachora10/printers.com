@@ -41,7 +41,8 @@ class AccountReconciliation extends Model implements HasMedia
 
     public function devices(): HasMany
     {
-        return $this->hasMany(AccountReconciliationDevice::class);
+        // تاسك 156: بترتيب الحفظ — الواجهة تعيد بناء الكتل منه.
+        return $this->hasMany(AccountReconciliationDevice::class)->orderBy('id');
     }
 
     public function creator(): BelongsTo

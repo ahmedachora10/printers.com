@@ -327,7 +327,7 @@ export default function IncentivesIndex({
                 </div>
 
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-                    <DateRangeBar filters={f} from={applied.from} to={applied.to} extended />
+                    <DateRangeBar filters={f} from={applied.from} to={applied.to} />
                     <div className="flex items-center gap-2">
                         <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
                             {isSuperAdmin && (

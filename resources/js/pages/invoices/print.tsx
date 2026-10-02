@@ -166,58 +166,62 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
                 {doc.isQuotation && <p className="mt-1 text-xs font-semibold">{QUOTATION_DISCLAIMER}</p>}
             </div>
 
-            {/* Meta grid */}
-            <div className="mb-6 grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
-                <div className="flex justify-between">
-                    <span className="text-neutral-500">رقم الفاتورة</span>
-                    <span className="font-semibold" dir="ltr">
-                        {invoice.invoiceNumber}
-                    </span>
+            {/* Meta — تاسك 155: عمودان صريحان، فيبقى الجوال تحت العميل أيّاً كانت الخلايا الاختيارية. */}
+            <div className="mb-6 grid grid-cols-2 gap-x-8 text-sm">
+                <div className="space-y-1">
+                    <div className="flex justify-between">
+                        <span className="text-neutral-500">رقم الفاتورة</span>
+                        <span className="font-semibold" dir="ltr">
+                            {invoice.invoiceNumber}
+                        </span>
+                    </div>
+                    {invoice.createdAt && (
+                        <div className="flex justify-between">
+                            <span className="text-neutral-500">التاريخ</span>
+                            <span>{formatDateTime(invoice.createdAt)}</span>
+                        </div>
+                    )}
+                    <div className="flex justify-between">
+                        <span className="text-neutral-500">العميل</span>
+                        <span>{invoice.customerName ?? 'عميل نقدي'}</span>
+                    </div>
+                    {invoice.customerPhone && (
+                        <div className="flex justify-between">
+                            <span className="text-neutral-500">الجوال</span>
+                            <span dir="ltr">{invoice.customerPhone}</span>
+                        </div>
+                    )}
+                    {invoice.customerTaxNumber && (
+                        <div className="flex justify-between">
+                            <span className="text-neutral-500">الرقم الضريبي للعميل</span>
+                            <span dir="ltr">{invoice.customerTaxNumber}</span>
+                        </div>
+                    )}
                 </div>
-                <div className="flex justify-between">
-                    <span className="text-neutral-500">الحالة</span>
-                    <span>{invoice.statusLabel}</span>
+                <div className="space-y-1">
+                    <div className="flex justify-between">
+                        <span className="text-neutral-500">الحالة</span>
+                        <span>{invoice.statusLabel}</span>
+                    </div>
+                    {invoice.userName && (
+                        <div className="flex justify-between">
+                            <span className="text-neutral-500">الموظف</span>
+                            <span>{invoice.userName}</span>
+                        </div>
+                    )}
+                    {invoice.paymentMethod && (
+                        <div className="flex justify-between">
+                            <span className="text-neutral-500">طريقة الدفع</span>
+                            <span>{invoice.paymentMethod}</span>
+                        </div>
+                    )}
+                    {invoice.deliveryAt && (
+                        <div className="flex justify-between font-semibold">
+                            <span className="font-normal text-neutral-500">موعد التسليم</span>
+                            <span dir="ltr">{formatDateTimeNumeric(invoice.deliveryAt)}</span>
+                        </div>
+                    )}
                 </div>
-                {invoice.createdAt && (
-                    <div className="flex justify-between">
-                        <span className="text-neutral-500">التاريخ</span>
-                        <span>{formatDateTime(invoice.createdAt)}</span>
-                    </div>
-                )}
-                {invoice.userName && (
-                    <div className="flex justify-between">
-                        <span className="text-neutral-500">الموظف</span>
-                        <span>{invoice.userName}</span>
-                    </div>
-                )}
-                <div className="flex justify-between">
-                    <span className="text-neutral-500">العميل</span>
-                    <span>{invoice.customerName ?? 'عميل نقدي'}</span>
-                </div>
-                {invoice.customerPhone && (
-                    <div className="flex justify-between">
-                        <span className="text-neutral-500">الجوال</span>
-                        <span dir="ltr">{invoice.customerPhone}</span>
-                    </div>
-                )}
-                {invoice.paymentMethod && (
-                    <div className="flex justify-between">
-                        <span className="text-neutral-500">طريقة الدفع</span>
-                        <span>{invoice.paymentMethod}</span>
-                    </div>
-                )}
-                {invoice.customerTaxNumber && (
-                    <div className="flex justify-between">
-                        <span className="text-neutral-500">الرقم الضريبي للعميل</span>
-                        <span dir="ltr">{invoice.customerTaxNumber}</span>
-                    </div>
-                )}
-                {invoice.deliveryAt && (
-                    <div className="flex justify-between font-semibold">
-                        <span className="font-normal text-neutral-500">موعد التسليم</span>
-                        <span dir="ltr">{formatDateTimeNumeric(invoice.deliveryAt)}</span>
-                    </div>
-                )}
             </div>
 
             {/* Lines */}

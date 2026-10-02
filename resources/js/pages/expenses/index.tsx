@@ -294,7 +294,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                 </div>
 
                 <Card className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-3 rounded-md px-4 py-3.5 sm:px-5">
-                    <DateRangeBar filters={dateFilters} from={applied.from} to={applied.to} extended />
+                    <DateRangeBar filters={dateFilters} from={applied.from} to={applied.to} />
                     {!showsAllPeriods && (
                         <Button
                             type="button"

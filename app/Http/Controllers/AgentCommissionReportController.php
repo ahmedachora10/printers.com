@@ -237,6 +237,7 @@ class AgentCommissionReportController extends Controller
             ->map(fn (ServiceInvoiceAgent $row) => [
                 'agentId' => (int) $row->agent_id,
                 'type' => 'service',
+                'invoiceId' => $row->invoice?->id,
                 'invoiceNumber' => $row->invoice?->invoice_number,
                 'employeeName' => $row->invoice?->user?->name,
                 'itemsLabel' => $this->describeLines($row->invoice?->lines, 'service_name'),
@@ -252,6 +253,7 @@ class AgentCommissionReportController extends Controller
             ->map(fn (ProductInvoice $row) => [
                 'agentId' => (int) $row->agent_id,
                 'type' => 'product',
+                'invoiceId' => $row->id,
                 'invoiceNumber' => $row->invoice_number,
                 'employeeName' => $row->user?->name,
                 'itemsLabel' => $this->describeLines($row->lines, 'product_name'),
