@@ -128,10 +128,7 @@ describe('Delivery settlement', function () {
     });
 
     it('forbids a foreign-branch accountant and an employee', function () {
-        $foreignAdmin = User::factory()->create();
-        $foreignAdmin->addRole(Roles::BRANCH_ADMIN->value);
-        $foreignBranch = Branch::factory()->create(['owner_id' => $foreignAdmin->id]);
-        $foreignAccountant = User::factory()->create(['branch_id' => $foreignBranch->id]);
+        $foreignAccountant = User::factory()->create(['branch_id' => Branch::factory()->create()->id]);
         $foreignAccountant->addRole(Roles::ACCOUNTANT->value);
 
         $employee = User::factory()->create(['branch_id' => $this->branch->id]);
