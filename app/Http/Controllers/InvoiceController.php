@@ -247,10 +247,10 @@ class InvoiceController extends Controller
 
             // تاسك 112: المصروفات المربوطة — لمن يدير المصروفات (لا المندوب).
             // تاسك 157: والموظف صاحب الفاتورة يرى طلباته هو وحدها.
-            if (Gate::allows('viewAny', Expense::class)) {
-                $invoice->load(['expenses' => fn ($q) => $q->with(['category:id,name', 'media'])->oldest('date')]);
-            } elseif (Gate::allows('request', [Expense::class, $invoice])) {
-                $invoice->load(['expenses' => fn ($q) => $q->where('requested_by', Auth::id())->with(['category:id,name', 'media'])->oldest('date')]);
+            $managesExpenses = Gate::allows('viewAny', Expense::class);
+            if ($managesExpenses || Gate::allows('request', [Expense::class, $invoice])) {
+                $invoice->load(['expenses' => fn ($q) => $q->when(! $managesExpenses, fn ($q) => $q->where('requested_by', Auth::id()))
+                    ->with(['category:id,name', 'media'])->oldest('date')]);
             }
         } else {
             $invoice->load('agent:id,name');

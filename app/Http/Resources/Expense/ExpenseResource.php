@@ -50,7 +50,7 @@ class ExpenseResource extends JsonResource
             'approvedAt' => $this->approved_at?->format('d/m/Y H:i'),
             'approvedByName' => $this->approvedBy?->name,
             // تاسك 157: طلب موظف — ينتظر قبول المحاسب قبل أن يُحسب.
-            'requestedByName' => $this->requested_by ? $this->requestedBy?->name : null,
+            'requestedByName' => $this->requestedBy?->name,
             'pendingRequest' => $this->isPendingRequest(),
             'canAccept' => $request->user()->can('accept', $this->resource),
             'canApprove' => $request->user()->can('approve', $this->resource),

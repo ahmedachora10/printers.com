@@ -72,9 +72,9 @@ class Expense extends Model implements HasMedia
      * تاسك 157 — شرط «يُحسب»: مصروفٌ عادي أو طلبٌ مقبول. يعمل على Eloquent وعلى
      * DB::table معاً (`->where(Expense::counted())`)، فكل مجموعٍ للمصروفات يمرّ به.
      */
-    public static function counted(string $table = 'expenses'): Closure
+    public static function counted(): Closure
     {
-        return fn ($q) => $q->whereNull("{$table}.requested_by")->orWhereNotNull("{$table}.accepted_at");
+        return fn ($q) => $q->whereNull('expenses.requested_by')->orWhereNotNull('expenses.accepted_at');
     }
 
     /** @return BelongsTo<User, $this> */
