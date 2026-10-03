@@ -545,4 +545,57 @@ describe('Per-line agent commission (صاحب العمولة)', function () {
                 'commissions' => [['agent_id' => $this->agent->id, 'commission_type' => 'per_sqm', 'commission_value' => 3]],
             ])->assertSessionHasErrors('commissions.0.commission_type');
     });
+
+    it('edits the agent commissions per service from the users screen, own branch only', function () {
+        $otherBranch = Branch::factory()->create();
+        setAgentBranchTerms($this->agent, $otherBranch->id, []);
+        $foreign = BranchService::create([
+            'branch_id' => $otherBranch->id,
+            'service_template_id' => ServiceTemplate::factory()->create()->id,
+            'base_commission_pct' => 10,
+            'max_discount_pct' => 0,
+            'is_active' => true,
+        ]);
+        AgentService::create(['agent_id' => $this->agent->id, 'branch_service_id' => $this->service->id, 'commission_type' => 'fixed', 'commission_value' => 4]);
+
+        $this->actingAs($this->branchAdmin)
+            ->getJson(route('users.agent-commissions.show', $this->agent))
+            ->assertOk()
+            ->assertJsonCount(1, 'agentCommissions')
+            ->assertJsonPath('agentCommissions.0.type', 'fixed')
+            ->assertJsonPath('agentCommissions.0.value', 4);
+
+        $this->put(route('users.agent-commissions.update', $this->agent), [
+            'commissions' => [['branch_service_id' => $this->service->id, 'commission_type' => 'percentage', 'commission_value' => 7]],
+        ])->assertSessionHasNoErrors();
+
+        expect(AgentService::sole()->commission_value)->toEqual('7.00');
+
+        $this->put(route('users.agent-commissions.update', $this->agent), [
+            'commissions' => [['branch_service_id' => $foreign->id, 'commission_type' => 'fixed', 'commission_value' => 1]],
+        ])->assertSessionHasErrors('commissions.0.branch_service_id');
+
+        $this->put(route('users.agent-commissions.update', $this->agent), [
+            'commissions' => [['branch_service_id' => $this->service->id, 'commission_type' => 'per_sqm', 'commission_value' => 1]],
+        ])->assertSessionHasErrors('commissions.0.commission_type');
+
+        $this->put(route('users.agent-commissions.update', $this->agent), [
+            'commissions' => [['branch_service_id' => $this->service->id, 'commission_type' => null, 'commission_value' => null]],
+        ])->assertSessionHasNoErrors();
+
+        expect(AgentService::count())->toBe(0);
+
+        $superAdmin = User::factory()->create();
+        $superAdmin->addRole(Roles::SUPER_ADMIN->value);
+
+        $this->actingAs($superAdmin)
+            ->getJson(route('users.agent-commissions.show', $this->agent))
+            ->assertJsonCount(2, 'agentCommissions');
+    });
+
+    it('serves agent commissions for agents only', function () {
+        $this->actingAs($this->branchAdmin)
+            ->getJson(route('users.agent-commissions.show', $this->employee))
+            ->assertNotFound();
+    });
 });

@@ -1,5 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -9,7 +11,7 @@ import { cn, formatCurrency } from '@/lib/utils';
 import service from '@/routes/pos/service';
 import { type BreadcrumbItem } from '@/types';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Calculator, Delete, Keyboard, Pin, Printer, Save } from 'lucide-react';
+import { Calculator, Delete, Keyboard, ListChecks, Pin, Printer, Save } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -20,6 +22,7 @@ interface QuickService {
 
 interface Props {
     services: QuickService[];
+    eligibleServices: (QuickService & { isFavorite: boolean })[];
     defaultServiceId: number | null;
 }
 
@@ -37,11 +40,12 @@ function sanitize(value: string): string {
  * تاسك 118: فاتورة الزحمة — مبلغ ← Enter ← إرسال وطباعة ← تصفير، بلا ماوس.
  * الفاتورة معلّقة كأي فاتورة موظف، وتُرسل إلى service.store نفسه فلا حساب ثانٍ.
  */
-export default function QuickInvoice({ services, defaultServiceId }: Props) {
+export default function QuickInvoice({ services, eligibleServices, defaultServiceId }: Props) {
     const { props } = usePage<{ success?: string }>();
     const [serviceId, setServiceId] = useState<number | null>(defaultServiceId ?? services[0]?.id ?? null);
     const [amount, setAmount] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [pickerOpen, setPickerOpen] = useState(false);
     const amountRef = useRef<HTMLInputElement>(null);
     const printFrame = useRef<HTMLIFrameElement>(null);
 
@@ -51,10 +55,10 @@ export default function QuickInvoice({ services, defaultServiceId }: Props) {
         if (props.success) toast.success(props.success);
     }, [props.success]);
 
-    // F1–F8 تختار الخدمة بترتيبها على الشاشة، والتركيز يبقى في خانة المبلغ.
+    // F1–F12 تختار الخدمة بترتيبها على الشاشة، والتركيز يبقى في خانة المبلغ.
     useEffect(() => {
         const onKey = (e: KeyboardEvent) => {
-            const match = /^F([1-8])$/.exec(e.key);
+            const match = /^F([1-9]|1[0-2])$/.exec(e.key);
             const target = match ? services[Number(match[1]) - 1] : undefined;
             if (!target) return;
             e.preventDefault();
@@ -113,6 +117,11 @@ export default function QuickInvoice({ services, defaultServiceId }: Props) {
         );
     }
 
+    // نفس مفضّلات فاتورة الخدمة (تاسك 76): المفضّلة تظهر هنا وحدها.
+    function toggleFavorite(id: number) {
+        router.post(service.favorites.toggle(id).url, {}, { preserveState: true, preserveScroll: true });
+    }
+
     function toggleDefault(id: number) {
         router.post(service.quick.default(id).url, {}, { preserveState: true, preserveScroll: true, onFinish: focusAmount });
     }
@@ -136,8 +145,11 @@ export default function QuickInvoice({ services, defaultServiceId }: Props) {
                 {/* Main — services + amount */}
                 <div className="space-y-4 lg:col-span-2">
                     <Card>
-                        <CardHeader className="pb-3">
+                        <CardHeader className="flex-row items-center justify-between space-y-0 pb-3">
                             <CardTitle className="text-base">الخدمات</CardTitle>
+                            <Button type="button" variant="outline" size="sm" {...keepFocus} onClick={() => setPickerOpen(true)}>
+                                <ListChecks className="size-4" /> اختيار الخدمات
+                            </Button>
                         </CardHeader>
                         <CardContent>
                             {services.length === 0 ? (
@@ -272,6 +284,29 @@ export default function QuickInvoice({ services, defaultServiceId }: Props) {
                     </div>
                 </div>
             </form>
+
+            <Dialog open={pickerOpen} onOpenChange={setPickerOpen}>
+                <DialogContent
+                    className="max-h-[85vh] overflow-y-auto sm:max-w-md"
+                    onCloseAutoFocus={(e) => {
+                        e.preventDefault();
+                        focusAmount();
+                    }}
+                >
+                    <DialogHeader>
+                        <DialogTitle>اختيار الخدمات</DialogTitle>
+                        <DialogDescription>الخدمات المختارة تُضاف إلى المفضلة وتظهر وحدها في الفاتورة السريعة (حتى 12).</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-1">
+                        {eligibleServices.map((s) => (
+                            <label key={s.id} className="hover:bg-accent flex cursor-pointer items-center gap-3 rounded-md p-2 text-sm">
+                                <Checkbox checked={s.isFavorite} onCheckedChange={() => toggleFavorite(s.id)} />
+                                {s.name}
+                            </label>
+                        ))}
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             <iframe
                 ref={printFrame}

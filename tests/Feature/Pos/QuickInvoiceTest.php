@@ -63,11 +63,9 @@ describe('Quick invoice', function () {
             ->assertInertia(fn ($page) => $page->component('pos/quick')->where('printInvoiceId', $invoice->id));
     });
 
-    it('orders the default, then favourites, then the rest — piece-priced only, eight at most', function () {
+    it('orders the default, then the rest — piece-priced only, eight at most', function () {
         $services = collect(range(1, 9))->map(fn ($i) => quickService($this->branch, "خدمة $i", $i));
         quickService($this->branch, 'لوحة بالمتر', 0, ['pricing_type' => 'sqm', 'price_per_sqm' => 50]);
-
-        UserFavoriteService::create(['user_id' => $this->employee->id, 'branch_service_id' => $services[4]->id]);
 
         $this->actingAs($this->employee)
             ->post(route('pos.service.quick.default', $services[6]->id))
@@ -77,13 +75,31 @@ describe('Quick invoice', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('defaultServiceId', $services[6]->id)
                 ->where('services', fn ($list) => $list->pluck('id')->all() === [
-                    $services[6]->id, $services[4]->id,
-                    $services[0]->id, $services[1]->id, $services[2]->id, $services[3]->id, $services[5]->id, $services[7]->id,
-                ]));
+                    $services[6]->id,
+                    $services[0]->id, $services[1]->id, $services[2]->id, $services[3]->id, $services[4]->id, $services[5]->id, $services[7]->id,
+                ])
+                ->has('eligibleServices', 9));
 
         // الضغطة الثانية تُلغي الافتراضية.
         $this->post(route('pos.service.quick.default', $services[6]->id));
         expect($this->employee->fresh()->quick_service_id)->toBeNull();
+    });
+
+    it('shows only the default and the chosen favourites, twelve at most', function () {
+        $services = collect(range(1, 15))->map(fn ($i) => quickService($this->branch, "خدمة $i", $i));
+        $this->employee->forceFill(['quick_service_id' => $services[14]->id])->save();
+
+        $this->actingAs($this->employee)->post(route('pos.service.favorites.toggle', $services[3]->id));
+
+        $this->get(route('pos.service.quick'))
+            ->assertInertia(fn ($page) => $page
+                ->where('services', fn ($list) => $list->pluck('id')->all() === [$services[14]->id, $services[3]->id])
+                ->where('eligibleServices.3.isFavorite', true));
+
+        $services->take(13)->each(fn ($s) => UserFavoriteService::firstOrCreate(['user_id' => $this->employee->id, 'branch_service_id' => $s->id]));
+
+        $this->get(route('pos.service.quick'))
+            ->assertInertia(fn ($page) => $page->where('services', fn ($list) => $list->count() === 12 && $list->first()['id'] === $services[14]->id));
     });
 
     it('is the employee screen only', function () {

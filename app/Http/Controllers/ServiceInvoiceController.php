@@ -67,8 +67,9 @@ class ServiceInvoiceController extends Controller
      * تاسك 118: شاشة «إنشاء فاتورة سريعة» — مبلغٌ وخدمةٌ وEnter. للموظف وحده:
      * فاتورته معلّقة بلا طريقة دفع، ومن فوقه يلزمه اختيار طريقة لا مكان لها هنا.
      *
-     * ثماني خدمات: الافتراضية، ثم مفضّلات الموظف، ثم الأكثر مبيعاً في فرعه آخر
-     * 30 يوماً، ثم ترتيب القوالب — فلا تظهر الشاشة فارغةً لموظفٍ جديد. والخدمة
+     * الافتراضية أولاً، ثم مفضّلات الموظف وحدها (حتى 12). وبلا مفضّلات: ثماني
+     * خدمات من الأكثر مبيعاً في فرعه آخر 30 يوماً ثم ترتيب القوالب — فلا تظهر
+     * الشاشة فارغةً لموظفٍ جديد. والخدمة
      * المسعّرة بالمتر أو مفتوحة تكلفة الخامات خارجها: تحتاج ما لا تسأل عنه الشاشة.
      */
     public function quick(): Response
@@ -93,18 +94,24 @@ class ServiceInvoiceController extends Controller
 
         $defaultId = $user->quick_service_id && $services->has($user->quick_service_id) ? (int) $user->quick_service_id : null;
 
+        // مَن اختار مفضّلاته تظهر له وحدها حتى 12 (F1–F12)؛ وإلا فالاختيار التلقائي.
+        $favorites = $services->where('isFavorite', true)->keys();
         $ids = collect([$defaultId])
-            ->merge($services->where('isFavorite', true)->keys())
-            ->merge($bestSellers)
-            ->merge($services->keys())
+            ->merge($favorites->isNotEmpty() ? $favorites : $bestSellers->merge($services->keys()))
             ->filter(fn ($id) => $services->has($id))
             ->unique()
-            ->take(8);
+            ->take($favorites->isNotEmpty() ? 12 : 8);
 
         return Inertia::render('pos/quick', [
             'services' => $ids->map(fn ($id) => [
                 'id' => $id,
                 'name' => $services[$id]['name'],
+            ])->values(),
+            // قائمة «اختيار الخدمات»: كل ما يصلح للشاشة السريعة بنجمته.
+            'eligibleServices' => $services->map(fn (array $s) => [
+                'id' => $s['id'],
+                'name' => $s['name'],
+                'isFavorite' => $s['isFavorite'],
             ])->values(),
             'defaultServiceId' => $defaultId,
             'printInvoiceId' => session('quickPrintInvoiceId'),

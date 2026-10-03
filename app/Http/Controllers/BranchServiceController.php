@@ -226,7 +226,10 @@ class BranchServiceController extends Controller
     ): RedirectResponse {
         Gate::authorize('update', $branchService);
 
-        $action->handle($branchService->id, $request->validated('commissions'));
+        $action->handle(array_map(
+            fn (array $row) => [...$row, 'branch_service_id' => $branchService->id],
+            $request->validated('commissions'),
+        ));
 
         return back()->with('success', 'تم تحديث عمولات المناديب بنجاح');
     }

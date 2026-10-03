@@ -3,6 +3,7 @@
 namespace App\Http\Requests\BranchService;
 
 use App\Enums\LineAgentCommissionTypeEnum;
+use App\Http\Requests\BranchService\Concerns\ValidatesAgentCommissionTerms;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -10,6 +11,8 @@ use Illuminate\Validation\Validator;
 /** تاسك 153 — نوع وقيمة عمولة كل مندوب على خدمة فرع؛ النوع null = بلا إعداد. */
 class UpdateAgentCommissionsRequest extends FormRequest
 {
+    use ValidatesAgentCommissionTerms;
+
     public function authorize(): bool
     {
         return true;
@@ -36,18 +39,7 @@ class UpdateAgentCommissionsRequest extends FormRequest
     {
         return [function (Validator $validator): void {
             $measured = $this->route('branchService')->pricing_type?->isMeasured() === true;
-
-            foreach ((array) $this->input('commissions') as $i => $row) {
-                $type = LineAgentCommissionTypeEnum::tryFrom((string) ($row['commission_type'] ?? ''));
-
-                if ($type === LineAgentCommissionTypeEnum::Percentage && (float) ($row['commission_value'] ?? 0) > 100) {
-                    $validator->errors()->add("commissions.$i.commission_value", 'النسبة يجب ألا تتجاوز 100%.');
-                }
-
-                if ($type === LineAgentCommissionTypeEnum::PerSqm && ! $measured) {
-                    $validator->errors()->add("commissions.$i.commission_type", 'عمولة وحدة القياس متاحة فقط للخدمات المسعّرة بالمتر.');
-                }
-            }
+            $this->validateAgentTerms($validator, fn () => $measured);
         }];
     }
 }
