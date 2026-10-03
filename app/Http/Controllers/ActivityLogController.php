@@ -190,11 +190,9 @@ class ActivityLogController extends Controller
 
         $filters = $this->filters($request);
 
-        // ponytail: لا فهرس على `created_at` — الشاشة العامّة تمسح ما تصفّيه
-        // بالتاريخ. مقبولٌ بحجم الجدول اليوم؛ يُضاف فهرسٌ إن ثقُل. وسجلّ
-        // مستخدمٍ واحد مفهرسٌ بالفاعل أصلاً وهو الاستعمال الغالب.
-        $query->whereDate('created_at', '>=', $filters['from'])
-            ->whereDate('created_at', '<=', $filters['to']);
+        // مدى على العمود نفسه لا whereDate: DATE(created_at) يُعطّل فهرس created_at.
+        $query->where('created_at', '>=', $filters['from'])
+            ->where('created_at', '<=', $filters['to'].' 23:59:59');
 
         if ($filters['log'] !== 'all') {
             // اسمان مختلفان قد يحملان العنوان نفسه (`customer` و`customers`)،
