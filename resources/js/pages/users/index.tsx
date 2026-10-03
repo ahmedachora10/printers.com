@@ -1,4 +1,5 @@
 import UserFormModal from '@/components/users/user-form-modal';
+import AgentServiceCommissionsModal from '@/components/users/agent-service-commissions-modal';
 import UserServiceCommissionsModal from '@/components/users/user-service-commissions-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
@@ -79,6 +80,7 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
     const [editing, setEditing] = useState<ManagedUser | null>(null);
     const [deleting, setDeleting] = useState<ManagedUser | null>(null);
     const [commissionUser, setCommissionUser] = useState<ManagedUser | null>(null);
+    const [agentCommissionUser, setAgentCommissionUser] = useState<ManagedUser | null>(null);
 
     function openCreate() {
         setEditing(null);
@@ -197,11 +199,11 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                         <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
                             <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        {hasServiceCommissions(item) && (
+                        {(hasServiceCommissions(item) || item.role === 'agent') && (
                             <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => setCommissionUser(item)}
+                                onClick={() => (item.role === 'agent' ? setAgentCommissionUser(item) : setCommissionUser(item))}
                                 title="عمولات الخدمات"
                             >
                                 <Percent className="h-3.5 w-3.5" />
@@ -407,6 +409,12 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                 open={!!commissionUser}
                 onOpenChange={(open) => !open && setCommissionUser(null)}
                 canEdit
+            />
+
+            <AgentServiceCommissionsModal
+                user={agentCommissionUser}
+                open={!!agentCommissionUser}
+                onOpenChange={(open) => !open && setAgentCommissionUser(null)}
             />
         </AppLayout>
     );

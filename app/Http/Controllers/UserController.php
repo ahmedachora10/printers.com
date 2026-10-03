@@ -2,15 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\AgentService\SyncAgentServiceCommissionsAction;
 use App\Actions\User\CreateUserAction;
 use App\Actions\User\DeleteUserAction;
 use App\Actions\User\UpdateUserAction;
 use App\Actions\UserService\SyncUserServiceCommissionsAction;
 use App\Enums\Roles;
 use App\Http\Requests\User\StoreUserRequest;
+use App\Http\Requests\User\UpdateUserAgentCommissionsRequest;
 use App\Http\Requests\User\UpdateUserRequest;
 use App\Http\Requests\User\UpdateUserServiceCommissionsRequest;
 use App\Http\Resources\User\UserResource;
+use App\Models\AgentService;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\CommissionLedger;
@@ -148,6 +151,53 @@ class UserController extends Controller
         $action->handle($pairs);
 
         return back()->with('success', 'تم تحديث عمولات الخدمات بنجاح');
+    }
+
+    /**
+     * عمولة المندوب على كل خدمة في فروعه (agent_branch) التي يديرها الطالب —
+     * الوجه الآخر لنافذة «عمولات المناديب» في صفحة الخدمات، والجدول واحد.
+     */
+    public function showAgentCommissions(User $user): JsonResponse
+    {
+        Gate::authorize('update', $user);
+        abort_unless($user->roleName?->isAgent(), 404);
+
+        $terms = AgentService::query()->where('agent_id', $user->id)->get()->keyBy('branch_service_id');
+
+        $services = BranchService::query()
+            ->whereIn('branch_id', $user->agentBranchIdsManagedBy(Auth::user()))
+            ->where('is_active', true)
+            ->with(['serviceTemplate:id,name,sort_order', 'branch:id,name'])
+            ->get()
+            ->filter(fn (BranchService $bs) => $bs->serviceTemplate !== null)
+            ->sortBy([['branch_id', 'asc'], [fn (BranchService $bs) => $bs->serviceTemplate->sort_order, 'asc']])
+            ->map(fn (BranchService $bs) => [
+                'branchServiceId' => $bs->id,
+                'branchName' => $bs->branch?->name,
+                'serviceName' => $bs->serviceTemplate->name,
+                'measured' => $bs->pricing_type?->isMeasured() === true,
+                'type' => $terms->get($bs->id)?->commission_type->value,
+                'value' => $terms->has($bs->id) ? (float) $terms[$bs->id]->commission_value : null,
+            ])
+            ->values();
+
+        return response()->json(['agentCommissions' => $services]);
+    }
+
+    public function updateAgentCommissions(
+        UpdateUserAgentCommissionsRequest $request,
+        User $user,
+        SyncAgentServiceCommissionsAction $action,
+    ): RedirectResponse {
+        Gate::authorize('update', $user);
+        abort_unless($user->roleName?->isAgent(), 404);
+
+        $action->handle(array_map(
+            fn (array $row) => [...$row, 'agent_id' => $user->id],
+            $request->validated('commissions'),
+        ));
+
+        return back()->with('success', 'تم تحديث عمولات المندوب بنجاح');
     }
 
     public function destroy(User $user, DeleteUserAction $action): RedirectResponse

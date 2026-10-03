@@ -125,8 +125,9 @@ class BranchServiceAgentCommissionsSheetImport implements ToCollection, WithHead
             }
         }
 
-        $sync->handle($service->id, [[
+        $sync->handle([[
             'agent_id' => $agentId,
+            'branch_service_id' => $service->id,
             'commission_type' => $type?->value,
             'commission_value' => $type === null ? null : $value,
         ]]);

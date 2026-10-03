@@ -163,6 +163,20 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         return $branch?->pivot;
     }
 
+    /**
+     * فروع المندوب التي يدير $actor عمولاتها: كلّها للسوبر أدمن، وفرعه وحده
+     * لمدير الفرع.
+     *
+     * @return list<int>
+     */
+    public function agentBranchIdsManagedBy(User $actor): array
+    {
+        $ids = $this->agentBranches()->pluck('branches.id');
+
+        return ($actor->roleName?->isSuperAdmin() ? $ids : $ids->intersect([$actor->branchId]))
+            ->map(fn ($id) => (int) $id)->values()->all();
+    }
+
     /** @return Attribute<Roles|null, never> */
     public function roleName(): Attribute
     {

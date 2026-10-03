@@ -546,6 +546,10 @@ Route::middleware(['auth'])->group(function () {
             ->name('users.service-commissions.show');
         Route::put('users/{user}/service-commissions', [UserController::class, 'updateServiceCommissions'])
             ->name('users.service-commissions.update');
+        Route::get('users/{user}/agent-commissions', [UserController::class, 'showAgentCommissions'])
+            ->name('users.agent-commissions.show');
+        Route::put('users/{user}/agent-commissions', [UserController::class, 'updateAgentCommissions'])
+            ->name('users.agent-commissions.update');
         Route::resource('users', UserController::class)
             ->only(['index', 'show', 'store', 'update', 'destroy']);
 
