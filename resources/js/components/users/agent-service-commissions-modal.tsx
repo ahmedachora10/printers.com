@@ -1,3 +1,4 @@
+import { AgentCommissionTypeSelect } from '@/components/branch-services/branch-service-agents-modal';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -26,21 +27,6 @@ interface Props {
     user: ManagedUser | null;
     open: boolean;
     onOpenChange: (open: boolean) => void;
-}
-
-function TypeSelect({ value, measured, onChange }: { value: Term['type']; measured: boolean; onChange: (t: Term['type']) => void }) {
-    return (
-        <select
-            className="border-input bg-background h-8 rounded-md border px-2 text-sm"
-            value={value}
-            onChange={(e) => onChange(e.target.value as Term['type'])}
-        >
-            <option value="">— يكتبها الموظف —</option>
-            <option value="percentage">نسبة %</option>
-            <option value="fixed">مبلغ ثابت</option>
-            {(measured || value === 'per_sqm') && <option value="per_sqm">لكل وحدة قياس</option>}
-        </select>
-    );
 }
 
 /**
@@ -152,7 +138,7 @@ export default function AgentServiceCommissionsModal({ user, open, onOpenChange 
                                     {selected.size > 0 ? `محدَّد ${selected.size} من ${rows.length}` : 'تحديد الكل'}
                                 </Label>
                             </div>
-                            <TypeSelect value={bulk.type} measured onChange={(type) => setBulk((b) => ({ ...b, type }))} />
+                            <AgentCommissionTypeSelect value={bulk.type} measured onChange={(type) => setBulk((b) => ({ ...b, type }))} />
                             <Input
                                 type="number"
                                 min="0"
@@ -202,7 +188,7 @@ export default function AgentServiceCommissionsModal({ user, open, onOpenChange 
                                                 </Label>
                                             </div>
                                             <div className="flex items-center gap-1.5">
-                                                <TypeSelect value={t.type} measured={s.measured} onChange={(type) => setTerm(s.branchServiceId, { type })} />
+                                                <AgentCommissionTypeSelect value={t.type} measured={s.measured} onChange={(type) => setTerm(s.branchServiceId, { type })} />
                                                 <Input
                                                     type="number"
                                                     min="0"

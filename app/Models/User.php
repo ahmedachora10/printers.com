@@ -174,7 +174,7 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         $ids = $this->agentBranches()->pluck('branches.id');
 
         return ($actor->roleName?->isSuperAdmin() ? $ids : $ids->intersect([$actor->branchId]))
-            ->map(fn ($id) => (int) $id)->values()->all();
+            ->values()->all();
     }
 
     /** @return Attribute<Roles|null, never> */

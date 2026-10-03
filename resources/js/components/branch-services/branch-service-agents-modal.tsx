@@ -32,6 +32,30 @@ interface Props {
 // النوع '' = بلا إعداد — الموظف يكتب العمولة يدوياً في نقطة البيع.
 type TermMap = Record<number, { type: LineAgentCommissionType | ''; value: string }>;
 
+/** «لكل وحدة قياس» للخدمة بالمتر وحدها، أو لقيمةٍ محفوظة بها سلفاً. */
+export function AgentCommissionTypeSelect({
+    value,
+    measured,
+    onChange,
+}: {
+    value: LineAgentCommissionType | '';
+    measured: boolean;
+    onChange: (type: LineAgentCommissionType | '') => void;
+}) {
+    return (
+        <select
+            className="border-input bg-background h-8 rounded-md border px-2 text-sm"
+            value={value}
+            onChange={(e) => onChange(e.target.value as LineAgentCommissionType | '')}
+        >
+            <option value="">— يكتبها الموظف —</option>
+            <option value="percentage">نسبة %</option>
+            <option value="fixed">مبلغ ثابت</option>
+            {(measured || value === 'per_sqm') && <option value="per_sqm">لكل وحدة قياس</option>}
+        </select>
+    );
+}
+
 function buildTerms(agents: BranchAgent[], current: AgentCommission[]): TermMap {
     const byAgent = new Map(current.map((c) => [c.agentId, c]));
     return Object.fromEntries(
@@ -98,16 +122,7 @@ export default function BranchServiceAgentsModal({ open, onOpenChange, branchSer
                                 <div key={a.id} className="bg-card flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2">
                                     <span className="min-w-0 truncate text-sm font-medium">{a.name}</span>
                                     <div className="flex items-center gap-1.5">
-                                        <select
-                                            className="border-input bg-background h-8 rounded-md border px-2 text-sm"
-                                            value={t.type}
-                                            onChange={(e) => setTerm(a.id, { type: e.target.value as TermMap[number]['type'] })}
-                                        >
-                                            <option value="">— يكتبها الموظف —</option>
-                                            <option value="percentage">نسبة %</option>
-                                            <option value="fixed">مبلغ ثابت</option>
-                                            {(measured || t.type === 'per_sqm') && <option value="per_sqm">لكل وحدة قياس</option>}
-                                        </select>
+                                        <AgentCommissionTypeSelect value={t.type} measured={measured} onChange={(type) => setTerm(a.id, { type })} />
                                         <Input
                                             type="number"
                                             min="0"
