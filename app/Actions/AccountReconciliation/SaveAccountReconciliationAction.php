@@ -31,7 +31,8 @@ class SaveAccountReconciliationAction
             // تاسك 146: طريقة الدفع ورقم الجهاز لقطةٌ من الجهاز لحظة الحفظ.
             $known = NetworkDevice::query()->whereKey(array_column($devices, 'network_device_id'))->get()->keyBy('id');
 
-            // ponytail: صفوف ما قبل تاسك 146 (بلا جهاز) تبقى كما هي ولا تُحرَّر من الواجهة.
+            // ponytail: صفوف ما قبل تاسك 146 (بلا جهاز) تبقى كما هي ولا تُحرَّر من الواجهة؛
+            // ترحيلٌ يربطها بجهاز إن احتاج العميل تصحيح يومٍ قديم.
             $reconciliation->devices()->whereNotNull('network_device_id')->delete();
             $reconciliation->devices()->createMany(array_map(fn (array $d) => [
                 ...$d,
