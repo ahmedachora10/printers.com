@@ -95,7 +95,9 @@ export function invoiceDocument(invoice: DocumentSource): InvoiceDocument {
     }
 
     return {
-        title: invoice.customerTaxNumber ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة',
+        // مؤقتاً حتى الربط بالفوترة الإلكترونية (ZATCA): عنوانٌ واحد للحالتين.
+        // بعد الربط يعود: customerTaxNumber ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة'.
+        title: 'تعميد واتفاقية عمل',
         isQuotation: false,
     };
 }
