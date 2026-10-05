@@ -130,6 +130,17 @@ describe('Invoice payments', function () {
         Notification::assertSentTo($this->employee, ServiceInvoiceReviewedNotification::class);
     });
 
+    // تاسك 166: الدفعة الأخيرة تُسجَّل بتاريخ سابق ⇒ العمولة بتاريخها لا بيوم إدخالها.
+    it('dates the commission by the final payment, not by when it was entered', function () {
+        $invoice = paymentTestInvoice();
+        postPayment($invoice, ['amount' => 50])->assertRedirect();
+
+        $collectedAt = now()->subMonth()->startOfDay()->addHours(10);
+        postPayment($invoice, ['amount' => 65, 'paid_at' => $collectedAt->toDateTimeString()])->assertRedirect();
+
+        expect(CommissionLedger::sole()->earned_at->toDateTimeString())->toBe($collectedAt->toDateTimeString());
+    });
+
     it('refuses another payment once the invoice is settled, so nothing is written twice', function () {
         $invoice = paymentTestInvoice();
 

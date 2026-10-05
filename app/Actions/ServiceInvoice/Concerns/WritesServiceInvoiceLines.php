@@ -75,7 +75,9 @@ trait WritesServiceInvoiceLines
                 'is_tahazir' => $line->is_tahazir,
                 'tier_applied' => null,
                 'source_type' => CommissionSourceTypeEnum::STANDARD,
-                'earned_at' => now(),
+                // تاسك 166: العمولة تُستحق لحظة التحصيل — تاريخ الدفعة الأخيرة
+                // كما أدخله المستخدم، لا لحظة إدخالها في النظام.
+                'earned_at' => $invoice->paid_at ?? now(),
             ]);
         }
     }

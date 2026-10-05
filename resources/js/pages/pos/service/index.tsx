@@ -13,6 +13,7 @@ import {
 } from '@/components/pos/cart-table';
 import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
+import { Combobox } from '@/components/ui/combobox';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1864,21 +1865,18 @@ export default function ServicePos({
                                 error={cartError}
                                 isLineSelectable={(line) => line.isManual && !line.branchServiceId}
                                 renderLineSelect={(line) => (
-                                    <Select
-                                        value={line.branchServiceId ? String(line.branchServiceId) : ''}
-                                        onValueChange={(v) => selectLineService(line, Number(v))}
-                                    >
-                                        <SelectTrigger className="h-11 md:h-8">
-                                            <SelectValue placeholder="اختر خدمة" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {services.map((s) => (
-                                                <SelectItem key={s.id} value={String(s.id)}>
-                                                    {s.name} — عمولة {s.baseCommissionPct}%
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                    // تاسك 165: قائمة الخدمات طويلة — يُبحث فيها بكتابة الاسم.
+                                    <Combobox
+                                        options={services.map((s) => ({
+                                            value: String(s.id),
+                                            label: `${s.name} — عمولة ${s.baseCommissionPct}%`,
+                                        }))}
+                                        onChange={(v) => selectLineService(line, Number(v))}
+                                        placeholder="اختر خدمة"
+                                        searchPlaceholder="ابحث باسم الخدمة..."
+                                        className="w-80"
+                                        triggerClassName="h-11 w-full md:h-8"
+                                    />
                                 )}
                                 renderLineMeta={(line) => {
                                     const parts = [`عمولة ${line.baseCommissionPct}%`];
