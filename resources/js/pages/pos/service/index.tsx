@@ -1871,8 +1871,7 @@ export default function ServicePos({
                                             value: String(s.id),
                                             label: `${s.name} — عمولة ${s.baseCommissionPct}%`,
                                         }))}
-                                        value={line.branchServiceId ? String(line.branchServiceId) : ''}
-                                        onChange={(v) => v && selectLineService(line, Number(v))}
+                                        onChange={(v) => selectLineService(line, Number(v))}
                                         placeholder="اختر خدمة"
                                         searchPlaceholder="ابحث باسم الخدمة..."
                                         className="w-80"
