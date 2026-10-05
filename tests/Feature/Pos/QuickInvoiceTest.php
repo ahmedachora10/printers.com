@@ -78,7 +78,11 @@ describe('Quick invoice', function () {
                     $services[6]->id,
                     $services[0]->id, $services[1]->id, $services[2]->id, $services[3]->id, $services[4]->id, $services[5]->id, $services[7]->id,
                 ])
-                ->has('eligibleServices', 9));
+                // المسعّرة بالمتر تظهر في القائمة آخراً، معطّلةً بسببها.
+                ->has('eligibleServices', 10)
+                ->where('eligibleServices.0.disabledReason', null)
+                ->where('eligibleServices.9.name', 'لوحة بالمتر')
+                ->where('eligibleServices.9.disabledReason', fn ($r) => str_contains($r, 'بالمتر')));
 
         // الضغطة الثانية تُلغي الافتراضية.
         $this->post(route('pos.service.quick.default', $services[6]->id));

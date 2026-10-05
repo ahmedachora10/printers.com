@@ -79,9 +79,14 @@ class ServiceInvoiceController extends Controller
         $user = Auth::user();
         abort_unless($user->roleName->isEmployee(), 403);
 
-        $services = $this->branchServiceOptions($user->branchId, $user->id, $user->id)
-            ->filter(fn (array $s) => $s['pricingType'] === ServicePricingTypeEnum::Unit->value && ! $s['materialsCostIsOpen'])
-            ->keyBy('id');
+        // سبب استبعاد الخدمة من الشاشة السريعة — null = تصلح لها.
+        $all = $this->branchServiceOptions($user->branchId, $user->id, $user->id)
+            ->map(fn (array $s) => [...$s, 'disabledReason' => match (true) {
+                $s['pricingType'] !== ServicePricingTypeEnum::Unit->value => 'مسعّرة بالمتر — من شاشة فاتورة الخدمة',
+                $s['materialsCostIsOpen'] => 'تكلفة الخامات تُحدَّد وقت البيع — من شاشة فاتورة الخدمة',
+                default => null,
+            }]);
+        $services = $all->whereNull('disabledReason')->keyBy('id');
 
         $bestSellers = ServiceInvoiceLine::query()
             ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_lines.invoice_id')
@@ -107,11 +112,13 @@ class ServiceInvoiceController extends Controller
                 'id' => $id,
                 'name' => $services[$id]['name'],
             ])->values(),
-            // قائمة «اختيار الخدمات»: كل ما يصلح للشاشة السريعة بنجمته.
-            'eligibleServices' => $services->map(fn (array $s) => [
+            // قائمة «اختيار الخدمات»: كل خدمات الفرع — الصالحة أولاً، والباقية
+            // معطّلة بسببها كي لا يظنّها الموظف مفقودة.
+            'eligibleServices' => $all->sortBy(fn (array $s) => $s['disabledReason'] !== null)->map(fn (array $s) => [
                 'id' => $s['id'],
                 'name' => $s['name'],
                 'isFavorite' => $s['isFavorite'],
+                'disabledReason' => $s['disabledReason'],
             ])->values(),
             'defaultServiceId' => $defaultId,
             'printInvoiceId' => session('quickPrintInvoiceId'),

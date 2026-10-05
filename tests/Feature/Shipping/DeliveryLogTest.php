@@ -155,7 +155,8 @@ describe('Delivery log', function () {
                 ->where('deliveries.data.0.customerName', 'خالد العتيبي')
                 ->where('deliveries.data.0.customerPhone', '0501112223')
                 ->where('deliveries.data.0.address', 'حي النرجس، مكتب 12')
-                ->where('deliveries.data.0.providerName', 'أبو محمد'));
+                ->where('deliveries.data.0.providerName', 'أبو محمد')
+                ->where('deliveries.data.0.employeeName', $invoice->user->name));
     });
 
     it('keeps a branch admin to their own branch', function () {

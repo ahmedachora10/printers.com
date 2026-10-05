@@ -22,7 +22,7 @@ interface QuickService {
 
 interface Props {
     services: QuickService[];
-    eligibleServices: (QuickService & { isFavorite: boolean })[];
+    eligibleServices: (QuickService & { isFavorite: boolean; disabledReason: string | null })[];
     defaultServiceId: number | null;
 }
 
@@ -46,6 +46,7 @@ export default function QuickInvoice({ services, eligibleServices, defaultServic
     const [amount, setAmount] = useState('');
     const [submitting, setSubmitting] = useState(false);
     const [pickerOpen, setPickerOpen] = useState(false);
+    const [search, setSearch] = useState('');
     const amountRef = useRef<HTMLInputElement>(null);
     const printFrame = useRef<HTMLIFrameElement>(null);
 
@@ -127,6 +128,7 @@ export default function QuickInvoice({ services, eligibleServices, defaultServic
     }
 
     const selected = services.find((s) => s.id === serviceId);
+    const pickerList = eligibleServices.filter((s) => (s.name ?? '').includes(search.trim()));
     // أزرار الشاشة لا تسرق التركيز من خانة المبلغ — لا بالنقر ولا بـTab.
     const keepFocus = { tabIndex: -1, onMouseDown: (e: React.MouseEvent) => e.preventDefault() };
 
@@ -297,11 +299,22 @@ export default function QuickInvoice({ services, eligibleServices, defaultServic
                         <DialogTitle>اختيار الخدمات</DialogTitle>
                         <DialogDescription>الخدمات المختارة تُضاف إلى المفضلة وتظهر وحدها في الفاتورة السريعة (حتى 12).</DialogDescription>
                     </DialogHeader>
+                    <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث باسم الخدمة..." autoFocus />
                     <div className="space-y-1">
-                        {eligibleServices.map((s) => (
-                            <label key={s.id} className="hover:bg-accent flex cursor-pointer items-center gap-3 rounded-md p-2 text-sm">
-                                <Checkbox checked={s.isFavorite} onCheckedChange={() => toggleFavorite(s.id)} />
-                                {s.name}
+                        {pickerList.length === 0 && <p className="text-muted-foreground p-3 text-center text-sm">لا توجد خدمة بهذا الاسم.</p>}
+                        {pickerList.map((s) => (
+                            <label
+                                key={s.id}
+                                className={cn(
+                                    'flex items-center gap-3 rounded-md p-2 text-sm',
+                                    s.disabledReason ? 'cursor-not-allowed opacity-60' : 'hover:bg-accent cursor-pointer',
+                                )}
+                            >
+                                <Checkbox checked={s.isFavorite} disabled={!!s.disabledReason} onCheckedChange={() => toggleFavorite(s.id)} />
+                                <span>
+                                    {s.name}
+                                    {s.disabledReason && <span className="text-muted-foreground block text-xs">{s.disabledReason}</span>}
+                                </span>
                             </label>
                         ))}
                     </div>

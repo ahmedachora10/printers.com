@@ -4,6 +4,8 @@ export interface DeliveryLogRow {
     id: number;
     invoiceNumber: string;
     createdAt: string | null;
+    /** الموظف الذي أصدر الفاتورة */
+    employeeName: string | null;
     customerName: string | null;
     customerPhone: string | null;
     /** لقطة العنوان وقت الفوترة */

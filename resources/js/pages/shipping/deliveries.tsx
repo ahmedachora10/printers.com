@@ -141,6 +141,7 @@ export default function DeliveriesIndex({
                     </span>
                 ),
             },
+            { key: 'employeeName', header: 'الموظف', cell: (row) => row.employeeName ?? dash },
             { key: 'customerName', header: 'العميل', cell: (row) => row.customerName ?? dash },
             {
                 key: 'customerPhone',

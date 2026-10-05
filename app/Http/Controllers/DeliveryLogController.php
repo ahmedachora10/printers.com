@@ -61,6 +61,7 @@ class DeliveryLogController extends Controller
                 'shippingProvider:id,name,phone',
                 'shippingZone:id,name',
                 'branch:id,name',
+                'user:id,name',
                 'deliverySettlement.user:id,name',
             ])
             ->latest('service_invoices.created_at')
@@ -76,6 +77,8 @@ class DeliveryLogController extends Controller
                 'id' => $invoice->id,
                 'invoiceNumber' => $invoice->invoice_number,
                 'createdAt' => $invoice->created_at?->toIso8601String(),
+                // الموظف الذي أصدر الفاتورة.
+                'employeeName' => $invoice->user?->name,
                 'customerName' => $invoice->customer?->full_name,
                 'customerPhone' => $invoice->customer?->phone,
                 'address' => $invoice->shipping_address,
