@@ -1,3 +1,4 @@
+import { AmountSortSelect, sortByAmount, type AmountSort } from '@/components/commissions/amount-sort-select';
 import CommissionPayModal from '@/components/commissions/commission-pay-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
@@ -33,6 +34,8 @@ interface Props {
 export default function CommissionsIndex({ employees, summary, payments, branches, isSuperAdmin, filters }: Props) {
     const [paying, setPaying] = useState<CommissionEmployeeRow | null>(null);
     const [payOpen, setPayOpen] = useState(false);
+    const [sort, setSort] = useState<AmountSort>('name');
+    const sortedEmployees = useMemo(() => sortByAmount(employees, sort, (e) => e.totalEarned), [employees, sort]);
 
     function openPay(employee: CommissionEmployeeRow) {
         setPaying(employee);
@@ -228,13 +231,14 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                 </div>
 
                 <Card className="mb-6">
-                    <CardHeader>
+                    <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                         <CardTitle>العمولات حسب الموظف</CardTitle>
+                        <AmountSortSelect value={sort} onChange={setSort} />
                     </CardHeader>
                     <CardContent>
                         <DataTable
                             columns={employeeColumns}
-                            data={employees}
+                            data={sortedEmployees}
                             keyExtractor={(item) => item.userId}
                         />
                     </CardContent>
