@@ -6,8 +6,10 @@ use App\Models\InvoicePayment;
 use App\Models\PaymentMethod;
 use App\Models\ServiceInvoice;
 use App\Models\User;
+use App\Support\MediaZip;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 
@@ -102,4 +104,11 @@ it('keeps a branch admin out of another branch even when sending branch', functi
         ->get(route('reports.sales.receipts', ['branch' => $this->otherBranch->id]))
         ->assertRedirect(route('reports.sales'))
         ->assertSessionHas('error', 'لا توجد إيصالات في هذه الفترة');
+});
+
+it('refuses a ZIP over the 500-file cap before touching any media', function () {
+    $response = MediaZip::download(array_fill(0, 501, [null, 'x']), 'x.zip');
+
+    expect($response)->toBeInstanceOf(RedirectResponse::class)
+        ->and(session('error'))->toBe('عدد الملفات 501 يتجاوز 500 — ضيّق التصفية');
 });

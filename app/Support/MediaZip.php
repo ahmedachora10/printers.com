@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Illuminate\Http\RedirectResponse;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use ZipArchive;
@@ -15,8 +16,13 @@ class MediaZip
     /**
      * @param  array<int, array{0: Media, 1: string}>  $files  [media, basename without extension]
      */
-    public static function download(array $files, string $zipName): BinaryFileResponse
+    public static function download(array $files, string $zipName): BinaryFileResponse|RedirectResponse
     {
+        // ponytail: يُبنى متزامناً بحدّ 500 ملف؛ طابورٌ + إشعار إن وقع الحدّ فعلاً.
+        if (count($files) > 500) {
+            return back()->with('error', 'عدد الملفات '.count($files).' يتجاوز 500 — ضيّق التصفية');
+        }
+
         $path = tempnam(sys_get_temp_dir(), 'mediazip');
         $zip = new ZipArchive;
         $zip->open($path, ZipArchive::OVERWRITE);

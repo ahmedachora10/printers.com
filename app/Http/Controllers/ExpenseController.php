@@ -161,11 +161,6 @@ class ExpenseController extends Controller
             return back()->with('error', 'لا توجد مرفقات في هذه التصفية');
         }
 
-        // ponytail: يُبنى متزامناً بحدّ 500 مرفق كإيصالات التحويل؛ طابورٌ إن وقع الحدّ فعلاً.
-        if ($expenses->count() > 500) {
-            return back()->with('error', 'عدد المرفقات '.$expenses->count().' — ضيّق التصفية');
-        }
-
         $files = $expenses->map(fn (Expense $e) => [$e->attachment(), implode('-', [
             $e->date->format('Y-m-d'),
             $e->supplier_name ?: ($e->category?->name ?? 'مصروف'),
