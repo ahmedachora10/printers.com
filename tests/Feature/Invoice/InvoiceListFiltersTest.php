@@ -4,6 +4,8 @@ use App\Enums\InvoiceStatusEnum;
 use App\Enums\Roles;
 use App\Models\Branch;
 use App\Models\BranchService;
+use App\Models\Customer;
+use App\Models\InvoicePayment;
 use App\Models\PaymentMethod;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
@@ -242,6 +244,66 @@ describe('Invoice list filters', function () {
                 'filterOptions.services',
                 fn ($rows) => collect($rows)->pluck('name')->contains('طباعة جاهزة'),
             ));
+    });
+
+    // ── تاسك 171: البحث بالعميل ─────────────────────────────────
+
+    it('finds an invoice by part of the customer name or phone (task 171)', function () {
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id, 'full_name' => 'عبد الله مبروك', 'phone' => '0546576625']);
+        $his = filterInvoice($this->branch->id, $this->alice->id, ['customer_id' => $customer->id]);
+        filterInvoice($this->branch->id, $this->alice->id);
+
+        foreach (['مبروك', '657662'] as $term) {
+            $this->actingAs($this->branchAdmin)
+                ->get(route('invoices.index', ['search' => $term]))
+                ->assertInertia(fn ($page) => $page->has('items.data', 1)
+                    ->where('items.data.0.invoiceNumber', $his->invoice_number));
+        }
+
+        // والموظف لا يجد بالعميل نفسه فاتورةَ زميله.
+        filterInvoice($this->branch->id, $this->bob->id, ['customer_id' => $customer->id]);
+        $this->actingAs($this->alice)
+            ->get(route('invoices.index', ['search' => 'مبروك']))
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)
+                ->where('items.data.0.invoiceNumber', $his->invoice_number));
+    });
+
+    // ── تاسك 169: صفّ الإجمالي ──────────────────────────────────
+
+    it('totals every filtered invoice, not just the visible page (task 169)', function () {
+        filterInvoice($this->branch->id, $this->alice->id, ['status' => InvoiceStatusEnum::PAID, 'total_amount' => 300]);
+        $partial = filterInvoice($this->branch->id, $this->alice->id, ['status' => InvoiceStatusEnum::PARTIALLY_PAID, 'total_amount' => 200]);
+        InvoicePayment::create([
+            'invoice_id' => $partial->id,
+            'invoice_type' => ServiceInvoice::class,
+            'branch_id' => $this->branch->id,
+            'amount' => 50,
+            'paid_at' => now(),
+            'recorded_by' => $this->branchAdmin->id,
+        ]);
+        filterInvoice($this->branch->id, $this->alice->id, ['total_amount' => 100]); // آجلة
+        filterInvoice($this->branch->id, $this->alice->id, ['status' => InvoiceStatusEnum::CANCELLED, 'total_amount' => 999]);
+        filterInvoice($this->branch->id, $this->bob->id, ['total_amount' => 40]);
+        // تتجاوز صفحةً واحدة (20)، فالمجموع ليس مجموعَ الظاهر.
+        foreach (range(1, 20) as $_) {
+            filterInvoice($this->branch->id, $this->alice->id, ['status' => InvoiceStatusEnum::PAID, 'total_amount' => 10]);
+        }
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('invoices.index', ['user_id' => $this->alice->id]))
+            ->assertInertia(fn ($page) => $page->has('items.data', 20)
+                ->where('totals.total', 800)
+                ->where('totals.remaining', 250));
+
+        // الملغاة تُجمع حين تكون هي الحالة المختارة.
+        $this->actingAs($this->branchAdmin)
+            ->get(route('invoices.index', ['status' => 'cancelled']))
+            ->assertInertia(fn ($page) => $page->where('totals.total', 999)->where('totals.remaining', 0));
+
+        // والموظف يرى مجموع فواتيره وحده.
+        $this->actingAs($this->bob)
+            ->get(route('invoices.index'))
+            ->assertInertia(fn ($page) => $page->where('totals.total', 40)->where('totals.remaining', 40));
     });
 
     // ── تاسك 114: ساعاتٌ من كل يوم ──────────────────────────────
