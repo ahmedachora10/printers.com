@@ -228,11 +228,6 @@ class SalesReportController extends Controller
             return back()->with('error', 'لا توجد إيصالات في هذه الفترة');
         }
 
-        // ponytail: يُبنى متزامناً بحدّ 500 إيصال؛ طابورٌ إن وقع الحدّ فعلاً.
-        if (count($files) > 500) {
-            return back()->with('error', 'عدد الإيصالات '.count($files).' — ضيّق المدى');
-        }
-
         return MediaZip::download($files, "إيصالات-{$scope['from']->toDateString()}-{$scope['to']->toDateString()}.zip");
     }
 

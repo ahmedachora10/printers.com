@@ -1,14 +1,18 @@
 <?php
 
 use App\Enums\Roles;
+use App\Jobs\BuildMediaZipJob;
 use App\Models\Branch;
 use App\Models\InvoicePayment;
 use App\Models\PaymentMethod;
 use App\Models\ServiceInvoice;
 use App\Models\User;
+use App\Support\MediaZip;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
@@ -102,4 +106,34 @@ it('keeps a branch admin out of another branch even when sending branch', functi
         ->get(route('reports.sales.receipts', ['branch' => $this->otherBranch->id]))
         ->assertRedirect(route('reports.sales'))
         ->assertSessionHas('error', 'لا توجد إيصالات في هذه الفترة');
+});
+
+it('queues a ZIP over the sync limit instead of building it in the request', function () {
+    Queue::fake();
+    $this->actingAs($this->admin);
+    $media = ($this->invoice)($this->branch, $this->rajhi)->receipt();
+
+    $response = MediaZip::download(array_fill(0, MediaZip::SYNC_LIMIT + 1, [$media, 'x']), 'big.zip');
+
+    expect($response)->toBeInstanceOf(RedirectResponse::class)
+        ->and(session('success'))->toContain('جارٍ تجهيز الملف');
+    Queue::assertPushed(BuildMediaZipJob::class, fn ($job) => count($job->files) === 501 && $job->userId === $this->admin->id);
+});
+
+it('builds the queued ZIP and serves it to its owner only, through the bell link', function () {
+    $media = ($this->invoice)($this->branch, $this->rajhi)->receipt();
+
+    (new BuildMediaZipJob([[$media->id, 'a'], [$media->id, 'a']], 'big.zip', $this->admin->id))->handle();
+
+    $url = $this->admin->notifications()->sole()->data['url'];
+    $this->actingAs($this->admin)->get($url)->assertOk()->assertDownload('big.zip');
+
+    $zip = new ZipArchive;
+    $zip->open(Storage::disk('local')->path(Storage::disk('local')->allFiles('zips')[0]));
+    expect([$zip->getNameIndex(0), $zip->getNameIndex(1)])->toBe(['a.jpg', 'a (2).jpg']);
+    $zip->close();
+
+    $otherAdmin = User::factory()->create(['branch_id' => $this->otherBranch->id]);
+    $otherAdmin->addRole(Roles::BRANCH_ADMIN->value);
+    $this->actingAs($otherAdmin)->get($url)->assertNotFound();
 });

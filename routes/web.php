@@ -46,6 +46,7 @@ use App\Http\Controllers\InvoiceReceiptController;
 use App\Http\Controllers\InvoiceReturnRequestController;
 use App\Http\Controllers\LoyaltyController;
 use App\Http\Controllers\MaterialsReportController;
+use App\Http\Controllers\MediaZipController;
 use App\Http\Controllers\MyIncentiveController;
 use App\Http\Controllers\NetworkDeviceController;
 use App\Http\Controllers\NetworkReportController;
@@ -499,6 +500,10 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.sales.export');
         Route::get('reports/sales/receipts', [SalesReportController::class, 'receipts'])
             ->name('reports.sales.receipts');
+        // ZIP كبير بُني في الطابور (إيصالات المبيعات أو مرفقات المصروفات).
+        Route::get('downloads/zips/{uuid}', [MediaZipController::class, 'show'])
+            ->whereUuid('uuid')
+            ->name('media-zips.show');
         // تاسك 122: ملف موازنة الشبكة ليومٍ وفرع.
         Route::post('reports/sales/settlement-file', [SettlementFileController::class, 'store'])
             ->name('reports.sales.settlement-file.store');
