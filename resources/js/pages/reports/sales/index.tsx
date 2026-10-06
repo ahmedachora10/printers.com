@@ -158,7 +158,7 @@ export default function SalesReportIndex({
     // تاسك 106: إيصالات الفترة بالفلاتر نفسها، ولصفّ طريقة الدفع طريقتُه.
     const receiptsUrl = (methodId?: number) =>
         `${REPORT_URL}/receipts?${new URLSearchParams({ ...f.appliedQuery, ...(methodId ? { payment_method: String(methodId) } : {}) })}`;
-    const { error, auth } = usePage<SharedData>().props;
+    const { error, success, auth } = usePage<SharedData>().props;
     // تاسك 125: مراجع الحسابات يطّلع ولا ينزّل الإيصالات ولا يرفع ملف التسوية.
     const isAuditor = auth.role === 'auditor';
 
@@ -218,8 +218,9 @@ export default function SalesReportIndex({
 
                 <ActiveFilterChips chips={chips} />
 
-                {/* تنزيل الإيصالات يعود إلى هنا برسالة حين لا ملفات أو تزيد عن الحدّ. */}
+                {/* تنزيل الإيصالات يعود إلى هنا برسالة حين لا ملفات، أو حين يُحال إلى الطابور. */}
                 {typeof error === 'string' && <p role="alert" className="mb-6 text-sm text-rose-600">{error}</p>}
+                {typeof success === 'string' && <p role="status" className="mb-6 text-sm text-emerald-600">{success}</p>}
 
                 {/* Summary tiles */}
                 {/* Five tracks would squeeze the currency figures at lg, where the

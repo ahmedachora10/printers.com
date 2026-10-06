@@ -2,6 +2,7 @@ import { TablePagination } from '@/components/data-table';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
+import { openNotification } from '@/lib/open-notification';
 import { cn } from '@/lib/utils';
 import notifications from '@/routes/notifications';
 import { type BreadcrumbItem } from '@/types';
@@ -67,7 +68,7 @@ export default function NotificationsIndex({ items, unreadCount }: Props) {
 
     const goTo = (item: AppNotification) => {
         if (!item.isRead) markRead(item);
-        if (item.url) router.visit(item.url);
+        openNotification(item);
     };
 
     return (

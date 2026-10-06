@@ -258,7 +258,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
     };
     const dateFilters = useReportFilters(index.url(), applied, dateDefaults);
     const showsAllPeriods = filters.range === 'all';
-    const { error } = usePage<SharedData>().props;
+    const { error, success } = usePage<SharedData>().props;
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
@@ -341,6 +341,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                 </Card>
 
                 {typeof error === 'string' && <p role="alert" className="mb-3 text-sm text-rose-600">{error}</p>}
+                {typeof success === 'string' && <p role="status" className="mb-3 text-sm text-emerald-600">{success}</p>}
 
                 <div className="mb-6">
                     <FilterBar

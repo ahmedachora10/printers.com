@@ -1,5 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { openNotification } from '@/lib/open-notification';
 import { cn } from '@/lib/utils';
 import notifications from '@/routes/notifications';
 import { type SharedData } from '@/types';
@@ -36,9 +37,7 @@ export function NotificationBell() {
         if (!item.isRead) {
             router.patch(notifications.read(item.id).url, {}, { preserveScroll: true, preserveState: true, only: ['notifications'] });
         }
-        if (item.url) {
-            router.visit(item.url);
-        }
+        openNotification(item);
     };
 
     const markAllRead = () => {
