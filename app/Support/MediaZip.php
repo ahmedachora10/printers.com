@@ -4,6 +4,7 @@ namespace App\Support;
 
 use App\Jobs\BuildMediaZipJob;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Auth;
 use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use ZipArchive;
@@ -28,7 +29,7 @@ class MediaZip
             BuildMediaZipJob::dispatch(
                 array_map(fn (array $f) => [$f[0]->id, $f[1]], $files),
                 $zipName,
-                auth()->id(),
+                Auth::id(),
             );
 
             return back()->with('success', 'عدد الملفات '.count($files).' — جارٍ تجهيز الملف، وسيصلك إشعار حين يجهز.');
