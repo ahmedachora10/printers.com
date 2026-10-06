@@ -133,17 +133,15 @@ class InvoiceController extends Controller
         $cancelled = InvoiceStatusEnum::CANCELLED->value;
         $returned = InvoiceStatusEnum::RETURNED->value;
         $paid = InvoiceStatusEnum::PAID->value;
-        $excluded = array_values(array_diff([$cancelled, $returned], [$status]));
-        $excludedSql = $excluded ? 'status IN ('.implode(',', array_fill(0, count($excluded), '?')).')' : '1 = 0';
 
         $row = (clone $filtered)->selectRaw(
-            "COALESCE(SUM(CASE WHEN {$excludedSql} THEN 0 ELSE total_amount END), 0) as total,
+            'COALESCE(SUM(CASE WHEN status IN (?, ?) AND status <> ? THEN 0 ELSE total_amount END), 0) as total,
              COALESCE(SUM(CASE
                 WHEN status IN (?, ?) THEN 0
                 WHEN paid_amount > 0 THEN CASE WHEN total_amount > paid_amount THEN total_amount - paid_amount ELSE 0 END
                 WHEN status = ? THEN 0
-                ELSE total_amount END), 0) as remaining",
-            [...$excluded, $cancelled, $returned, $paid],
+                ELSE total_amount END), 0) as remaining',
+            [$cancelled, $returned, $status ?? '', $cancelled, $returned, $paid],
         )->first();
 
         return ['total' => round((float) $row->total, 2), 'remaining' => round((float) $row->remaining, 2)];
