@@ -464,17 +464,9 @@ class CalculateServiceInvoiceAction
      */
     private function resolveShipments(array $data, int $branchId, ?int $customerId): array
     {
-        $resolved = [];
-
-        foreach (array_values((array) ($data['shipments'] ?? [])) as $i => $shipment) {
-            $row = $this->resolveShipment((array) $shipment, "shipments.{$i}", $branchId, $customerId);
-
-            if ($row !== null) {
-                $resolved[] = $row;
-            }
-        }
-
-        return $resolved;
+        return collect(array_values((array) ($data['shipments'] ?? [])))
+            ->map(fn ($shipment, $i) => $this->resolveShipment((array) $shipment, "shipments.{$i}", $branchId, $customerId))
+            ->filter()->values()->all();
     }
 
     /**

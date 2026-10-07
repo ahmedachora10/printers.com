@@ -13,7 +13,6 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class ServiceInvoiceShipment extends Model
 {
     protected $fillable = [
-        'service_invoice_id',
         'provider_id',
         'zone_id',
         'distance_km',

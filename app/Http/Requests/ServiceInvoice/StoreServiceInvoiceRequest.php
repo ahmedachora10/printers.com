@@ -60,23 +60,7 @@ class StoreServiceInvoiceRequest extends FormRequest
             'notes' => ['nullable', 'string', 'max:1000'],
             // تاسك 95: ملاحظة داخلية للموظفين والإدارة — لا تُطبع للعميل.
             'internal_notes' => ['nullable', 'string', 'max:1000'],
-            // تاسك 93 — التوصيل. الرسم يُقبل من الإدارة وحدها؛ الموظف يختار
-            // الشريحة وسعرُها هو الحاكم (`CalculateServiceInvoiceAction`)،
-            // والوجودُ في الفرع يُتحقّق هناك لا هنا.
-            // تاسك 170: عدّة طلبات توصيل، لكلٍّ سائقه وعنوانه وشريحته وقيمته.
-            'shipments' => ['nullable', 'array', 'max:20'],
-            'shipments.*.id' => ['nullable', 'integer'],
-            'shipments.*.provider_id' => ['nullable', 'integer', 'exists:delivery_providers,id'],
-            'shipments.*.zone_id' => ['nullable', 'integer', 'exists:delivery_zones,id'],
-            // الصفر مسموح: التوصيل المجّاني يبقى معه اسم السائق مسجّلاً.
-            'shipments.*.fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
-            'shipments.*.distance_km' => ['nullable', 'numeric', 'min:0', 'max:9999'],
-            'shipments.*.customer_address_id' => ['nullable', 'integer', 'exists:customer_addresses,id'],
-            'shipments.*.address' => ['nullable', 'string', 'max:1000'],
-            // عنوانٌ جديد يُحفظ في دفتر العميل — إضافةً لا استبدالاً.
-            'shipments.*.save_address' => ['nullable', 'boolean'],
-            'shipments.*.address_label' => ['nullable', 'string', 'max:100'],
-            'shipments.*.location_url' => ['nullable', 'string', 'max:2048'],
+            ...self::shipmentRules(),
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.branch_service_id' => ['required', 'integer', 'exists:branch_services,id'],
             'lines.*.notes' => ['nullable', 'string', 'max:500'],
@@ -91,6 +75,32 @@ class StoreServiceInvoiceRequest extends FormRequest
             'lines.*.agent_id' => ['nullable', 'integer', 'exists:users,id'],
             'lines.*.agent_commission_type' => ['nullable', 'required_with:lines.*.agent_id', Rule::enum(LineAgentCommissionTypeEnum::class)],
             'lines.*.agent_commission_value' => ['nullable', 'required_with:lines.*.agent_id', 'numeric', 'min:0'],
+        ];
+    }
+
+    /**
+     * تاسك 93، 170 — طلبات التوصيل، لكلٍّ سائقه وعنوانه وشريحته وقيمته. الرسم يُقبل
+     * من الإدارة وحدها، والوجود في الفرع يُتحقّق في CalculateServiceInvoiceAction.
+     * يشاركها UpdateServiceInvoiceRequest.
+     *
+     * @return array<string, mixed>
+     */
+    public static function shipmentRules(): array
+    {
+        return [
+            'shipments' => ['nullable', 'array', 'max:20'],
+            'shipments.*.id' => ['nullable', 'integer'],
+            'shipments.*.provider_id' => ['nullable', 'integer', 'exists:delivery_providers,id'],
+            'shipments.*.zone_id' => ['nullable', 'integer', 'exists:delivery_zones,id'],
+            // الصفر مسموح: التوصيل المجّاني يبقى معه اسم السائق مسجّلاً.
+            'shipments.*.fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'shipments.*.distance_km' => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            'shipments.*.customer_address_id' => ['nullable', 'integer', 'exists:customer_addresses,id'],
+            'shipments.*.address' => ['nullable', 'string', 'max:1000'],
+            // عنوانٌ جديد يُحفظ في دفتر العميل — إضافةً لا استبدالاً.
+            'shipments.*.save_address' => ['nullable', 'boolean'],
+            'shipments.*.address_label' => ['nullable', 'string', 'max:100'],
+            'shipments.*.location_url' => ['nullable', 'string', 'max:2048'],
         ];
     }
 
