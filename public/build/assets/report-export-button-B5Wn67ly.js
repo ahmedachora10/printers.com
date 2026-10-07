@@ -1,1 +1,0 @@
-import{K as s,j as r}from"./app-BDWux2CK.js";import{B as a}from"./button-CuyckdT7.js";import{D as e}from"./download-DqbQboKV.js";function l({href:t,disabled:o}){return s().props.auth.role==="auditor"?null:r.jsx(a,{asChild:!0,variant:"outline",disabled:o,children:r.jsxs("a",{href:t,children:[r.jsx(e,{className:"size-4"})," تصدير Excel"]})})}export{l as R};
