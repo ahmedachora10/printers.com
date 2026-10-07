@@ -194,12 +194,8 @@ class BranchServicesSheetImport implements ToCollection, WithHeadingRow
             'is_active' => $this->bool($row, self::ACTIVE, $service === null ? true : (bool) $service->is_active),
         ];
 
-        // `price_per_sqm` هو سعر وحدة القياس أيّاً كانت، فيلزم في التسعيرين.
-        if (ServicePricingTypeEnum::from($data['pricing_type'])->isMeasured() && $data['price_per_sqm'] <= 0) {
-            $this->report->skip($number, $name, 'أدخل سعر وحدة القياس للخدمات المسعّرة بالمتر المربع أو الطولي');
-
-            return;
-        }
+        // سعر وحدة القياس صفرٌ مقبول كما تقبله الشاشة (min:0): خدمةٌ تُسعَّر عند
+        // البيع. رفضُه هنا كان يردّ ملفاً صدّره النظام نفسه.
 
         if ($service !== null) {
             $update->handle($service, $data);

@@ -333,14 +333,20 @@ describe('import', function () {
             ->and((float) $service->price_per_sqm)->toBe(25.0);
     });
 
-    it('refuses a square-metre service with no metre price', function () {
+    // الشاشة تقبل سعر متر صفراً، فملفٌّ صدّرته خدمةٌ كهذه يعود كما خرج.
+    it('accepts a measured service whose unit price is zero', function (string $pricing, string $type) {
         $response = $this->post(route('branch-services.import'), [
-            'file' => branchServicesSheet([serviceRow('بنر', [5 => 'بالمتر المربع', 6 => '0.00'])]),
+            'file' => branchServicesSheet([serviceRow('بنر', [5 => $pricing, 6 => '0.00'])]),
         ])->assertOk();
 
-        expect($response->json('skipped.0.reason'))->toContain('سعر وحدة القياس');
-        expect(BranchService::where('branch_id', $this->branch->id)->count())->toBe(0);
-    });
+        $service = BranchService::where('branch_id', $this->branch->id)->sole();
+        expect($response->json('skipped'))->toBeEmpty()
+            ->and($service->pricing_type->value)->toBe($type)
+            ->and((float) $service->price_per_sqm)->toBe(0.0);
+    })->with([
+        'square metre' => ['بالمتر المربع', 'sqm'],
+        'linear metre' => ['بالمتر الطولي', 'linear'],
+    ]);
 
     // تاسك 80: وحدة القياس الثالثة تدخل بنفس الورقة وبنفس العمود — «سعر المتر»
     // يُقرأ سعر وحدة القياس أيّاً كانت، فلا عمود جديد ولا ورقة جديدة.
@@ -352,15 +358,6 @@ describe('import', function () {
         $service = BranchService::where('branch_id', $this->branch->id)->firstOrFail();
         expect($service->pricing_type->value)->toBe('linear')
             ->and((float) $service->price_per_sqm)->toBe(5.0);
-    });
-
-    it('refuses a linear-metre service with no metre price', function () {
-        $response = $this->post(route('branch-services.import'), [
-            'file' => branchServicesSheet([serviceRow('شريط', [5 => 'بالمتر الطولي', 6 => '0.00'])]),
-        ])->assertOk();
-
-        expect($response->json('skipped.0.reason'))->toContain('سعر وحدة القياس');
-        expect(BranchService::where('branch_id', $this->branch->id)->count())->toBe(0);
     });
 
     it('reports a row whose commission is out of range instead of writing it', function () {
