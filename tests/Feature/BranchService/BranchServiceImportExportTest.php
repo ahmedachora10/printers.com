@@ -175,7 +175,7 @@ describe('export', function () {
             'طباعة ملونة', '12.50', '20.00', '90.00', '', 'بالوحدة', '0.00', '0.00', 0, 0, '0.00', 'وجه واحد | وجهين', 1,
         ]);
 
-        expect($sheets[1]->collection()->first())->toBe(['طباعة ملونة', 'أحمد علي', 'ahmed', '7.25']);
+        expect($sheets[1]->collection()->first())->toBe(['طباعة ملونة', 'أحمد علي', 'ahmed', '7.25', $this->branch->name]);
     });
 
     it('leaves another branch out of the sheet', function () {
@@ -409,6 +409,33 @@ describe('employee commissions sheet', function () {
         expect(UserService::count())->toBe(0);
     });
 
+    it('imports the services of another branch file but none of its commissions', function () {
+        $response = $this->post(route('branch-services.import'), [
+            'file' => branchServicesSheet(
+                [serviceRow('تجليد', [1 => '8.00'])],
+                [['تجليد', 'أحمد علي', 'ahmed', '9.00', 'فرع الرياض']],
+                [['تجليد', 'مكتب النور', 'alnoor', 'نسبة مئوية', '5.00', 'فرع الرياض']],
+            ),
+        ])->assertOk();
+
+        $this->assertDatabaseHas('branch_services', ['branch_id' => $this->branch->id, 'base_commission_pct' => 8.00]);
+        expect(UserService::count())->toBe(0)
+            ->and(AgentService::count())->toBe(0)
+            ->and($response->json('skipped.0.reason'))->toContain('فرع آخر (فرع الرياض)')
+            ->and($response->json('skipped.1.reason'))->toContain('فرع آخر (فرع الرياض)');
+    });
+
+    it('reads the commissions of a file this branch exported', function () {
+        $this->post(route('branch-services.import'), [
+            'file' => branchServicesSheet(
+                [serviceRow('تجليد')],
+                [['تجليد', 'أحمد علي', 'ahmed', '9.00', $this->branch->name]],
+            ),
+        ])->assertOk();
+
+        expect((float) UserService::sole()->commission_override_pct)->toBe(9.0);
+    });
+
     it('reports a service the branch does not carry', function () {
         $response = $this->post(route('branch-services.import'), [
             'file' => branchServicesSheet(
@@ -465,7 +492,7 @@ describe('preview', function () {
 
         $sheets = (new BranchServicesExport($this->branch->id))->sheets();
 
-        expect($sheets[2]->collection()->first())->toBe(['طباعة ملونة', 'مكتب النور', 'alnoor', 'مبلغ ثابت', '3.00']);
+        expect($sheets[2]->collection()->first())->toBe(['طباعة ملونة', 'مكتب النور', 'alnoor', 'مبلغ ثابت', '3.00', $this->branch->name]);
     });
 
     it('sets an agent commission the third sheet names', function () {

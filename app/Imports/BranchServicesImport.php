@@ -5,6 +5,7 @@ namespace App\Imports;
 use App\Imports\Sheets\BranchServiceAgentCommissionsSheetImport;
 use App\Imports\Sheets\BranchServiceCommissionsSheetImport;
 use App\Imports\Sheets\BranchServicesSheetImport;
+use App\Models\Branch;
 use App\Support\Import\ImportReport;
 use Maatwebsite\Excel\Concerns\SkipsUnknownSheets;
 use Maatwebsite\Excel\Concerns\WithMultipleSheets;
@@ -42,10 +43,13 @@ class BranchServicesImport implements SkipsUnknownSheets, WithMultipleSheets
     /** @return array<int, object> */
     public function sheets(): array
     {
+        // ملفٌّ صُدِّر من فرعٍ آخر يبني خدمات هذا الفرع، أما عمولات أشخاصه فلا تنتقل.
+        $branchName = (string) Branch::query()->whereKey($this->branchId)->value('name');
+
         return [
             0 => new BranchServicesSheetImport($this->branchId, $this->report),
-            1 => new BranchServiceCommissionsSheetImport($this->branchId, $this->report),
-            2 => new BranchServiceAgentCommissionsSheetImport($this->branchId, $this->report),
+            1 => new BranchServiceCommissionsSheetImport($this->branchId, $branchName, $this->report),
+            2 => new BranchServiceAgentCommissionsSheetImport($this->branchId, $branchName, $this->report),
         ];
     }
 

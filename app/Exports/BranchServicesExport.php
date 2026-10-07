@@ -4,6 +4,7 @@ namespace App\Exports;
 
 use App\Exports\Sheets\ReportSheet;
 use App\Models\AgentService;
+use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\UserService;
 use Illuminate\Support\Collection;
@@ -16,8 +17,9 @@ use Maatwebsite\Excel\Concerns\WithMultipleSheets;
  * (خدمة × موظف) — وحشوهما في ورقةٍ واحدة كان سيكرّر إعدادات الخدمة على كل موظف،
  * فيصير للخدمة الواحدة نسختان متعارضتان من «أقصى خصم» في الملف نفسه.
  *
- * ولا عمود «الفرع» هنا: الشاشة شاشةُ مدير فرعٍ يرى فرعه وحده، والاستيراد يهبط
- * على ذلك الفرع بعينه — فعمودٌ يقول غير ذلك وعدٌ لا يُوفى.
+ * ولا عمود «الفرع» في ورقة الخدمات: الاستيراد يهبط على فرع المستورِد أيّاً كان
+ * مصدر الملف، وهكذا يُبنى فرعٌ جديد من ملف فرعٍ قائم. أما ورقتا العمولات فتحملانه:
+ * عمولةٌ تخصّ أشخاص فرعٍ آخر لا تنتقل معه، والعمود هو ما يعرف به الاستيراد ذلك.
  */
 class BranchServicesExport implements WithMultipleSheets
 {
@@ -56,24 +58,25 @@ class BranchServicesExport implements WithMultipleSheets
     /** @return array<int, string> */
     public static function commissionHeadings(): array
     {
-        return ['الخدمة', 'الموظف', 'اسم المستخدم', 'نسبة العمولة'];
+        return ['الخدمة', 'الموظف', 'اسم المستخدم', 'نسبة العمولة', 'الفرع'];
     }
 
     /** @return array<int, string> */
     public static function agentCommissionHeadings(): array
     {
-        return ['الخدمة', 'المندوب', 'اسم المستخدم', 'نوع العمولة', 'قيمة العمولة'];
+        return ['الخدمة', 'المندوب', 'اسم المستخدم', 'نوع العمولة', 'قيمة العمولة', 'الفرع'];
     }
 
     /** @return array<int, object> */
     public function sheets(): array
     {
         $services = $this->services();
+        $branch = (string) Branch::query()->whereKey($this->branchId)->value('name');
 
         return [
             new ReportSheet(self::SERVICES_SHEET, self::serviceHeadings(), $this->serviceRows($services)),
-            new ReportSheet(self::COMMISSIONS_SHEET, self::commissionHeadings(), $this->commissionRows($services)),
-            new ReportSheet(self::AGENT_COMMISSIONS_SHEET, self::agentCommissionHeadings(), $this->agentCommissionRows($services)),
+            new ReportSheet(self::COMMISSIONS_SHEET, self::commissionHeadings(), $this->commissionRows($services, $branch)),
+            new ReportSheet(self::AGENT_COMMISSIONS_SHEET, self::agentCommissionHeadings(), $this->agentCommissionRows($services, $branch)),
         ];
     }
 
@@ -116,7 +119,7 @@ class BranchServicesExport implements WithMultipleSheets
      * @param  Collection<int, BranchService>  $services
      * @return Collection<int, array<int, mixed>>
      */
-    private function commissionRows(Collection $services): Collection
+    private function commissionRows(Collection $services, string $branch): Collection
     {
         return $services->flatMap(fn (BranchService $service) => $service->userCommissions
             ->filter(fn (UserService $rate) => $rate->user !== null)
@@ -126,6 +129,7 @@ class BranchServicesExport implements WithMultipleSheets
                 $rate->user->name,
                 $rate->user->username,
                 $this->number($rate->commission_override_pct),
+                $branch,
             ])
             ->values());
     }
@@ -134,7 +138,7 @@ class BranchServicesExport implements WithMultipleSheets
      * @param  Collection<int, BranchService>  $services
      * @return Collection<int, array<int, mixed>>
      */
-    private function agentCommissionRows(Collection $services): Collection
+    private function agentCommissionRows(Collection $services, string $branch): Collection
     {
         return $services->flatMap(fn (BranchService $service) => $service->agentCommissions
             ->filter(fn (AgentService $rate) => $rate->agent !== null)
@@ -145,6 +149,7 @@ class BranchServicesExport implements WithMultipleSheets
                 $rate->agent->username,
                 $rate->commission_type->label(),
                 $this->number($rate->commission_value),
+                $branch,
             ])
             ->values());
     }

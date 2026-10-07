@@ -33,6 +33,8 @@ class BranchServiceAgentCommissionsSheetImport implements ToCollection, WithHead
 
     public const VALUE = ['قيمة العمولة', 'commission_value'];
 
+    public const BRANCH = BranchServiceCommissionsSheetImport::BRANCH;
+
     /** @var array<string, BranchService|null> */
     private array $serviceCache = [];
 
@@ -41,6 +43,7 @@ class BranchServiceAgentCommissionsSheetImport implements ToCollection, WithHead
 
     public function __construct(
         private readonly int $branchId,
+        private readonly string $branchName,
         private readonly ImportReport $report,
     ) {}
 
@@ -68,6 +71,14 @@ class BranchServiceAgentCommissionsSheetImport implements ToCollection, WithHead
 
         if ($serviceName === null || ($agentName === null && $username === null)) {
             $this->report->skip($number, $label, 'الصف بلا اسم خدمة أو بلا مندوب');
+
+            return;
+        }
+
+        $sourceBranch = $this->cell($row, self::BRANCH);
+
+        if ($sourceBranch !== null && $sourceBranch !== $this->branchName) {
+            $this->report->skip($number, $label, 'عمولة من فرع آخر ('.$sourceBranch.') — تُستورد الخدمات وحدها');
 
             return;
         }

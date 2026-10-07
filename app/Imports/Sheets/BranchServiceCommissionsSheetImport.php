@@ -35,6 +35,9 @@ class BranchServiceCommissionsSheetImport implements ToCollection, WithHeadingRo
 
     public const COMMISSION = ['نسبة العمولة', 'العمولة', 'commission_pct'];
 
+    /** فرع الملف المصدَّر: فارغٌ أو غائبٌ = هذا الفرع (ملفات ما قبل العمود، والنموذج). */
+    public const BRANCH = ['الفرع', 'branch'];
+
     /** @var array<string, int|null> */
     private array $serviceCache = [];
 
@@ -43,6 +46,7 @@ class BranchServiceCommissionsSheetImport implements ToCollection, WithHeadingRo
 
     public function __construct(
         private readonly int $branchId,
+        private readonly string $branchName,
         private readonly ImportReport $report,
     ) {}
 
@@ -70,6 +74,14 @@ class BranchServiceCommissionsSheetImport implements ToCollection, WithHeadingRo
 
         if ($serviceName === null || ($employeeName === null && $username === null)) {
             $this->report->skip($number, $label, 'الصف بلا اسم خدمة أو بلا موظف');
+
+            return;
+        }
+
+        $sourceBranch = $this->cell($row, self::BRANCH);
+
+        if ($sourceBranch !== null && $sourceBranch !== $this->branchName) {
+            $this->report->skip($number, $label, 'عمولة من فرع آخر ('.$sourceBranch.') — تُستورد الخدمات وحدها');
 
             return;
         }
