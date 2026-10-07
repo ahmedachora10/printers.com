@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { TableCell, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -66,9 +67,11 @@ interface Props {
     statusOptions: { value: string; label: string }[];
     filterOptions: { employees: NamedOption[]; paymentMethods: NamedOption[]; services: (NamedOption & { serviceName: string })[] };
     filters: InvoiceFilters;
+    /** تاسك 169: مجموع كل ما طابق التصفية، لا الصفحة الظاهرة وحدها. */
+    totals: { total: number; remaining: number };
 }
 
-export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, branches, statusOptions, filterOptions, filters }: Props) {
+export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, branches, statusOptions, filterOptions, filters, totals }: Props) {
     // تاسك 125: مراجع الحسابات يطّلع ولا يطبع.
     const canPrint = usePage<SharedData>().props.auth.role !== 'auditor';
     // Filtering follows the report pages: the selects live in a modal, the date
@@ -687,7 +690,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 </div>
 
                 <Card className="mb-6 flex flex-wrap items-end justify-between gap-x-6 gap-y-4 border px-4 py-3.5">
-                    <FilterSearch filters={f} value={applied.search} placeholder="رقم الفاتورة أو اسم الموظف..." />
+                    <FilterSearch filters={f} value={applied.search} placeholder="رقم الفاتورة، العميل أو جواله، الموظف..." />
                     <DateRangeBar filters={f} from={applied.date_from} to={applied.date_to} fromKey="date_from" toKey="date_to" />
                 </Card>
 
@@ -700,6 +703,24 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                     keyExtractor={(item) => `${item.type}-${item.id}`}
                     rowClassName={(item) =>
                         item.status === 'returned' ? 'bg-red-50 hover:bg-red-100/70 dark:bg-red-950/30 dark:hover:bg-red-950/50' : undefined
+                    }
+                    // تاسك 169: خليةٌ فارغة أولى مقابل «م»، ثم خليةٌ لكل عمود — فعمود الفرع
+                    // الذي يظهر للسوبر أدمن وحده لا يزيح المبالغ عن أعمدتها.
+                    footer={
+                        <TableRow>
+                            <TableCell />
+                            {columns.map((col) => (
+                                <TableCell key={col.key} className="font-bold whitespace-nowrap tabular-nums">
+                                    {col.key === 'invoiceNumber' && 'الإجمالي'}
+                                    {col.key === 'totalAmount' && <span dir="ltr">{formatCurrency(totals.total)}</span>}
+                                    {col.key === 'remainingAmount' && (
+                                        <span className="text-amber-700 dark:text-amber-400" dir="ltr">
+                                            {formatCurrency(totals.remaining)}
+                                        </span>
+                                    )}
+                                </TableCell>
+                            ))}
+                        </TableRow>
                     }
                 />
 

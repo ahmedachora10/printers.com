@@ -1,3 +1,4 @@
+import { AmountSortSelect, sortByAmount, type AmountSort } from '@/components/commissions/amount-sort-select';
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
 import DateRangeBar from '@/components/reports/date-range-bar';
@@ -20,7 +21,7 @@ import {
     type CommissionReportTotals,
 } from '@/types/report';
 import { Banknote, Coins, Handshake, Package, Receipt, TrendingUp, Wallet } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'تقرير العمولات', href: '/reports/commissions' }];
 
@@ -160,6 +161,9 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
         chips.push({ key: 'status', label: `الحالة: ${STATUS_LABELS[applied.status] ?? applied.status}`, onRemove: () => f.remove('status') });
     }
 
+    const [sort, setSort] = useState<AmountSort>('name');
+    const sortedSummary = useMemo(() => sortByAmount(summary, sort, (row) => row.earned), [summary, sort]);
+
     const linesByUser = useMemo(() => {
         const map = new Map<number, CommissionReportLine[]>();
         for (const line of lines) {
@@ -294,14 +298,15 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
 
                 {/* Summary table with drill-down */}
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
                         <CardTitle>العمولات حسب الموظف</CardTitle>
+                        <AmountSortSelect value={sort} onChange={setSort} />
                     </CardHeader>
                     <CardContent className="p-0">
                         <DataTable
                             className="rounded-none bg-transparent shadow-none"
                             columns={summaryColumns}
-                            data={summary}
+                            data={sortedSummary}
                             keyExtractor={(row) => row.userId}
                             emptyState={<span className="text-muted-foreground">لا توجد عمولات مطابقة للتصفية</span>}
                             renderSubRow={(row) => <DetailLines lines={linesByUser.get(row.userId) ?? []} />}

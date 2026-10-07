@@ -75,9 +75,11 @@ class InvoiceController extends Controller
             }
         }
 
-        $invoices = DB::query()
+        $filtered = DB::query()
             ->fromSub($union, 'invoices')
-            ->when($user->roleName->isEmployee(), fn ($q) => $q->where('user_id', $user->id))
+            ->when($user->roleName->isEmployee(), fn ($q) => $q->where('user_id', $user->id));
+
+        $invoices = (clone $filtered)
             ->orderByDesc('created_at')
             ->paginate(20)
             ->withQueryString();
@@ -115,7 +117,34 @@ class InvoiceController extends Controller
             ),
             'filterOptions' => $this->filterOptions($isSuperAdmin, $branchId),
             'filters' => $filters,
+            'totals' => $this->listTotals($filtered, $request->input('status')),
         ]);
+    }
+
+    /**
+     * تاسك 169 — صفّ الإجمالي تحت القائمة: على كل ما طابق التصفية لا على الصفحة
+     * الظاهرة. «المتبقي» بقاعدة InvoiceListResource::remainingAmount() نفسها.
+     * الملغاة والمرتجعة لا تُجمع في «الإجمالي» إلا حين تكون هي الحالة المختارة.
+     *
+     * @return array{total: float, remaining: float}
+     */
+    private function listTotals(Builder $filtered, ?string $status): array
+    {
+        $cancelled = InvoiceStatusEnum::CANCELLED->value;
+        $returned = InvoiceStatusEnum::RETURNED->value;
+        $paid = InvoiceStatusEnum::PAID->value;
+
+        $row = (clone $filtered)->selectRaw(
+            'COALESCE(SUM(CASE WHEN status IN (?, ?) AND status <> ? THEN 0 ELSE total_amount END), 0) as total,
+             COALESCE(SUM(CASE
+                WHEN status IN (?, ?) THEN 0
+                WHEN paid_amount > 0 THEN CASE WHEN total_amount > paid_amount THEN total_amount - paid_amount ELSE 0 END
+                WHEN status = ? THEN 0
+                ELSE total_amount END), 0) as remaining',
+            [$cancelled, $returned, $status ?? '', $cancelled, $returned, $paid],
+        )->first();
+
+        return ['total' => round((float) $row->total, 2), 'remaining' => round((float) $row->remaining, 2)];
     }
 
     /**
@@ -665,8 +694,11 @@ class InvoiceController extends Controller
             })
             ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($table, $request) {
                 $term = '%'.$request->input('search').'%';
+                // تاسك 171: والعميل باسمه أو جواله — جدوله موصولٌ أعلاه أصلاً.
                 $q->where("{$table}.invoice_number", 'like', $term)
-                    ->orWhere('users.name', 'like', $term);
+                    ->orWhere('users.name', 'like', $term)
+                    ->orWhere('customers.full_name', 'like', $term)
+                    ->orWhere('customers.phone', 'like', $term);
             }))
             ->select([
                 "{$table}.id",
