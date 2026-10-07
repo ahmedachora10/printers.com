@@ -225,14 +225,20 @@ export interface EditServiceInvoice {
     internalNotes?: string | null;
     /** موعد تسليم العمل بصيغة «YYYY-MM-DD HH:MM» كما يقرأه المنتقي */
     deliveryAt: string | null;
-    /** التوصيل كما حُفظ (تاسك 93) — «التوصيل» غير «موعد التسليم» أعلاه */
-    shippingProviderId: number | null;
-    shippingZoneId: number | null;
-    shippingFee: number;
-    shippingDistanceKm: number | null;
-    customerAddressId: number | null;
-    shippingAddress: string | null;
+    /** طلبات التوصيل كما حُفظت (تاسك 93، 170) — «التوصيل» غير «موعد التسليم» أعلاه */
+    shipments: EditServiceInvoiceShipment[];
     lines: EditServiceInvoiceLine[];
+}
+
+/** تاسك 170 — طلب توصيلٍ محفوظ؛ `id` يُعاد مع الحفظ فتبقى تسوية سائقه مربوطةً به. */
+export interface EditServiceInvoiceShipment {
+    id: number;
+    providerId: number | null;
+    zoneId: number | null;
+    fee: number;
+    distanceKm: number | null;
+    customerAddressId: number | null;
+    address: string | null;
 }
 
 /** فاتورة منتجات يعيد فتحها مدير الفرع أو مدير النظام للتعديل. */
