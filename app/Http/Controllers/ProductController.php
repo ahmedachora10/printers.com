@@ -31,6 +31,9 @@ class ProductController extends Controller
 {
     use RunsExcelImports;
 
+    /** فلاتر الشاشة التي يتبعها التصدير أيضاً — انظر Product::scopeFilteredBy(). */
+    private const LIST_FILTERS = ['search', 'category_id', 'status'];
+
     public function index(Request $request): Response
     {
         Gate::authorize('viewAny', Product::class);
@@ -40,12 +43,7 @@ class ProductController extends Controller
         $items = Product::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->with(['category', 'unit'])
-            ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
-                $q->where('name', 'like', '%'.$request->input('search').'%')
-                    ->orWhere('sku', 'like', '%'.$request->input('search').'%');
-            }))
-            ->when($request->filled('category_id'), fn ($q) => $q->where('category_id', (int) $request->input('category_id')))
-            ->when($request->filled('status'), fn ($q) => $q->where('is_active', (bool) $request->input('status')))
+            ->filteredBy($request->only(self::LIST_FILTERS))
             ->orderBy('name')
             ->paginate(12);
 
@@ -133,7 +131,7 @@ class ProductController extends Controller
         $branchId = $this->viewScope($request);
 
         return Excel::download(
-            new ProductsExport($branchId),
+            new ProductsExport($branchId, $request->only(self::LIST_FILTERS)),
             'products-'.($branchId ? 'branch-'.$branchId.'-' : '').now()->format('Y-m-d').'.xlsx',
         );
     }

@@ -177,7 +177,7 @@ export default function ProductCategoriesIndex({ items, filters }: Props) {
                                     <Upload className="size-4" /> استيراد الكل
                                 </Button>
                                 <Button variant="outline" size="sm" asChild>
-                                    <a href={categoryRoutes.export.url()}>
+                                    <a href={categoryRoutes.export.url({ query: { ...(search && { search }), ...(filterValues.status && { status: filterValues.status }) } })}>
                                         <Download className="size-4" /> تصدير الكل
                                     </a>
                                 </Button>

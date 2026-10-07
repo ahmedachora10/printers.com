@@ -39,6 +39,9 @@ class CustomerController extends Controller
 
     private const HISTORY_PER_PAGE = 10;
 
+    /** فلاتر الشاشة التي يتبعها التصدير أيضاً — انظر Customer::scopeFilteredBy(). */
+    private const LIST_FILTERS = ['search', 'tier', 'type', 'agent_id', 'has_outstanding'];
+
     /**
      * ذاكرةُ وجودِ الجداول لهذا الطلب. الفحص يضرب sqlite_master (أو
      * information_schema) في كل نداء، وصفحةُ العميل الواحدة تسأل عن جدولَي
@@ -61,25 +64,7 @@ class CustomerController extends Controller
             // Super-admins see every branch by default, and may narrow to one.
             ->when($isSuperAdmin && $request->filled('branch_id'),
                 fn ($q) => $q->where('branch_id', (int) $request->input('branch_id')))
-            ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($request) {
-                $q->where('full_name', 'like', '%'.$request->input('search').'%')
-                    ->orWhere('phone', 'like', '%'.$request->input('search').'%');
-            }))
-            ->when($request->filled('tier'), fn ($q) => $q->where('tier', $request->input('tier')))
-            ->when($request->filled('type'), fn ($q) => $q->where('customer_type', $request->input('type')))
-            ->when($request->filled('agent_id'), fn ($q) => $q->where('agent_id', (int) $request->input('agent_id')))
-            ->when($request->boolean('has_outstanding'), fn ($q) => $q->whereExists(function ($sub) {
-                foreach (['service_invoices', 'product_invoices'] as $table) {
-                    if ($this->hasTable($table)) {
-                        $sub->selectRaw('1')->from($table)
-                            ->whereColumn("{$table}.customer_id", 'customers.id')
-                            ->where("{$table}.status", 'due')
-                            ->whereNull("{$table}.deleted_at");
-
-                        return;
-                    }
-                }
-            }))
+            ->filteredBy($request->only(self::LIST_FILTERS))
             ->latest()
             ->paginate(20)
             ->withQueryString();
@@ -227,11 +212,18 @@ class CustomerController extends Controller
         Gate::authorize('viewAny', Customer::class);
 
         $isSuperAdmin = Auth::user()->roleName->isSuperAdmin();
-        $branchId = $isSuperAdmin ? null : Auth::user()->branchId;
+        // The export follows the screen: the super-admin's branch filter narrows
+        // it just as it narrows the list.
+        $branchId = $isSuperAdmin
+            ? ($request->filled('branch_id') ? (int) $request->input('branch_id') : null)
+            : Auth::user()->branchId;
 
         // Only the cross-branch role gets a branch column; everyone else exports
         // a single branch, where the column would repeat the same value.
-        return Excel::download(new CustomersExport($branchId, $isSuperAdmin), 'customers.xlsx');
+        return Excel::download(
+            new CustomersExport($branchId, $isSuperAdmin, $request->only(self::LIST_FILTERS)),
+            'customers.xlsx',
+        );
     }
 
     public function toggleStatus(Customer $customer, UpdateCustomerAction $action): RedirectResponse

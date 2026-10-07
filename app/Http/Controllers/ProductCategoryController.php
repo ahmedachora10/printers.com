@@ -31,8 +31,7 @@ class ProductCategoryController extends Controller
         Gate::authorize('viewAny', ProductCategory::class);
 
         $items = ProductCategory::query()
-            ->when($request->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$request->input('search').'%'))
-            ->when($request->filled('status'), fn ($q) => $q->where('is_active', (bool) $request->input('status')))
+            ->filteredBy($request->only(['search', 'status']))
             ->orderBy('name')
             ->paginate(15);
 
@@ -85,12 +84,12 @@ class ProductCategoryController extends Controller
      * تاسك 72: فئات المنتجات كورقة Excel. بلا نطاق فرع — الجدول عامّ لكل الفروع،
      * بخلاف فئات دليل الخدمات التي مُلّكت للفروع في التاسك 47.
      */
-    public function export(): BinaryFileResponse
+    public function export(Request $request): BinaryFileResponse
     {
         Gate::authorize('viewAny', ProductCategory::class);
 
         return Excel::download(
-            new ProductCategoriesExport,
+            new ProductCategoriesExport($request->only(['search', 'status'])),
             'product-categories-'.now()->format('Y-m-d').'.xlsx',
         );
     }

@@ -18,6 +18,9 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  */
 class ProductCategoriesExport implements FromCollection, ShouldAutoSize, WithHeadings, WithStyles
 {
+    /** @param  array<string, mixed>  $filters  فلاتر الشاشة — ProductCategory::scopeFilteredBy() */
+    public function __construct(private readonly array $filters = []) {}
+
     /** @return array<int, string> */
     public function headings(): array
     {
@@ -28,6 +31,7 @@ class ProductCategoriesExport implements FromCollection, ShouldAutoSize, WithHea
     public function collection(): Collection
     {
         return ProductCategory::query()
+            ->filteredBy($this->filters)
             ->orderBy('name')
             ->get()
             ->map(fn (ProductCategory $category) => [

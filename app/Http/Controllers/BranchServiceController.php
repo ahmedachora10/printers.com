@@ -52,15 +52,7 @@ class BranchServiceController extends Controller
         $query = BranchService::with(['serviceTemplate', 'branch', 'materials.product.unit'])
             ->where('branch_services.branch_id', $branchId);
 
-        if ($request->filled('search')) {
-            $query->whereHas('serviceTemplate', function ($q) use ($request) {
-                $q->where('name', 'like', '%'.$request->search.'%');
-            });
-        }
-
-        if ($request->filled('status')) {
-            $query->where('branch_services.is_active', (bool) $request->status);
-        }
+        $query->filteredBy($request->only(['search', 'status']));
 
         // تاسك 82: نفس ترتيب قوالب الخدمات، فالشاشتان تعرضان الخدمات نفسها.
         $branchServices = $query
@@ -235,12 +227,12 @@ class BranchServiceController extends Controller
     }
 
     /** ورقتا الخدمات وعمولات الموظفين لهذا الفرع — انظر BranchServicesExport. */
-    public function export(): BinaryFileResponse
+    public function export(Request $request): BinaryFileResponse
     {
         Gate::authorize('viewAny', BranchService::class);
 
         return Excel::download(
-            new BranchServicesExport($this->ownedBranch()->id),
+            new BranchServicesExport($this->ownedBranch()->id, $request->only(['search', 'status'])),
             'branch-services-'.now()->format('Y-m-d').'.xlsx',
         );
     }

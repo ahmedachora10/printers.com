@@ -413,6 +413,26 @@ describe('Customer Management', function () {
         });
     });
 
+    it('exports only the customers the screen filters to, across every page', function () {
+        $this->actingAs(makeSuperAdmin());
+
+        $other = Branch::factory()->create();
+        Customer::factory()->create(['branch_id' => $this->branch->id, 'full_name' => 'أحمد سالم']);
+        Customer::factory()->create(['branch_id' => $this->branch->id, 'full_name' => 'باسم']);
+        Customer::factory()->create(['branch_id' => $other->id, 'full_name' => 'أحمد خالد']);
+
+        Excel::fake();
+
+        $this->get(route('customers.export', ['branch_id' => $this->branch->id, 'search' => 'أحمد', 'page' => 2]))
+            ->assertOk();
+
+        Excel::assertDownloaded('customers.xlsx', function (CustomersExport $export) {
+            expect($export->collection()->pluck(0)->all())->toBe(['أحمد سالم']);
+
+            return true;
+        });
+    });
+
     // ── FACTORY STATES ─────────────────────────────────────────────
 
     it('creates bronze tier customer via factory', function () {

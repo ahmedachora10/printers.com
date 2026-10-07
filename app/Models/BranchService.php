@@ -61,6 +61,22 @@ class BranchService extends Pivot
             ->whereRelation('serviceTemplate', 'service_templates.is_active', true);
     }
 
+    /**
+     * فلاتر شاشة خدمات الفرع — تقرؤها الشاشة والتصدير معاً.
+     *
+     * @param  Builder<$this>  $query
+     * @param  array<string, mixed>  $filters
+     */
+    public function scopeFilteredBy(Builder $query, array $filters): void
+    {
+        $query
+            ->when(filled($filters['search'] ?? null), fn ($q) => $q->whereHas(
+                'serviceTemplate',
+                fn ($q) => $q->where('name', 'like', '%'.$filters['search'].'%'),
+            ))
+            ->when(filled($filters['status'] ?? null), fn ($q) => $q->where('branch_services.is_active', (bool) $filters['status']));
+    }
+
     /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo
     {

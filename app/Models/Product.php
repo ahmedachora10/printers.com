@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Database\Factories\ProductFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -72,5 +73,23 @@ class Product extends Model
         $this->forceFill([
             'current_stock' => round((float) $this->stockMovements()->sum('qty'), 2),
         ])->save();
+    }
+
+    /**
+     * فلاتر شاشة المنتجات — تقرؤها الشاشة والتصدير معاً، فالملف يحوي ما يُرى.
+     *
+     * @param  Builder<$this>  $query
+     * @param  array<string, mixed>  $filters
+     */
+    public function scopeFilteredBy(Builder $query, array $filters): void
+    {
+        $search = $filters['search'] ?? null;
+
+        $query
+            ->when(filled($search), fn ($q) => $q->where(fn ($q) => $q
+                ->where('name', 'like', '%'.$search.'%')
+                ->orWhere('sku', 'like', '%'.$search.'%')))
+            ->when(filled($filters['category_id'] ?? null), fn ($q) => $q->where('category_id', (int) $filters['category_id']))
+            ->when(filled($filters['status'] ?? null), fn ($q) => $q->where('is_active', (bool) $filters['status']));
     }
 }

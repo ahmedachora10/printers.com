@@ -21,7 +21,11 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  */
 class ProductsExport implements FromCollection, ShouldAutoSize, WithHeadings, WithStyles
 {
-    public function __construct(private readonly ?int $branchId = null) {}
+    /** @param  array<string, mixed>  $filters  فلاتر الشاشة — Product::scopeFilteredBy() */
+    public function __construct(
+        private readonly ?int $branchId = null,
+        private readonly array $filters = [],
+    ) {}
 
     /** @return array<int, string> */
     public function headings(): array
@@ -48,6 +52,7 @@ class ProductsExport implements FromCollection, ShouldAutoSize, WithHeadings, Wi
         return Product::query()
             ->with(['category:id,name', 'unit:id,name', 'branch:id,name'])
             ->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))
+            ->filteredBy($this->filters)
             ->orderBy('name')
             ->get()
             ->map(fn (Product $product) => [

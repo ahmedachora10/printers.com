@@ -18,6 +18,8 @@ class CustomersExport implements FromCollection, ShouldAutoSize, WithHeadings, W
     public function __construct(
         private readonly ?int $branchId = null,
         private readonly bool $includeBranch = false,
+        /** @var array<string, mixed> فلاتر الشاشة — Customer::scopeFilteredBy() */
+        private readonly array $filters = [],
     ) {}
 
     /** @return array<int, string> */
@@ -41,6 +43,7 @@ class CustomersExport implements FromCollection, ShouldAutoSize, WithHeadings, W
         $customers = Customer::query()
             ->when($this->includeBranch, fn ($q) => $q->with('branch:id,name'))
             ->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))
+            ->filteredBy($this->filters)
             ->orderBy('full_name')
             ->get();
 

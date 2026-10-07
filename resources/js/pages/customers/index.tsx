@@ -350,7 +350,7 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
                         actions={
                             <div className="flex items-center gap-2">
                                 <Button variant="outline" size="sm" asChild>
-                                    <a href="/customers/export">
+                                    <a href={`/customers/export?${new URLSearchParams(buildParams(search, filterValues))}`}>
                                         <Download className="size-4" />
                                         تصدير
                                     </a>

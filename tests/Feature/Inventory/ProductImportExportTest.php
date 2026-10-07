@@ -14,6 +14,7 @@ use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -77,6 +78,21 @@ describe('product categories', function () {
         expect($rows->pluck(0)->all())->toEqualCanonicalizing(['قرطاسية', 'أحبار']);
     });
 
+    it('exports only the categories the screen filters to', function () {
+        ProductCategory::factory()->create(['name' => 'أحبار', 'is_active' => false]);
+        ProductCategory::factory()->create(['name' => 'أحبار ملونة', 'is_active' => true]);
+
+        Excel::fake();
+
+        $this->get(route('product-categories.export', ['search' => 'أحبار', 'status' => '1']))->assertOk();
+
+        Excel::assertDownloaded('product-categories-'.now()->format('Y-m-d').'.xlsx', function (ProductCategoriesExport $export) {
+            expect($export->collection()->pluck(0)->all())->toBe(['أحبار ملونة']);
+
+            return true;
+        });
+    });
+
     it('imports a sheet carrying the very headings the export writes', function () {
         $response = $this->post(route('product-categories.import'), [
             'file' => exportedCategoriesSheet([['ورق', 1], ['أحبار', 0]]),
@@ -126,6 +142,30 @@ describe('products', function () {
         $rows = (new ProductsExport($this->branch->id))->collection();
 
         expect($rows->pluck(0)->all())->toBe(['SKU-MINE']);
+    });
+
+    it('exports only the products the screen filters to', function () {
+        $other = ProductCategory::factory()->create();
+
+        foreach ([['SKU-A', $this->category->id], ['SKU-B', $other->id], ['XYZ', $this->category->id]] as [$sku, $categoryId]) {
+            Product::factory()->create([
+                'branch_id' => $this->branch->id,
+                'category_id' => $categoryId,
+                'unit_id' => $this->unit->id,
+                'sku' => $sku,
+            ]);
+        }
+
+        Excel::fake();
+
+        $this->get(route('inventory.products.export', ['search' => 'SKU', 'category_id' => $this->category->id]))->assertOk();
+
+        $file = 'products-branch-'.$this->branch->id.'-'.now()->format('Y-m-d').'.xlsx';
+        Excel::assertDownloaded($file, function (ProductsExport $export) {
+            expect($export->collection()->pluck(0)->all())->toBe(['SKU-A']);
+
+            return true;
+        });
     });
 
     it('creates a product from a row whose sku is new', function () {

@@ -12,6 +12,7 @@ use App\Models\UserService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Maatwebsite\Excel\Facades\Excel;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
@@ -176,6 +177,40 @@ describe('export', function () {
         ]);
 
         expect($sheets[1]->collection()->first())->toBe(['طباعة ملونة', 'أحمد علي', 'ahmed', '7.25', $this->branch->name]);
+    });
+
+    it('narrows the services sheet to the screen filter and keeps every commission', function () {
+        $wanted = attachedService($this->branch, 'تغليف حراري');
+        $other = attachedService($this->branch, 'طباعة ملونة');
+        attachedService($this->branch, 'تغليف سلك', ['is_active' => false]);
+
+        foreach ([$wanted, $other] as $service) {
+            UserService::create([
+                'user_id' => $this->employee->id,
+                'branch_service_id' => $service->id,
+                'commission_override_pct' => 5,
+            ]);
+        }
+
+        $sheets = (new BranchServicesExport($this->branch->id, ['search' => 'تغليف', 'status' => '1']))->sheets();
+
+        expect($sheets[0]->collection()->pluck(0)->all())->toBe(['تغليف حراري'])
+            ->and($sheets[1]->collection()->pluck(0)->all())->toEqualCanonicalizing(['تغليف حراري', 'طباعة ملونة']);
+    });
+
+    it('passes the screen filter from the export route to the sheet', function () {
+        attachedService($this->branch, 'تغليف حراري');
+        attachedService($this->branch, 'طباعة ملونة');
+
+        Excel::fake();
+
+        $this->get(route('branch-services.export', ['search' => 'تغليف']))->assertOk();
+
+        Excel::assertDownloaded('branch-services-'.now()->format('Y-m-d').'.xlsx', function (BranchServicesExport $export) {
+            expect($export->sheets()[0]->collection()->pluck(0)->all())->toBe(['تغليف حراري']);
+
+            return true;
+        });
     });
 
     it('leaves another branch out of the sheet', function () {

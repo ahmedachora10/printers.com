@@ -33,7 +33,11 @@ class BranchServicesExport implements WithMultipleSheets
     /** فاصل أمثلة الملاحظات داخل الخلية الواحدة — يقرأه الاستيراد نفسه. */
     public const NOTE_SEPARATOR = ' | ';
 
-    public function __construct(private readonly int $branchId) {}
+    /** @param  array<string, mixed>  $filters  فلاتر الشاشة — BranchService::scopeFilteredBy() */
+    public function __construct(
+        private readonly int $branchId,
+        private readonly array $filters = [],
+    ) {}
 
     /** @return array<int, string> */
     public static function serviceHeadings(): array
@@ -73,8 +77,14 @@ class BranchServicesExport implements WithMultipleSheets
         $services = $this->services();
         $branch = (string) Branch::query()->whereKey($this->branchId)->value('name');
 
+        // فلتر الشاشة يضيّق ورقة الخدمات وحدها؛ ورقتا العمولات تبقيان كاملتين.
+        $listed = $this->filters === [] ? $services : $services->whereIn('id', BranchService::query()
+            ->where('branch_id', $this->branchId)
+            ->filteredBy($this->filters)
+            ->pluck('id'))->values();
+
         return [
-            new ReportSheet(self::SERVICES_SHEET, self::serviceHeadings(), $this->serviceRows($services)),
+            new ReportSheet(self::SERVICES_SHEET, self::serviceHeadings(), $this->serviceRows($listed)),
             new ReportSheet(self::COMMISSIONS_SHEET, self::commissionHeadings(), $this->commissionRows($services, $branch)),
             new ReportSheet(self::AGENT_COMMISSIONS_SHEET, self::agentCommissionHeadings(), $this->agentCommissionRows($services, $branch)),
         ];

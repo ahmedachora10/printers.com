@@ -5,11 +5,13 @@ namespace App\Models;
 use App\Enums\CustomerTierEnum;
 use App\Enums\CustomerTypeEnum;
 use Database\Factories\CustomerFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Schema;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -143,5 +145,37 @@ class Customer extends Model
     public function loyaltyTransactions(): HasMany
     {
         return $this->hasMany(LoyaltyTransaction::class);
+    }
+
+    /**
+     * فلاتر شاشة العملاء — تقرؤها الشاشة والتصدير معاً. فلتر الفرع ليس هنا: هو
+     * نطاق صلاحية يحسمه المتحكّم قبل أي فلتر.
+     *
+     * @param  Builder<$this>  $query
+     * @param  array<string, mixed>  $filters
+     */
+    public function scopeFilteredBy(Builder $query, array $filters): void
+    {
+        $search = $filters['search'] ?? null;
+
+        $query
+            ->when(filled($search), fn ($q) => $q->where(fn ($q) => $q
+                ->where('full_name', 'like', '%'.$search.'%')
+                ->orWhere('phone', 'like', '%'.$search.'%')))
+            ->when(filled($filters['tier'] ?? null), fn ($q) => $q->where('tier', $filters['tier']))
+            ->when(filled($filters['type'] ?? null), fn ($q) => $q->where('customer_type', $filters['type']))
+            ->when(filled($filters['agent_id'] ?? null), fn ($q) => $q->where('agent_id', (int) $filters['agent_id']))
+            ->when(filter_var($filters['has_outstanding'] ?? false, FILTER_VALIDATE_BOOLEAN), fn ($q) => $q->whereExists(function ($sub) {
+                foreach (['service_invoices', 'product_invoices'] as $table) {
+                    if (Schema::hasTable($table)) {
+                        $sub->selectRaw('1')->from($table)
+                            ->whereColumn("{$table}.customer_id", 'customers.id')
+                            ->where("{$table}.status", 'due')
+                            ->whereNull("{$table}.deleted_at");
+
+                        return;
+                    }
+                }
+            }));
     }
 }

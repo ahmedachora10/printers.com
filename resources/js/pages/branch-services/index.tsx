@@ -298,7 +298,7 @@ export default function BranchServicesIndex({
                         actions={
                             <>
                                 <Button size="sm" variant="outline" asChild>
-                                    <a href={branchServiceRoutes.export.url()}>
+                                    <a href={branchServiceRoutes.export.url({ query: { ...(search && { search }), ...(filterValues.status && { status: filterValues.status }) } })}>
                                         <Download className="size-4" /> تصدير
                                     </a>
                                 </Button>

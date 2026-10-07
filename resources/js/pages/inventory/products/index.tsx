@@ -254,9 +254,8 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
     const [importBranch, setImportBranch] = useState(filters.branch ?? '');
 
     // يُصدّر ما تملك: فرع المدير، أو ما يرشّحه فلتر السوبر أدمن (وكل الفروع بلا فلتر).
-    const exportUrl = filterValues.branch
-        ? `${productRoutes.export.url()}?branch=${filterValues.branch}`
-        : productRoutes.export.url();
+    // التصدير يتبع الشاشة: البحث والفلاتر نفسها، كل الصفحات.
+    const exportUrl = productRoutes.export.url({ query: buildQuery(filterValues, search) });
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
