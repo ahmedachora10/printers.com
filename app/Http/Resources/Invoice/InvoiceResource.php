@@ -163,14 +163,20 @@ class InvoiceResource extends JsonResource
             // فيها يعني «لا شحن» فلا يُطبع له سطر — ولا على فاتورة خدمات بلا
             // توصيل: shipping_fee افتراضيّه 0 لا NULL (تاسك 109).
             'shippingFee' => $isServiceInvoice && $this->resource->hasShipping() ? (float) $this->resource->shipping_fee : null,
-            'shippingProviderName' => $isServiceInvoice ? $this->resource->shippingProvider?->name : null,
-            // تاسك 109: بيانات التوصيل في بطاقة «التفاصيل».
-            'shipping' => $isServiceInvoice && $this->resource->hasShipping() ? [
-                'providerPhone' => $this->resource->shippingProvider?->phone,
-                'zoneName' => $this->resource->shippingZone?->name,
-                'distanceKm' => $this->resource->shipping_distance_km !== null ? (float) $this->resource->shipping_distance_km : null,
-                'address' => $this->resource->shipping_address,
-            ] : null,
+            // سطر «التوصيل — …» في الإجماليات: أسماء سائقي الطلبات كلّها (تاسك 170).
+            'shippingProviderName' => $isServiceInvoice
+                ? ($this->resource->shipments->map(fn ($s) => $s->provider?->name)->filter()->unique()->implode('، ') ?: null)
+                : null,
+            // تاسك 109: بيانات التوصيل في بطاقة «التفاصيل» — طلبٌ لكل صف (تاسك 170).
+            'shipments' => $isServiceInvoice ? $this->resource->shipments->map(fn ($s) => [
+                'id' => $s->id,
+                'providerName' => $s->provider?->name,
+                'providerPhone' => $s->provider?->phone,
+                'zoneName' => $s->zone?->name,
+                'distanceKm' => $s->distance_km !== null ? (float) $s->distance_km : null,
+                'address' => $s->address,
+                'fee' => (float) $s->fee,
+            ])->values() : [],
             'employeeCommission' => $this->resource instanceof ServiceInvoice
                 ? (float) $this->resource->employee_commission
                 : null,

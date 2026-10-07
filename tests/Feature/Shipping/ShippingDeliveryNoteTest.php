@@ -49,16 +49,19 @@ describe('Delivery note and the shipping line on screen', function () {
             'customer_id' => $this->customer->id,
             'subtotal' => 100,
             'shipping_fee' => 20,
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
-            'shipping_address' => 'حي النرجس، مكتب 12',
-            'shipping_distance_km' => 3.5,
             'vat_pct' => 15,
             'vat_amount' => 15.65,
             'total_amount' => 120,
             'employee_commission' => 40,
             'status' => InvoiceStatusEnum::PAID,
             'paid_at' => now(),
+        ]);
+        $this->shipment = $this->invoice->shipments()->create([
+            'provider_id' => $this->provider->id,
+            'zone_id' => $this->zone->id,
+            'address' => 'حي النرجس، مكتب 12',
+            'distance_km' => 3.5,
+            'fee' => 20,
         ]);
 
         $this->invoice->lines()->create([
@@ -88,10 +91,11 @@ describe('Delivery note and the shipping line on screen', function () {
     it('sends the delivery details for the details card (task 109)', function () {
         $this->get(route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]))
             ->assertInertia(fn ($page) => $page
-                ->where('invoice.shipping.providerPhone', '0509998887')
-                ->where('invoice.shipping.zoneName', 'حي النرجس')
-                ->where('invoice.shipping.distanceKm', 3.5)
-                ->where('invoice.shipping.address', 'حي النرجس، مكتب 12'));
+                ->where('invoice.shipments.0.id', $this->shipment->id)
+                ->where('invoice.shipments.0.providerPhone', '0509998887')
+                ->where('invoice.shipments.0.zoneName', 'حي النرجس')
+                ->where('invoice.shipments.0.distanceKm', 3.5)
+                ->where('invoice.shipments.0.address', 'حي النرجس، مكتب 12'));
     });
 
     it('draws no shipping line on a service invoice without delivery (task 109)', function () {
@@ -109,7 +113,7 @@ describe('Delivery note and the shipping line on screen', function () {
         ]);
 
         $this->get(route('invoices.show', ['type' => 'service', 'id' => $plain->id]))
-            ->assertInertia(fn ($page) => $page->where('invoice.shippingFee', null)->where('invoice.shipping', null));
+            ->assertInertia(fn ($page) => $page->where('invoice.shippingFee', null)->where('invoice.shipments', []));
 
         $this->get(route('pos.service.print', $plain))
             ->assertInertia(fn ($page) => $page->where('invoice.shippingFee', null));
@@ -144,7 +148,7 @@ describe('Delivery note and the shipping line on screen', function () {
     // ── بيان التوصيل ──────────────────────────────────────────────
 
     it('renders the delivery note with what the driver needs', function () {
-        $this->get(route('invoices.service.delivery-note', $this->invoice))
+        $this->get(route('invoices.service.delivery-note', [$this->invoice, $this->shipment]))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 ->component('invoices/delivery-note')
@@ -162,7 +166,7 @@ describe('Delivery note and the shipping line on screen', function () {
     });
 
     it('never puts a price or a commission on the driver sheet', function () {
-        $this->get(route('invoices.service.delivery-note', $this->invoice))
+        $this->get(route('invoices.service.delivery-note', [$this->invoice, $this->shipment]))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
                 // السائق طرفٌ خارجيّ: لا يرى بم باع المركز ولا ما كسبه الموظف.
@@ -175,7 +179,26 @@ describe('Delivery note and the shipping line on screen', function () {
                 ->where('branch.taxNumber', null));
     });
 
-    it('refuses a delivery note for an invoice with no shipping', function () {
+    // تاسك 170 — بيانٌ لكل طلب: الثاني يحمل سائقه وعنوانه وقيمته هو.
+    it('prints a separate note for each shipment of the invoice', function () {
+        $other = DeliveryProvider::factory()->create(['branch_id' => $this->branch->id, 'name' => 'شركة ثريا']);
+        $second = $this->invoice->shipments()->create(['provider_id' => $other->id, 'address' => 'حي الملقا', 'fee' => 35]);
+
+        $this->get(route('invoices.service.delivery-note', [$this->invoice, $second]))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('note.invoiceNumber', 'SINV-001-00001')
+                ->where('note.providerName', 'شركة ثريا')
+                ->where('note.address', 'حي الملقا')
+                ->where('note.shippingFee', 35));
+
+        $this->get(route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]))
+            ->assertInertia(fn ($page) => $page
+                ->has('invoice.shipments', 2)
+                ->where('invoice.shippingProviderName', 'أبو محمد، شركة ثريا'));
+    });
+
+    it('refuses a note for a shipment of another invoice or one with no driver', function () {
         $plain = ServiceInvoice::create([
             'invoice_number' => 'SINV-001-00002',
             'branch_id' => $this->branch->id,
@@ -187,8 +210,10 @@ describe('Delivery note and the shipping line on screen', function () {
             'employee_commission' => 0,
             'status' => InvoiceStatusEnum::PAID,
         ]);
+        $zoneOnly = $plain->shipments()->create(['zone_id' => $this->zone->id, 'fee' => 20]);
 
-        $this->get(route('invoices.service.delivery-note', $plain))->assertNotFound();
+        $this->get(route('invoices.service.delivery-note', [$plain, $this->shipment]))->assertNotFound();
+        $this->get(route('invoices.service.delivery-note', [$plain, $zoneOnly]))->assertNotFound();
     });
 
     it('lets the accountant open the delivery note too', function () {
@@ -197,7 +222,7 @@ describe('Delivery note and the shipping line on screen', function () {
 
         // الورقة في مجموعة الفواتير لا نقطة البيع، فيبلغها المحاسب.
         $this->actingAs($accountant)
-            ->get(route('invoices.service.delivery-note', $this->invoice))
+            ->get(route('invoices.service.delivery-note', [$this->invoice, $this->shipment]))
             ->assertOk();
     });
 
@@ -207,7 +232,7 @@ describe('Delivery note and the shipping line on screen', function () {
         Branch::factory()->create(['owner_id' => $otherAdmin->id]);
 
         $this->actingAs($otherAdmin)
-            ->get(route('invoices.service.delivery-note', $this->invoice))
+            ->get(route('invoices.service.delivery-note', [$this->invoice, $this->shipment]))
             ->assertForbidden();
     });
 });

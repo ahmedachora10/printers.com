@@ -7,7 +7,7 @@ use App\Http\Controllers\Concerns\BuildsPagedProps;
 use App\Models\Branch;
 use App\Models\DeliveryProvider;
 use App\Models\ExpenseCategory;
-use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceShipment;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\Request;
@@ -25,8 +25,9 @@ use Inertia\Response;
  * مربوطٌ بالطلب لا رصيدٌ للسائق. ما زال خارج الكشف: أرصدة السائقين والدفعات
  * المجمَّعة، وأيّ منهما يفتح باباً لنظام مناديب ثانٍ (M26).
  *
- * والاستعلام واحدٌ على `service_invoices` — التوصيل على الخدمات وحدها في هذه
- * المرحلة، فلا اتحاد مع جدول المنتجات ولا حاجة لأعمدة صفرية مقابلة.
+ * والاستعلام واحدٌ على `service_invoice_shipments` مع فاتورته — التوصيل على
+ * الخدمات وحدها، فلا اتحاد مع جدول المنتجات. وتاسك 170: الصفّ طلبُ توصيل لا
+ * فاتورة، ففاتورةٌ بسائقين صفّان.
  */
 class DeliveryLogController extends Controller
 {
@@ -45,26 +46,30 @@ class DeliveryLogController extends Controller
 
         // ⚠️ كل عمودٍ مؤهَّلٌ باسم جدوله: `byProvider()` تضمّ `delivery_providers`
         // وفيه `branch_id` كذلك، فعمودٌ مجرَّد يجعل الاستعلام ملتبساً ويسقط.
-        $base = ServiceInvoice::query()
-            // الفاتورة بلا مزوّد لم تُشحن أصلاً، فلا محلّ لها في كشف السائقين.
-            ->whereNotNull('service_invoices.shipping_provider_id')
+        $base = ServiceInvoiceShipment::query()
+            ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_shipments.service_invoice_id')
+            ->whereNull('service_invoices.deleted_at')
+            // الطلب بلا مزوّد لم يُشحن أصلاً، فلا محلّ له في كشف السائقين.
+            ->whereNotNull('service_invoice_shipments.provider_id')
             // الملغاة والمرتجعة لا رحلة عليها تُتابَع.
             ->whereNotIn('service_invoices.status', ['cancelled', 'returned'])
             ->when($scope['branchId'], fn ($q, $branchId) => $q->where('service_invoices.branch_id', $branchId))
-            ->when($providerId, fn ($q, $id) => $q->where('service_invoices.shipping_provider_id', $id))
+            ->when($providerId, fn ($q, $id) => $q->where('service_invoice_shipments.provider_id', $id))
             // التاريخ بيوم إنشاء الطلب: الرحلة تتبع الطلب لا تحصيله.
             ->whereBetween('service_invoices.created_at', [$scope['from'], $scope['to']]);
 
         $rows = (clone $base)
+            ->select('service_invoice_shipments.*')
             ->with([
-                'customer:id,full_name,phone',
-                'shippingProvider:id,name,phone',
-                'shippingZone:id,name',
-                'branch:id,name',
-                'user:id,name',
-                'deliverySettlement.user:id,name',
+                'invoice.customer:id,full_name,phone',
+                'invoice.branch:id,name',
+                'invoice.user:id,name',
+                'provider:id,name,phone',
+                'zone:id,name',
+                'settlement.user:id,name',
             ])
-            ->latest('service_invoices.created_at')
+            ->orderByDesc('service_invoices.created_at')
+            ->orderBy('service_invoice_shipments.id')
             ->paginate(self::PER_PAGE)
             ->withQueryString();
 
@@ -73,30 +78,31 @@ class DeliveryLogController extends Controller
         $byProvider = $this->byProvider(clone $base);
 
         return Inertia::render('shipping/deliveries', [
-            'deliveries' => $this->pagedProp($rows, fn (ServiceInvoice $invoice) => [
-                'id' => $invoice->id,
-                'invoiceNumber' => $invoice->invoice_number,
-                'createdAt' => $invoice->created_at?->toIso8601String(),
+            'deliveries' => $this->pagedProp($rows, fn (ServiceInvoiceShipment $shipment) => [
+                'id' => $shipment->id,
+                'invoiceId' => $shipment->service_invoice_id,
+                'invoiceNumber' => $shipment->invoice->invoice_number,
+                'createdAt' => $shipment->invoice->created_at?->toIso8601String(),
                 // الموظف الذي أصدر الفاتورة.
-                'employeeName' => $invoice->user?->name,
-                'customerName' => $invoice->customer?->full_name,
-                'customerPhone' => $invoice->customer?->phone,
-                'address' => $invoice->shipping_address,
-                'zoneName' => $invoice->shippingZone?->name,
-                'providerId' => $invoice->shipping_provider_id,
-                'providerName' => $invoice->shippingProvider?->name,
-                'providerPhone' => $invoice->shippingProvider?->phone,
-                'shippingFee' => (float) $invoice->shipping_fee,
-                'branchName' => $invoice->branch?->name,
-                'statusLabel' => $invoice->status->label(),
-                'branchId' => $invoice->branch_id,
+                'employeeName' => $shipment->invoice->user?->name,
+                'customerName' => $shipment->invoice->customer?->full_name,
+                'customerPhone' => $shipment->invoice->customer?->phone,
+                'address' => $shipment->address,
+                'zoneName' => $shipment->zone?->name,
+                'providerId' => $shipment->provider_id,
+                'providerName' => $shipment->provider?->name,
+                'providerPhone' => $shipment->provider?->phone,
+                'shippingFee' => (float) $shipment->fee,
+                'branchName' => $shipment->invoice->branch?->name,
+                'statusLabel' => $shipment->invoice->status->label(),
+                'branchId' => $shipment->invoice->branch_id,
                 // تاسك 111 — تسوية أجر السائق، مستقلةٌ عن حالة سداد العميل أعلاه.
-                'settlement' => $invoice->deliverySettlement ? [
-                    'expenseId' => $invoice->deliverySettlement->id,
-                    'amount' => (float) $invoice->deliverySettlement->total,
-                    'paidFromLabel' => $invoice->deliverySettlement->paid_from->label(),
-                    'settledByName' => $invoice->deliverySettlement->user?->name,
-                    'settledAt' => $invoice->deliverySettlement->created_at?->toIso8601String(),
+                'settlement' => $shipment->settlement ? [
+                    'expenseId' => $shipment->settlement->id,
+                    'amount' => (float) $shipment->settlement->total,
+                    'paidFromLabel' => $shipment->settlement->paid_from->label(),
+                    'settledByName' => $shipment->settlement->user?->name,
+                    'settledAt' => $shipment->settlement->created_at?->toIso8601String(),
                 ] : null,
             ]),
             'byProvider' => $byProvider,
@@ -130,13 +136,13 @@ class DeliveryLogController extends Controller
     /**
      * صفٌّ لكل سائق: عدد رحلاته وجملة ما تحمّله العميل عليها.
      *
-     * @param  Builder<ServiceInvoice>  $base
+     * @param  Builder<ServiceInvoiceShipment>  $base
      * @return array<int, array<string, mixed>>
      */
     private function byProvider($base): array
     {
         return $base
-            ->join('delivery_providers', 'delivery_providers.id', '=', 'service_invoices.shipping_provider_id')
+            ->join('delivery_providers', 'delivery_providers.id', '=', 'service_invoice_shipments.provider_id')
             ->groupBy('delivery_providers.id', 'delivery_providers.name', 'delivery_providers.phone')
             ->orderByDesc('deliveries')
             ->get([
@@ -144,7 +150,7 @@ class DeliveryLogController extends Controller
                 'delivery_providers.name as provider_name',
                 'delivery_providers.phone as provider_phone',
                 DB::raw('COUNT(*) as deliveries'),
-                DB::raw('COALESCE(SUM(service_invoices.shipping_fee), 0) as fees'),
+                DB::raw('COALESCE(SUM(service_invoice_shipments.fee), 0) as fees'),
             ])
             ->map(fn ($row) => [
                 'providerId' => (int) $row->provider_id,

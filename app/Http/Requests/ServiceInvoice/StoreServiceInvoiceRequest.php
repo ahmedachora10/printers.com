@@ -63,17 +63,20 @@ class StoreServiceInvoiceRequest extends FormRequest
             // تاسك 93 — التوصيل. الرسم يُقبل من الإدارة وحدها؛ الموظف يختار
             // الشريحة وسعرُها هو الحاكم (`CalculateServiceInvoiceAction`)،
             // والوجودُ في الفرع يُتحقّق هناك لا هنا.
-            'shipping_provider_id' => ['nullable', 'integer', 'exists:delivery_providers,id'],
-            'shipping_zone_id' => ['nullable', 'integer', 'exists:delivery_zones,id'],
+            // تاسك 170: عدّة طلبات توصيل، لكلٍّ سائقه وعنوانه وشريحته وقيمته.
+            'shipments' => ['nullable', 'array', 'max:20'],
+            'shipments.*.id' => ['nullable', 'integer'],
+            'shipments.*.provider_id' => ['nullable', 'integer', 'exists:delivery_providers,id'],
+            'shipments.*.zone_id' => ['nullable', 'integer', 'exists:delivery_zones,id'],
             // الصفر مسموح: التوصيل المجّاني يبقى معه اسم السائق مسجّلاً.
-            'shipping_fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
-            'shipping_distance_km' => ['nullable', 'numeric', 'min:0', 'max:9999'],
-            'customer_address_id' => ['nullable', 'integer', 'exists:customer_addresses,id'],
-            'shipping_address' => ['nullable', 'string', 'max:1000'],
+            'shipments.*.fee' => ['nullable', 'numeric', 'min:0', 'max:999999.99'],
+            'shipments.*.distance_km' => ['nullable', 'numeric', 'min:0', 'max:9999'],
+            'shipments.*.customer_address_id' => ['nullable', 'integer', 'exists:customer_addresses,id'],
+            'shipments.*.address' => ['nullable', 'string', 'max:1000'],
             // عنوانٌ جديد يُحفظ في دفتر العميل — إضافةً لا استبدالاً.
-            'save_shipping_address' => ['nullable', 'boolean'],
-            'shipping_address_label' => ['nullable', 'string', 'max:100'],
-            'shipping_location_url' => ['nullable', 'string', 'max:2048'],
+            'shipments.*.save_address' => ['nullable', 'boolean'],
+            'shipments.*.address_label' => ['nullable', 'string', 'max:100'],
+            'shipments.*.location_url' => ['nullable', 'string', 'max:2048'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.branch_service_id' => ['required', 'integer', 'exists:branch_services,id'],
             'lines.*.notes' => ['nullable', 'string', 'max:500'],

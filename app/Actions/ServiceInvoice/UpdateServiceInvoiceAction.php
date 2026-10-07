@@ -5,8 +5,8 @@ namespace App\Actions\ServiceInvoice;
 use App\Actions\InvoiceMessage\PostInvoiceMessageAction;
 use App\Actions\ServiceInvoice\Concerns\LogsAuthoredMaterialsCost;
 use App\Actions\ServiceInvoice\Concerns\ReversesServiceInvoiceAccruals;
-use App\Actions\ServiceInvoice\Concerns\SavesShippingAddress;
 use App\Actions\ServiceInvoice\Concerns\SyncsServiceInvoiceAgents;
+use App\Actions\ServiceInvoice\Concerns\SyncsServiceInvoiceShipments;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\Branch;
@@ -24,7 +24,7 @@ use Illuminate\Validation\ValidationException;
  */
 class UpdateServiceInvoiceAction
 {
-    use LogsAuthoredMaterialsCost, ReversesServiceInvoiceAccruals, SavesShippingAddress, SyncsServiceInvoiceAgents, WritesServiceInvoiceLines;
+    use LogsAuthoredMaterialsCost, ReversesServiceInvoiceAccruals, SyncsServiceInvoiceAgents, SyncsServiceInvoiceShipments, WritesServiceInvoiceLines;
 
     public function __construct(
         private readonly CalculateServiceInvoiceAction $calculator,
@@ -87,7 +87,7 @@ class UpdateServiceInvoiceAction
             // deferred until the accountant approves (pays) the invoice.
             $this->writeLines($invoice, $calc['lines']);
 
-            $this->saveShippingAddress($invoice, $data);
+            $this->syncShipments($invoice, $calc['shipments']);
             $this->logAuthoredMaterialsCost($invoice, $calc['lines']);
             $this->syncInvoiceAgents($invoice, $calc['agents']);
 

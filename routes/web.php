@@ -264,7 +264,8 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
         // تاسك 111 — تسوية أجر السائق لكل طلب. تاسك 152: والمحاسب منها،
         // والسياسة (`settle`) تحصرها في فرعه.
-        Route::post('shipping/deliveries/{invoice}/settle', [DeliverySettlementController::class, 'store'])
+        // تاسك 170: لكل طلب توصيل لا لكل فاتورة.
+        Route::post('shipping/deliveries/{shipment}/settle', [DeliverySettlementController::class, 'store'])
             ->name('shipping.deliveries.settle');
         Route::delete('shipping/settlements/{expense}', [DeliverySettlementController::class, 'destroy'])
             ->name('shipping.settlements.destroy');
@@ -447,8 +448,9 @@ Route::middleware(['auth'])->group(function () {
             // تاسك 93 — بيان التوصيل: ورقة السائق. على فواتير الخدمات وحدها
             // (لا شحن على المنتجات في هذه المرحلة)، وفي هذه المجموعة لا في
             // مجموعة نقطة البيع كي يبلغها المحاسب أيضاً.
-            Route::get('service/{invoice}/delivery-note', [ServiceInvoiceController::class, 'deliveryNote'])
-                ->whereNumber('invoice')->name('service.delivery-note');
+            // تاسك 170: بيانٌ لكل طلب توصيل، والطلب من الفاتورة نفسها.
+            Route::get('service/{invoice}/delivery-note/{shipment}', [ServiceInvoiceController::class, 'deliveryNote'])
+                ->whereNumber(['invoice', 'shipment'])->scopeBindings()->name('service.delivery-note');
 
             // تاسك 95: الملاحظة الداخلية تُصحَّح بعد الاعتماد — تعليمات تنفيذٍ
             // لا رقمٌ مالي. من يملك تعديلها يُقرَّر داخل المتحكّم لكل فاتورة.
