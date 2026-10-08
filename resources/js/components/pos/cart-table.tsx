@@ -186,7 +186,7 @@ function EditableTotal({ total, onCommit }: { total: number; onCommit: (total: n
  * يُكتب يبقى نصّاً حتى الخروج من الحقل فلا يرتدّ «0.» أو الفراغ إلى صفر أثناء
  * الكتابة. القيمة تُرسل حيّةً مع كل حرف، والفراغ = 0.
  */
-function DraftNumberInput({ value, onValueChange, ...props }: Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> & { value: number; onValueChange: (value: number) => void }) {
+export function DraftNumberInput({ value, onValueChange, ...props }: Omit<ComponentProps<typeof Input>, 'value' | 'onChange'> & { value: number; onValueChange: (value: number) => void }) {
     const [draft, setDraft] = useState<string | null>(null);
 
     return (

@@ -2,6 +2,7 @@ import { noteExamplesPlaceholder } from '@/components/branch-services/note-examp
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
 import { ReceiptField } from '@/components/invoices/receipt-field';
 import {
+    DraftNumberInput,
     LINE_HINT_CLASS,
     LineChip,
     LineField,
@@ -1940,20 +1941,15 @@ export default function ServicePos({
                                                                 }
                                                                 htmlFor={`agent-value-${line.key}`}
                                                             >
-                                                                <Input
+                                                                <DraftNumberInput
                                                                     id={`agent-value-${line.key}`}
-                                                                    type="number"
                                                                     min={0}
                                                                     step="0.01"
                                                                     max={line.agentCommissionType === 'percentage' ? 100 : undefined}
                                                                     disabled={agentLocked}
                                                                     title={agentLocked ? 'محدَّدة من الإدارة' : undefined}
                                                                     value={line.agentCommissionValue}
-                                                                    onChange={(e) =>
-                                                                        updateLine(line.key, {
-                                                                            agentCommissionValue: Math.max(0, Number(e.target.value) || 0),
-                                                                        })
-                                                                    }
+                                                                    onValueChange={(value) => updateLine(line.key, { agentCommissionValue: Math.max(0, value) })}
                                                                     className="h-9 text-center"
                                                                 />
                                                             </LineField>
@@ -2003,17 +1999,12 @@ export default function ServicePos({
                                                             htmlFor={`materials-cost-${line.key}`}
                                                         >
                                                             {canEditMaterialsCost(line) ? (
-                                                                <Input
+                                                                <DraftNumberInput
                                                                     id={`materials-cost-${line.key}`}
-                                                                    type="number"
                                                                     min={0}
                                                                     step="0.01"
                                                                     value={line.materialsCost}
-                                                                    onChange={(e) =>
-                                                                        updateLine(line.key, {
-                                                                            materialsCost: Math.max(0, Number(e.target.value) || 0),
-                                                                        })
-                                                                    }
+                                                                    onValueChange={(value) => updateLine(line.key, { materialsCost: Math.max(0, value) })}
                                                                     className="h-9 text-center"
                                                                 />
                                                             ) : (
