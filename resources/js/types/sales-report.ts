@@ -66,10 +66,25 @@ export interface SalesReportPaymentMethodRow {
     /** طريقة نقدية — عليها تُطرح المصروفات (تاسك 97) */
     isCash: boolean;
     count: number;
-    /** صافٍ من المرتجعات */
+    /** صافٍ من المرتجعات — والإجمالي قبلها total + refunds (تاسك 176) */
     total: number;
     /** تاسك 131: ما رُدّ بهذه الطريقة، موجباً */
     refunds: number;
+}
+
+/** تاسك 178 — حدث تحصيل (دفعة أو مرتجع) تحت طريقة دفعه. */
+export interface SalesReportMethodInvoice {
+    invoiceId: number;
+    invoiceType: 'product' | 'service';
+    invoiceNumber: string;
+    invoiceCreatedAt: string;
+    /** 0 = «غير محدد» */
+    methodId: number;
+    kind: 'تحصيل' | 'مرتجع';
+    userName: string;
+    /** سالبٌ للمرتجع */
+    total: number;
+    paidAt: string | null;
 }
 
 export interface SalesReportBranchRow {

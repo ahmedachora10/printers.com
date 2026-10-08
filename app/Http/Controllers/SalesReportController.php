@@ -100,6 +100,8 @@ class SalesReportController extends Controller
             'byDay' => $byDay,
             'byEmployee' => $this->byEmployee($scope, $type),
             'byPaymentMethod' => $this->byPaymentMethod($scope, $type),
+            // تاسك 178: أحداث التحصيل تحت كل طريقة، مؤجَّلةً — تُفتح بالتوسيع لا مع الصفحة.
+            'methodInvoices' => Inertia::defer(fn () => $this->detailInvoices($scope, $type)->groupBy('methodId')),
             'byBranch' => $scope['isSuper'] ? $this->byBranch($scope, $type) : [],
             'filters' => [
                 'from' => $scope['from']?->toDateString(),
@@ -287,6 +289,8 @@ class SalesReportController extends Controller
                 // تاسك 106: الدفعة تحمل إيصالها، فيُعرف الحدث بها.
                 DB::raw('p.id as payment_id'),
                 DB::raw('i.invoice_number as invoice_number'),
+                // تاسك 178: تاريخ إنشاء الفاتورة بجانب يوم تحصيلها.
+                DB::raw('i.created_at as invoice_created_at'),
                 DB::raw('i.branch_id as branch_id'),
                 DB::raw('i.user_id as user_id'),
                 DB::raw('COALESCE(p.payment_method_id, i.payment_method_id) as payment_method_id'),
@@ -313,6 +317,7 @@ class SalesReportController extends Controller
                 DB::raw('i.id as invoice_id'),
                 DB::raw('NULL as payment_id'),
                 DB::raw('i.invoice_number as invoice_number'),
+                DB::raw('i.created_at as invoice_created_at'),
                 DB::raw('i.branch_id as branch_id'),
                 DB::raw('i.user_id as user_id'),
                 DB::raw('i.payment_method_id as payment_method_id'),
@@ -339,6 +344,7 @@ class SalesReportController extends Controller
                 DB::raw('i.id as invoice_id'),
                 DB::raw('NULL as payment_id'),
                 DB::raw('i.invoice_number as invoice_number'),
+                DB::raw('i.created_at as invoice_created_at'),
                 DB::raw('i.branch_id as branch_id'),
                 // يُنسب المرتجع إلى منشئ الفاتورة لا إلى من سجّله: الأثر على
                 // مبيعات ذلك الموظف. نفس عُرف التقرير اليومي.
@@ -731,6 +737,8 @@ class SalesReportController extends Controller
      * under the same invoice number, and a refund lists as a negative row of its
      * own under عمود «الحركة».
      *
+     * تاسك 178: والصفوف نفسها تحت كل طريقة دفع في الصفحة — فمجموعها يطابق رقم الطريقة.
+     *
      * @param  array<string, mixed>  $scope
      * @return Collection<int, array<string, mixed>>
      */
@@ -746,7 +754,10 @@ class SalesReportController extends Controller
                 ->leftJoin('branches', 'branches.id', '=', 'events.branch_id')
                 ->leftJoin('payment_methods', 'payment_methods.id', '=', 'events.payment_method_id')
                 ->get([
+                    DB::raw('events.invoice_id as invoice_id'),
                     DB::raw('events.invoice_number as invoice_number'),
+                    DB::raw('events.invoice_created_at as invoice_created_at'),
+                    DB::raw('events.payment_method_id as method_id'),
                     DB::raw('events.realized_at as paid_at'),
                     'branches.name as branch_name',
                     'users.name as user_name',
@@ -761,7 +772,12 @@ class SalesReportController extends Controller
 
             foreach ($records as $r) {
                 $rows->push([
+                    'invoiceId' => (int) $r->invoice_id,
+                    'invoiceType' => $table === 'product_invoices' ? 'product' : 'service',
                     'invoiceNumber' => $r->invoice_number,
+                    'invoiceCreatedAt' => Carbon::parse($r->invoice_created_at)->toIso8601String(),
+                    // نفس مفتاح byPaymentMethod: «غير محدد» = 0.
+                    'methodId' => (int) $r->method_id,
                     'type' => $typeLabel,
                     // الحدث السالب مرتجع، وما عداه تحصيل — فلا يقرأ القارئ رقماً
                     // سالباً في ورقةٍ بلا تفسير.
