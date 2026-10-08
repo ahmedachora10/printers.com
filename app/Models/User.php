@@ -242,7 +242,6 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
             ->whereDoesntHave('roles', fn ($q) => $q->where('name', Roles::AGENT->value))
             ->orderBy('name')
             ->get(['id', 'name'])
-            ->map(fn (self $u) => ['id' => (int) $u->id, 'name' => (string) $u->name])
-            ->values();
+            ->map(fn (self $u) => ['id' => (int) $u->id, 'name' => (string) $u->name]);
     }
 }

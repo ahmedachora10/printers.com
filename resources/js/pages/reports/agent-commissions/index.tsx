@@ -150,39 +150,37 @@ export default function AgentCommissionReportIndex({ rows, lines, totals, filter
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-xl font-bold md:text-2xl">عمولات المناديب</h1>
                     <div className="flex items-center gap-2">
-                        {(canPickBranch || canPickAgent || canPickEmployee) && (
-                            <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
-                                {canPickBranch && (
-                                    <FilterSelect
-                                        label="الفرع"
-                                        value={f.draft.branch}
-                                        onChange={(v) => f.setField('branch', v)}
-                                        allLabel="كل الفروع"
-                                        options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
-                                    />
-                                )}
-                                {canPickAgent && (
-                                    <FilterSelect
-                                        label="المندوب"
-                                        value={f.draft.agent}
-                                        onChange={(v) => f.setField('agent', v)}
-                                        allLabel="كل المناديب"
-                                        options={agents.map((a) => ({ value: a.id.toString(), label: a.name }))}
-                                        searchable
-                                    />
-                                )}
-                                {canPickEmployee && (
-                                    <FilterSelect
-                                        label="الموظف"
-                                        value={f.draft.user}
-                                        onChange={(v) => f.setField('user', v)}
-                                        allLabel="كل الموظفين"
-                                        options={employees.map((e) => ({ value: e.id.toString(), label: e.name }))}
-                                        searchable
-                                    />
-                                )}
-                            </FilterModal>
-                        )}
+                        <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
+                            {canPickBranch && (
+                                <FilterSelect
+                                    label="الفرع"
+                                    value={f.draft.branch}
+                                    onChange={(v) => f.setField('branch', v)}
+                                    allLabel="كل الفروع"
+                                    options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                                />
+                            )}
+                            {canPickAgent && (
+                                <FilterSelect
+                                    label="المندوب"
+                                    value={f.draft.agent}
+                                    onChange={(v) => f.setField('agent', v)}
+                                    allLabel="كل المناديب"
+                                    options={agents.map((a) => ({ value: a.id.toString(), label: a.name }))}
+                                    searchable
+                                />
+                            )}
+                            {canPickEmployee && (
+                                <FilterSelect
+                                    label="الموظف"
+                                    value={f.draft.user}
+                                    onChange={(v) => f.setField('user', v)}
+                                    allLabel="كل الموظفين"
+                                    options={employees.map((e) => ({ value: e.id.toString(), label: e.name }))}
+                                    searchable
+                                />
+                            )}
+                        </FilterModal>
                         <ReportExportButton href={exportUrl} disabled={totals.agentCount === 0} />
                     </div>
                 </div>
