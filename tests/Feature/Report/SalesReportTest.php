@@ -637,6 +637,44 @@ describe('Sales Report', function () {
                 ->where('byPaymentMethod.0.refunds', 15));
     });
 
+    // تاسك 178 — الفواتير تحت كل طريقة: فاتورة أُنشئت أمس واعتُمدت اليوم تظهر في تقرير اليوم بتاريخَيها.
+    it('lists the collection events under each payment method', function () {
+        $cash = PaymentMethod::factory()->cash()->create(['name' => 'نقد']);
+        $bank = PaymentMethod::factory()->create(['name' => 'تحويل بنكي']);
+        $late = paidServiceInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $cash->id]); // 230
+        $late->forceFill(['created_at' => now()->subDay()])->save();
+        $refunded = paidProductInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $cash->id]); // 115
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $refunded->id,
+            'payment_method_id' => $bank->id,
+            'amount' => 15,
+            'reason' => 'ردّ بالتحويل',
+        ])->assertRedirect();
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => $page
+                ->missing('methodInvoices')
+                ->loadDeferredProps(fn ($page) => $page
+                    ->has("methodInvoices.{$cash->id}", 2)
+                    ->has("methodInvoices.{$bank->id}", 1)
+                    ->where("methodInvoices.{$bank->id}.0.kind", 'مرتجع')
+                    ->where("methodInvoices.{$bank->id}.0.total", -15)
+                    ->where("methodInvoices.{$bank->id}.0.invoiceId", $refunded->id)
+                    ->where("methodInvoices.{$bank->id}.0.invoiceType", 'product')
+                    ->where('methodInvoices', function ($groups) use ($cash, $late) {
+                        $cashRows = collect($groups[$cash->id]);
+                        $lateRow = $cashRows->where('invoiceType', 'service')->firstWhere('invoiceId', $late->id);
+
+                        // مجموع صفوف الطريقة = رقمها في byPaymentMethod.
+                        return $cashRows->sum('total') == 345
+                            && str_starts_with($lateRow['invoiceCreatedAt'], now()->subDay()->toDateString())
+                            && str_starts_with($lateRow['paidAt'], now()->toDateString());
+                    })));
+    });
+
     it('requires the refund method', function () {
         $invoice = paidProductInvoice($this->branch, $this->branchAdmin);
 

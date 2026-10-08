@@ -9,7 +9,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
-import { formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateNumeric, formatDateTimeNumeric } from '@/lib/utils';
 import { ReportExportButton } from '@/components/report-export-button';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import {
@@ -17,12 +17,13 @@ import {
     type SalesReportDayRow,
     type SalesReportEmployeeRow,
     type SalesReportFilters,
+    type SalesReportMethodInvoice,
     type SalesReportPaymentMethodRow,
     type SalesReportSettlement,
     type SalesReportTotals,
     type SalesReportTypeRow,
 } from '@/types/sales-report';
-import { Head, router, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { Bike, CreditCard, FileArchive, Info, Paperclip, Percent, PiggyBank, Receipt, TrendingUp, Undo2, Upload, Wallet } from 'lucide-react';
 import { useMemo, useRef } from 'react';
 
@@ -114,6 +115,8 @@ interface Props {
     byDay: SalesReportDayRow[];
     byEmployee: SalesReportEmployeeRow[];
     byPaymentMethod: SalesReportPaymentMethodRow[];
+    /** تاسك 178 — مؤجَّل: أحداث كل طريقة بمفتاح methodId (0 = غير محدد) */
+    methodInvoices?: Record<number, SalesReportMethodInvoice[]>;
     byBranch: SalesReportBranchRow[];
     filters: SalesReportFilters;
     /** Today — the date fields' cleared value, since the report opens on today. */
@@ -129,6 +132,7 @@ export default function SalesReportIndex({
     byDay,
     byEmployee,
     byPaymentMethod,
+    methodInvoices,
     byBranch,
     filters,
     defaultDate,
@@ -326,7 +330,7 @@ export default function SalesReportIndex({
                     rows={byEmployee.map((e) => ({ key: e.userId, name: e.userName, count: e.count, total: e.total }))}
                 />
 
-                <PaymentMethodCard rows={byPaymentMethod} totals={totals} receiptsUrl={isAuditor ? null : receiptsUrl} settlement={isAuditor ? null : settlement} />
+                <PaymentMethodCard rows={byPaymentMethod} invoices={methodInvoices} totals={totals} receiptsUrl={isAuditor ? null : receiptsUrl} settlement={isAuditor ? null : settlement} />
 
                 {/* By day */}
                 <Card>
@@ -414,11 +418,13 @@ function SummaryCard({
  */
 function PaymentMethodCard({
     rows,
+    invoices,
     totals,
     receiptsUrl,
     settlement,
 }: {
     rows: SalesReportPaymentMethodRow[];
+    invoices?: Record<number, SalesReportMethodInvoice[]>;
     totals: SalesReportTotals;
     receiptsUrl: ((methodId?: number) => string) | null;
     settlement: SalesReportSettlement | null;
@@ -428,14 +434,16 @@ function PaymentMethodCard({
     const columns: ColumnDef<SalesReportPaymentMethodRow>[] = [
         { key: 'name', header: 'طريقة الدفع', className: 'font-medium', cell: (row) => row.methodName },
         { key: 'count', header: 'عدد الفواتير', cell: (row) => row.count },
-        { key: 'total', header: 'الإجمالي', className: 'font-medium', cell: (row) => formatCurrency(row.total) },
-        // تاسك 131: ما رُدّ بهذه الطريقة في الفترة — مطروحٌ أصلاً من «الإجمالي».
+        // تاسك 176: الإجمالي قبل خصم المرتجعات، ثم المرتجعات، ثم الصافي.
+        { key: 'gross', header: 'الإجمالي', className: 'font-medium', cell: (row) => formatCurrency(row.total + row.refunds) },
+        // تاسك 131: ما رُدّ بهذه الطريقة في الفترة.
         {
             key: 'refunds',
-            header: <HintedHeader label="المرتجعات" hint="ما رُدّ للعملاء بهذه الطريقة يوم تنفيذ الاسترجاع — والإجمالي بعد طرحها." />,
+            header: <HintedHeader label="المرتجعات" hint="ما رُدّ للعملاء بهذه الطريقة يوم تنفيذ الاسترجاع." />,
             className: 'text-rose-600',
             cell: (row) => (row.refunds > 0 ? formatCurrency(row.refunds) : '—'),
         },
+        { key: 'total', header: 'الصافي', className: 'font-semibold text-green-600', cell: (row) => formatCurrency(row.total) },
         {
             key: 'expenses',
             header: 'مصروفات نقد',
@@ -486,13 +494,16 @@ function PaymentMethodCard({
                     data={rows}
                     keyExtractor={(row) => row.methodId ?? 0}
                     emptyState={EMPTY_STATE}
+                    renderSubRow={(row) => <MethodInvoices rows={invoices?.[row.methodId ?? 0]} />}
                     footer={
                         <TableRow>
                             <TableCell />
+                            <TableCell />
                             <TableCell className="font-bold">الإجمالي</TableCell>
                             <TableCell />
-                            <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
+                            <TableCell className="font-bold">{formatCurrency(totals.total + totals.refunds)}</TableCell>
                             <TableCell className="font-bold text-rose-600">{totals.refunds > 0 ? formatCurrency(totals.refunds) : '—'}</TableCell>
+                            <TableCell className="font-bold text-green-600">{formatCurrency(totals.total)}</TableCell>
                             <TableCell className="font-bold text-amber-600">{formatCurrency(totals.cashExpenses)}</TableCell>
                             <TableCell className="font-bold text-amber-600">{formatCurrency(totals.transferExpenses)}</TableCell>
                             <TableCell className="font-bold">
@@ -510,6 +521,48 @@ function PaymentMethodCard({
                 />
             </CardContent>
         </Card>
+    );
+}
+
+const methodInvoiceColumns: ColumnDef<SalesReportMethodInvoice>[] = [
+    {
+        key: 'invoiceNumber',
+        header: 'رقم الفاتورة',
+        className: 'font-mono text-xs',
+        cell: (r) => (
+            <Link href={`/invoices/${r.invoiceType}/${r.invoiceId}`} className="text-primary hover:underline" dir="ltr">
+                {r.invoiceNumber}
+            </Link>
+        ),
+    },
+    { key: 'kind', header: 'الحركة', cell: (r) => <span className={r.kind === 'مرتجع' ? 'text-rose-600' : undefined}>{r.kind}</span> },
+    {
+        key: 'invoiceCreatedAt',
+        header: 'تاريخ الإنشاء',
+        // يومٌ غير يوم التحصيل يُميَّز: هذا ما يلتبس على من يراجع فواتير اليوم.
+        cell: (r) => {
+            const created = formatDateNumeric(r.invoiceCreatedAt);
+            const differs = r.paidAt !== null && created !== formatDateNumeric(r.paidAt);
+            return <span className={differs ? 'font-medium text-amber-600' : 'text-muted-foreground'}>{created}</span>;
+        },
+    },
+    { key: 'paidAt', header: 'تاريخ التحصيل', cell: (r) => (r.paidAt ? formatDateTimeNumeric(r.paidAt) : '—') },
+    { key: 'userName', header: 'الموظف', cell: (r) => r.userName },
+    { key: 'total', header: 'المبلغ', className: 'font-semibold', cell: (r) => <span className={r.total < 0 ? 'text-rose-600' : undefined}>{formatCurrency(r.total)}</span> },
+];
+
+/** تاسك 178 — أحداث التحصيل تحت طريقة الدفع. `rows` مؤجَّل: undefined حتى يصل. */
+function MethodInvoices({ rows }: { rows: SalesReportMethodInvoice[] | undefined }) {
+    if (rows === undefined) return <p className="text-muted-foreground px-4 py-3 text-sm">جارٍ التحميل…</p>;
+
+    return (
+        <DataTable
+            className="rounded-none bg-transparent shadow-none"
+            columns={methodInvoiceColumns}
+            data={rows}
+            keyExtractor={(r) => `${r.invoiceType}-${r.invoiceId}-${r.kind}-${r.paidAt}`}
+            emptyState={EMPTY_STATE}
+        />
     );
 }
 
