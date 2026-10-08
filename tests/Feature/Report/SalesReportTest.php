@@ -326,10 +326,7 @@ describe('Sales Report', function () {
                 ->where('totals.total', 57.5));
     });
 
-    it('does not subtract twice when the refund empties the invoice', function () {
-        // المرتجع الكامل يجعل الحالة `returned`، فتسقط الفاتورة من التقرير كلياً؛
-        // طرحُ صفّ مرتجعها فوق ذلك كان سيُخرج الإيراد بالسالب. لكنه يظهر في
-        // «المرتجعات» كما في التقرير اليومي.
+    it('nets a same-day full return to zero without subtracting it twice', function () {
         $invoice = paidProductInvoice($this->branch, $this->branchAdmin); // total 115
 
         $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
@@ -340,12 +337,47 @@ describe('Sales Report', function () {
             'reason' => 'مرتجع كامل',
         ])->assertRedirect();
 
+        expect($invoice->fresh()->status->value)->toBe('returned');
+
         $this->actingAs($this->superAdmin)
             ->get(route('reports.sales'))
             ->assertInertia(fn ($page) => $page
                 ->where('totals.total', 0)
                 ->where('totals.subtotal', 0)
                 ->where('totals.vat', 0)
+                ->where('totals.refunds', 115)
+                ->where('totals.invoiceCount', 1));
+    });
+
+    it('keeps a fully returned sale on its day and deducts the refund on the refund day', function () {
+        // تاسك 172: المرتجع الكامل كان يُسقط البيع من يومه بحالته `returned`
+        // ولا يخصم شيئاً يوم الإرجاع.
+        $invoice = paidProductInvoice($this->branch, $this->branchAdmin, [
+            'paid_at' => now()->subDays(5),
+        ]);
+
+        $this->actingAs($this->branchAdmin)->post(route('refunds.store'), [
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
+            'amount' => 115,
+            'reason' => 'مرتجع كامل على بيع قديم',
+        ])->assertRedirect();
+
+        $day = fn ($date) => ['from' => $date->toDateString(), 'to' => $date->toDateString()];
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales', $day(now()->subDays(5))))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.total', 115)
+                ->where('totals.refunds', 0)
+                ->where('totals.invoiceCount', 1));
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.sales', $day(now())))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.total', -115)
+                ->where('totals.vat', -15)
                 ->where('totals.refunds', 115)
                 ->where('totals.invoiceCount', 0));
     });

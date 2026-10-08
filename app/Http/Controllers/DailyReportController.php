@@ -152,7 +152,6 @@ class DailyReportController extends Controller
                 'total' => 0.0,
                 'collected' => 0.0,
                 'refunds' => 0.0,
-                'refundsDeductible' => 0.0,
                 'commission' => 0.0,
                 'purchases' => 0.0,
                 'remaining' => 0.0,
@@ -194,17 +193,14 @@ class DailyReportController extends Controller
             $buckets[$day][$employeeId]['vat'] += (float) $row->vat;
         }
 
-        // المرتجعات تُعرض في عمودها كاملةً — العميل يريد رؤيتها، لا إخفاء صفوفها —
-        // بينما لا يُطرح من المحصَّل إلا ما لم يُطرح مرة أخرى أصلاً (انظر تعليق
-        // refundsDaily).
+        // المرتجعات تُعرض في عمودها وتُخصم من المحصَّل يوم الإرجاع (تاسك 172).
         foreach ($this->refundsDaily($scope, $employeeIds, $detailed) as $row) {
             $day = (string) $row->day;
             $employeeId = $detailed ? (int) $row->user_id : 0;
             $ensure($day, $employeeId);
             $buckets[$day][$employeeId]['refunds'] += (float) $row->refunded;
-            $buckets[$day][$employeeId]['refundsDeductible'] += (float) $row->deductible;
             // الضريبة تتبع المحصَّل: ما يُطرح منه تُطرح ضريبته.
-            $buckets[$day][$employeeId]['vat'] -= (float) $row->deductible_vat;
+            $buckets[$day][$employeeId]['vat'] -= (float) $row->refunded_vat;
         }
 
         foreach ($this->commissionDaily($scope, $employeeIds, $detailed) as $row) {
@@ -230,10 +226,8 @@ class DailyReportController extends Controller
             uasort($dayRows, fn (array $a, array $b) => strcmp((string) $a['employeeName'], (string) $b['employeeName']));
 
             foreach ($dayRows as $row) {
-                // المرتجع مالٌ خرج فعلاً، فيُخصم من المحصَّل ومن الصافي المتبقي —
-                // لكن الجزء القابل للخصم فقط، وإلا خرجت الفاتورة المرتجعة كلياً
-                // مرتين فصار المحصَّل بالسالب.
-                $row['collected'] -= $row['refundsDeductible'];
+                // المرتجع مالٌ خرج فعلاً، فيُخصم من المحصَّل ومن الصافي المتبقي.
+                $row['collected'] -= $row['refunds'];
                 $row['vat'] = round($row['vat'], 2);
                 // المتبقي = المبيعات (شاملة الضريبة) − المرتجعات − المشتريات.
                 // العمولة والضريبة عمودا عرض لا تُطرحان (تاسك 58): نصّ العميل
@@ -241,7 +235,7 @@ class DailyReportController extends Controller
                 // ‏115 − 10 − 10 = 95 لا يجمعهما ولا يطرحهما — أي أن المقصود
                 // «لا تُخصما كما كنتم تفعلون». فالرقم نقدي إجمالي لا صافٍ محاسبي.
                 $row['remaining'] = $showPurchases
-                    ? $row['total'] - $row['refundsDeductible'] - $row['purchases']
+                    ? $row['total'] - $row['refunds'] - $row['purchases']
                     : 0.0;
 
                 $rows[] = $row;
@@ -280,7 +274,6 @@ class DailyReportController extends Controller
             // يجمع محصَّلاً صافياً.
             'collected' => $sum('collected'),
             'refunds' => $sum('refunds'),
-            'refundsDeductible' => $sum('refundsDeductible'),
             'commission' => $sum('commission'),
             'purchases' => 0.0,
             'remaining' => 0.0,
@@ -337,7 +330,10 @@ class DailyReportController extends Controller
         return DB::table($table)
             ->leftJoinSub($firstPayment, 'fp', 'fp.invoice_id', '=', $table.'.id')
             // الآجلة لم يعتمدها المحاسب بعد، والملغاة والمرتجعة خارج المبيعات أصلاً.
-            ->whereIn($table.'.status', InvoiceStatusEnum::approved())
+            // تاسك 172: المرتجعة بالكامل تبقى بيعاً يوم اعتمادها، ومرتجعها يُخصم يوم
+            // الإرجاع (refundsDaily). والمرتجعة وهي آجلة لا يوم اعتماد لها فيُسقطها
+            // الحارس أدناه.
+            ->whereIn($table.'.status', [...InvoiceStatusEnum::approved(), InvoiceStatusEnum::RETURNED->value])
             ->whereNull($table.'.deleted_at')
             // حارس ضد صفٍّ معتمَد بلا تاريخ اعتماد إطلاقاً (بيانات قديمة): DATE(NULL)
             // كان سيفتح يوماً فارغاً في التقرير.
@@ -389,7 +385,7 @@ class DailyReportController extends Controller
                 ->join($table.' as i', 'i.id', '=', 'p.invoice_id')
                 ->where('p.invoice_type', $model)
                 ->whereNull('i.deleted_at')
-                ->whereNotIn('i.status', InvoiceStatusEnum::excludedFromRevenue())
+                ->where('i.status', '!=', InvoiceStatusEnum::CANCELLED->value)
                 ->when($scope['branchId'], fn ($q) => $q->where('i.branch_id', $scope['branchId']))
                 ->when($employeeIds !== [], fn ($q) => $q->whereIn('i.user_id', $employeeIds))
                 ->when($scope['from'], fn ($q) => $q->where('p.paid_at', '>=', $scope['from']))
@@ -400,7 +396,7 @@ class DailyReportController extends Controller
 
             $settledAtTill = DB::table($table.' as i')
                 ->whereNull('i.deleted_at')
-                ->where('i.status', InvoiceStatusEnum::PAID->value)
+                ->whereIn('i.status', [InvoiceStatusEnum::PAID->value, InvoiceStatusEnum::RETURNED->value])
                 ->whereNotNull('i.paid_at')
                 ->whereNotExists(fn ($q) => $q->from('invoice_payments as p')
                     ->where('p.invoice_type', $model)
@@ -427,11 +423,9 @@ class DailyReportController extends Controller
      * جدول refunds كان خارج هذا التقرير كلياً، فكان المحصَّل مضخّماً بقيمة كل
      * مرتجع جزئي.
      *
-     * لكل يوم رقمان: `refunded` وهو كل ما رُدّ ويُعرض في العمود، و`deductible`
-     * وهو ما يُطرح فعلاً من المحصَّل والمتبقي. الفاتورة المرتجعة بالكامل تصير
-     * حالتها `returned` فتسقط أصلاً من المبيعات ومن المحصَّل، فطرحُ صفّ مرتجعها
-     * فوق ذلك خصمٌ ثانٍ لنفس المبلغ — وهو ما كان يُخرج المحصَّل بالسالب. أما
-     * المرتجع الجزئي فتبقى فاتورته محتسبة، فيُخصم كما هو.
+     * تاسك 172: كل مرتجع يُخصم كاملاً يوم الإرجاع، جزئياً كان أو كاملاً — فبيعُ
+     * الفاتورة المرتجعة بالكامل بقي في يوم اعتمادها (invoiceDaily/collectedDaily)
+     * بدل أن يختفي منه.
      *
      * @param  array<string, mixed>  $scope
      * @param  array<int, int>  $employeeIds
@@ -441,19 +435,13 @@ class DailyReportController extends Controller
     {
         $rows = collect();
 
-        // قيم enum ثابتة لا مدخلات مستخدم، فاقتباسها هنا آمن.
-        $excluded = collect(InvoiceStatusEnum::excludedFromRevenue())
-            ->map(fn (string $status) => "'".$status."'")
-            ->implode(', ');
-
         foreach ([ProductInvoice::class, ServiceInvoice::class] as $model) {
             $table = (new $model)->getTable();
 
             $columns = [
                 DB::raw('DATE(r.created_at) as day'),
                 DB::raw('COALESCE(SUM(r.amount), 0) as refunded'),
-                DB::raw('COALESCE(SUM(CASE WHEN i.status IN ('.$excluded.') THEN 0 ELSE r.amount END), 0) as deductible'),
-                DB::raw('COALESCE(SUM(CASE WHEN i.status IN ('.$excluded.') THEN 0 ELSE r.amount * i.vat_amount * 1.0 / NULLIF(i.total_amount, 0) END), 0) as deductible_vat'),
+                DB::raw('COALESCE(SUM(r.amount * i.vat_amount * 1.0 / NULLIF(i.total_amount, 0)), 0) as refunded_vat'),
             ];
 
             if ($detailed) {

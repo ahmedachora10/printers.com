@@ -43,16 +43,21 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  *
  * والمرتجع حدثُ تحصيلٍ سالب على المنوال نفسه: مالٌ خرج، مؤرَّخٌ بيوم خروجه،
  * موزَّعةٌ أرقامُه بحصّته من الفاتورة. فالإيراد المعروض صافٍ من المرتجعات، وتُعرض
- * جملتها إلى جانبه. أما الفاتورة المرتجعة بالكامل فقد سقطت أصلاً بحكم حالتها
- * (`returned` خارج COLLECTED_STATUSES)، فلا يُطرح مرتجعها فوق ذلك — وهو نفس
- * التمييز الذي يقيمه عمود `deductible` في التقرير اليومي.
+ * جملتها إلى جانبه. وتاسك 172: الفاتورة المرتجعة بالكامل كالجزئية تماماً — بيعها
+ * يبقى في يوم تحصيله، ومرتجعها يُخصم في يوم الإرجاع. كانت تسقط بحالتها `returned`
+ * فيختفي بيعها من يومه الأصلي ولا يُخصم شيءٌ يوم الإرجاع.
  */
 class SalesReportController extends Controller
 {
-    /** The statuses that have money behind them: fully or partly collected. */
+    /**
+     * The statuses that had money collected on them. A returned invoice stays:
+     * its sale belongs to the day it was collected, and the refund is its own
+     * negative event on the day the money went back (task 172).
+     */
     private const COLLECTED_STATUSES = [
         InvoiceStatusEnum::PAID->value,
         InvoiceStatusEnum::PARTIALLY_PAID->value,
+        InvoiceStatusEnum::RETURNED->value,
     ];
 
     public function __construct(private readonly BuildReportDayRange $dayRange) {}
@@ -298,7 +303,9 @@ class SalesReportController extends Controller
 
         $direct = DB::table($table.' as i')
             ->whereNull('i.deleted_at')
-            ->where('i.status', InvoiceStatusEnum::PAID->value)
+            // المرتجعة التي سُدّدت عند البيع تبقى بيعاً يوم سدادها (تاسك 172)؛
+            // والمرتجعة وهي آجلة لا paid_at لها فيُسقطها whereNotNull أدناه.
+            ->whereIn('i.status', [InvoiceStatusEnum::PAID->value, InvoiceStatusEnum::RETURNED->value])
             ->whereNotExists(fn ($q) => $q->from('invoice_payments as p')
                 ->where('p.invoice_type', $morphClass)
                 ->whereColumn('p.invoice_id', 'i.id'))
@@ -318,20 +325,16 @@ class SalesReportController extends Controller
                 DB::raw('0 as refunded'),
             ]);
 
-        // C. المرتجعات — أحداثٌ سالبة بحصّتها من الفاتورة. الفاتورة المرتجعة
-        // بالكامل حالتها `returned` فسقطت من الفرعين أعلاه، فطرحُ مرتجعها فوق
-        // ذلك خصمٌ ثانٍ لنفس المبلغ: صفُّها يُصفَّر أثرُه على الإيراد ويبقى
-        // `refunded` وحده، فيظهر في «المرتجعات» كما يظهر في التقرير اليومي.
-        $collected = collect(self::COLLECTED_STATUSES)->map(fn (string $s) => "'{$s}'")->implode(', ');
-        $counted = "CASE WHEN i.status IN ({$collected}) THEN 1 ELSE 0 END";
-        $refundShare = "(r.amount * 1.0) / NULLIF(i.total_amount, 0) * {$counted}";
+        // C. المرتجعات — أحداثٌ سالبة بحصّتها من الفاتورة، مؤرَّخةٌ بيوم الإرجاع،
+        // جزئيةً كانت أو كاملة: بيعُ الفاتورة المرتجعة بقي في الفرعين أعلاه.
+        $refundShare = '(r.amount * 1.0) / NULLIF(i.total_amount, 0)';
 
         $refunds = DB::table('refunds as r')
             ->join($table.' as i', 'i.id', '=', 'r.invoice_id')
             ->where('r.invoice_type', $morphClass)
             ->whereNull('r.deleted_at')
             ->whereNull('i.deleted_at')
-            ->whereIn('i.status', [...self::COLLECTED_STATUSES, InvoiceStatusEnum::RETURNED->value])
+            ->whereIn('i.status', self::COLLECTED_STATUSES)
             ->select([
                 DB::raw('i.id as invoice_id'),
                 DB::raw('NULL as payment_id'),
@@ -345,14 +348,14 @@ class SalesReportController extends Controller
                 // طريقة يبقى على طريقة فاتورته كما كان.
                 DB::raw('COALESCE(r.payment_method_id, i.payment_method_id) as payment_method_id'),
                 DB::raw('r.created_at as realized_at'),
-                DB::raw("-r.amount * {$counted} as realized"),
+                DB::raw('-r.amount as realized'),
                 DB::raw("-i.subtotal * ({$refundShare}) as subtotal_share"),
                 DB::raw("-{$discounts} * ({$refundShare}) as discounts_share"),
                 DB::raw("-i.vat_amount * ({$refundShare}) as vat_share"),
                 // ما رُدّ من الشحن مكتوبٌ على صفّ المرتجع بقرار المحاسب، فلا
                 // يُوزَّع نسبياً كبقية الأرقام: مرتجعٌ لم يُردّ شحنه لا يُنقص
                 // جملة التوصيل، ومرتجعٌ رُدّ يُنقصها بما رُدّ بالضبط.
-                DB::raw("-{$shippingRefunded} * {$counted} as shipping_share"),
+                DB::raw("-{$shippingRefunded} as shipping_share"),
                 DB::raw('r.amount as refunded'),
             ]);
 
@@ -762,12 +765,7 @@ class SalesReportController extends Controller
                     'type' => $typeLabel,
                     // الحدث السالب مرتجع، وما عداه تحصيل — فلا يقرأ القارئ رقماً
                     // سالباً في ورقةٍ بلا تفسير.
-                    // المرتجع الكامل صفرٌ هنا: فاتورته خارج الإيراد أصلاً.
-                    'kind' => match (true) {
-                        (float) $r->total < 0 => 'مرتجع',
-                        (float) $r->refunded > 0 => 'مرتجع كامل',
-                        default => 'تحصيل',
-                    },
+                    'kind' => (float) $r->refunded > 0 ? 'مرتجع' : 'تحصيل',
                     'branchName' => $r->branch_name,
                     'userName' => $r->user_name,
                     'methodName' => $r->method_name ?? 'غير محدد',

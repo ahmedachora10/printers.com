@@ -191,24 +191,44 @@ describe('Daily Report', function () {
 
     // ── المرتجع والإلغاء في التقرير اليومي (تاسك 43) ───────────────
 
-    it('drops a returned invoice out of sales and out of collected', function () {
-        // فاتورة معتمدة ثم مرتجعة: كانت تبقى ضمن المبيعات والمحصَّل والضريبة.
-        dailyProductInvoice($this->branch, $this->branchAdmin, [
-            'status' => 'returned', 'paid_at' => now(), 'vat_amount' => 15, 'total_amount' => 115,
+    it('keeps a fully returned sale on its day and deducts the refund on the refund day', function () {
+        // تاسك 172: المرتجع الكامل يضع الحالة `returned`، وكان ذلك يُسقط البيع من
+        // يومه الأصلي ولا يخصم شيئاً يوم الإرجاع. صار كالجزئي تماماً.
+        $invoice = dailyProductInvoice($this->branch, $this->branchAdmin, [
+            'status' => 'returned', 'paid_at' => now()->subDays(2), 'vat_amount' => 15, 'total_amount' => 115,
         ]);
 
+        Refund::create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'source_type' => 'product',
+            'invoice_id' => $invoice->id,
+            'invoice_type' => ProductInvoice::class,
+            'amount' => 115,
+            'reason' => 'استرجاع الفاتورة',
+        ]);
+
+        $day = fn ($date) => ['from' => $date->toDateString(), 'to' => $date->toDateString()];
+
         $this->actingAs($this->superAdmin)
-            ->get(route('reports.daily'))
+            ->get(route('reports.daily', $day(now()->subDays(2))))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.products', 115)
+                ->where('totals.collected', 115)
+                ->where('totals.vat', 15)
+                ->where('totals.refunds', 0));
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily', $day(now())))
             ->assertInertia(fn ($page) => $page
                 ->where('totals.products', 0)
-                ->where('totals.collected', 0)
-                ->where('totals.vat', 0));
+                ->where('totals.collected', -115)
+                ->where('totals.vat', -15)
+                ->where('totals.refunds', 115)
+                ->where('totals.remaining', -115));
     });
 
-    it('does not subtract a fully returned invoice twice', function () {
-        // تاسك 46: الاسترجاع يضع الحالة `returned` **ويُنشئ صفّ مرتجع**. الفاتورة
-        // ساقطة أصلاً من المبيعات والمحصَّل، فطرح صفّ مرتجعها فوق ذلك كان يُخرج
-        // المحصَّل بالسالب. يبقى المبلغ ظاهراً في عمود المرتجعات للاطّلاع فقط.
+    it('nets a same-day full return to zero without subtracting it twice', function () {
         $invoice = dailyProductInvoice($this->branch, $this->branchAdmin, [
             'status' => 'returned', 'paid_at' => now(), 'vat_amount' => 15, 'total_amount' => 115,
         ]);
@@ -226,10 +246,22 @@ describe('Daily Report', function () {
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
             ->assertInertia(fn ($page) => $page
+                ->where('totals.products', 115)
                 ->where('totals.collected', 0)
                 ->where('totals.refunds', 115)
-                ->where('totals.products', 0)
                 ->where('totals.remaining', 0));
+    });
+
+    it('leaves out an invoice returned while still due', function () {
+        // لا تحصيل ولا يوم اعتماد ولا صفّ مرتجع (تاسك 4) — لا أثر في التقرير.
+        dailyProductInvoice($this->branch, $this->branchAdmin, ['status' => 'returned', 'paid_at' => null]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.products', 0)
+                ->where('totals.collected', 0)
+                ->where('totals.refunds', 0));
     });
 
     it('subtracts a partial refund from the collected amount and shows it', function () {
