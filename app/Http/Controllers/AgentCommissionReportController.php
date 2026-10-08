@@ -11,6 +11,7 @@ use App\Models\Agent;
 use App\Models\Branch;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoiceAgent;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Carbon;
@@ -56,10 +57,12 @@ class AgentCommissionReportController extends Controller
                 'from' => $scope['from']->toDateString(),
                 'to' => $scope['to']->toDateString(),
                 'agent' => $scope['agentId'] ? (string) $scope['agentId'] : null,
+                'user' => $scope['userId'] ? (string) $scope['userId'] : null,
                 'branch' => $scope['isSuper'] && $scope['branchId'] ? (string) $scope['branchId'] : null,
             ],
             'defaultDate' => now()->toDateString(),
             'agents' => $this->agentOptions($scope),
+            'employees' => User::invoiceRaiserOptions($scope['branchId']),
             'branches' => $scope['isSuper']
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
@@ -78,10 +81,13 @@ class AgentCommissionReportController extends Controller
     }
 
     /**
-     * Report scope: the shared branch/date resolution plus the agent picker.
-     * Employees have no business here — this is other people's money.
+     * Report scope: the shared branch/date resolution plus the agent and
+     * employee pickers. Employees have no business here — this is other people's money.
      *
-     * @return array{isSuper: bool, branchId: ?int, agentId: ?int, from: Carbon, to: Carbon}
+     * The employee is the invoice's creator (تاسك 179). One from another branch
+     * needs no check: the branch condition already leaves nothing to match.
+     *
+     * @return array{isSuper: bool, branchId: ?int, agentId: ?int, userId: ?int, from: Carbon, to: Carbon}
      */
     private function scope(AgentCommissionReportFilterRequest $request, ResolveReportScope $resolveScope): array
     {
@@ -92,6 +98,7 @@ class AgentCommissionReportController extends Controller
         return [
             ...$resolveScope->handle($request),
             'agentId' => $request->filled('agent') ? (int) $request->input('agent') : null,
+            'userId' => $request->filled('user') ? (int) $request->input('user') : null,
         ];
     }
 
@@ -207,7 +214,8 @@ class AgentCommissionReportController extends Controller
             ->where('service_invoices.status', InvoiceStatusEnum::PAID->value)
             ->whereBetween('service_invoices.created_at', [$scope['from'], $scope['to']])
             ->when($scope['branchId'], fn ($q) => $q->where('service_invoices.branch_id', $scope['branchId']))
-            ->when($scope['agentId'], fn ($q) => $q->where('service_invoice_agent.agent_id', $scope['agentId']));
+            ->when($scope['agentId'], fn ($q) => $q->where('service_invoice_agent.agent_id', $scope['agentId']))
+            ->when($scope['userId'], fn ($q) => $q->where('service_invoices.user_id', $scope['userId']));
     }
 
     /** @param array<string, mixed> $scope */
@@ -218,7 +226,8 @@ class AgentCommissionReportController extends Controller
             ->where('product_invoices.status', InvoiceStatusEnum::PAID->value)
             ->whereBetween('product_invoices.created_at', [$scope['from'], $scope['to']])
             ->when($scope['branchId'], fn ($q) => $q->where('product_invoices.branch_id', $scope['branchId']))
-            ->when($scope['agentId'], fn ($q) => $q->where('product_invoices.agent_id', $scope['agentId']));
+            ->when($scope['agentId'], fn ($q) => $q->where('product_invoices.agent_id', $scope['agentId']))
+            ->when($scope['userId'], fn ($q) => $q->where('product_invoices.user_id', $scope['userId']));
     }
 
     /**

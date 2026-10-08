@@ -2,6 +2,8 @@ export interface CommissionReportSummaryRow {
     userId: number;
     userName: string;
     lineCount: number;
+    /** تاسك 174: إجمالي الفواتير المعتمدة التي أنشأها الموظف — شاملاً الضريبة. */
+    revenue: number;
     earned: number;
     paid: number;
     pending: number;
@@ -34,7 +36,10 @@ export interface CommissionReportLine {
     id: number;
     userId: number;
     userName: string;
+    invoiceId: number;
     invoiceNumber: string;
+    /** تاسك 175: إجمالي الفاتورة — يتكرّر على كل بنودها، فلا يُجمع. */
+    invoiceTotal: number;
     invoiceStatus: 'paid' | 'due' | 'cancelled' | 'returned';
     serviceName: string;
     amount: number;

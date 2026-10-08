@@ -21,6 +21,7 @@ class AgentCommissionReportFilterRequest extends FormRequest
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'branch' => ['nullable', 'integer', 'exists:branches,id'],
             'agent' => ['nullable', 'integer', 'exists:users,id'],
+            'user' => ['nullable', 'integer', 'exists:users,id'],
         ];
     }
 }

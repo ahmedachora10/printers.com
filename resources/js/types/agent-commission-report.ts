@@ -44,5 +44,6 @@ export interface AgentCommissionFilters {
     from: string;
     to: string;
     agent: string | null;
+    user: string | null;
     branch: string | null;
 }

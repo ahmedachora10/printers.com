@@ -91,20 +91,26 @@ interface Props {
     /** Today — the range the report opens on. */
     defaultDate: string;
     agents: { id: number; name: string }[];
+    employees: { id: number; name: string }[];
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
 }
 
-export default function AgentCommissionReportIndex({ rows, lines, totals, filters, defaultDate, agents, branches, isSuperAdmin }: Props) {
+export default function AgentCommissionReportIndex({ rows, lines, totals, filters, defaultDate, agents, employees, branches, isSuperAdmin }: Props) {
     const canPickBranch = isSuperAdmin && branches.length > 0;
     const canPickAgent = agents.length > 0;
+    const canPickEmployee = employees.length > 0;
 
-    const defaults = useMemo<FilterValues>(() => ({ from: defaultDate, to: defaultDate, agent: 'all', branch: 'all' }), [defaultDate]);
+    const defaults = useMemo<FilterValues>(
+        () => ({ from: defaultDate, to: defaultDate, agent: 'all', user: 'all', branch: 'all' }),
+        [defaultDate],
+    );
 
     const applied: FilterValues = {
         from: filters.from,
         to: filters.to,
         agent: filters.agent ?? 'all',
+        user: filters.user ?? 'all',
         branch: filters.branch ?? 'all',
     };
     const f = useReportFilters(REPORT_URL, applied, defaults);
@@ -121,6 +127,10 @@ export default function AgentCommissionReportIndex({ rows, lines, totals, filter
     if (f.isActive('agent')) {
         const name = agents.find((a) => a.id.toString() === applied.agent)?.name ?? applied.agent;
         chips.push({ key: 'agent', label: `المندوب: ${name}`, onRemove: () => f.remove('agent') });
+    }
+    if (f.isActive('user')) {
+        const name = employees.find((e) => e.id.toString() === applied.user)?.name ?? applied.user;
+        chips.push({ key: 'user', label: `الموظف: ${name}`, onRemove: () => f.remove('user') });
     }
 
     const linesByAgent = useMemo(() => {
@@ -140,7 +150,7 @@ export default function AgentCommissionReportIndex({ rows, lines, totals, filter
                 <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-xl font-bold md:text-2xl">عمولات المناديب</h1>
                     <div className="flex items-center gap-2">
-                        {(canPickBranch || canPickAgent) && (
+                        {(canPickBranch || canPickAgent || canPickEmployee) && (
                             <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
                                 {canPickBranch && (
                                     <FilterSelect
@@ -158,6 +168,17 @@ export default function AgentCommissionReportIndex({ rows, lines, totals, filter
                                         onChange={(v) => f.setField('agent', v)}
                                         allLabel="كل المناديب"
                                         options={agents.map((a) => ({ value: a.id.toString(), label: a.name }))}
+                                        searchable
+                                    />
+                                )}
+                                {canPickEmployee && (
+                                    <FilterSelect
+                                        label="الموظف"
+                                        value={f.draft.user}
+                                        onChange={(v) => f.setField('user', v)}
+                                        allLabel="كل الموظفين"
+                                        options={employees.map((e) => ({ value: e.id.toString(), label: e.name }))}
+                                        searchable
                                     />
                                 )}
                             </FilterModal>

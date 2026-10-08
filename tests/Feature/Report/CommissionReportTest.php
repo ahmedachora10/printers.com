@@ -468,6 +468,52 @@ describe('Employee Commission Report', function () {
                 ->where('totals.netRevenue', 825));
     });
 
+    it('adds each employee\'s approved revenue to the per-employee table (task 174)', function () {
+        $second = User::factory()->create(['branch_id' => $this->branch->id, 'name' => 'ب موظف']);
+        $second->addRole(Roles::EMPLOYEE->value);
+        $this->employee->update(['name' => 'أ موظف']);
+
+        ledgerLine($this->employee, $this->branch, ['amount' => 10]);
+        ledgerLine($this->employee, $this->branch, ['amount' => 10]);
+        // An approved invoice that earned no commission of any kind still counts.
+        ServiceInvoice::create([
+            'invoice_number' => 'SINV-TST-174',
+            'branch_id' => $this->branch->id,
+            'user_id' => $second->id,
+            'subtotal' => 200,
+            'vat_pct' => 15,
+            'vat_amount' => 30,
+            'total_amount' => 230,
+            'employee_commission' => 0,
+            'status' => 'paid',
+            'paid_at' => now(),
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->has('summary', 2)
+                ->where('summary.0.userId', $this->employee->id)
+                ->where('summary.0.revenue', 230)
+                ->where('summary.1.userId', $second->id)
+                ->where('summary.1.revenue', 230)
+                ->where('summary.1.earned', 0)
+                // Same figure as the daily table's total.
+                ->where('totals.revenue', 460));
+    });
+
+    it('carries the invoice id and total on each detail line (task 175)', function () {
+        $ledger = ledgerLine($this->employee, $this->branch, ['amount' => 12]);
+        $invoiceId = ServiceInvoiceLine::find($ledger->invoice_line_id)->invoice_id;
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->where('lines.0.invoiceId', $invoiceId)
+                ->where('lines.0.invoiceTotal', 115)
+                ->where('lines.0.amount', 12));
+    });
+
     // ── EXPORT ─────────────────────────────────────────────────────
 
     it('exports the report as an xlsx download', function () {
