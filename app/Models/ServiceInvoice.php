@@ -11,7 +11,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
@@ -39,11 +38,6 @@ class ServiceInvoice extends Model implements HasMedia
         'points_discount',
         'points_redeemed_at',
         'shipping_fee',
-        'shipping_provider_id',
-        'shipping_zone_id',
-        'shipping_distance_km',
-        'customer_address_id',
-        'shipping_address',
         'vat_pct',
         'vat_amount',
         'total_amount',
@@ -73,7 +67,6 @@ class ServiceInvoice extends Model implements HasMedia
         'points_discount' => 'decimal:2',
         'points_redeemed_at' => 'datetime',
         'shipping_fee' => 'decimal:2',
-        'shipping_distance_km' => 'decimal:2',
         'vat_pct' => 'decimal:2',
         'vat_amount' => 'decimal:2',
         'total_amount' => 'decimal:2',
@@ -95,12 +88,12 @@ class ServiceInvoice extends Model implements HasMedia
     }
 
     /**
-     * تاسك 109 — هل على الفاتورة توصيل؟ مزوّدٌ أو شريحة، كما يقرّر
-     * CalculateServiceInvoiceAction::resolveShipping — لا shipping_fee، فافتراضيّه 0.
+     * تاسك 109 — هل على الفاتورة توصيل؟ طلبٌ واحد على الأقل (تاسك 170) — لا
+     * shipping_fee، فافتراضيّه 0 والتوصيل المجاني مسموح.
      */
     public function hasShipping(): bool
     {
-        return $this->shipping_provider_id !== null || $this->shipping_zone_id !== null;
+        return $this->shipments->isNotEmpty();
     }
 
     public function getActivitylogOptions(): LogOptions
@@ -173,16 +166,14 @@ class ServiceInvoice extends Model implements HasMedia
             ->withPivot(['discount_mode', 'discount_type', 'rate', 'discount_amount', 'rebate_amount', 'line_commission_amount', 'agent_payment_id']);
     }
 
-    /** مزوّد التوصيل — سائق أو شركة (تاسك 93). */
-    public function shippingProvider(): BelongsTo
+    /**
+     * تاسك 170 — طلبات التوصيل، لكلٍّ سائقه وعنوانه وقيمته.
+     *
+     * @return HasMany<ServiceInvoiceShipment, $this>
+     */
+    public function shipments(): HasMany
     {
-        return $this->belongsTo(DeliveryProvider::class, 'shipping_provider_id');
-    }
-
-    /** شريحة سعر التوصيل التي حُسب منها الرسم. */
-    public function shippingZone(): BelongsTo
-    {
-        return $this->belongsTo(DeliveryZone::class, 'shipping_zone_id');
+        return $this->hasMany(ServiceInvoiceShipment::class)->orderBy('id');
     }
 
     /** @return BelongsTo<PaymentMethod, $this> */
@@ -199,17 +190,6 @@ class ServiceInvoice extends Model implements HasMedia
     public function expenses(): HasMany
     {
         return $this->hasMany(Expense::class);
-    }
-
-    /**
-     * تاسك 111 — تسوية أجر السائق السارية: مصروفٌ يحمل مزوّد التوصيل (المحذوف
-     * ناعماً = ملغاة).
-     *
-     * @return HasOne<Expense, $this>
-     */
-    public function deliverySettlement(): HasOne
-    {
-        return $this->hasOne(Expense::class)->whereNotNull('delivery_provider_id');
     }
 
     /** @return HasMany<ServiceInvoiceLine, $this> */

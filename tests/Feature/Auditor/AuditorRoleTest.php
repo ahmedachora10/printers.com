@@ -3,6 +3,7 @@
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\Roles;
 use App\Models\Branch;
+use App\Models\DeliveryProvider;
 use App\Models\ServiceInvoice;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -123,7 +124,10 @@ describe('what the auditor may not do', function () {
     })->with([
         'print' => fn () => route('invoices.print', ['type' => 'service', 'id' => $this->ownInvoice->id]),
         'legacy print' => fn () => route('pos.service.print', $this->ownInvoice->id),
-        'delivery note' => fn () => route('invoices.service.delivery-note', $this->ownInvoice->id),
+        'delivery note' => fn () => route('invoices.service.delivery-note', [
+            $this->ownInvoice->id,
+            $this->ownInvoice->shipments()->create(['provider_id' => DeliveryProvider::factory()->create(['branch_id' => $this->ownInvoice->branch_id])->id])->id,
+        ]),
         'receipt' => fn () => route('invoices.receipt', ['type' => 'service', 'id' => $this->ownInvoice->id]),
         'sales export' => fn () => route('reports.sales.export'),
         'receipts zip' => fn () => route('reports.sales.receipts'),

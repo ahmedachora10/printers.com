@@ -24,7 +24,7 @@ class DeleteDeliveryZoneAction
 
     private function isReferenced(DeliveryZone $zone): bool
     {
-        if (DB::table('service_invoices')->where('shipping_zone_id', $zone->id)->exists()) {
+        if (DB::table('service_invoice_shipments')->where('zone_id', $zone->id)->exists()) {
             return true;
         }
 

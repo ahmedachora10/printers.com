@@ -17,20 +17,22 @@ function shippedSale(Branch $branch, User $user, float $shipping = 20): ServiceI
 {
     $provider = DeliveryProvider::factory()->create(['branch_id' => $branch->id]);
 
-    return ServiceInvoice::create([
+    $invoice = ServiceInvoice::create([
         'invoice_number' => 'SINV-001-'.fake()->unique()->numerify('#####'),
         'branch_id' => $branch->id,
         'user_id' => $user->id,
         'subtotal' => 100,
         'shipping_fee' => $shipping,
-        'shipping_provider_id' => $provider->id,
         'vat_pct' => 15,
         'vat_amount' => 15.65,
         'total_amount' => round(100 + $shipping, 2),
         'employee_commission' => 0,
         'status' => InvoiceStatusEnum::PAID,
         'paid_at' => now(),
-    ])->fresh();
+    ]);
+    $invoice->shipments()->create(['provider_id' => $provider->id, 'fee' => $shipping]);
+
+    return $invoice->fresh();
 }
 
 describe('Shipping stands apart in the reports', function () {

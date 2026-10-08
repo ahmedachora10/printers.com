@@ -41,16 +41,16 @@ describe('Delivery settlement', function () {
             'user_id' => $this->admin->id,
             'subtotal' => 100,
             'shipping_fee' => 0,
-            'shipping_provider_id' => $this->driver->id,
             'vat_pct' => 15,
             'vat_amount' => 13.04,
             'total_amount' => 100,
             'employee_commission' => 0,
             'status' => InvoiceStatusEnum::DUE,
         ]);
+        $this->shipment = $this->invoice->shipments()->create(['provider_id' => $this->driver->id, 'fee' => 0]);
 
         $this->settle = fn (string $source, $amount = 25) => $this->actingAs($this->admin)
-            ->post(route('shipping.deliveries.settle', $this->invoice), [
+            ->post(route('shipping.deliveries.settle', $this->shipment), [
                 'amount' => $amount,
                 'paid_from' => $source,
                 'expense_category_id' => $this->category->id,
@@ -64,6 +64,7 @@ describe('Delivery settlement', function () {
 
         $expense = Expense::firstOrFail();
         expect($expense->service_invoice_id)->toBe($this->invoice->id)
+            ->and($expense->service_invoice_shipment_id)->toBe($this->shipment->id)
             ->and($expense->delivery_provider_id)->toBe($this->driver->id)
             ->and((float) $expense->total)->toBe(25.0)
             ->and($expense->isApproved())->toBeTrue()
@@ -91,6 +92,24 @@ describe('Delivery settlement', function () {
         expect(Expense::count())->toBe(1);
     });
 
+    // تاسك 170 — فاتورةٌ بسائقين: كلٌّ يُسوّى على حدة، وتسوية أحدهما لا تُقفل الآخر.
+    it('settles each shipment of one invoice with its own driver', function () {
+        $other = DeliveryProvider::factory()->create(['branch_id' => $this->branch->id, 'name' => 'شركة ثريا']);
+        $second = $this->invoice->shipments()->create(['provider_id' => $other->id, 'fee' => 0]);
+
+        ($this->settle)('cash_drawer')->assertSessionHasNoErrors();
+        $this->actingAs($this->admin)
+            ->post(route('shipping.deliveries.settle', $second), [
+                'amount' => 40,
+                'paid_from' => 'cash_drawer',
+                'expense_category_id' => $this->category->id,
+            ])
+            ->assertSessionHasNoErrors();
+
+        expect(Expense::orderBy('id')->get()->map(fn ($e) => [$e->service_invoice_shipment_id, $e->delivery_provider_id, (float) $e->total])->all())
+            ->toBe([[$this->shipment->id, $this->driver->id, 25.0], [$second->id, $other->id, 40.0]]);
+    });
+
     it('locks the settlement expense on the expenses screen and lets the branch admin cancel it', function () {
         ($this->settle)('cash_drawer');
         $expense = Expense::firstOrFail();
@@ -108,7 +127,7 @@ describe('Delivery settlement', function () {
     // تاسك 152 — «تسليم مبلغ التوصيل» عند المحاسب، على فرعه فقط.
     it('lets the branch accountant settle and cancel a delivery', function () {
         $this->actingAs($this->accountant)
-            ->post(route('shipping.deliveries.settle', $this->invoice), [
+            ->post(route('shipping.deliveries.settle', $this->shipment), [
                 'amount' => 25,
                 'paid_from' => 'cash_drawer',
                 'expense_category_id' => $this->category->id,
@@ -136,8 +155,8 @@ describe('Delivery settlement', function () {
 
         $payload = ['amount' => 25, 'paid_from' => 'cash_drawer', 'expense_category_id' => $this->category->id];
 
-        $this->actingAs($foreignAccountant)->post(route('shipping.deliveries.settle', $this->invoice), $payload)->assertForbidden();
-        $this->actingAs($employee)->post(route('shipping.deliveries.settle', $this->invoice), $payload)->assertForbidden();
+        $this->actingAs($foreignAccountant)->post(route('shipping.deliveries.settle', $this->shipment), $payload)->assertForbidden();
+        $this->actingAs($employee)->post(route('shipping.deliveries.settle', $this->shipment), $payload)->assertForbidden();
 
         expect(Expense::count())->toBe(0);
     });

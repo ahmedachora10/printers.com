@@ -160,14 +160,18 @@ export interface Invoice {
     totalAmount: number;
     /** تاسك 93 — التوصيل. null على فواتير المنتجات وعلى فاتورة خدمات بلا توصيل (تاسك 109). */
     shippingFee: number | null;
+    /** أسماء سائقي الطلبات مضمومةً بـ«، » لسطر «التوصيل» في الإجماليات. */
     shippingProviderName: string | null;
-    /** تاسك 109 — بيانات التوصيل لبطاقة «التفاصيل»، null حيث shippingFee null. */
-    shipping: {
+    /** تاسك 109، 170 — طلبات التوصيل لبطاقة «التفاصيل»؛ فارغةٌ حيث shippingFee null. */
+    shipments: {
+        id: number;
+        providerName: string | null;
         providerPhone: string | null;
         zoneName: string | null;
         distanceKm: number | null;
         address: string | null;
-    } | null;
+        fee: number;
+    }[];
     employeeCommission: number | null;
     /** الموظف صاحب الفاتورة — مَن أنشأها، لا مَن يطبعها */
     userName: string | null;

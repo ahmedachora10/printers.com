@@ -30,7 +30,6 @@ function shippedPaidInvoice(Branch $branch, User $user, Customer $customer): Ser
         'customer_id' => $customer->id,
         'subtotal' => 100,
         'shipping_fee' => 20,
-        'shipping_provider_id' => $provider->id,
         'vat_pct' => 15,
         // 120 ÷ 1.15 = 104.35 → الضريبة 15.65
         'vat_amount' => 15.65,
@@ -39,6 +38,7 @@ function shippedPaidInvoice(Branch $branch, User $user, Customer $customer): Ser
         'status' => InvoiceStatusEnum::PAID,
         'paid_at' => now(),
     ]);
+    $invoice->shipments()->create(['provider_id' => $provider->id, 'fee' => 20]);
 
     // ما أُضيف إلى إنفاق العميل هو مال الخدمات وحده: 100 لا 120.
     $customer->update(['cumulative_spend' => 100]);

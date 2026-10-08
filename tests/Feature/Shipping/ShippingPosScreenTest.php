@@ -7,7 +7,10 @@ use App\Models\Customer;
 use App\Models\CustomerAddress;
 use App\Models\DeliveryProvider;
 use App\Models\DeliveryZone;
+use App\Models\Expense;
+use App\Models\ExpenseCategory;
 use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceShipment;
 use App\Models\ServiceTemplate;
 use App\Models\User;
 use App\Models\UserService;
@@ -119,10 +122,12 @@ describe('Shipping on the service POS screen', function () {
         $this->post(route('pos.service.store'), [
             'payment_method_id' => paymentMethodId($this->branch->id),
             'status' => 'due',
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
-            'shipping_address' => 'حي النرجس، مكتب 12',
-            'shipping_distance_km' => 3.5,
+            'shipments' => [[
+                'provider_id' => $this->provider->id,
+                'zone_id' => $this->zone->id,
+                'address' => 'حي النرجس، مكتب 12',
+                'distance_km' => 3.5,
+            ]],
             'lines' => [[
                 'branch_service_id' => $this->service->id,
                 'qty' => 1,
@@ -137,10 +142,85 @@ describe('Shipping on the service POS screen', function () {
         $this->get(route('pos.service.edit', $invoice))
             ->assertOk()
             ->assertInertia(fn ($page) => $page
-                ->where('invoice.shippingProviderId', $this->provider->id)
-                ->where('invoice.shippingZoneId', $this->zone->id)
-                ->where('invoice.shippingFee', 20)
-                ->where('invoice.shippingDistanceKm', 3.5)
-                ->where('invoice.shippingAddress', 'حي النرجس، مكتب 12'));
+                ->where('invoice.shipments.0.id', $invoice->shipments->first()->id)
+                ->where('invoice.shipments.0.providerId', $this->provider->id)
+                ->where('invoice.shipments.0.zoneId', $this->zone->id)
+                ->where('invoice.shipments.0.fee', 20)
+                ->where('invoice.shipments.0.distanceKm', 3.5)
+                ->where('invoice.shipments.0.address', 'حي النرجس، مكتب 12'));
+    });
+
+    // ── تاسك 170: عدّة طلبات توصيل ───────────────────────────────
+
+    it('sums several shipments into the invoice and keeps each on edit', function () {
+        $other = DeliveryProvider::factory()->create(['branch_id' => $this->branch->id]);
+        $far = DeliveryZone::factory()->create(['branch_id' => $this->branch->id, 'price' => 35]);
+        $lines = [['branch_service_id' => $this->service->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0]];
+
+        $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId($this->branch->id),
+            'status' => 'due',
+            'shipments' => [
+                ['provider_id' => $this->provider->id, 'zone_id' => $this->zone->id, 'address' => 'المكتب'],
+                ['provider_id' => $other->id, 'zone_id' => $far->id, 'address' => 'المستودع'],
+            ],
+            'lines' => $lines,
+        ])->assertRedirect();
+
+        $invoice = ServiceInvoice::firstOrFail();
+        [$first, $second] = $invoice->shipments->all();
+
+        // 100 خدمات + 20 + 35 توصيل. والعمولة على الخدمات وحدها.
+        expect((float) $invoice->shipping_fee)->toEqual(55.00)
+            ->and((float) $invoice->total_amount)->toEqual(155.00)
+            ->and($invoice->shipments->pluck('address')->all())->toBe(['المكتب', 'المستودع']);
+
+        // التعديل يحدّث الطلب الأول في مكانه ويُسقط الثاني.
+        $this->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => paymentMethodId($this->branch->id),
+            'shipments' => [['id' => $first->id, 'provider_id' => $this->provider->id, 'zone_id' => $this->zone->id, 'address' => 'المكتب الجديد']],
+            'lines' => $lines,
+        ])->assertSessionHasNoErrors()->assertRedirect();
+
+        $invoice->refresh();
+        expect($invoice->shipments->pluck('id')->all())->toBe([$first->id])
+            ->and($invoice->shipments->first()->address)->toBe('المكتب الجديد')
+            ->and((float) $invoice->shipping_fee)->toEqual(20.00)
+            ->and(ServiceInvoiceShipment::find($second->id))->toBeNull();
+    });
+
+    it('refuses to drop a shipment already settled with its driver', function () {
+        $lines = [['branch_service_id' => $this->service->id, 'qty' => 1, 'unit_price' => 100, 'discount_pct' => 0]];
+
+        $this->post(route('pos.service.store'), [
+            'payment_method_id' => paymentMethodId($this->branch->id),
+            'status' => 'due',
+            'shipments' => [['provider_id' => $this->provider->id, 'zone_id' => $this->zone->id]],
+            'lines' => $lines,
+        ])->assertRedirect();
+
+        $invoice = ServiceInvoice::firstOrFail();
+        $shipment = $invoice->shipments->first();
+        Expense::query()->forceCreate([
+            'expense_category_id' => ExpenseCategory::factory()->create()->id,
+            'branch_id' => $this->branch->id,
+            'service_invoice_id' => $invoice->id,
+            'service_invoice_shipment_id' => $shipment->id,
+            'delivery_provider_id' => $this->provider->id,
+            'user_id' => $this->employee->id,
+            'qty' => 1,
+            'unit_price' => 15,
+            'total' => 15,
+            'paid_from' => 'cash_drawer',
+            'date' => today(),
+        ]);
+
+        $this->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => paymentMethodId($this->branch->id),
+            'shipments' => [],
+            'lines' => $lines,
+        ])->assertSessionHasErrors('shipments');
+
+        expect($invoice->shipments()->count())->toBe(1);
     });
 });

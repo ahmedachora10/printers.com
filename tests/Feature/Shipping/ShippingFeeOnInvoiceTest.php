@@ -83,8 +83,7 @@ describe('Shipping fee on the service invoice', function () {
 
     it('adds the fee to the total the customer pays', function () {
         $this->post(route('pos.service.store'), shippingPayload([
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
+            'shipments' => [['provider_id' => $this->provider->id, 'zone_id' => $this->zone->id]],
         ]))->assertRedirect();
 
         $invoice = ServiceInvoice::firstOrFail();
@@ -103,8 +102,7 @@ describe('Shipping fee on the service invoice', function () {
         $without = ServiceInvoice::latest('id')->firstOrFail();
 
         $this->post(route('pos.service.store'), shippingPayload([
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
+            'shipments' => [['provider_id' => $this->provider->id, 'zone_id' => $this->zone->id]],
         ]))->assertRedirect();
         $with = ServiceInvoice::latest('id')->firstOrFail();
 
@@ -134,8 +132,7 @@ describe('Shipping fee on the service invoice', function () {
 
         $this->post(route('pos.service.store'), shippingPayload([
             'agent_ids' => [$agentUser->id],
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
+            'shipments' => [['provider_id' => $this->provider->id, 'zone_id' => $this->zone->id]],
         ]))->assertRedirect();
 
         $invoice = ServiceInvoice::firstOrFail();
@@ -166,8 +163,7 @@ describe('Shipping fee on the service invoice', function () {
             ->post(route('pos.service.store'), shippingPayload([
                 'status' => 'paid',
                 'customer_id' => $customer->id,
-                'shipping_provider_id' => $this->provider->id,
-                'shipping_zone_id' => $this->zone->id,
+                'shipments' => [['provider_id' => $this->provider->id, 'zone_id' => $this->zone->id]],
             ]))->assertRedirect();
 
         $customer->refresh();
@@ -182,9 +178,7 @@ describe('Shipping fee on the service invoice', function () {
 
     it('ignores a fee an employee types and uses the zone price', function () {
         $this->post(route('pos.service.store'), shippingPayload([
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
-            'shipping_fee' => 5,
+            'shipments' => [['provider_id' => $this->provider->id, 'zone_id' => $this->zone->id, 'fee' => 5]],
         ]))->assertRedirect();
 
         // سعر الشريحة هو الحاكم: الموظف لا يُخفّض على العميل شيئاً.
@@ -194,9 +188,7 @@ describe('Shipping fee on the service invoice', function () {
     it('honours a fee a reviewer types', function () {
         $this->actingAs($this->branchAdmin)
             ->post(route('pos.service.store'), shippingPayload([
-                'shipping_provider_id' => $this->provider->id,
-                'shipping_zone_id' => $this->zone->id,
-                'shipping_fee' => 35,
+                'shipments' => [['provider_id' => $this->provider->id, 'zone_id' => $this->zone->id, 'fee' => 35]],
             ]))->assertRedirect();
 
         expect((float) ServiceInvoice::firstOrFail()->shipping_fee)->toEqual(35.00);
@@ -212,14 +204,13 @@ describe('Shipping fee on the service invoice', function () {
         ]);
 
         $this->post(route('pos.service.store'), shippingPayload([
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $free->id,
+            'shipments' => [['provider_id' => $this->provider->id, 'zone_id' => $free->id]],
         ]))->assertRedirect();
 
         $invoice = ServiceInvoice::firstOrFail();
 
         expect((float) $invoice->shipping_fee)->toEqual(0.00)
-            ->and($invoice->shipping_provider_id)->toBe($this->provider->id)
+            ->and($invoice->shipments->first()->provider_id)->toBe($this->provider->id)
             ->and((float) $invoice->total_amount)->toEqual(100.00);
     });
 
@@ -229,7 +220,7 @@ describe('Shipping fee on the service invoice', function () {
         $invoice = ServiceInvoice::firstOrFail();
 
         expect((float) $invoice->shipping_fee)->toEqual(0.00)
-            ->and($invoice->shipping_provider_id)->toBeNull()
+            ->and($invoice->shipments)->toBeEmpty()
             ->and((float) $invoice->total_amount)->toEqual(100.00);
     });
 
@@ -239,18 +230,16 @@ describe('Shipping fee on the service invoice', function () {
         $foreign = DeliveryProvider::factory()->create();
 
         $this->post(route('pos.service.store'), shippingPayload([
-            'shipping_provider_id' => $foreign->id,
-            'shipping_zone_id' => $this->zone->id,
-        ]))->assertSessionHasErrors('shipping_provider_id');
+            'shipments' => [['provider_id' => $foreign->id, 'zone_id' => $this->zone->id]],
+        ]))->assertSessionHasErrors('shipments.0.provider_id');
     });
 
     it('refuses an inactive zone', function () {
         $this->zone->update(['is_active' => false]);
 
         $this->post(route('pos.service.store'), shippingPayload([
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
-        ]))->assertSessionHasErrors('shipping_zone_id');
+            'shipments' => [['provider_id' => $this->provider->id, 'zone_id' => $this->zone->id]],
+        ]))->assertSessionHasErrors('shipments.0.zone_id');
     });
 
     // ── دفتر العناوين ─────────────────────────────────────────────
@@ -266,11 +255,7 @@ describe('Shipping fee on the service invoice', function () {
 
         $this->post(route('pos.service.store'), shippingPayload([
             'customer_id' => $customer->id,
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
-            'shipping_address' => 'حي النرجس، مكتب 12',
-            'save_shipping_address' => true,
-            'shipping_address_label' => 'المكتب',
+            'shipments' => [['provider_id' => $this->provider->id, 'zone_id' => $this->zone->id, 'address' => 'حي النرجس، مكتب 12', 'save_address' => true, 'address_label' => 'المكتب']],
         ]))->assertRedirect();
 
         $customer->refresh();
@@ -291,10 +276,7 @@ describe('Shipping fee on the service invoice', function () {
 
         $this->post(route('pos.service.store'), shippingPayload([
             'customer_id' => $customer->id,
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
-            'shipping_address' => 'حي النرجس، مكتب 12',
-            'save_shipping_address' => true,
+            'shipments' => [['provider_id' => $this->provider->id, 'zone_id' => $this->zone->id, 'address' => 'حي النرجس، مكتب 12', 'save_address' => true]],
         ]))->assertRedirect();
 
         expect($customer->refresh()->addresses)->toHaveCount(1);
@@ -311,14 +293,12 @@ describe('Shipping fee on the service invoice', function () {
 
         $this->post(route('pos.service.store'), shippingPayload([
             'customer_id' => $customer->id,
-            'customer_address_id' => $address->id,
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
+            'shipments' => [['customer_address_id' => $address->id, 'provider_id' => $this->provider->id, 'zone_id' => $this->zone->id]],
         ]))->assertRedirect();
 
         $address->update(['address' => 'عنوان آخر تماماً']);
 
-        expect(ServiceInvoice::firstOrFail()->shipping_address)->toBe('حي النرجس، مكتب 12');
+        expect(ServiceInvoice::firstOrFail()->shipments->first()->address)->toBe('حي النرجس، مكتب 12');
     });
 
     it('refuses an address belonging to another customer', function () {
@@ -331,10 +311,8 @@ describe('Shipping fee on the service invoice', function () {
 
         $this->post(route('pos.service.store'), shippingPayload([
             'customer_id' => $customer->id,
-            'customer_address_id' => $foreign->id,
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
-        ]))->assertSessionHasErrors('customer_address_id');
+            'shipments' => [['customer_address_id' => $foreign->id, 'provider_id' => $this->provider->id, 'zone_id' => $this->zone->id]],
+        ]))->assertSessionHasErrors('shipments.0.customer_address_id');
     });
 
     it('refuses a saved address when the invoice has no customer', function () {
@@ -342,9 +320,7 @@ describe('Shipping fee on the service invoice', function () {
         $address = CustomerAddress::create(['customer_id' => $someone->id, 'address' => 'عنوان غريب']);
 
         $this->post(route('pos.service.store'), shippingPayload([
-            'customer_address_id' => $address->id,
-            'shipping_provider_id' => $this->provider->id,
-            'shipping_zone_id' => $this->zone->id,
-        ]))->assertSessionHasErrors('customer_address_id');
+            'shipments' => [['customer_address_id' => $address->id, 'provider_id' => $this->provider->id, 'zone_id' => $this->zone->id]],
+        ]))->assertSessionHasErrors('shipments.0.customer_address_id');
     });
 });

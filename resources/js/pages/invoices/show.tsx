@@ -436,17 +436,22 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                         {canPrint && invoice.status !== 'cancelled' && (
                             <>
                                 {/* تاسك 93: بيان السائق بزرٍّ مستقلّ لا يُطبع تلقائياً
-                                    مع الفاتورة — ولا يظهر إلا لطلبٍ له توصيل. */}
-                                {invoice.shippingFee !== null && invoice.shippingProviderName && (
-                                    <Button variant="outline" asChild>
-                                        <a
-                                            href={serviceInvoice.deliveryNote(invoice.id).url}
-                                            target="_blank"
-                                            rel="noreferrer"
-                                        >
-                                            <Bike className="size-4" /> بيان توصيل
-                                        </a>
-                                    </Button>
+                                    مع الفاتورة. تاسك 170: بيانٌ لكل طلبٍ له سائق. */}
+                                {invoice.shipments.map(
+                                    (shipment, i) =>
+                                        shipment.providerName && (
+                                            <Button key={shipment.id} variant="outline" asChild>
+                                                <a
+                                                    href={serviceInvoice.deliveryNote({ invoice: invoice.id, shipment: shipment.id }).url}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                >
+                                                    {/* الرقم يطابق «التوصيل N» في بطاقة التفاصيل — السائق قد يتكرّر. */}
+                                                    <Bike className="size-4" /> بيان توصيل
+                                                    {invoice.shipments.length > 1 && ` ${i + 1} — ${shipment.providerName}`}
+                                                </a>
+                                            </Button>
+                                        ),
                                 )}
                                 <Button variant="outline" asChild>
                                     <a href={`${printBase}?format=thermal`} target="_blank" rel="noreferrer">
@@ -778,22 +783,24 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                     }
                                 />
                             )}
-                            {/* تاسك 109: بيانات التوصيل لطلبٍ له توصيل. */}
-                            {invoice.shipping && (
-                                <>
+                            {/* تاسك 109: بيانات التوصيل — طلبٌ لكل كتلة (تاسك 170). */}
+                            {invoice.shipments.map((shipment, i) => (
+                                <div key={shipment.id}>
                                     <Separator className="my-3" />
-                                    <p className="mb-1 text-sm font-semibold">التوصيل</p>
-                                    {invoice.shippingProviderName && (
+                                    <p className="mb-1 text-sm font-semibold">
+                                        التوصيل{invoice.shipments.length > 1 && ` ${i + 1}`}
+                                    </p>
+                                    {shipment.providerName && (
                                         <MetaRow
                                             label="السائق"
                                             value={
                                                 <span>
-                                                    {invoice.shippingProviderName}
-                                                    {invoice.shipping.providerPhone && (
+                                                    {shipment.providerName}
+                                                    {shipment.providerPhone && (
                                                         <>
                                                             {' — '}
-                                                            <a href={`tel:${invoice.shipping.providerPhone}`} dir="ltr" className="text-primary hover:underline">
-                                                                {invoice.shipping.providerPhone}
+                                                            <a href={`tel:${shipment.providerPhone}`} dir="ltr" className="text-primary hover:underline">
+                                                                {shipment.providerPhone}
                                                             </a>
                                                         </>
                                                     )}
@@ -801,14 +808,15 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                             }
                                         />
                                     )}
-                                    {invoice.shipping.zoneName && <MetaRow label="المنطقة" value={invoice.shipping.zoneName} />}
-                                    {invoice.shipping.distanceKm !== null && <MetaRow label="المسافة" value={`${invoice.shipping.distanceKm} كم`} />}
-                                    {invoice.shipping.address && (
-                                        <MetaRow label="العنوان" value={<span className="whitespace-pre-line">{invoice.shipping.address}</span>} />
+                                    {shipment.zoneName && <MetaRow label="المنطقة" value={shipment.zoneName} />}
+                                    {shipment.distanceKm !== null && <MetaRow label="المسافة" value={`${shipment.distanceKm} كم`} />}
+                                    {shipment.address && <MetaRow label="العنوان" value={<span className="whitespace-pre-line">{shipment.address}</span>} />}
+                                    {invoice.shipments.length > 1 && (
+                                        <MetaRow label="القيمة" value={shipment.fee > 0 ? <span dir="ltr">{formatCurrency(shipment.fee)}</span> : 'مجاني'} />
                                     )}
-                                    <Separator className="my-3" />
-                                </>
-                            )}
+                                </div>
+                            ))}
+                            {invoice.shipments.length > 0 && <Separator className="my-3" />}
                             {invoice.paidAt && <MetaRow label="تاريخ الدفع" value={formatDateTime(invoice.paidAt)} />}
                             <MetaRow label="الموظف" value={invoice.userName ?? '—'} />
                             {invoice.employeeCommission !== null && (

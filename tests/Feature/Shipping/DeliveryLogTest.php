@@ -29,8 +29,6 @@ function deliveredInvoice(
         'user_id' => $user->id,
         'subtotal' => 100,
         'shipping_fee' => $fee,
-        'shipping_provider_id' => $provider->id,
-        'shipping_address' => 'حي النرجس، مكتب 12',
         'vat_pct' => 15,
         'vat_amount' => 15.65,
         'total_amount' => round(100 + $fee, 2),
@@ -38,6 +36,7 @@ function deliveredInvoice(
         'status' => $status,
         'paid_at' => $status === InvoiceStatusEnum::PAID ? now() : null,
     ]);
+    $invoice->shipments()->create(['provider_id' => $provider->id, 'address' => 'حي النرجس، مكتب 12', 'fee' => $fee]);
 
     if ($createdAt !== null) {
         $invoice->forceFill(['created_at' => $createdAt])->save();
@@ -130,6 +129,24 @@ describe('Delivery log', function () {
         // التوصيل المجّاني رحلةٌ تُتابَع وإن لم يُقبض عليها شيء.
         $this->get(route('shipping.deliveries'))
             ->assertInertia(fn ($page) => $page->where('totals.deliveries', 1)->where('totals.fees', 0));
+    });
+
+    // تاسك 170 — فاتورةٌ بطلبين لسائقين: صفّان، وكلّ سائقٍ رحلته وقيمتها.
+    it('lists each shipment of one invoice as its own trip', function () {
+        $invoice = deliveredInvoice($this->branch, $this->admin, $this->driver, 20);
+        $other = DeliveryProvider::factory()->create(['branch_id' => $this->branch->id, 'name' => 'شركة ثريا']);
+        $invoice->shipments()->create(['provider_id' => $other->id, 'address' => 'حي الملقا', 'fee' => 35]);
+
+        $this->get(route('shipping.deliveries'))
+            ->assertInertia(fn ($page) => $page
+                ->has('deliveries.data', 2)
+                ->where('deliveries.data.0.invoiceNumber', $invoice->invoice_number)
+                ->where('deliveries.data.1.invoiceNumber', $invoice->invoice_number)
+                ->where('deliveries.data.1.address', 'حي الملقا')
+                ->where('deliveries.data.1.shippingFee', 35)
+                ->where('totals.deliveries', 2)
+                ->where('totals.providers', 2)
+                ->where('totals.fees', 55));
     });
 
     it('filters by one driver', function () {

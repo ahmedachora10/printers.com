@@ -16,7 +16,8 @@ class SettleDeliveryRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
-        $branchId = $this->route('invoice')->branch_id;
+        // تاسك 170: التسوية لطلب توصيل، وفرعه فرع فاتورته.
+        $branchId = $this->route('shipment')->invoice?->branch_id;
 
         return [
             'amount' => ['required', 'numeric', 'gt:0'],

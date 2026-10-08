@@ -1,7 +1,9 @@
 /** تاسك 93 — كشف توصيلات اليوم. تاسك 111: وتسوية أجر السائق لكل طلب. */
 
+/** تاسك 170 — الصفّ طلبُ توصيل: `id` للطلب، و`invoiceId` لفاتورته. */
 export interface DeliveryLogRow {
     id: number;
+    invoiceId: number;
     invoiceNumber: string;
     createdAt: string | null;
     /** الموظف الذي أصدر الفاتورة */

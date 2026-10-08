@@ -36,6 +36,7 @@ use App\Models\InvoiceMessage;
 use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
+use App\Models\ServiceInvoiceShipment;
 use App\Models\User;
 use App\Models\UserFavoriteService;
 use App\Models\UserService;
@@ -138,7 +139,7 @@ class ServiceInvoiceController extends Controller
         $user = Auth::user();
         $branchId = (int) $invoice->branch_id;
 
-        $invoice->load(['lines', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'customer.addresses', 'invoiceAgents:id,service_invoice_id,agent_id,discount_amount,rebate_amount,line_commission_amount']);
+        $invoice->load(['lines', 'shipments', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'customer.addresses', 'invoiceAgents:id,service_invoice_id,agent_id,discount_amount,rebate_amount,line_commission_amount']);
 
         $loyalty = LoyaltyConfig::forBranch($branchId);
         $loyaltyActive = (bool) $loyalty->is_active;
@@ -184,13 +185,16 @@ class ServiceInvoiceController extends Controller
                 // «YYYY-MM-DD HH:MM» — الصيغة التي يقرأها منتقي الموعد في الواجهة.
                 'deliveryAt' => $invoice->delivery_at?->format('Y-m-d H:i'),
                 // تاسك 93 — التوصيل يعود إلى الشاشة كما حُفظ، فإعادة الحفظ لا
-                // تُسقط سائقاً ولا عنواناً.
-                'shippingProviderId' => $invoice->shipping_provider_id,
-                'shippingZoneId' => $invoice->shipping_zone_id,
-                'shippingFee' => (float) $invoice->shipping_fee,
-                'shippingDistanceKm' => $invoice->shipping_distance_km !== null ? (float) $invoice->shipping_distance_km : null,
-                'customerAddressId' => $invoice->customer_address_id,
-                'shippingAddress' => $invoice->shipping_address,
+                // تُسقط سائقاً ولا عنواناً. تاسك 170: بمعرّف كل طلب، فتبقى تسويته.
+                'shipments' => $invoice->shipments->map(fn ($shipment) => [
+                    'id' => $shipment->id,
+                    'providerId' => $shipment->provider_id,
+                    'zoneId' => $shipment->zone_id,
+                    'fee' => (float) $shipment->fee,
+                    'distanceKm' => $shipment->distance_km !== null ? (float) $shipment->distance_km : null,
+                    'customerAddressId' => $shipment->customer_address_id,
+                    'address' => $shipment->address,
+                ])->values(),
                 'lines' => $invoice->lines->map(function ($line) use ($servicesById) {
                     $service = $servicesById->get($line->branch_service_id);
 
@@ -661,20 +665,19 @@ class ServiceInvoiceController extends Controller
      *
      * ورقةٌ مستقلّة بزرٍّ مستقلّ لا تُطبع تلقائياً مع الفاتورة، بنصّ قرار العميل.
      */
-    public function deliveryNote(ServiceInvoice $invoice): Response
+    public function deliveryNote(ServiceInvoice $invoice, ServiceInvoiceShipment $shipment): Response
     {
         Gate::authorize('view', $invoice);
 
         // بيانٌ بلا سائق لا معنى له — الورقة كلّها موجّهةٌ إليه.
-        abort_if($invoice->shipping_provider_id === null, 404, 'لا يوجد توصيل على هذه الفاتورة.');
+        abort_if($shipment->provider_id === null, 404, 'لا يوجد سائق على هذا الطلب.');
 
         $invoice->load([
             'lines',
             'customer:id,full_name,phone',
             'branch:id,name,phone,address',
-            'shippingProvider:id,name,phone,type',
-            'shippingZone:id,name',
         ]);
+        $shipment->load(['provider:id,name,phone,type', 'zone:id,name']);
 
         return Inertia::render('invoices/delivery-note', [
             'note' => [
@@ -685,12 +688,13 @@ class ServiceInvoiceController extends Controller
                 'customerName' => $invoice->customer?->full_name,
                 'customerPhone' => $invoice->customer?->phone,
                 // اللقطة النصّية لا الدفتر: ما كُتب وقت الفوترة هو ما يُطبع.
-                'address' => $invoice->shipping_address,
-                'zoneName' => $invoice->shippingZone?->name,
-                'distanceKm' => $invoice->shipping_distance_km !== null ? (float) $invoice->shipping_distance_km : null,
-                'providerName' => $invoice->shippingProvider?->name,
-                'providerPhone' => $invoice->shippingProvider?->phone,
-                'shippingFee' => (float) $invoice->shipping_fee,
+                'address' => $shipment->address,
+                'zoneName' => $shipment->zone?->name,
+                'distanceKm' => $shipment->distance_km !== null ? (float) $shipment->distance_km : null,
+                'providerName' => $shipment->provider?->name,
+                'providerPhone' => $shipment->provider?->phone,
+                // قيمة هذا الطلب وحده — لا رسوم طلبات الفاتورة الأخرى.
+                'shippingFee' => (float) $shipment->fee,
                 // ملاحظة العميل تفيد السائق (طابق، بوابة…)؛ والداخلية لا تخرج.
                 'notes' => $invoice->notes,
                 // البنود بأسمائها وكمّياتها وحدها — بلا سعرٍ ولا إجمالي.
@@ -722,6 +726,7 @@ class ServiceInvoiceController extends Controller
             'paymentMethod:id,name',
             'branch:id,name,phone,address,tax_number',
             'payments',
+            'shipments',
         ]);
 
         // ما لم يُقبض منه شيء ورقتُه عرض سعر لا فاتورة ضريبية — فلا تحمل الرقم

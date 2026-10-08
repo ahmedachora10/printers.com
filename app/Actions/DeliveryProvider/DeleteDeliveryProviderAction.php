@@ -25,8 +25,8 @@ class DeleteDeliveryProviderAction
 
     private function isReferencedByInvoices(DeliveryProvider $provider): bool
     {
-        return DB::table('service_invoices')
-            ->where('shipping_provider_id', $provider->id)
+        return DB::table('service_invoice_shipments')
+            ->where('provider_id', $provider->id)
             ->exists();
     }
 }

@@ -301,8 +301,9 @@ class CalculateServiceInvoiceAction
         //
         // الشحن صفرٌ في كل فاتورة قائمة، فالوعاءان متطابقان تماماً وكلُّ رقمٍ
         // منشورٍ اليوم يبقى بالحرف — لا هجرة بيانات ولا إعادة حساب.
-        $shipping = $this->resolveShipping($data, $branchId, $customerId);
-        $shippingFee = $shipping['fee'];
+        // تاسك 170: عدّة طلبات، ورسم الفاتورة مجموعها.
+        $shipments = $this->resolveShipments($data, $branchId, $customerId);
+        $shippingFee = round(array_sum(array_column($shipments, 'fee')), 2);
 
         $servicesNet = round($servicesTotal / (1 + $vatPct / 100), 2);
 
@@ -408,11 +409,6 @@ class CalculateServiceInvoiceAction
                 // تاسك 93 — التوصيل. الرسم داخلٌ في `total_amount` أعلاه،
                 // وخارجٌ عن كل أساس عمولة ونقطة.
                 'shipping_fee' => $shippingFee,
-                'shipping_provider_id' => $shipping['provider_id'],
-                'shipping_zone_id' => $shipping['zone_id'],
-                'shipping_distance_km' => $shipping['distance_km'],
-                'customer_address_id' => $shipping['address_id'],
-                'shipping_address' => $shipping['address'],
                 // Invoice-level remark for the customer — carried through
                 // untouched, like the per-line detail.
                 'notes' => $this->normalizeNotes($data['notes'] ?? null),
@@ -422,6 +418,7 @@ class CalculateServiceInvoiceAction
                 'delivery_at' => $this->normalizeDeliveryAt($data['delivery_at'] ?? null),
             ],
             'lines' => $lines,
+            'shipments' => $shipments,
             'agents' => $agentRows,
             'coupon' => $coupon,
             'pointsRedeemed' => $pointsRedeemed,
@@ -459,7 +456,21 @@ class CalculateServiceInvoiceAction
     }
 
     /**
-     * تاسك 93 — يحلّ بيانات التوصيل ويحسم قيمته.
+     * تاسك 170 — طلبات التوصيل، كلٌّ بسائقه وعنوانه وشريحته وقيمته. الطلب الذي لا
+     * مزوّد له ولا شريحة يسقط: لا توصيل فيه.
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<array{id: ?int, fee: float, provider_id: ?int, zone_id: ?int, distance_km: ?float, customer_address_id: ?int, address: ?string, save_address: bool, address_label: ?string, location_url: ?string}>
+     */
+    private function resolveShipments(array $data, int $branchId, ?int $customerId): array
+    {
+        return collect(array_values((array) ($data['shipments'] ?? [])))
+            ->map(fn ($shipment, $i) => $this->resolveShipment((array) $shipment, "shipments.{$i}", $branchId, $customerId))
+            ->filter()->values()->all();
+    }
+
+    /**
+     * تاسك 93 — يحلّ طلب توصيلٍ واحد ويحسم قيمته.
      *
      * **الشريحة هي مصدر السعر لا الواجهة.** ما يرسله العميل من قيمة يُقبل فقط
      * ممّن يملك تعديلها يدوياً — سوبر أدمن أو مدير فرع أو محاسب — وإلا أُخذ سعر
@@ -473,26 +484,17 @@ class CalculateServiceInvoiceAction
      * موجب لوجود سائق.
      *
      * @param  array<string, mixed>  $data
-     * @return array{fee: float, provider_id: ?int, zone_id: ?int, distance_km: ?float, address_id: ?int, address: ?string}
+     * @return array{id: ?int, fee: float, provider_id: ?int, zone_id: ?int, distance_km: ?float, customer_address_id: ?int, address: ?string, save_address: bool, address_label: ?string, location_url: ?string}|null
      */
-    private function resolveShipping(array $data, int $branchId, ?int $customerId): array
+    private function resolveShipment(array $data, string $key, int $branchId, ?int $customerId): ?array
     {
-        $providerId = (int) ($data['shipping_provider_id'] ?? 0) ?: null;
-        $zoneId = (int) ($data['shipping_zone_id'] ?? 0) ?: null;
+        $providerId = (int) ($data['provider_id'] ?? 0) ?: null;
+        $zoneId = (int) ($data['zone_id'] ?? 0) ?: null;
         $addressId = (int) ($data['customer_address_id'] ?? 0) ?: null;
 
-        $empty = [
-            'fee' => 0.0,
-            'provider_id' => null,
-            'zone_id' => null,
-            'distance_km' => null,
-            'address_id' => null,
-            'address' => null,
-        ];
-
-        // لا مزوّد ولا شريحة = لا توصيل على هذه الفاتورة إطلاقاً.
+        // لا مزوّد ولا شريحة = لا توصيل في هذا الطلب.
         if ($providerId === null && $zoneId === null) {
-            return $empty;
+            return null;
         }
 
         if ($providerId !== null) {
@@ -503,7 +505,7 @@ class CalculateServiceInvoiceAction
 
             if (! $provider) {
                 throw ValidationException::withMessages([
-                    'shipping_provider_id' => 'مزوّد التوصيل المحدد غير متاح في هذا الفرع.',
+                    "{$key}.provider_id" => 'مزوّد التوصيل المحدد غير متاح في هذا الفرع.',
                 ]);
             }
         }
@@ -518,18 +520,18 @@ class CalculateServiceInvoiceAction
 
             if (! $zone) {
                 throw ValidationException::withMessages([
-                    'shipping_zone_id' => 'شريحة التوصيل المحددة غير متاحة في هذا الفرع.',
+                    "{$key}.zone_id" => 'شريحة التوصيل المحددة غير متاحة في هذا الفرع.',
                 ]);
             }
         }
 
-        $submitted = isset($data['shipping_fee']) && $data['shipping_fee'] !== ''
-            ? round((float) $data['shipping_fee'], 2)
+        $submitted = isset($data['fee']) && $data['fee'] !== ''
+            ? round((float) $data['fee'], 2)
             : null;
 
         if ($submitted !== null && $submitted < 0) {
             throw ValidationException::withMessages([
-                'shipping_fee' => 'قيمة التوصيل لا تقبل رقماً سالباً.',
+                "{$key}.fee" => 'قيمة التوصيل لا تقبل رقماً سالباً.',
             ]);
         }
 
@@ -543,7 +545,7 @@ class CalculateServiceInvoiceAction
 
         // العنوان لقطةٌ نصّية: يُقرأ من الدفتر إن اختير منه، وإلا فما كُتب في
         // نقطة البيع — والعميل العابر بلا بطاقة يمرّ من هنا بلا صفٍّ في الدفتر.
-        $address = $this->normalizeNotes($data['shipping_address'] ?? null);
+        $address = $this->normalizeNotes($data['address'] ?? null);
 
         if ($addressId !== null) {
             $saved = CustomerAddress::query()
@@ -553,7 +555,7 @@ class CalculateServiceInvoiceAction
 
             if (! $saved) {
                 throw ValidationException::withMessages([
-                    'customer_address_id' => 'العنوان المحدد لا يخصّ هذا العميل.',
+                    "{$key}.customer_address_id" => 'العنوان المحدد لا يخصّ هذا العميل.',
                 ]);
             }
 
@@ -561,14 +563,19 @@ class CalculateServiceInvoiceAction
         }
 
         return [
+            'id' => (int) ($data['id'] ?? 0) ?: null,
             'fee' => round($fee, 2),
             'provider_id' => $providerId,
             'zone_id' => $zoneId,
-            'distance_km' => isset($data['shipping_distance_km']) && $data['shipping_distance_km'] !== ''
-                ? round((float) $data['shipping_distance_km'], 2)
+            'distance_km' => isset($data['distance_km']) && $data['distance_km'] !== ''
+                ? round((float) $data['distance_km'], 2)
                 : null,
-            'address_id' => $addressId,
+            'customer_address_id' => $addressId,
             'address' => $address,
+            // تُستهلك عند الحفظ (SyncsServiceInvoiceShipments) لا في الحساب.
+            'save_address' => (bool) ($data['save_address'] ?? false),
+            'address_label' => $data['address_label'] ?? null,
+            'location_url' => $data['location_url'] ?? null,
         ];
     }
 
