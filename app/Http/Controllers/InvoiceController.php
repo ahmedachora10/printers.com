@@ -67,7 +67,7 @@ class InvoiceController extends Controller
 
         if (empty($subQueries)) {
             $union = DB::table('product_invoices')->whereRaw('1 = 0')
-                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as delivered_at, null as payment_method_id, null as payment_method_name, null as payment_requires_attachment, null as paid_amount, null as refunded_amount, null as receipt_count, null as pending_return_requests');
+                ->selectRaw('null as id, null as invoice_number, null as total_amount, null as status, null as created_at, null as type, null as customer_id, null as customer_name, null as customer_phone, null as customer_tax_number, null as employee_name, null as service_name, null as user_id, null as branch_name, null as cancellation_reason, null as delivery_at, null as delivered_at, null as payment_method_id, null as payment_method_name, null as payment_requires_attachment, null as paid_amount, null as refunded_amount, null as receipt_count, null as pending_return_requests, null as materials_total');
         } else {
             $union = array_shift($subQueries);
             foreach ($subQueries as $sub) {
@@ -117,18 +117,20 @@ class InvoiceController extends Controller
             ),
             'filterOptions' => $this->filterOptions($isSuperAdmin, $branchId),
             'filters' => $filters,
-            'totals' => $this->listTotals($filtered, $request->input('status')),
+            // تاسك 173: totals.materials للمراجعين وحدهم، ووجوده يُظهر عمود «تكلفة الخامات».
+            'totals' => $this->listTotals($filtered, $request->input('status'), $user->roleName->seesInternalCosts()),
         ]);
     }
 
     /**
      * تاسك 169 — صفّ الإجمالي تحت القائمة: على كل ما طابق التصفية لا على الصفحة
      * الظاهرة. «المتبقي» بقاعدة InvoiceListResource::remainingAmount() نفسها.
-     * الملغاة والمرتجعة لا تُجمع في «الإجمالي» إلا حين تكون هي الحالة المختارة.
+     * الملغاة والمرتجعة لا تُجمع في «الإجمالي» إلا حين تكون هي الحالة المختارة،
+     * و«تكلفة الخامات» (تاسك 173) بالقاعدة نفسها.
      *
-     * @return array{total: float, remaining: float}
+     * @return array{total: float, remaining: float, materials?: float}
      */
-    private function listTotals(Builder $filtered, ?string $status): array
+    private function listTotals(Builder $filtered, ?string $status, bool $withMaterials): array
     {
         $cancelled = InvoiceStatusEnum::CANCELLED->value;
         $returned = InvoiceStatusEnum::RETURNED->value;
@@ -140,11 +142,16 @@ class InvoiceController extends Controller
                 WHEN status IN (?, ?) THEN 0
                 WHEN paid_amount > 0 THEN CASE WHEN total_amount > paid_amount THEN total_amount - paid_amount ELSE 0 END
                 WHEN status = ? THEN 0
-                ELSE total_amount END), 0) as remaining',
-            [$cancelled, $returned, $status ?? '', $cancelled, $returned, $paid],
+                ELSE total_amount END), 0) as remaining,
+             COALESCE(SUM(CASE WHEN status IN (?, ?) AND status <> ? THEN 0 ELSE materials_total END), 0) as materials',
+            [$cancelled, $returned, $status ?? '', $cancelled, $returned, $paid, $cancelled, $returned, $status ?? ''],
         )->first();
 
-        return ['total' => round((float) $row->total, 2), 'remaining' => round((float) $row->remaining, 2)];
+        return [
+            'total' => round((float) $row->total, 2),
+            'remaining' => round((float) $row->remaining, 2),
+            ...($withMaterials ? ['materials' => round((float) $row->materials, 2)] : []),
+        ];
     }
 
     /**
@@ -606,6 +613,12 @@ class InvoiceController extends Controller
             ? DB::raw("(select count(*) from invoice_return_requests where invoice_return_requests.service_invoice_id = {$table}.id and invoice_return_requests.status = '".ReturnRequestStatusEnum::PENDING->value."') as pending_return_requests")
             : DB::raw('0 as pending_return_requests');
 
+        // تاسك 173: تكلفة الخامات = مجموع materials_total على سطور الخدمة، الرقم
+        // نفسه في سطر «الخامات» بصفحة الفاتورة. المنتجات لا خامات لها.
+        $materialsSelect = $type === InvoiceTypeEnum::SERVICE
+            ? DB::raw("(select coalesce(sum(materials_total), 0) from service_invoice_lines where service_invoice_lines.invoice_id = {$table}.id) as materials_total")
+            : DB::raw('0 as materials_total');
+
         $delivery = $request->input('delivery');
 
         return DB::table($table)
@@ -725,6 +738,7 @@ class InvoiceController extends Controller
             ->selectSub($paidSub, 'paid_amount')
             ->selectSub($refundedSub, 'refunded_amount')
             ->selectSub($receiptSub, 'receipt_count')
-            ->addSelect($pendingReturnSelect);
+            ->addSelect($pendingReturnSelect)
+            ->addSelect($materialsSelect);
     }
 }

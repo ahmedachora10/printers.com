@@ -306,6 +306,40 @@ describe('Invoice list filters', function () {
             ->assertInertia(fn ($page) => $page->where('totals.total', 40)->where('totals.remaining', 40));
     });
 
+    // ── تاسك 173: عمود تكلفة الخامات ────────────────────────────
+
+    it('lists the materials cost per invoice and totals it for reviewers only (task 173)', function () {
+        $invoice = filterInvoice($this->branch->id, $this->alice->id, ['status' => InvoiceStatusEnum::PAID]);
+        $invoice->lines()->first()->update(['materials_cost' => 350, 'materials_total' => 350]);
+        ServiceInvoiceLine::create([
+            'invoice_id' => $invoice->id,
+            'service_name' => 'خدمة',
+            'qty' => 2,
+            'unit_price' => 50,
+            'discount_pct' => 0,
+            'subtotal' => 100,
+            'commission_pct' => 0,
+            'commission_amount' => 0,
+            'materials_cost' => 25,
+            'materials_total' => 50,
+        ]);
+        $cancelled = filterInvoice($this->branch->id, $this->alice->id, ['status' => InvoiceStatusEnum::CANCELLED]);
+        $cancelled->lines()->first()->update(['materials_total' => 999]);
+        filterInvoice($this->branch->id, $this->bob->id);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('invoices.index', ['user_id' => $this->alice->id]))
+            ->assertInertia(fn ($page) => $page
+                ->where('items.data', fn ($rows) => collect($rows)->firstWhere('id', $invoice->id)['materialsTotal'] == 400)
+                ->where('totals.materials', 400));
+
+        // الموظف لا يستلم العمود ولا قيمته ولا مجموعه.
+        $this->actingAs($this->alice)
+            ->get(route('invoices.index'))
+            ->assertInertia(fn ($page) => $page->missing('totals.materials')
+                ->missing('items.data.0.materialsTotal'));
+    });
+
     // ── تاسك 114: ساعاتٌ من كل يوم ──────────────────────────────
 
     it('keeps the same hours of every day in the range, midnight-crossing windows included', function () {

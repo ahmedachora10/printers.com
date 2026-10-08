@@ -300,7 +300,7 @@ class InvoiceResource extends JsonResource
         $role = $user->roleName;
 
         // تاسك 125: ومراجع الحسابات يرى ما يراه المحاسب — قراءةً لا تعديلاً.
-        if ($role?->isSuperAdmin() || $role?->isBranchAdmin() || $role?->isAccountant() || $role?->isAuditor()) {
+        if ($role?->seesInternalCosts()) {
             return true;
         }
 
