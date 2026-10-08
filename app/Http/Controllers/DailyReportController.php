@@ -86,7 +86,7 @@ class DailyReportController extends Controller
             'branches' => $scope['isSuper']
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
-            'employees' => $this->employeeOptions($scope['branchId']),
+            'employees' => User::invoiceRaiserOptions($scope['branchId']),
             'isSuperAdmin' => $scope['isSuper'],
         ]);
     }
@@ -578,24 +578,6 @@ class DailyReportController extends Controller
             'remaining' => $showPurchases ? (float) $details->sum('remaining') : 0.0,
             'vat' => (float) $details->sum('vat'),
         ];
-    }
-
-    /**
-     * Selectable employees for the filter, scoped to the branch when one is
-     * fixed. Agents are excluded — they never create invoices.
-     *
-     * @return Collection<int, array{id: int, name: string}>
-     */
-    private function employeeOptions(?int $branchId): Collection
-    {
-        return User::query()
-            ->where('is_active', true)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->whereDoesntHave('roles', fn ($q) => $q->where('name', 'agent'))
-            ->orderBy('name')
-            ->get(['id', 'name'])
-            ->map(fn (User $u) => ['id' => (int) $u->id, 'name' => (string) $u->name])
-            ->values();
     }
 
     /**

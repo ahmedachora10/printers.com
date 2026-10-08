@@ -182,17 +182,22 @@ class CommissionReportController extends Controller
     private function summaryRows(array $scope): Collection
     {
         $lineCommissions = $this->lineCommissionByEmployee($scope)->keyBy('userId');
+        $revenue = $this->revenueByEmployee($scope)->keyBy('userId');
+
+        // Columns read off the employee's own approved invoices, not the ledger.
+        $invoiceSide = fn (int $userId) => [
+            // تاسك 174: نفس revenueByDay مجمّعاً بالموظف، فيتطابق مجموعا الجدولين.
+            'revenue' => $revenue[$userId]['revenue'] ?? 0.0,
+            'lineCommission' => $lineCommissions[$userId]['amount'] ?? 0.0,
+            'materials' => $lineCommissions[$userId]['materials'] ?? 0.0,
+        ];
 
         $rows = $this->ledgerSummaryRows($scope)
-            ->map(fn (array $row) => [
-                ...$row,
-                'lineCommission' => (float) ($lineCommissions[$row['userId']]['amount'] ?? 0.0),
-                'materials' => (float) ($lineCommissions[$row['userId']]['materials'] ?? 0.0),
-            ]);
+            ->map(fn (array $row) => [...$row, ...$invoiceSide($row['userId'])]);
 
-        // An employee whose invoices only earned agent commissions has no ledger
-        // row at all; list them too, so the column total matches the rows above it.
-        $missing = $lineCommissions
+        // An employee whose invoices earned no ledger row (only agent commissions,
+        // or nothing at all) is listed too, so each column total matches its rows.
+        $missing = $lineCommissions->union($revenue)
             ->reject(fn (array $row) => $rows->contains('userId', $row['userId']))
             ->map(fn (array $row) => [
                 'userId' => $row['userId'],
@@ -202,8 +207,7 @@ class CommissionReportController extends Controller
                 'paid' => 0.0,
                 'pending' => 0.0,
                 'tahazir' => 0.0,
-                'lineCommission' => $row['amount'],
-                'materials' => $row['materials'],
+                ...$invoiceSide($row['userId']),
             ]);
 
         return $rows->concat($missing->values())->sortBy('userName')->values();
@@ -343,7 +347,9 @@ class CommissionReportController extends Controller
                 'commission_ledger.id as id',
                 'commission_ledger.user_id as user_id',
                 'users.name as user_name',
+                'service_invoices.id as invoice_id',
                 'service_invoices.invoice_number as invoice_number',
+                'service_invoices.total_amount as invoice_total',
                 'service_invoices.status as invoice_status',
                 'service_invoice_lines.service_name as service_name',
                 'service_invoice_lines.agent_commission_amount as agent_commission_amount',
@@ -359,7 +365,10 @@ class CommissionReportController extends Controller
                 'id' => (int) $row->id,
                 'userId' => (int) $row->user_id,
                 'userName' => $row->user_name,
+                'invoiceId' => (int) $row->invoice_id,
                 'invoiceNumber' => $row->invoice_number,
+                // تاسك 175: للمرجعية — يتكرّر على كل بنود الفاتورة فلا يُجمع.
+                'invoiceTotal' => (float) $row->invoice_total,
                 'invoiceStatus' => $row->invoice_status,
                 'serviceName' => $row->service_name,
                 // The مندوب's share of this same line — shown beside the
@@ -460,6 +469,29 @@ class CommissionReportController extends Controller
                 'vat' => (float) $row->vat,
             ]])
             ->all();
+    }
+
+    /**
+     * تاسك 174: إيراد الفواتير المعتمدة لكل موظف (منشئ الفاتورة) — شاملاً الضريبة.
+     *
+     * @param  array<string, mixed>  $scope
+     * @return Collection<int, array{userId: int, userName: string, revenue: float}>
+     */
+    private function revenueByEmployee(array $scope): Collection
+    {
+        return $this->paidInvoiceQuery(DB::table('service_invoices'), $scope)
+            ->join('users', 'users.id', '=', 'service_invoices.user_id')
+            ->groupBy('service_invoices.user_id', 'users.name')
+            ->get([
+                'service_invoices.user_id as user_id',
+                'users.name as user_name',
+                DB::raw('COALESCE(SUM(service_invoices.total_amount), 0) as revenue'),
+            ])
+            ->map(fn ($row) => [
+                'userId' => (int) $row->user_id,
+                'userName' => $row->user_name,
+                'revenue' => (float) $row->revenue,
+            ]);
     }
 
     /**

@@ -228,6 +228,54 @@ describe('Agent Commission Report', function () {
             ->assertInertia(fn ($page) => $page->where('totals.due', 60));
     });
 
+    it('filters by the employee who raised the invoice (task 179)', function () {
+        $payment = AgentPayment::create([
+            'agent_id' => $this->agent->id,
+            'branch_id' => $this->branch->id,
+            'period_start' => now()->toDateString(),
+            'period_end' => now()->toDateString(),
+            'total_invoices' => 1,
+            'total_rebate' => 20,
+            'paid_by' => $this->branchAdmin->id,
+            'paid_at' => now(),
+        ]);
+        agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20, 'agent_payment_id' => $payment->id]);
+        agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 5]);
+        agentServiceInvoice($this->branch, $this->accountant, $this->agent, ['rebate_amount' => 15]);
+        ProductInvoice::create([
+            'invoice_number' => 'INV-AC-179',
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->accountant->id,
+            'agent_id' => $this->agent->id,
+            'subtotal' => 100,
+            'vat_pct' => 15,
+            'vat_amount' => 15,
+            'total_amount' => 115,
+            'agent_rebate' => 11,
+            'status' => 'paid',
+            'paid_at' => now(),
+        ]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.agent-commissions', ['user' => $this->employee->id]))
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.user', (string) $this->employee->id)
+                ->where('rows.0.invoiceCount', 2)
+                ->where('rows.0.due', 25)
+                ->where('rows.0.paid', 20)
+                ->where('rows.0.outstanding', 5)
+                ->has('lines', 2)
+                ->where('employees', fn ($options) => collect($options)->pluck('id')->contains($this->employee->id)));
+
+        // Product invoices follow the same filter.
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.agent-commissions', ['user' => $this->accountant->id]))
+            ->assertInertia(fn ($page) => $page
+                ->where('rows.0.invoiceCount', 2)
+                ->where('rows.0.due', 26)
+                ->where('rows.0.paid', 0));
+    });
+
     // ── DRILL-DOWN & EXPORT ────────────────────────────────────────
 
     it('names the employee and the service on each drill-down row', function () {

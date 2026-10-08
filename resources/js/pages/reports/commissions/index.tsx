@@ -20,6 +20,7 @@ import {
     type CommissionReportSummaryRow,
     type CommissionReportTotals,
 } from '@/types/report';
+import { Link } from '@inertiajs/react';
 import { Banknote, Coins, Handshake, Package, Receipt, TrendingUp, Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
@@ -64,6 +65,7 @@ const REPORT_URL = '/reports/commissions';
 const summaryColumns: ColumnDef<CommissionReportSummaryRow>[] = [
     { key: 'userName', header: 'الموظف', className: 'font-medium', cell: (row) => row.userName },
     { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
+    { key: 'revenue', header: 'الإجمالي', className: 'font-semibold', cell: (row) => formatCurrency(row.revenue) },
     { key: 'earned', header: 'عمولات الموظفين', cell: (row) => formatCurrency(row.earned) },
     { key: 'lineCommission', header: 'عمولات خارجية', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
     { key: 'materials', header: 'تكلفة الخامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.materials) },
@@ -85,7 +87,11 @@ const detailColumns: ColumnDef<CommissionReportLine>[] = [
         key: 'invoiceNumber',
         header: 'رقم الفاتورة',
         className: 'font-mono text-xs',
-        cell: (line) => <span dir="ltr">{line.invoiceNumber}</span>,
+        cell: (line) => (
+            <Link href={`/invoices/service/${line.invoiceId}`} className="text-primary hover:underline" dir="ltr">
+                {line.invoiceNumber}
+            </Link>
+        ),
     },
     {
         key: 'serviceName',
@@ -103,7 +109,8 @@ const detailColumns: ColumnDef<CommissionReportLine>[] = [
     },
     { key: 'sourceLabel', header: 'المصدر', className: 'text-sm text-muted-foreground', cell: (line) => line.sourceLabel },
     { key: 'tierApplied', header: 'الشريحة', cell: (line) => line.tierApplied ?? '—' },
-    { key: 'amount', header: 'المبلغ', cell: (line) => formatCurrency(line.amount) },
+    { key: 'invoiceTotal', header: 'إجمالي الفاتورة', className: 'text-muted-foreground', cell: (line) => formatCurrency(line.invoiceTotal) },
+    { key: 'amount', header: 'عمولة الموظف', className: 'font-semibold', cell: (line) => formatCurrency(line.amount) },
     {
         key: 'lineCommission',
         header: 'عمولات خارجية',
@@ -316,6 +323,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                                     <TableCell />
                                     <TableCell className="font-bold">الإجمالي</TableCell>
                                     <TableCell className="font-bold">{totals.lineCount}</TableCell>
+                                    <TableCell className="font-bold">{formatCurrency(totals.revenue)}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.earned)}</TableCell>
                                     <TableCell className="font-bold text-sky-600">{formatCurrency(totals.lineCommission)}</TableCell>
                                     <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.materials)}</TableCell>
