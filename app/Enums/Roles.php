@@ -58,4 +58,10 @@ enum Roles: string
     {
         return $this === self::AGENT;
     }
+
+    /** المراجعون الذين يرون التكاليف الداخلية (الخامات) على كل فاتورة في نطاقهم — تاسك 94/125/173. */
+    public function seesInternalCosts(): bool
+    {
+        return $this->isSuperAdmin() || $this->isBranchAdmin() || $this->isAccountant() || $this->isAuditor();
+    }
 }

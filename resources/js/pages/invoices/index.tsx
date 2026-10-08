@@ -68,10 +68,12 @@ interface Props {
     filterOptions: { employees: NamedOption[]; paymentMethods: NamedOption[]; services: (NamedOption & { serviceName: string })[] };
     filters: InvoiceFilters;
     /** تاسك 169: مجموع كل ما طابق التصفية، لا الصفحة الظاهرة وحدها. */
-    totals: { total: number; remaining: number };
+    totals: { total: number; remaining: number; materials?: number };
+    /** تاسك 173: عمود «تكلفة الخامات» — للمراجعين لا للموظف. */
+    showsMaterials: boolean;
 }
 
-export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, branches, statusOptions, filterOptions, filters, totals }: Props) {
+export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, branches, statusOptions, filterOptions, filters, totals, showsMaterials }: Props) {
     // تاسك 125: مراجع الحسابات يطّلع ولا يطبع.
     const canPrint = usePage<SharedData>().props.auth.role !== 'auditor';
     // Filtering follows the report pages: the selects live in a modal, the date
@@ -426,6 +428,23 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                     </span>
                 ),
             },
+            ...(showsMaterials
+                ? [
+                      {
+                          key: 'materialsTotal',
+                          header: 'تكلفة الخامات',
+                          className: 'whitespace-nowrap',
+                          cell: (item: InvoiceListItem) =>
+                              item.materialsTotal == null ? (
+                                  <span className="text-muted-foreground">—</span>
+                              ) : (
+                                  <span className="tabular-nums" dir="ltr">
+                                      {formatCurrency(item.materialsTotal)}
+                                  </span>
+                              ),
+                      },
+                  ]
+                : []),
             {
                 key: 'paymentMethodName',
                 header: 'طريقة الدفع',
@@ -604,7 +623,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 },
             },
         ],
-        [isSuperAdmin, canPrint],
+        [isSuperAdmin, canPrint, showsMaterials],
     );
 
     return (
@@ -713,6 +732,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                                 <TableCell key={col.key} className="font-bold whitespace-nowrap tabular-nums">
                                     {col.key === 'invoiceNumber' && 'الإجمالي'}
                                     {col.key === 'totalAmount' && <span dir="ltr">{formatCurrency(totals.total)}</span>}
+                                    {col.key === 'materialsTotal' && <span dir="ltr">{formatCurrency(totals.materials ?? 0)}</span>}
                                     {col.key === 'remainingAmount' && (
                                         <span className="text-amber-700 dark:text-amber-400" dir="ltr">
                                             {formatCurrency(totals.remaining)}

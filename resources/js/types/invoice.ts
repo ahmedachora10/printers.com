@@ -222,6 +222,8 @@ export interface InvoiceListItem {
     remainingAmount: number;
     /** مجموع ما استُرجع من الفاتورة — أكبر من صفر مع حالة غير «مرتجع» يعني مرتجعاً جزئياً */
     refundedAmount: number;
+    /** تاسك 173: مجموع تكلفة الخامات — للمراجعين وحدهم، null لفواتير المنتجات */
+    materialsTotal?: number | null;
     hasPendingReturnRequest: boolean;
     status: InvoiceStatus;
     statusLabel: string;
