@@ -329,15 +329,14 @@ describe('Invoice list filters', function () {
 
         $this->actingAs($this->branchAdmin)
             ->get(route('invoices.index', ['user_id' => $this->alice->id]))
-            ->assertInertia(fn ($page) => $page->where('showsMaterials', true)
+            ->assertInertia(fn ($page) => $page
                 ->where('items.data', fn ($rows) => collect($rows)->firstWhere('id', $invoice->id)['materialsTotal'] == 400)
                 ->where('totals.materials', 400));
 
         // الموظف لا يستلم العمود ولا قيمته ولا مجموعه.
         $this->actingAs($this->alice)
             ->get(route('invoices.index'))
-            ->assertInertia(fn ($page) => $page->where('showsMaterials', false)
-                ->missing('totals.materials')
+            ->assertInertia(fn ($page) => $page->missing('totals.materials')
                 ->missing('items.data.0.materialsTotal'));
     });
 

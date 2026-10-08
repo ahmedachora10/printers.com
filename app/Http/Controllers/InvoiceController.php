@@ -45,7 +45,6 @@ class InvoiceController extends Controller
     {
         $user = Auth::user();
         $isSuperAdmin = $user->roleName->isSuperAdmin();
-        $showsMaterials = $user->roleName->seesInternalCosts();
         $branchId = $isSuperAdmin ? null : $user->branchId;
         $filters = $request->only([
             'search', 'type', 'status', 'date_from', 'date_to', 'time_from', 'time_to', 'branch_id', 'delivery',
@@ -118,9 +117,8 @@ class InvoiceController extends Controller
             ),
             'filterOptions' => $this->filterOptions($isSuperAdmin, $branchId),
             'filters' => $filters,
-            'totals' => $this->listTotals($filtered, $request->input('status'), $showsMaterials),
-            // تاسك 173: عمود «تكلفة الخامات» — للمراجعين لا للموظف.
-            'showsMaterials' => $showsMaterials,
+            // تاسك 173: totals.materials للمراجعين وحدهم، ووجوده يُظهر عمود «تكلفة الخامات».
+            'totals' => $this->listTotals($filtered, $request->input('status'), $user->roleName->seesInternalCosts()),
         ]);
     }
 

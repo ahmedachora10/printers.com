@@ -68,14 +68,14 @@ interface Props {
     filterOptions: { employees: NamedOption[]; paymentMethods: NamedOption[]; services: (NamedOption & { serviceName: string })[] };
     filters: InvoiceFilters;
     /** تاسك 169: مجموع كل ما طابق التصفية، لا الصفحة الظاهرة وحدها. */
+    /** تاسك 173: materials للمراجعين وحدهم، ووجوده يُظهر عمود «تكلفة الخامات». */
     totals: { total: number; remaining: number; materials?: number };
-    /** تاسك 173: عمود «تكلفة الخامات» — للمراجعين لا للموظف. */
-    showsMaterials: boolean;
 }
 
-export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, branches, statusOptions, filterOptions, filters, totals, showsMaterials }: Props) {
+export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, branches, statusOptions, filterOptions, filters, totals }: Props) {
     // تاسك 125: مراجع الحسابات يطّلع ولا يطبع.
     const canPrint = usePage<SharedData>().props.auth.role !== 'auditor';
+    const showsMaterials = totals.materials !== undefined;
     // Filtering follows the report pages: the selects live in a modal, the date
     // range stays visible above the table, and applied values show as removable
     // chips. 'all' is the cleared value for the selects — useReportFilters drops
