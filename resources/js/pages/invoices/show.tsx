@@ -133,8 +133,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     const canPrint = props.auth.role !== 'auditor';
     const [refundOpen, setRefundOpen] = useState(false);
     const [expenseOpen, setExpenseOpen] = useState(false);
-    const [paymentOpen, setPaymentOpen] = useState(false);
-    const [discountOpen, setDiscountOpen] = useState(false);
+    const [paymentMode, setPaymentMode] = useState<'payment' | 'discount' | null>(null);
     const [approveOpen, setApproveOpen] = useState(false);
     // نص عجز الخامات كما ردّه الخادم — وجودُه يفتح حوار الإقرار.
     const [materialsShortage, setMaterialsShortage] = useState<string | null>(null);
@@ -394,10 +393,10 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                         )}
                         {invoice.canRecordPayment && (
                             <>
-                                <Button variant="outline" onClick={() => setPaymentOpen(true)}>
+                                <Button variant="outline" onClick={() => setPaymentMode('payment')}>
                                     <Wallet className="size-4" /> تسجيل دفعة
                                 </Button>
-                                <Button variant="outline" onClick={() => setDiscountOpen(true)}>
+                                <Button variant="outline" onClick={() => setPaymentMode('discount')}>
                                     <BadgePercent className="size-4" /> إضافة خصم
                                 </Button>
                             </>
@@ -591,7 +590,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                 <p className="text-muted-foreground py-2 text-sm">لم تُسجَّل أي دفعة على هذه الفاتورة بعد.</p>
                             )}
                             {invoice.canRecordPayment && (
-                                <Button variant="outline" size="sm" className="mt-3" onClick={() => setPaymentOpen(true)}>
+                                <Button variant="outline" size="sm" className="mt-3" onClick={() => setPaymentMode('payment')}>
                                     <Wallet className="size-4" /> تسجيل دفعة
                                 </Button>
                             )}
@@ -899,21 +898,9 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
 
             {invoice.canRecordPayment && (
                 <RecordPaymentModal
-                    open={paymentOpen}
-                    onOpenChange={setPaymentOpen}
-                    invoiceType={invoice.type}
-                    invoiceId={invoice.id}
-                    invoiceNumber={invoice.invoiceNumber}
-                    remaining={invoice.paymentRemaining}
-                    discountBase={invoice.discountBase}
-                    paymentMethods={paymentMethodOptions}
-                />
-            )}
-            {invoice.canRecordPayment && (
-                <RecordPaymentModal
-                    mode="discount"
-                    open={discountOpen}
-                    onOpenChange={setDiscountOpen}
+                    mode={paymentMode ?? 'payment'}
+                    open={paymentMode !== null}
+                    onOpenChange={(open) => !open && setPaymentMode(null)}
                     invoiceType={invoice.type}
                     invoiceId={invoice.id}
                     invoiceNumber={invoice.invoiceNumber}

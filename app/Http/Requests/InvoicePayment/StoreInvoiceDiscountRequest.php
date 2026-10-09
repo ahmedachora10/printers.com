@@ -27,10 +27,6 @@ class StoreInvoiceDiscountRequest extends FormRequest
     /** @return array<string, string> */
     public function messages(): array
     {
-        return [
-            'amount.required' => 'أدخل مبلغ الخصم.',
-            'amount.numeric' => 'الخصم يجب أن يكون رقماً.',
-            'amount.not_in' => 'أدخل مبلغ الخصم.',
-        ];
+        return ['amount' => 'أدخل مبلغ الخصم.'];
     }
 }

@@ -100,9 +100,7 @@ export default function RecordPaymentModal({
     const isValid = discountOnly
         ? discountValid
         : amountValid && discountValid && hasMethods && methodId !== '' && (!requiresReceipt || receipt !== null);
-    const settlesInvoice = discountOnly
-        ? discountValid && remainingAfterDiscount < 0.005
-        : amountValid && Math.abs(remainingAfterDiscount - parsed) < 0.005;
+    const settlesInvoice = amountValid && Math.abs(remainingAfterDiscount - parsed) < 0.005;
 
     function submit(confirmedShortage = false) {
         if (!discountOnly && !amountValid) {
@@ -215,9 +213,6 @@ export default function RecordPaymentModal({
                                     <p className="text-destructive text-xs">الخصم يتجاوز المتبقي على الفاتورة.</p>
                                 ))}
                             {errors.discount && <p className="text-destructive text-xs">{errors.discount}</p>}
-                            {discountOnly && settlesInvoice && (
-                                <p className="text-xs text-green-600 dark:text-green-400">المحصَّل يغطي الإجمالي بعد الخصم — تُغلق الفاتورة وتصير مدفوعة.</p>
-                            )}
                         </div>
 
                         {!discountOnly && (

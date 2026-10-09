@@ -54,19 +54,18 @@ class ApplyInvoiceDiscountAction
             ]);
         }
 
-        $shipping = $invoice instanceof ServiceInvoice ? (float) $invoice->shipping_fee : 0.0;
-        $beforeManual = $invoice->discountBase();
+        // الشحن لا يتحرك، فالإجمالي الجديد = القديم − الفرق.
         $manual = round((float) $invoice->manual_discount + $delta, 2);
+        $total = round((float) $invoice->total_amount - $delta, 2);
+        $servicesTotal = round($total - (float) ($invoice->shipping_fee ?? 0), 2);
 
-        if ($manual < 0 || $manual > $beforeManual) {
+        if ($manual < 0 || $servicesTotal < 0) {
             throw ValidationException::withMessages([
-                'discount' => 'الخصم يجب أن يكون بين صفر و'.number_format($beforeManual, 2).' ر.س.',
+                'discount' => 'الخصم يجب أن يكون بين صفر و'.number_format($invoice->discountBase(), 2).' ر.س.',
             ]);
         }
 
         $vatPct = (float) $invoice->vat_pct;
-        $servicesTotal = round($beforeManual - $manual, 2);
-        $total = round($servicesTotal + $shipping, 2);
         $collected = round((float) $invoice->payments()->sum('amount'), 2);
 
         if ($total < $collected) {
