@@ -97,7 +97,7 @@ export default function RecordPaymentModal({
     function changeDiscount(value: string, pct: boolean) {
         setDiscountValue(value);
         setDiscountIsPct(pct);
-        if (!discountOnly) setAmount((Math.round((remaining - toAmount(value, pct)) * 100) / 100).toFixed(2));
+        if (!discountOnly) setAmount((remaining - toAmount(value, pct)).toFixed(2));
     }
     // في وضع الخصم وحده يُقبل السالب تصحيحاً لخصمٍ سابق؛ مع الدفعة لا.
     const discountValid = remainingAfterDiscount >= 0 && (discountOnly ? discountAmount !== 0 : discountAmount >= 0);
