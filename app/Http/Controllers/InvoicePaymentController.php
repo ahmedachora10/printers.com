@@ -54,7 +54,7 @@ class InvoicePaymentController extends Controller
     public function discount(StoreInvoiceDiscountRequest $request, string $type, int $id, RecordInvoicePaymentAction $action): RedirectResponse
     {
         $invoice = $this->resolveInvoice($type, $id);
-        Gate::authorize('recordPayment', $invoice);
+        Gate::authorize('discount', $invoice);
 
         $action->discount($invoice, (float) $request->validated('amount'), $request->boolean('confirm_materials_shortage'));
 

@@ -74,6 +74,16 @@ class ApplyInvoiceDiscountAction
             ]);
         }
 
+        // الموظف لا يخصم بسعر سطرٍ تحت أرضية خدمته — القاعدة نفسها في نقطة البيع.
+        // كل سطر يحمل من الخصم حصّته بنسبة ما بقي بعده إلى ما كان قبله.
+        if ($invoice instanceof ServiceInvoice && auth()->user()?->roleName?->isEmployee()) {
+            $share = $invoice->discountBase() > 0 ? $servicesTotal / $invoice->discountBase() : 0.0;
+
+            $invoice->lines()->with('branchService.serviceTemplate')->get()->filter->branchService->each(fn ($line) => $this->serviceCalculator->assertPriceAboveFloor(
+                $line->branchService, (float) $line->unit_price * $share, (float) $line->discount_pct, (float) $line->materials_cost, $vatPct,
+            ));
+        }
+
         $net = round($total / (1 + $vatPct / 100), 2);
 
         $invoice->fill([

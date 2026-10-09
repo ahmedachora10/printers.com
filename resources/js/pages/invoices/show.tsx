@@ -392,14 +392,14 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                             </Button>
                         )}
                         {invoice.canRecordPayment && (
-                            <>
-                                <Button variant="outline" onClick={() => setPaymentMode('payment')}>
-                                    <Wallet className="size-4" /> تسجيل دفعة
-                                </Button>
-                                <Button variant="outline" onClick={() => setPaymentMode('discount')}>
-                                    <BadgePercent className="size-4" /> إضافة خصم
-                                </Button>
-                            </>
+                            <Button variant="outline" onClick={() => setPaymentMode('payment')}>
+                                <Wallet className="size-4" /> تسجيل دفعة
+                            </Button>
+                        )}
+                        {invoice.canDiscount && (
+                            <Button variant="outline" onClick={() => setPaymentMode('discount')}>
+                                <BadgePercent className="size-4" /> إضافة خصم
+                            </Button>
                         )}
                         {invoice.canDeliver && (
                             <Button className="bg-green-600 text-white hover:bg-green-700" onClick={() => setDeliverOpen(true)}>
@@ -896,7 +896,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                 )}
             </div>
 
-            {invoice.canRecordPayment && (
+            {(invoice.canRecordPayment || invoice.canDiscount) && (
                 <RecordPaymentModal
                     mode={paymentMode ?? 'payment'}
                     open={paymentMode !== null}

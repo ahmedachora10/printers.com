@@ -198,6 +198,7 @@ export interface Invoice {
     /** ما يُحسب عليه الخصم الإضافي بالنسبة — الإجمالي قبله، بلا التوصيل. */
     discountBase: number;
     canRecordPayment: boolean;
+    canDiscount: boolean;
     payments?: InvoicePayment[];
     canRefund: boolean;
     canApprovePayment: boolean;

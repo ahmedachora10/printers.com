@@ -696,7 +696,7 @@ class CalculateServiceInvoiceAction
      * التكلفة = السعر مقابل التكلفة × 1.15)؛ المتغيّر لغةُ العرض وقراءةُ
      * `min_selling_price` وحدها.
      */
-    private function assertPriceAboveFloor(
+    public function assertPriceAboveFloor(
         BranchService $branchService,
         float $unitPrice,
         float $discountPct,

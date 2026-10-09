@@ -139,14 +139,37 @@ it('refuses a discount that would drop the total below what was collected', func
         ->and((float) $invoice->manual_discount)->toBe(0.0);
 });
 
-it('keeps paid invoices and employees out', function () {
+it('refuses a paid invoice', function () {
     $invoice = discountDueInvoice();
     discountPay($invoice, ['amount' => 200]);
     discountOnly($invoice, 10)->assertForbidden();
+});
 
-    $open = discountDueInvoice();
+it('lets the employee discount their own invoice, not a colleague\'s', function () {
+    $own = discountDueInvoice();
+
     $this->actingAs($this->employee);
-    discountOnly($open, 10)->assertForbidden();
+    discountOnly($own, 20)->assertSessionHasNoErrors();
+    expect((float) $own->refresh()->total_amount)->toBe(180.0);
+
+    $colleague = User::factory()->create(['branch_id' => $this->branch->id]);
+    $colleague->addRole(Roles::EMPLOYEE->value);
+    $this->actingAs($colleague);
+    discountOnly($own, 10)->assertForbidden();
+});
+
+it('stops the employee under the service minimum selling price, but not the accountant', function () {
+    $this->service->update(['min_selling_price' => 190]);
+    $invoice = discountDueInvoice();
+
+    $this->actingAs($this->employee);
+    discountOnly($invoice, 10)->assertSessionHasNoErrors(); // 190 — على الحد
+    discountOnly($invoice, 10)->assertSessionHasErrors('lines'); // 180 < 190
+    expect((float) $invoice->refresh()->total_amount)->toBe(190.0);
+
+    $this->actingAs($this->accountant);
+    discountOnly($invoice, 10)->assertSessionHasNoErrors();
+    expect((float) $invoice->refresh()->total_amount)->toBe(180.0);
 });
 
 it('recomputes an agent rebate on the new net', function () {

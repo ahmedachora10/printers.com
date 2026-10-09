@@ -232,6 +232,7 @@ class InvoiceResource extends JsonResource
             'paymentRemaining' => $paymentRemaining,
             'discountBase' => $this->resource->discountBase(),
             'canRecordPayment' => $canRecordPayment,
+            'canDiscount' => $user !== null && $user->can('discount', $this->resource),
             'payments' => $this->whenLoaded('payments', fn () => $this->payments
                 ->sortBy('paid_at')
                 ->map(fn (InvoicePayment $payment) => [

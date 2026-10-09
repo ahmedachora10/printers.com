@@ -43,6 +43,12 @@ class ProductInvoicePolicy
             && $invoice->status->acceptsPayment();
     }
 
+    /** الخصم الإضافي سلطةُ التحصيل نفسها — الموظف لا يرى فواتير المنتجات. */
+    public function discount(User $user, ProductInvoice $invoice): bool
+    {
+        return $this->recordPayment($user, $invoice);
+    }
+
     /**
      * تعديل الفاتورة كاملةً — لمدير الفرع في فرعه ولمدير النظام، آجلةً كانت أو
      * مدفوعة. لا الملغاة ولا المرتجعة، ولا ما عليها مرتجعٌ جزئي (كميات المخزون
