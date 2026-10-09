@@ -89,9 +89,16 @@ export default function RecordPaymentModal({
     const requiresReceipt = selectedMethod?.requiresAttachment ?? false;
 
     // الخصم بالنسبة يُحوَّل مبلغاً هنا؛ الخادم يستقبل المبلغ ويتحقق من حدوده.
-    const discountInput = Number(discountValue) || 0;
-    const discountAmount = Math.round((discountIsPct ? (discountBase * discountInput) / 100 : discountInput) * 100) / 100;
+    const toAmount = (value: string, pct: boolean) => Math.round((pct ? (discountBase * (Number(value) || 0)) / 100 : Number(value) || 0) * 100) / 100;
+    const discountAmount = toAmount(discountValue, discountIsPct);
     const remainingAfterDiscount = Math.round((remaining - discountAmount) * 100) / 100;
+
+    // كل تغييرٍ في الخصم يكتب المتبقي بعده في خانة المبلغ — فوق ما كُتب.
+    function changeDiscount(value: string, pct: boolean) {
+        setDiscountValue(value);
+        setDiscountIsPct(pct);
+        if (!discountOnly) setAmount((Math.round((remaining - toAmount(value, pct)) * 100) / 100).toFixed(2));
+    }
     // في وضع الخصم وحده يُقبل السالب تصحيحاً لخصمٍ سابق؛ مع الدفعة لا.
     const discountValid = remainingAfterDiscount >= 0 && (discountOnly ? discountAmount !== 0 : discountAmount >= 0);
 
@@ -185,7 +192,7 @@ export default function RecordPaymentModal({
                                     step="0.01"
                                     min={discountOnly ? undefined : 0}
                                     value={discountValue}
-                                    onChange={(e) => setDiscountValue(e.target.value)}
+                                    onChange={(e) => changeDiscount(e.target.value, discountIsPct)}
                                     placeholder="0.00"
                                     disabled={submitting}
                                     autoFocus={discountOnly}
@@ -195,7 +202,7 @@ export default function RecordPaymentModal({
                                         <button
                                             key={String(pct)}
                                             type="button"
-                                            onClick={() => setDiscountIsPct(pct)}
+                                            onClick={() => changeDiscount(discountValue, pct)}
                                             disabled={submitting}
                                             className={`px-3 py-1.5 text-sm ${discountIsPct === pct ? 'bg-primary text-primary-foreground' : 'bg-background'}`}
                                         >
