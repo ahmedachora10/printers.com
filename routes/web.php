@@ -379,6 +379,10 @@ Route::middleware(['auth'])->group(function () {
         Route::post('invoices/{type}/{id}/payments', [InvoicePaymentController::class, 'store'])
             ->whereIn('type', ['product', 'service'])->whereNumber('id')
             ->name('invoices.payments.store');
+        // خصمٌ إضافي على فاتورة لم يكتمل سدادها — نفس سلطة تسجيل الدفعة.
+        Route::post('invoices/{type}/{id}/discount', [InvoicePaymentController::class, 'discount'])
+            ->whereIn('type', ['product', 'service'])->whereNumber('id')
+            ->name('invoices.discount.store');
     });
 
     // Customer details of a service invoice — shared by the accountant's review

@@ -163,7 +163,12 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
     }, [loyaltyOn, redeemPoints, loyalty.redemptionRate, afterAgent]);
     // الأسعار المُدخلة شاملة للضريبة: ما يبقى بعد الخصومات هو الإجمالي الذي
     // يدفعه العميل، والضريبة تُستخرج من داخله بالطرح. مطابق للخادم حرفياً.
-    const total = useMemo(() => round2(afterAgent - pointsDiscount), [afterAgent, pointsDiscount]);
+    // الخصم الإضافي المسجَّل عند التحصيل يبقى عند تعديل الفاتورة — كالخادم.
+    const manualDiscount = useMemo(
+        () => round2(Math.min(invoice?.manualDiscount ?? 0, afterAgent - pointsDiscount)),
+        [invoice?.manualDiscount, afterAgent, pointsDiscount],
+    );
+    const total = useMemo(() => round2(afterAgent - pointsDiscount - manualDiscount), [afterAgent, pointsDiscount, manualDiscount]);
     // The rebate is earned on the value net of VAT — mirrors the server.
     const netBeforeVat = useMemo(() => round2(total / (1 + vatPct / 100)), [total, vatPct]);
     const vatAmount = useMemo(() => round2(total - netBeforeVat), [total, netBeforeVat]);
@@ -174,9 +179,9 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                 vatPct,
                 vatAmount,
                 totalAmount: total,
-                discounts: [tierDiscount, couponDiscount, agentDiscount, pointsDiscount],
+                discounts: [tierDiscount, couponDiscount, agentDiscount, pointsDiscount, manualDiscount],
             }),
-        [vatPct, vatAmount, total, tierDiscount, couponDiscount, agentDiscount, pointsDiscount],
+        [vatPct, vatAmount, total, tierDiscount, couponDiscount, agentDiscount, pointsDiscount, manualDiscount],
     );
     const agentRebate = useMemo(
         () =>
@@ -608,6 +613,12 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                 <div className="flex justify-between text-green-600 dark:text-green-400">
                                     <span>استبدال النقاط</span>
                                     <span>−{formatCurrency(totals.discounts[3])}</span>
+                                </div>
+                            )}
+                            {totals.discounts[4] > 0 && (
+                                <div className="flex justify-between text-green-600 dark:text-green-400">
+                                    <span>خصم إضافي</span>
+                                    <span>−{formatCurrency(totals.discounts[4])}</span>
                                 </div>
                             )}
                             <div className="flex justify-between">

@@ -40,6 +40,15 @@ trait HasInvoicePayments
         return round((float) $payments->sum('amount'), 2);
     }
 
+    /**
+     * ما يقع عليه الخصم الإضافي: الإجمالي قبله، بلا التوصيل — الشحن خارج كل
+     * خصم (تاسك 93). فاتورة المنتجات بلا عمود شحن، فيُقرأ صفراً.
+     */
+    public function discountBase(): float
+    {
+        return round((float) $this->total_amount - (float) ($this->shipping_fee ?? 0) + (float) $this->manual_discount, 2);
+    }
+
     /** المتبقي على العميل — لا ينزل تحت الصفر. */
     public function remainingAmount(): float
     {

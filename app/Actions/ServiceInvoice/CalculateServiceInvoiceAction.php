@@ -288,7 +288,12 @@ class CalculateServiceInvoiceAction
         // كامل سلسلة الخصومات هو ما يدفعه العميل بالضبط، والضريبة تُستخرج من
         // داخله لا تُضاف فوقه. الضريبة تُحسب بالطرح (الإجمالي − الصافي) لا بالضرب
         // في الصافي، حتى يبقى net + vat = total بالقرش مهما كان التقريب.
-        $servicesTotal = round($afterAgent - $pointsDiscount, 2);
+        $afterPoints = round($afterAgent - $pointsDiscount, 2);
+
+        // الخصم الإضافي (ApplyInvoiceDiscountAction) يُحفظ عند تعديل الفاتورة —
+        // وإلا محاه التعديل بصمت — ولا يتجاوز ما بقي بعد بقية الخصومات.
+        $manualDiscount = round(min((float) ($editing?->manual_discount ?? 0), $afterPoints), 2);
+        $servicesTotal = round($afterPoints - $manualDiscount, 2);
 
         // تاسك 93 — وعاءان لا وعاء واحد، وهذا جوهر البند كلّه:
         //
@@ -375,20 +380,11 @@ class CalculateServiceInvoiceAction
         // تاسك 93: النسبة تُقاس على `$servicesNet` لا على إجمالي الفاتورة —
         // رسم التوصيل خارج أساس العمولة بنصّ العميل، فرفعُه لا يزيد ريالاً
         // واحداً لأحد.
-        $commissionRatio = $subtotal > 0 ? $servicesNet / $subtotal : 0.0;
-        $totalCommission = 0.0;
-
-        foreach ($lines as $i => $line) {
-            $lineNet = round($line['subtotal'] * $commissionRatio, 2);
-            $materials = min($line['materials_total'], $lineNet);
-            $commissionBase = round($lineNet - $materials, 2);
-
-            $scaledCommission = round($commissionBase * $line['commission_pct'] / 100, 2);
-            $lines[$i]['commission_amount'] = $scaledCommission;
-            $totalCommission += $scaledCommission;
+        foreach ($this->lineCommissions($lines, $servicesNet, $subtotal) as $i => $commission) {
+            $lines[$i]['commission_amount'] = $commission;
         }
 
-        $totalCommission = round($totalCommission, 2);
+        $totalCommission = round(array_sum(array_column($lines, 'commission_amount')), 2);
 
         return [
             'attributes' => [
@@ -402,6 +398,7 @@ class CalculateServiceInvoiceAction
                 'agent_discount' => $agentDiscount,
                 'points_redeemed' => $pointsRedeemed,
                 'points_discount' => $pointsDiscount,
+                'manual_discount' => $manualDiscount,
                 'vat_pct' => $vatPct,
                 'vat_amount' => $vatAmount,
                 'total_amount' => $total,
@@ -423,6 +420,30 @@ class CalculateServiceInvoiceAction
             'coupon' => $coupon,
             'pointsRedeemed' => $pointsRedeemed,
         ];
+    }
+
+    /**
+     * Each line's employee commission once the invoice's net service value is
+     * known: the line takes its share of `$servicesNet` by gross subtotal, sheds
+     * its own materials (never scaled — clamped at zero), and only then the
+     * employee's rate applies. Shared with ApplyInvoiceDiscountAction, which
+     * re-runs it on the stored lines when a discount moves the net.
+     *
+     * @param  iterable<int, array{subtotal: float|string, materials_total: float|string, commission_pct: float|string}|\ArrayAccess<string, mixed>>  $lines
+     * @return array<int, float> commission per line, keyed as `$lines`
+     */
+    public function lineCommissions(iterable $lines, float $servicesNet, float $subtotal): array
+    {
+        $ratio = $subtotal > 0 ? $servicesNet / $subtotal : 0.0;
+        $commissions = [];
+
+        foreach ($lines as $i => $line) {
+            $lineNet = round((float) $line['subtotal'] * $ratio, 2);
+            $materials = min((float) $line['materials_total'], $lineNet);
+            $commissions[$i] = round(round($lineNet - $materials, 2) * (float) $line['commission_pct'] / 100, 2);
+        }
+
+        return $commissions;
     }
 
     /**
@@ -889,7 +910,7 @@ class CalculateServiceInvoiceAction
      * flat SAR amount capped at the base. Mirrors the coupon fixed/percentage
      * rule so the two behave the same.
      */
-    private function agentAmount(AgentDiscountTypeEnum $type, float $rate, float $base): float
+    public function agentAmount(AgentDiscountTypeEnum $type, float $rate, float $base): float
     {
         $amount = $type === AgentDiscountTypeEnum::Fixed
             ? $rate

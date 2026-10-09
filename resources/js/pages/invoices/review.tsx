@@ -63,6 +63,7 @@ interface ReviewInvoice {
     totalAmount: number;
     /** سقف الدفعة الأولى — يساوي الإجمالي، فالطابور لا يضم إلا ما لم يُقبض منه شيء. */
     remainingAmount: number;
+    discountBase: number;
     /** فتح شاشة التعديل الكاملة — لمدير الفرع لا للمحاسب */
     canEdit: boolean;
     /** آخر رسالة في المحادثة الداخلية وعدد غير المقروء (تاسك 100) — لا تظهر للعميل ولا تُطبع */
@@ -731,6 +732,7 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                     invoiceId={payingPartial.id}
                     invoiceNumber={payingPartial.invoiceNumber}
                     remaining={payingPartial.remainingAmount}
+                    discountBase={payingPartial.discountBase}
                     paymentMethods={payingPartial.paymentMethodOptions}
                 />
             )}

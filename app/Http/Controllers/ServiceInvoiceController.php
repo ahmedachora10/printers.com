@@ -177,6 +177,7 @@ class ServiceInvoiceController extends Controller
                     'value' => (float) $coupon->discount_value,
                 ] : null,
                 'pointsRedeemed' => (int) $invoice->points_redeemed,
+                'manualDiscount' => (float) $invoice->manual_discount,
                 'paymentMethodId' => $invoice->payment_method_id,
                 'hasReceipt' => $invoice->hasReceipt(),
                 'notes' => $invoice->notes,
@@ -434,6 +435,7 @@ class ServiceInvoiceController extends Controller
                     // لم يُقبض منها شيء، فالمتبقي هو الإجمالي — ويُرسل صراحةً لأن
                     // نافذة تسجيل الدفعة تحدّ به المبلغ.
                     'remainingAmount' => $invoice->remainingAmount(),
+                    'discountBase' => $invoice->discountBase(),
                     // زرّ تعديل الفاتورة في الطابور: لمدير الفرع لا للمحاسب —
                     // الصلاحية هي الفيصل، فلا يُكرَّر الدور في الواجهة.
                     'canEdit' => Gate::allows('update', $invoice),
@@ -744,6 +746,7 @@ class ServiceInvoiceController extends Controller
                 'couponDiscount' => (float) $invoice->coupon_discount,
                 'agentDiscount' => (float) $invoice->agent_discount,
                 'pointsDiscount' => (float) $invoice->points_discount,
+                'manualDiscount' => (float) $invoice->manual_discount,
                 'vatPct' => (float) $invoice->vat_pct,
                 'vatAmount' => (float) $invoice->vat_amount,
                 'totalAmount' => (float) $invoice->total_amount,

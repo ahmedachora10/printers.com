@@ -155,6 +155,7 @@ class InvoiceResource extends JsonResource
             'agents' => $agents,
             'pointsRedeemed' => (int) $this->points_redeemed,
             'pointsDiscount' => (float) $this->points_discount,
+            'manualDiscount' => (float) $this->manual_discount,
             'vatPct' => (float) $this->vat_pct,
             'vatAmount' => (float) $this->vat_amount,
             'totalAmount' => (float) $this->total_amount,
@@ -229,6 +230,7 @@ class InvoiceResource extends JsonResource
             'isFullyRefunded' => $refundedTotal > 0 && $refundableRemaining <= 0,
             'paidAmount' => $paidAmount,
             'paymentRemaining' => $paymentRemaining,
+            'discountBase' => $this->resource->discountBase(),
             'canRecordPayment' => $canRecordPayment,
             'payments' => $this->whenLoaded('payments', fn () => $this->payments
                 ->sortBy('paid_at')

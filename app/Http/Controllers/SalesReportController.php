@@ -65,7 +65,7 @@ class SalesReportController extends Controller
     /** Sum of every discount column of one invoice table, under an alias. */
     private function discounts(string $alias): string
     {
-        return "({$alias}.tier_discount_amount + {$alias}.coupon_discount + {$alias}.points_discount + {$alias}.agent_discount)";
+        return "({$alias}.tier_discount_amount + {$alias}.coupon_discount + {$alias}.points_discount + {$alias}.agent_discount + {$alias}.manual_discount)";
     }
 
     /**

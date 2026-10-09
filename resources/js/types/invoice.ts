@@ -155,6 +155,8 @@ export interface Invoice {
     agents: InvoiceAgent[];
     pointsRedeemed: number;
     pointsDiscount: number;
+    /** خصمٌ إضافي بعد البيع (عند التحصيل) — ApplyInvoiceDiscountAction. */
+    manualDiscount: number;
     vatPct: number;
     vatAmount: number;
     totalAmount: number;
@@ -193,6 +195,8 @@ export interface Invoice {
     paidAmount: number;
     /** المتبقي على العميل */
     paymentRemaining: number;
+    /** ما يُحسب عليه الخصم الإضافي بالنسبة — الإجمالي قبله، بلا التوصيل. */
+    discountBase: number;
     canRecordPayment: boolean;
     payments?: InvoicePayment[];
     canRefund: boolean;

@@ -106,6 +106,7 @@ class ActivityResource extends JsonResource
         'tier_discount_amount' => 'خصم فئة الولاء',
         'points_redeemed' => 'النقاط المستبدلة',
         'points_discount' => 'قيمة النقاط',
+        'manual_discount' => 'خصم إضافي',
         'shipping_fee' => 'رسوم التوصيل',
         'payment_method_id' => 'طريقة الدفع',
         'customer_id' => 'العميل',
@@ -176,7 +177,7 @@ class ActivityResource extends JsonResource
      */
     private const SENSITIVE_FIELDS = [
         'payment_method_id', 'status', 'total_amount', 'subtotal',
-        'coupon_discount', 'agent_discount', 'tier_discount_amount', 'points_discount',
+        'coupon_discount', 'agent_discount', 'tier_discount_amount', 'points_discount', 'manual_discount',
         'employee_commission', 'materials_cost', 'unit_price', 'total', 'amount',
         'points_balance', 'points_redeemed', 'cumulative_spend', 'tier', 'credit_limit',
         'salary', 'base_commission_pct', 'approved_at', 'vat_amount', 'shipping_fee',
