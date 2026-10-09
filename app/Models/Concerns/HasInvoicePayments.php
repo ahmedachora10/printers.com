@@ -2,8 +2,10 @@
 
 namespace App\Models\Concerns;
 
+use App\Enums\InvoiceStatusEnum;
 use App\Models\InvoicePayment;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Shared payment-schedule handling for the two invoice models: an invoice may
@@ -47,6 +49,52 @@ trait HasInvoicePayments
     public function discountBase(): float
     {
         return round((float) $this->total_amount - (float) ($this->shipping_fee ?? 0) + (float) $this->manual_discount, 2);
+    }
+
+    /**
+     * بعد تعديل فاتورةٍ معتمدة، والإجمالي الجديد محفوظ: التحصيل يتبعه. المسدَّدة
+     * عند البيع بلا صفوف دفعات محصَّلُها إجماليُّها من تلقاء نفسه، والمسدَّدة
+     * بدفعات تُكتب لها دفعة تسوية بالفرق (موجبة أو سالبة) ولا تُمسّ دفعاتها
+     * السابقة. والمدفوعة جزئياً لا ينزل إجماليها تحت ما حُصِّل، فإن ساواه اكتمل
+     * سدادها — فتُعاد true ليكتب المتصل أثر الاعتماد.
+     */
+    public function settleAfterEdit(int $actorId): bool
+    {
+        if (! $this->payments()->exists()) {
+            return false;
+        }
+
+        $total = round((float) $this->total_amount, 2);
+        $collected = round((float) $this->payments()->sum('amount'), 2);
+
+        if ($this->status === InvoiceStatusEnum::PARTIALLY_PAID) {
+            if ($total < $collected) {
+                throw ValidationException::withMessages([
+                    'lines' => 'الإجمالي الجديد أقل مما حُصِّل من الفاتورة ('.number_format($collected, 2).' ر.س).',
+                ]);
+            }
+
+            if ($total !== $collected) {
+                return false;
+            }
+
+            $this->update(['status' => InvoiceStatusEnum::PAID, 'paid_at' => $this->payments()->max('paid_at')]);
+
+            return true;
+        }
+
+        if ($this->status === InvoiceStatusEnum::PAID && $total !== $collected) {
+            $this->payments()->create([
+                'branch_id' => $this->branch_id,
+                'payment_method_id' => $this->payment_method_id,
+                'amount' => round($total - $collected, 2),
+                'paid_at' => now(),
+                'recorded_by' => $actorId,
+                'notes' => 'تسوية بعد تعديل الفاتورة',
+            ]);
+        }
+
+        return false;
     }
 
     /** المتبقي على العميل — لا ينزل تحت الصفر. */

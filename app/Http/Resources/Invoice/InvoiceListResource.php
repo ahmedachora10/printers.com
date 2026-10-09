@@ -146,9 +146,9 @@ class InvoiceListResource extends JsonResource
             // مرآةً لـServiceInvoicePolicy::update. والمحاسب يبقى له تعديل بيانات
             // العميل هنا (canEditCustomer) لا الفاتورة نفسها.
             'canEdit' => (($isOwnerEmployee || $isFullEditor) && $status === InvoiceStatusEnum::DUE)
-                // فاتورة المنتجات: مرآةُ ProductInvoicePolicy::update عدا حارس دفعة المندوب.
-                || ($type === InvoiceTypeEnum::PRODUCT
-                    && ($user?->roleName->isSuperAdmin() || $user?->roleName->isBranchAdmin())
+                // وفي أي حالة، للنوعين: مدير الفرع ومدير النظام — مرآةُ update في
+                // السياستين عدا حارسَي دفعة المندوب والعمولة المصروفة.
+                || (($user?->roleName->isSuperAdmin() || $user?->roleName->isBranchAdmin())
                     && ! in_array($status->value, InvoiceStatusEnum::excludedFromRevenue(), true)
                     && (float) $this->refunded_amount <= 0),
             'canReturn' => $isOwnerEmployee

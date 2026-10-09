@@ -109,19 +109,24 @@ class ServiceInvoicePolicy
      * a service, a price or a materials cost is not his to move. Letting him
      * edit here would let him rewrite the base of a commission he then approves.
      *
-     * The status condition is shared, not repeated: approval writes the
-     * immutable commission_ledger, and nothing may move under it.
+     * بعد الاعتماد (مدفوعة أو مدفوعة جزئياً) يعدّلها مدير الفرع ومدير النظام
+     * وحدهما — كفاتورة المنتجات (ProductInvoicePolicy::update) — ما لم تُلغَ أو
+     * تُرتجع أو يُردّ منها شيء. والتعديل يفكّ ما كتبه الاعتماد ثم يعيد كتابته
+     * (UpdateServiceInvoiceAction)، وحارسا العمولة المصروفة ودفعة المندوب هناك.
      */
     public function update(User $user, ServiceInvoice $invoice): bool
     {
-        if ($invoice->status !== InvoiceStatusEnum::DUE) {
-            return false;
+        if ($invoice->status === InvoiceStatusEnum::DUE) {
+            $isOwnerEmployee = $user->roleName->isEmployee() && $user->id === $invoice->user_id;
+
+            return $isOwnerEmployee
+                || ($this->updateStatus($user, $invoice) && ! $user->roleName->isAccountant());
         }
 
-        $isOwnerEmployee = $user->roleName->isEmployee() && $user->id === $invoice->user_id;
-
-        return $isOwnerEmployee
-            || ($this->updateStatus($user, $invoice) && ! $user->roleName->isAccountant());
+        return ($user->roleName->isSuperAdmin()
+                || ($user->roleName->isBranchAdmin() && $user->branchId === $invoice->branch_id))
+            && ! in_array($invoice->status->value, InvoiceStatusEnum::excludedFromRevenue(), true)
+            && ! $invoice->refunds()->exists();
     }
 
     /**

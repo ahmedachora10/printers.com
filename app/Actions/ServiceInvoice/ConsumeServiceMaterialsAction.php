@@ -8,7 +8,7 @@ use App\Models\BranchServiceMaterial;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\StockMovement;
-use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 /**
  * تاسك 50 (وشقّ المخزون من تاسك 54): يخصم خامات الخدمة من المخزون ويعيدها.
@@ -44,8 +44,9 @@ class ConsumeServiceMaterialsAction
     public function consume(ServiceInvoice $invoice, int $actorId): void
     {
         // Never twice for the same invoice: approval is already gated on status,
-        // this only guards a re-entrant call path.
-        if ($this->movementsFor($invoice, StockMovementTypeEnum::SALE_OUT)->exists()) {
+        // this only guards a re-entrant call path. صافي الحركات لا وجودُها: تعديل
+        // فاتورة معتمدة يُرجع خاماتها ثم يصرفها من جديد (UpdateServiceInvoiceAction).
+        if ($this->netDrawn($invoice)->isNotEmpty()) {
             return;
         }
 
@@ -92,15 +93,7 @@ class ConsumeServiceMaterialsAction
      */
     public function restore(ServiceInvoice $invoice, int $actorId): void
     {
-        if ($this->movementsFor($invoice, StockMovementTypeEnum::RETURN_IN)->exists()) {
-            return;
-        }
-
-        $consumed = $this->movementsFor($invoice, StockMovementTypeEnum::SALE_OUT)
-            ->with('product')
-            ->get();
-
-        foreach ($consumed as $movement) {
+        foreach ($this->netDrawn($invoice) as $movement) {
             /** @var StockMovement $movement */
             if ($movement->product === null) {
                 continue;
@@ -123,15 +116,23 @@ class ConsumeServiceMaterialsAction
     }
 
     /**
-     * The invoice's own material movements of one direction.
+     * What the invoice still holds out of stock, per product and line: its
+     * draws net of what already came back. Empty once restored, so neither a
+     * second restore nor a second consume repeats itself.
      *
-     * @return Builder<StockMovement>
+     * @return Collection<int, StockMovement>
      */
-    private function movementsFor(ServiceInvoice $invoice, StockMovementTypeEnum $type): Builder
+    private function netDrawn(ServiceInvoice $invoice): Collection
     {
         return StockMovement::query()
             ->where('reference_type', ServiceInvoice::class)
             ->where('reference_id', $invoice->id)
-            ->where('type', $type);
+            ->whereIn('type', [StockMovementTypeEnum::SALE_OUT, StockMovementTypeEnum::RETURN_IN])
+            ->select('product_id', 'service_invoice_line_id')
+            ->selectRaw('ROUND(SUM(qty), 2) as qty, MAX(unit_cost) as unit_cost')
+            ->groupBy('product_id', 'service_invoice_line_id')
+            ->havingRaw('ROUND(SUM(qty), 2) < 0')
+            ->with('product')
+            ->get();
     }
 }

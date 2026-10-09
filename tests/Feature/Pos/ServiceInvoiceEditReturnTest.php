@@ -1,25 +1,31 @@
 <?php
 
+use App\Actions\ServiceInvoice\ReturnServiceInvoiceAction;
 use App\Enums\AgentDiscountModeEnum;
 use App\Enums\CustomerTierEnum;
 use App\Enums\CustomerTypeEnum;
 use App\Enums\LoyaltyTransactionTypeEnum;
 use App\Enums\Roles;
+use App\Enums\StockMovementTypeEnum;
 use App\Models\AgentPayment;
 use App\Models\Branch;
 use App\Models\BranchService;
+use App\Models\BranchServiceMaterial;
 use App\Models\CommissionLedger;
 use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
+use App\Models\Product;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceAgent;
 use App\Models\ServiceTemplate;
+use App\Models\StockMovement;
 use App\Models\User;
 use App\Models\UserService;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
 
@@ -130,7 +136,7 @@ describe('Service invoice edit/return', function () {
         expect((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(4.35);
     });
 
-    it('forbids editing a paid invoice', function () {
+    it('forbids the employee editing a paid invoice', function () {
         $invoice = makeOwnedDueInvoice();
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
         $this->actingAs($this->employee);
@@ -140,6 +146,104 @@ describe('Service invoice edit/return', function () {
             'payment_method_id' => paymentMethodId(),
             'lines' => [['branch_service_id' => $this->service->id, 'qty' => 1, 'unit_price' => 10]],
         ])->assertForbidden();
+    });
+
+    // ---- Edit after approval (branch admin / super admin) -----------------
+
+    it('lets the branch admin edit a paid invoice, rewriting its commission in the same period', function () {
+        $invoice = makeOwnedDueInvoice(); // 30 → commission 2.61
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
+        $paidAt = $invoice->refresh()->paid_at;
+
+        $this->travel(40)->days();
+
+        $this->get(route('pos.service.edit', $invoice))->assertOk();
+        $this->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => $invoice->payment_method_id,
+            'lines' => [['branch_service_id' => $this->service->id, 'qty' => 5, 'unit_price' => 10, 'discount_pct' => 0]],
+        ])->assertSessionHasNoErrors();
+
+        $invoice->refresh();
+
+        expect($invoice->status->value)->toBe('paid')
+            ->and($invoice->paid_at->equalTo($paidAt))->toBeTrue()
+            ->and((float) $invoice->total_amount)->toBe(50.00)
+            ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(4.35)
+            // الأصل وعكسه والجديد كلها في شهر الاعتماد، لا في شهر التعديل.
+            ->and(CommissionLedger::pluck('earned_at')->every(fn ($at) => $at->equalTo($paidAt)))->toBeTrue();
+    });
+
+    it('puts back and redraws the materials on every edit, so a later return balances to zero', function () {
+        $product = Product::factory()->create(['branch_id' => $this->branch->id, 'cost_price' => 4]);
+        StockMovement::factory()->create([
+            'product_id' => $product->id,
+            'branch_id' => $this->branch->id,
+            'type' => StockMovementTypeEnum::OPENING_STOCK,
+            'qty' => 100,
+            'created_by' => $this->branchAdmin->id,
+        ]);
+        BranchServiceMaterial::create(['branch_service_id' => $this->service->id, 'product_id' => $product->id, 'qty_per_unit' => 1, 'waste_pct' => 0]);
+        $stock = fn () => (float) StockMovement::where('product_id', $product->id)->sum('qty');
+
+        $invoice = makeOwnedDueInvoice(); // qty 3
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
+        expect($stock())->toBe(97.0);
+
+        foreach ([5 => 95.0, 2 => 98.0] as $qty => $expected) {
+            $this->put(route('pos.service.update', $invoice), [
+                'payment_method_id' => $invoice->payment_method_id,
+                'lines' => [['branch_service_id' => $this->service->id, 'qty' => $qty, 'unit_price' => 10, 'discount_pct' => 0]],
+            ])->assertSessionHasNoErrors();
+
+            expect($stock())->toBe($expected);
+        }
+
+        app(ReturnServiceInvoiceAction::class)->handle($invoice->refresh(), $this->branchAdmin, null, $invoice->payment_method_id);
+
+        expect($stock())->toBe(100.0);
+    });
+
+    it('settles instalments against the new total: completes a partial invoice, then books a difference', function () {
+        $invoice = makeOwnedDueInvoice(); // 30
+        $this->actingAs($this->branchAdmin)->post(
+            route('invoices.payments.store', ['type' => 'service', 'id' => $invoice->id]),
+            ['amount' => 10, 'payment_method_id' => paymentMethodId()],
+        )->assertSessionHasNoErrors();
+        expect($invoice->refresh()->status->value)->toBe('partially_paid');
+
+        $edit = fn (float $unitPrice) => $this->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => paymentMethodId(),
+            'lines' => [['branch_service_id' => $this->service->id, 'qty' => 1, 'unit_price' => $unitPrice, 'discount_pct' => 0]],
+        ]);
+
+        // تحت ما حُصِّل: مرفوض.
+        $edit(5)->assertSessionHasErrors('lines');
+
+        // يساوي ما حُصِّل: اكتمل السداد وكُتبت العمولة (10 / 1.15 × 10% = 0.87).
+        $edit(10)->assertSessionHasNoErrors();
+        $invoice->refresh();
+        expect($invoice->status->value)->toBe('paid')
+            ->and((float) CommissionLedger::sum('amount'))->toBe(0.87);
+
+        // مدفوعة بدفعات ثم زاد إجماليها: دفعة تسوية بالفرق.
+        $edit(20)->assertSessionHasNoErrors();
+        $invoice->refresh();
+        expect($invoice->paidAmount())->toBe(20.0)
+            ->and($invoice->payments()->count())->toBe(2)
+            ->and((float) CommissionLedger::sum('amount'))->toBe(1.74);
+    });
+
+    it('refuses to edit an invoice whose commission was already paid out', function () {
+        $invoice = makeOwnedDueInvoice();
+        $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
+        DB::table('commission_ledger')->update(['paid_at' => now()]);
+
+        $this->put(route('pos.service.update', $invoice), [
+            'payment_method_id' => $invoice->payment_method_id,
+            'lines' => [['branch_service_id' => $this->service->id, 'qty' => 5, 'unit_price' => 10, 'discount_pct' => 0]],
+        ])->assertSessionHasErrors('invoice');
+
+        expect((float) $invoice->refresh()->total_amount)->toBe(30.00);
     });
 
     it('forbids an employee from editing another employee\'s invoice', function () {
@@ -273,15 +377,15 @@ describe('Service invoice edit/return', function () {
         $this->actingAs($otherAccountant)->get(route('pos.service.edit', $invoice))->assertForbidden();
     });
 
-    it('forbids a reviewer from editing an approved invoice', function () {
+    it('forbids the accountant from editing an approved invoice', function () {
         $invoice = makeOwnedDueInvoice();
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
 
         $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
         $accountant->addRole(Roles::ACCOUNTANT->value);
 
-        // الاعتماد يكتب commission_ledger غير القابل للنقض، فيُقفل التحرير على الجميع.
-        $this->actingAs($this->branchAdmin)->get(route('pos.service.edit', $invoice))->assertForbidden();
+        // بعد الاعتماد يعدّلها مدير الفرع ومدير النظام وحدهما.
+        $this->actingAs($this->branchAdmin)->get(route('pos.service.edit', $invoice))->assertOk();
         $this->actingAs($accountant)->get(route('pos.service.edit', $invoice))->assertForbidden();
         $this->actingAs($accountant)->put(route('pos.service.update', $invoice), [
             'payment_method_id' => paymentMethodId(),

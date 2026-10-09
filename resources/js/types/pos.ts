@@ -213,6 +213,8 @@ export interface EditServiceInvoice {
     employeeName: string | null;
     /** هل الفاعل هو صاحب الفاتورة؟ */
     isOwn: boolean;
+    /** حالتها — التعديل لا يغيّرها */
+    statusLabel: string;
     customer: PosCustomer | null;
     agentIds: number[];
     coupon: { code: string; type: 'percentage' | 'fixed'; value: number } | null;

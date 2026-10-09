@@ -77,27 +77,37 @@ class MarkServiceInvoicePaidAction
                 'paid_at' => $paidAt ?? now(),
             ]);
 
-            // The invoice is now approved, so the employee earns their commission:
-            // write the immutable ledger rows from the persisted lines.
-            $this->writeLedgerFromLines($invoice, (int) $invoice->user_id, (int) $invoice->branch_id);
-
-            // الآن وقد اعتُمدت الفاتورة تُخصم نقاطها المحجوزة من رصيد العميل: قبل
-            // الاعتماد كان الخصم ظاهراً على الفاتورة فقط والرصيد لم يُمسّ.
-            // الخصم قبل الاكتساب، فيقرأ الاكتساب رصيداً محدَّثاً.
-            $this->redeemLoyaltyPoints->handle($invoice);
-
-            // Credit points now that the invoice is paid; no-ops for ineligible
-            // customers (corporate, agent-linked, or inactive loyalty config).
-            $this->earnLoyaltyPoints->handle($invoice);
-
-            // تاسك 50: الخدمة المنفَّذة استهلكت خاماتها — تُخصم من المخزون الآن.
-            // المُنفِّذ هنا هو المعتمِد (المحاسب/مدير الفرع) لا صاحب الفاتورة.
-            $this->consumeMaterials->consume($invoice, (int) (auth()->id() ?? $invoice->user_id));
-
-            // تاسك 160: الفاتورة المعتمدة تدخل محقَّق حوافز صاحبها.
-            $this->recalculateIncentive->refreshForInvoice($invoice);
+            $this->realise($invoice);
 
             return $invoice;
         });
+    }
+
+    /**
+     * ما يكتبه الاعتماد: العمولة، والنقاط المستبدلة والمكتسبة، وصرف الخامات،
+     * والحوافز. يستدعيه تعديل فاتورةٍ معتمدة أيضاً بعد أن يفكّ أثرها القديم.
+     * داخل معاملة المتصل.
+     */
+    public function realise(ServiceInvoice $invoice): void
+    {
+        // The invoice is now approved, so the employee earns their commission:
+        // write the immutable ledger rows from the persisted lines.
+        $this->writeLedgerFromLines($invoice, (int) $invoice->user_id, (int) $invoice->branch_id);
+
+        // الآن وقد اعتُمدت الفاتورة تُخصم نقاطها المحجوزة من رصيد العميل: قبل
+        // الاعتماد كان الخصم ظاهراً على الفاتورة فقط والرصيد لم يُمسّ.
+        // الخصم قبل الاكتساب، فيقرأ الاكتساب رصيداً محدَّثاً.
+        $this->redeemLoyaltyPoints->handle($invoice);
+
+        // Credit points now that the invoice is paid; no-ops for ineligible
+        // customers (corporate, agent-linked, or inactive loyalty config).
+        $this->earnLoyaltyPoints->handle($invoice);
+
+        // تاسك 50: الخدمة المنفَّذة استهلكت خاماتها — تُخصم من المخزون الآن.
+        // المُنفِّذ هنا هو المعتمِد (المحاسب/مدير الفرع) لا صاحب الفاتورة.
+        $this->consumeMaterials->consume($invoice, (int) (auth()->id() ?? $invoice->user_id));
+
+        // تاسك 160: الفاتورة المعتمدة تدخل محقَّق حوافز صاحبها.
+        $this->recalculateIncentive->refreshForInvoice($invoice);
     }
 }
