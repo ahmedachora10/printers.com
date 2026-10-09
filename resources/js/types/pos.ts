@@ -217,6 +217,7 @@ export interface EditServiceInvoice {
     agentIds: number[];
     coupon: { code: string; type: 'percentage' | 'fixed'; value: number } | null;
     pointsRedeemed: number;
+    manualDiscount: number;
     paymentMethodId: number | null;
     hasReceipt: boolean;
     /** ملاحظات على مستوى الفاتورة كاملة — تختلف عن ملاحظات السطر */
@@ -249,6 +250,7 @@ export interface EditProductInvoice {
     agentId: number | null;
     coupon: { code: string; type: 'percentage' | 'fixed'; value: number } | null;
     pointsRedeemed: number;
+    manualDiscount: number;
     paymentMethodId: number | null;
     hasReceipt: boolean;
     notes: string | null;
@@ -304,6 +306,8 @@ export interface PosInvoice {
     couponDiscount: number;
     agentDiscount: number;
     pointsDiscount: number;
+    /** خصمٌ إضافي بعد البيع (عند التحصيل) — ApplyInvoiceDiscountAction. */
+    manualDiscount: number;
     vatPct: number;
     vatAmount: number;
     totalAmount: number;

@@ -565,7 +565,12 @@ export default function ServicePos({
     // تاسك 93: وعاءان كما في الخادم — مال الخدمات وحده أساسُ كل عمولة، ورسم
     // التوصيل يُضاف بعد كامل سلسلة الخصومات فلا يخصمه كوبونٌ ولا فئة، ولا
     // يدخل أساسَ عمولة.
-    const servicesTotal = useMemo(() => round2(afterAgent - pointsDiscount), [afterAgent, pointsDiscount]);
+    // الخصم الإضافي المسجَّل عند التحصيل يبقى عند تعديل الفاتورة — كالخادم.
+    const manualDiscount = useMemo(
+        () => round2(Math.min(invoice?.manualDiscount ?? 0, afterAgent - pointsDiscount)),
+        [invoice?.manualDiscount, afterAgent, pointsDiscount],
+    );
+    const servicesTotal = useMemo(() => round2(afterAgent - pointsDiscount - manualDiscount), [afterAgent, pointsDiscount, manualDiscount]);
     const servicesNet = useMemo(() => round2(servicesTotal / (1 + vatPct / 100)), [servicesTotal, vatPct]);
     const total = useMemo(() => round2(servicesTotal + shippingAmount), [servicesTotal, shippingAmount]);
     const netBeforeVat = useMemo(() => round2(total / (1 + vatPct / 100)), [total, vatPct]);
@@ -598,9 +603,9 @@ export default function ServicePos({
                 vatAmount,
                 totalAmount: total,
                 shippingFee: shippingAmount,
-                discounts: [tierDiscount, couponDiscount, agentDiscount, pointsDiscount],
+                discounts: [tierDiscount, couponDiscount, agentDiscount, pointsDiscount, manualDiscount],
             }),
-        [vatPct, vatAmount, total, shippingAmount, tierDiscount, couponDiscount, agentDiscount, pointsDiscount],
+        [vatPct, vatAmount, total, shippingAmount, tierDiscount, couponDiscount, agentDiscount, pointsDiscount, manualDiscount],
     );
     // Each rebate-mode agent earns independently on the net-of-VAT value; the
     // preview shows their combined rebate.
@@ -1292,6 +1297,12 @@ export default function ServicePos({
                                 <div className="flex justify-between text-green-600 dark:text-green-400">
                                     <span>استبدال النقاط</span>
                                     <span>−{formatCurrency(totals.discounts[3])}</span>
+                                </div>
+                            )}
+                            {totals.discounts[4] > 0 && (
+                                <div className="flex justify-between text-green-600 dark:text-green-400">
+                                    <span>خصم إضافي</span>
+                                    <span>−{formatCurrency(totals.discounts[4])}</span>
                                 </div>
                             )}
                             {/* تاسك 93: التوصيل سطرٌ مستقلٌّ فوق الضريبة — إضافةٌ

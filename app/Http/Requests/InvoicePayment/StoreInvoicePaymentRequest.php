@@ -30,6 +30,8 @@ class StoreInvoicePaymentRequest extends FormRequest
     {
         return [
             'amount' => ['required', 'numeric', 'min:0.01', 'max:99999999.99'],
+            // خصمٌ يرافق الدفعة؛ حدوده (تحت الإجمالي، فوق المحصَّل) في ApplyInvoiceDiscountAction.
+            'discount' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'payment_method_id' => ['required', 'integer', Rule::in($this->enabledPaymentMethodIds())],
             'receipt' => [
                 $this->paymentMethodRequiresAttachment() ? 'required' : 'nullable',
@@ -54,6 +56,8 @@ class StoreInvoicePaymentRequest extends FormRequest
             'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.',
             'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
+            'discount.numeric' => 'الخصم يجب أن يكون رقماً.',
+            'discount.min' => 'الخصم لا يكون سالباً هنا — صحّحه من زر «إضافة خصم».',
             'paid_at.date' => 'تاريخ الدفعة غير صالح.',
             'notes.max' => 'الملاحظة يجب ألا تتجاوز 500 حرف.',
         ];

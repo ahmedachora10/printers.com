@@ -244,7 +244,11 @@ class CreateProductInvoiceAction
         // الأسعار المُدخلة في نقطة البيع شاملة لضريبة القيمة المضافة: ما يبقى
         // بعد كامل سلسلة الخصومات هو ما يدفعه العميل بالضبط، والضريبة تُستخرج
         // من داخله بالطرح لا بالضرب. مطابق لفاتورة الخدمة تماماً.
-        $total = round($afterAgent - $pointsDiscount, 2);
+        $afterPoints = round($afterAgent - $pointsDiscount, 2);
+
+        // الخصم الإضافي (ApplyInvoiceDiscountAction) يبقى عند التعديل.
+        $manualDiscount = round(min((float) ($invoice?->manual_discount ?? 0), $afterPoints), 2);
+        $total = round($afterPoints - $manualDiscount, 2);
         $netBeforeVat = round($total / (1 + $vatPct / 100), 2);
         $vatAmount = round($total - $netBeforeVat, 2);
 
@@ -268,6 +272,7 @@ class CreateProductInvoiceAction
                 'agent_rebate' => $agentRebate,
                 'points_redeemed' => $pointsRedeemed,
                 'points_discount' => $pointsDiscount,
+                'manual_discount' => $manualDiscount,
                 'vat_pct' => $vatPct,
                 'vat_amount' => $vatAmount,
                 'total_amount' => $total,
@@ -338,7 +343,7 @@ class CreateProductInvoiceAction
      * flat SAR amount capped at the base. Mirrors the coupon fixed/percentage
      * rule so the two behave the same.
      */
-    private function agentAmount(AgentDiscountTypeEnum $type, float $rate, float $base): float
+    public function agentAmount(AgentDiscountTypeEnum $type, float $rate, float $base): float
     {
         $amount = $type === AgentDiscountTypeEnum::Fixed
             ? $rate

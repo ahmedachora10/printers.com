@@ -6,10 +6,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/utils';
+import discount from '@/routes/invoices/discount';
 import payments from '@/routes/invoices/payments';
 import { type InvoiceType } from '@/types/invoice';
 import { router } from '@inertiajs/react';
-import { AlertTriangle, Loader2, Wallet } from 'lucide-react';
+import { AlertTriangle, BadgePercent, Loader2, Wallet } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -28,6 +29,10 @@ interface Props {
     invoiceNumber: string;
     /** المتبقي على العميل — سقف الدفعة، والقيمة المقترحة لإغلاق الفاتورة. */
     remaining: number;
+    /** ما يُحسب عليه الخصم بالنسبة: الإجمالي قبل أي خصم إضافي، بلا التوصيل. */
+    discountBase: number;
+    /** `discount`: خصمٌ بلا دفعة (زر «إضافة خصم») — بلا طريقة دفع ولا إيصال. */
+    mode?: 'payment' | 'discount';
     paymentMethods: PaymentMethodOption[];
     onRecorded?: () => void;
 }
@@ -48,10 +53,15 @@ export default function RecordPaymentModal({
     invoiceId,
     invoiceNumber,
     remaining,
+    discountBase,
+    mode = 'payment',
     paymentMethods,
     onRecorded,
 }: Props) {
+    const discountOnly = mode === 'discount';
     const [amount, setAmount] = useState('');
+    const [discountValue, setDiscountValue] = useState('');
+    const [discountIsPct, setDiscountIsPct] = useState(false);
     const [methodId, setMethodId] = useState<string>('');
     const [receipt, setReceipt] = useState<File | null>(null);
     const [notes, setNotes] = useState('');
@@ -64,6 +74,8 @@ export default function RecordPaymentModal({
     useEffect(() => {
         if (open) {
             setAmount('');
+            setDiscountValue('');
+            setDiscountIsPct(false);
             setMethodId('');
             setReceipt(null);
             setNotes('');
@@ -76,21 +88,37 @@ export default function RecordPaymentModal({
     const selectedMethod = paymentMethods.find((m) => String(m.id) === methodId);
     const requiresReceipt = selectedMethod?.requiresAttachment ?? false;
 
+    // الخصم بالنسبة يُحوَّل مبلغاً هنا؛ الخادم يستقبل المبلغ ويتحقق من حدوده.
+    const toAmount = (value: string, pct: boolean) => Math.round((pct ? (discountBase * (Number(value) || 0)) / 100 : Number(value) || 0) * 100) / 100;
+    const discountAmount = toAmount(discountValue, discountIsPct);
+    const remainingAfterDiscount = Math.round((remaining - discountAmount) * 100) / 100;
+
+    // كل تغييرٍ في الخصم يكتب المتبقي بعده في خانة المبلغ — فوق ما كُتب.
+    function changeDiscount(value: string, pct: boolean) {
+        setDiscountValue(value);
+        setDiscountIsPct(pct);
+        if (!discountOnly) setAmount((remaining - toAmount(value, pct)).toFixed(2));
+    }
+    // في وضع الخصم وحده يُقبل السالب تصحيحاً لخصمٍ سابق؛ مع الدفعة لا.
+    const discountValid = remainingAfterDiscount >= 0 && (discountOnly ? discountAmount !== 0 : discountAmount >= 0);
+
     const parsed = Number(amount);
-    const amountValid = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && parsed <= remaining + 0.001;
-    const isValid = amountValid && hasMethods && methodId !== '' && (!requiresReceipt || receipt !== null);
-    const settlesInvoice = amountValid && Math.abs(remaining - parsed) < 0.005;
+    const amountValid = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && parsed <= remainingAfterDiscount + 0.001;
+    const isValid = discountOnly
+        ? discountValid
+        : amountValid && discountValid && hasMethods && methodId !== '' && (!requiresReceipt || receipt !== null);
+    const settlesInvoice = amountValid && Math.abs(remainingAfterDiscount - parsed) < 0.005;
 
     function submit(confirmedShortage = false) {
-        if (!amountValid) {
-            setErrors({ amount: `أدخل مبلغاً بين 0.01 و ${remaining.toFixed(2)} ر.س.` });
+        if (!discountOnly && !amountValid) {
+            setErrors({ amount: `أدخل مبلغاً بين 0.01 و ${remainingAfterDiscount.toFixed(2)} ر.س.` });
             return;
         }
-        if (methodId === '') {
+        if (!discountOnly && methodId === '') {
             setErrors({ payment_method_id: 'طريقة الدفع مطلوبة.' });
             return;
         }
-        if (requiresReceipt && receipt === null) {
+        if (!discountOnly && requiresReceipt && receipt === null) {
             setErrors({ receipt: 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.' });
             return;
         }
@@ -100,14 +128,17 @@ export default function RecordPaymentModal({
         // الإيصال يجعل الطلب multipart، فيُجبَر forceFormData حتى حين لا ملف —
         // فتبقى صيغة الإرسال واحدة مهما كانت طريقة الدفع.
         router.post(
-            payments.store({ type: invoiceType, id: invoiceId }).url,
-            {
-                amount: parsed,
-                payment_method_id: Number(methodId),
-                receipt,
-                notes: notes.trim() || null,
-                confirm_materials_shortage: confirmedShortage ? 1 : 0,
-            },
+            discountOnly ? discount.store({ type: invoiceType, id: invoiceId }).url : payments.store({ type: invoiceType, id: invoiceId }).url,
+            discountOnly
+                ? { amount: discountAmount, confirm_materials_shortage: confirmedShortage ? 1 : 0 }
+                : {
+                      amount: parsed,
+                      discount: discountAmount > 0 ? discountAmount : null,
+                      payment_method_id: Number(methodId),
+                      receipt,
+                      notes: notes.trim() || null,
+                      confirm_materials_shortage: confirmedShortage ? 1 : 0,
+                  },
             {
                 forceFormData: true,
                 preserveScroll: true,
@@ -136,14 +167,63 @@ export default function RecordPaymentModal({
                 <DialogContent>
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
-                            <Wallet className="size-4" /> تسجيل دفعة
+                            {discountOnly ? <BadgePercent className="size-4" /> : <Wallet className="size-4" />}
+                            {discountOnly ? 'إضافة خصم' : 'تسجيل دفعة'}
                         </DialogTitle>
                         <DialogDescription>
-                            الفاتورة {invoiceNumber} — المتبقي {formatCurrency(remaining)}. تُسجَّل الدفعة ولا تُعدَّل بعد حفظها.
+                            الفاتورة {invoiceNumber} — المتبقي {formatCurrency(remaining)}.{' '}
+                            {discountOnly
+                                ? 'يُنزل الخصم الإجمالي والضريبة وعمولة الموظف. لتصحيح خصمٍ سابق أدخل قيمة سالبة.'
+                                : 'تُسجَّل الدفعة ولا تُعدَّل بعد حفظها.'}
                         </DialogDescription>
                     </DialogHeader>
 
                     <div className="space-y-4">
+                        {/* الخصم بمبلغ أو بنسبة من الإجمالي قبل الخصم الإضافي. مع الدفعة
+                            يُطبَّق أولاً، فتُقاس الدفعة على المتبقي بعده. */}
+                        <div className="space-y-1.5">
+                            <Label htmlFor="payment-discount">
+                                الخصم {!discountOnly && <span className="text-muted-foreground font-normal">(اختياري)</span>}
+                            </Label>
+                            <div className="flex items-center gap-2">
+                                <Input
+                                    id="payment-discount"
+                                    type="number"
+                                    step="0.01"
+                                    min={discountOnly ? undefined : 0}
+                                    value={discountValue}
+                                    onChange={(e) => changeDiscount(e.target.value, discountIsPct)}
+                                    placeholder="0.00"
+                                    disabled={submitting}
+                                    autoFocus={discountOnly}
+                                />
+                                <div className="flex shrink-0 overflow-hidden rounded-md border">
+                                    {[false, true].map((pct) => (
+                                        <button
+                                            key={String(pct)}
+                                            type="button"
+                                            onClick={() => changeDiscount(discountValue, pct)}
+                                            disabled={submitting}
+                                            className={`px-3 py-1.5 text-sm ${discountIsPct === pct ? 'bg-primary text-primary-foreground' : 'bg-background'}`}
+                                        >
+                                            {pct ? '%' : 'ر.س'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                            {discountAmount !== 0 &&
+                                (discountValid ? (
+                                    <p className="text-muted-foreground text-xs">
+                                        {discountIsPct && `الخصم ${formatCurrency(discountAmount)} — `}المتبقي بعد الخصم {formatCurrency(remainingAfterDiscount)}
+                                    </p>
+                                ) : (
+                                    <p className="text-destructive text-xs">الخصم يتجاوز المتبقي على الفاتورة.</p>
+                                ))}
+                            {errors.discount && <p className="text-destructive text-xs">{errors.discount}</p>}
+                        </div>
+
+                        {!discountOnly && (
+                            <>
                         {/* فرع بلا طرق دفع مفعّلة: يُعطَّل الحفظ ويُشرح السبب بدل إخفاء المنتقي بصمت. */}
                         {!hasMethods && (
                             <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300">
@@ -159,7 +239,7 @@ export default function RecordPaymentModal({
                                     id="payment-amount"
                                     type="number"
                                     min={0.01}
-                                    max={remaining}
+                                    max={remainingAfterDiscount}
                                     step="0.01"
                                     value={amount}
                                     onChange={(e) => setAmount(e.target.value)}
@@ -167,7 +247,7 @@ export default function RecordPaymentModal({
                                     disabled={submitting}
                                     autoFocus
                                 />
-                                <Button type="button" variant="outline" onClick={() => setAmount(remaining.toFixed(2))} disabled={submitting}>
+                                <Button type="button" variant="outline" onClick={() => setAmount(remainingAfterDiscount.toFixed(2))} disabled={submitting}>
                                     المتبقي كاملاً
                                 </Button>
                             </div>
@@ -216,6 +296,8 @@ export default function RecordPaymentModal({
                             />
                             {errors.notes && <p className="text-destructive text-xs">{errors.notes}</p>}
                         </div>
+                            </>
+                        )}
                     </div>
 
                     <DialogFooter>
@@ -223,7 +305,7 @@ export default function RecordPaymentModal({
                             تراجع
                         </Button>
                         <Button onClick={() => submit()} disabled={submitting || !isValid}>
-                            {submitting && <Loader2 className="size-4 animate-spin" />} حفظ الدفعة
+                            {submitting && <Loader2 className="size-4 animate-spin" />} {discountOnly ? 'حفظ الخصم' : 'حفظ الدفعة'}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

@@ -40,10 +40,11 @@ class RecordInvoicePaymentAction
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
         private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
         private readonly RecalculateIncentivePlanAction $recalculateIncentive,
+        private readonly ApplyInvoiceDiscountAction $applyDiscount,
     ) {}
 
     /**
-     * @param  array{amount: float|string, paid_at?: string|null, payment_method_id?: int|null, notes?: string|null}  $data
+     * @param  array{amount: float|string, discount?: float|string|null, paid_at?: string|null, payment_method_id?: int|null, notes?: string|null}  $data
      * @param  UploadedFile|null  $receipt  إيصال التحويل حين تشترطه طريقة الدفع
      * @param  bool  $confirmedShortage  إقرارُ المعتمِد بعجز خامات المخزون حين تُغلق هذه الدفعةُ الفاتورة
      */
@@ -60,6 +61,12 @@ class RecordInvoicePaymentAction
                         ? 'الفاتورة مسدَّدة بالكامل — لا يمكن تسجيل دفعة جديدة عليها.'
                         : 'لا يمكن تسجيل دفعة على فاتورة ملغاة أو مرتجعة.',
                 ]);
+            }
+
+            // خصمٌ يرافق الدفعة («80 والباقي 20 خصم»): يُطبَّق أولاً، فتُقاس الدفعة
+            // على المتبقي الجديد وتُغلق الفاتورة إن غطّته.
+            if ((float) ($data['discount'] ?? 0) !== 0.0) {
+                $this->applyDiscount->handle($invoice, (float) $data['discount']);
             }
 
             $amount = round((float) $data['amount'], 2);
@@ -113,6 +120,25 @@ class RecordInvoicePaymentAction
             }
 
             return $payment;
+        });
+    }
+
+    /**
+     * خصمٌ بلا دفعة (زر «إضافة خصم»). إن غطّى المحصَّلُ الإجماليَّ الجديد أُغلقت
+     * الفاتورة، وتاريخ سدادها لحظةُ آخر دفعة — المال وصل حينها، لا لحظة الخصم.
+     */
+    public function discount(ProductInvoice|ServiceInvoice $invoice, float $delta, bool $confirmedShortage = false): void
+    {
+        DB::transaction(function () use ($invoice, $delta, $confirmedShortage) {
+            $invoice = $invoice->newQuery()->whereKey($invoice->getKey())->lockForUpdate()->firstOrFail();
+
+            $this->applyDiscount->handle($invoice, $delta);
+
+            $collected = round((float) $invoice->payments()->sum('amount'), 2);
+
+            if ($collected > 0 && $collected >= round((float) $invoice->total_amount, 2)) {
+                $this->settle($invoice, Date::parse($invoice->payments()->max('paid_at')), $confirmedShortage);
+            }
         });
     }
 

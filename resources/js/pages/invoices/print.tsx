@@ -14,7 +14,7 @@ interface Props {
 }
 
 /** تسميات الخصومات في مقاس A4، بترتيب مصفوفة printTotals. */
-const A4_DISCOUNT_LABELS = ['خصم الفئة', 'خصم الكوبون', 'خصم المندوب', 'استبدال النقاط'];
+const A4_DISCOUNT_LABELS = ['خصم الفئة', 'خصم الكوبون', 'خصم المندوب', 'استبدال النقاط', 'خصم إضافي'];
 
 function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | null }) {
     const doc = invoiceDocument(invoice);

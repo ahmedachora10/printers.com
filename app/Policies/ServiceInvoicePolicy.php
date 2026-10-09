@@ -86,6 +86,16 @@ class ServiceInvoicePolicy
     }
 
     /**
+     * الخصم الإضافي: من يحصّل، والموظف على فاتورته هو — وخصمه لا ينزل بسعر
+     * سطرٍ تحت أرضية الخدمة (ApplyInvoiceDiscountAction).
+     */
+    public function discount(User $user, ServiceInvoice $invoice): bool
+    {
+        return $this->recordPayment($user, $invoice)
+            || ($user->roleName->isEmployee() && $user->id === $invoice->user_id && $invoice->status->acceptsPayment());
+    }
+
+    /**
      * Who may re-edit an invoice — its services, quantities, prices and the
      * materials cost — and only while it is still DUE: its owning employee, or
      * a branch admin (or super admin) in its branch correcting it before

@@ -10,6 +10,8 @@ export interface PrintTotalsSource {
     couponDiscount: number;
     agentDiscount: number;
     pointsDiscount: number;
+    /** خصمٌ إضافي بعد البيع (عند التحصيل) — ApplyInvoiceDiscountAction. */
+    manualDiscount: number;
     vatPct: number;
     vatAmount: number;
     totalAmount: number;
@@ -21,7 +23,7 @@ export interface PrintTotalsSource {
 }
 
 /** تسميات الخصومات بترتيب مصفوفة invoiceTotals. */
-const DISCOUNT_LABELS = ['خصم الفئة', 'خصم الكوبون', 'خصم المندوب', 'استبدال النقاط'];
+const DISCOUNT_LABELS = ['خصم الفئة', 'خصم الكوبون', 'خصم المندوب', 'استبدال النقاط', 'خصم إضافي'];
 
 /**
  * تفكيك الإجمالي المعروض على أي ورقة: يعتمد الأرقام المخزّنة على الفاتورة
@@ -34,7 +36,7 @@ export function printTotals(invoice: PrintTotalsSource) {
         vatAmount: invoice.vatAmount,
         totalAmount: invoice.totalAmount,
         shippingFee: invoice.shippingFee ?? 0,
-        discounts: [invoice.tierDiscountAmount, invoice.couponDiscount, invoice.agentDiscount, invoice.pointsDiscount],
+        discounts: [invoice.tierDiscountAmount, invoice.couponDiscount, invoice.agentDiscount, invoice.pointsDiscount, invoice.manualDiscount],
     });
 }
 

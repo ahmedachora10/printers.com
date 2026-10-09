@@ -6,6 +6,7 @@ use App\Actions\InvoicePayment\RecordInvoicePaymentAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Enums\Roles;
+use App\Http\Requests\InvoicePayment\StoreInvoiceDiscountRequest;
 use App\Http\Requests\InvoicePayment\StoreInvoicePaymentRequest;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
@@ -37,10 +38,43 @@ class InvoicePaymentController extends Controller
         );
 
         $invoice->refresh();
+        $this->notifyIfSettled($invoice);
 
-        // اكتمل السداد بهذه الدفعة: يُبلَّغ الموظف صاحب الفاتورة كما لو اعتمدها
-        // المحاسب دفعةً واحدة. الـ Action يرفض أي دفعة على فاتورة مسدَّدة، فلا
-        // يمرّ هذا الفرع إلا مرة واحدة لكل فاتورة.
+        $amount = number_format((float) $payment->amount, 2);
+        $message = $invoice->status === InvoiceStatusEnum::PAID
+            ? "تم تسجيل دفعة {$amount} ر.س واكتمل سداد الفاتورة {$invoice->invoice_number}"
+            : "تم تسجيل دفعة {$amount} ر.س — المتبقي ".number_format($invoice->remainingAmount(), 2).' ر.س';
+
+        return back()->with('success', $message);
+    }
+
+    /**
+     * خصمٌ إضافي بلا دفعة — قد يُغلق الفاتورة إن كان المحصَّل قد غطّى ما بعده.
+     */
+    public function discount(StoreInvoiceDiscountRequest $request, string $type, int $id, RecordInvoicePaymentAction $action): RedirectResponse
+    {
+        $invoice = $this->resolveInvoice($type, $id);
+        Gate::authorize('discount', $invoice);
+
+        $action->discount($invoice, (float) $request->validated('amount'), $request->boolean('confirm_materials_shortage'));
+
+        $invoice->refresh();
+        $this->notifyIfSettled($invoice);
+
+        $message = $invoice->status === InvoiceStatusEnum::PAID
+            ? "تم الخصم واكتمل سداد الفاتورة {$invoice->invoice_number}"
+            : 'تم الخصم — الإجمالي '.number_format((float) $invoice->total_amount, 2).' ر.س، المتبقي '.number_format($invoice->remainingAmount(), 2).' ر.س';
+
+        return back()->with('success', $message);
+    }
+
+    /**
+     * اكتمل السداد: يُبلَّغ الموظف صاحب الفاتورة كما لو اعتمدها المحاسب دفعةً
+     * واحدة. الـ Action يرفض أي دفعة أو خصم على فاتورة مسدَّدة، فلا يمرّ هذا
+     * الفرع إلا مرة واحدة لكل فاتورة.
+     */
+    private function notifyIfSettled(ProductInvoice|ServiceInvoice $invoice): void
+    {
         if ($invoice instanceof ServiceInvoice && $invoice->status === InvoiceStatusEnum::PAID) {
             Notification::send(
                 $this->settlementNotifiables($invoice),
@@ -52,13 +86,6 @@ class InvoicePaymentController extends Controller
                 ),
             );
         }
-
-        $amount = number_format((float) $payment->amount, 2);
-        $message = $invoice->status === InvoiceStatusEnum::PAID
-            ? "تم تسجيل دفعة {$amount} ر.س واكتمل سداد الفاتورة {$invoice->invoice_number}"
-            : "تم تسجيل دفعة {$amount} ر.س — المتبقي ".number_format($invoice->remainingAmount(), 2).' ر.س';
-
-        return back()->with('success', $message);
     }
 
     /**

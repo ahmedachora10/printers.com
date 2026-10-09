@@ -381,6 +381,13 @@ Route::middleware(['auth'])->group(function () {
             ->name('invoices.payments.store');
     });
 
+    // خصمٌ إضافي على فاتورة لم يكتمل سدادها: من يحصّل، والموظف على فاتورته —
+    // التحقق الفعلي في policy discount().
+    Route::post('invoices/{type}/{id}/discount', [InvoicePaymentController::class, 'discount'])
+        ->middleware('role:branch-admin|super-admin|accountant|employee')
+        ->whereIn('type', ['product', 'service'])->whereNumber('id')
+        ->name('invoices.discount.store');
+
     // Customer details of a service invoice — shared by the accountant's review
     // queue and the owning employee's POS edit screen. Who may touch which
     // invoice is decided per-invoice by ServiceInvoicePolicy::updateCustomer.

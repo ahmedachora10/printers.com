@@ -30,7 +30,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice, type InvoiceThread as InvoiceThreadData, type InvoicePayment, type PaymentMethodChange } from '@/types/invoice';
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/react';
-import { Ban, Bike, CheckCircle2, ChevronLeft, ChevronRight, Coins, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
+import { BadgePercent, Ban, Bike, CheckCircle2, ChevronLeft, ChevronRight, Coins, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
 import { type ComponentProps, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -133,7 +133,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     const canPrint = props.auth.role !== 'auditor';
     const [refundOpen, setRefundOpen] = useState(false);
     const [expenseOpen, setExpenseOpen] = useState(false);
-    const [paymentOpen, setPaymentOpen] = useState(false);
+    const [paymentMode, setPaymentMode] = useState<'payment' | 'discount' | null>(null);
     const [approveOpen, setApproveOpen] = useState(false);
     // نص عجز الخامات كما ردّه الخادم — وجودُه يفتح حوار الإقرار.
     const [materialsShortage, setMaterialsShortage] = useState<string | null>(null);
@@ -193,7 +193,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
         vatAmount: invoice.vatAmount,
         totalAmount: invoice.totalAmount,
         shippingFee: invoice.shippingFee ?? 0,
-        discounts: [invoice.tierDiscountAmount, invoice.couponDiscount, invoice.agentDiscount, invoice.pointsDiscount],
+        discounts: [invoice.tierDiscountAmount, invoice.couponDiscount, invoice.agentDiscount, invoice.pointsDiscount, invoice.manualDiscount],
     });
 
     const materialsTotal = invoice.lines.reduce((sum, line) => sum + (line.materialsTotal ?? 0), 0);
@@ -392,8 +392,13 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                             </Button>
                         )}
                         {invoice.canRecordPayment && (
-                            <Button variant="outline" onClick={() => setPaymentOpen(true)}>
+                            <Button variant="outline" onClick={() => setPaymentMode('payment')}>
                                 <Wallet className="size-4" /> تسجيل دفعة
+                            </Button>
+                        )}
+                        {invoice.canDiscount && (
+                            <Button variant="outline" onClick={() => setPaymentMode('discount')}>
+                                <BadgePercent className="size-4" /> إضافة خصم
                             </Button>
                         )}
                         {invoice.canDeliver && (
@@ -585,7 +590,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                 <p className="text-muted-foreground py-2 text-sm">لم تُسجَّل أي دفعة على هذه الفاتورة بعد.</p>
                             )}
                             {invoice.canRecordPayment && (
-                                <Button variant="outline" size="sm" className="mt-3" onClick={() => setPaymentOpen(true)}>
+                                <Button variant="outline" size="sm" className="mt-3" onClick={() => setPaymentMode('payment')}>
                                     <Wallet className="size-4" /> تسجيل دفعة
                                 </Button>
                             )}
@@ -681,6 +686,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                 {totals.discounts[1] > 0 && <TotalRow label="خصم الكوبون" value={`−${formatCurrency(totals.discounts[1])}`} />}
                                 {totals.discounts[2] > 0 && <TotalRow label="خصم المندوب" value={`−${formatCurrency(totals.discounts[2])}`} />}
                                 {totals.discounts[3] > 0 && <TotalRow label="خصم النقاط" value={`−${formatCurrency(totals.discounts[3])}`} />}
+                                {totals.discounts[4] > 0 && <TotalRow label="خصم إضافي" value={`−${formatCurrency(totals.discounts[4])}`} />}
                                 {/* تاسك 93: التوصيل سطرٌ مستقلٌّ واضح فوق الإجمالي —
                                     إضافةٌ لا خصم، ويظهر ولو كان مجّانياً. */}
                                 {invoice.shippingFee !== null && invoice.shippingFee !== undefined && (
@@ -890,14 +896,16 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                 )}
             </div>
 
-            {invoice.canRecordPayment && (
+            {(invoice.canRecordPayment || invoice.canDiscount) && (
                 <RecordPaymentModal
-                    open={paymentOpen}
-                    onOpenChange={setPaymentOpen}
+                    mode={paymentMode ?? 'payment'}
+                    open={paymentMode !== null}
+                    onOpenChange={(open) => !open && setPaymentMode(null)}
                     invoiceType={invoice.type}
                     invoiceId={invoice.id}
                     invoiceNumber={invoice.invoiceNumber}
                     remaining={invoice.paymentRemaining}
+                    discountBase={invoice.discountBase}
                     paymentMethods={paymentMethodOptions}
                 />
             )}
