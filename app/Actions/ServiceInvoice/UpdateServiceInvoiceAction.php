@@ -64,13 +64,12 @@ class UpdateServiceInvoiceAction
         }
 
         $branchId = (int) $invoice->branch_id;
-        $wasPaid = $invoice->status === InvoiceStatusEnum::PAID;
         // المعتمَدة طُبعت ضريبيةً بنسبتها، فتبقى عليها وإن تغيّرت نسبة الفرع.
         $vatPct = $invoice->status === InvoiceStatusEnum::DUE
             ? (float) Branch::findOrFail($branchId)->vat_rate_override
             : (float) $invoice->vat_pct;
 
-        return DB::transaction(function () use ($invoice, $data, $receipt, $branchId, $vatPct, $wasPaid) {
+        return DB::transaction(function () use ($invoice, $data, $receipt, $branchId, $vatPct) {
             // Unwind the current invoice before recomputing. Restoring the
             // redeemed points first means the recomputation sees the customer's
             // real balance, so an unchanged redemption nets to zero. The
@@ -89,7 +88,7 @@ class UpdateServiceInvoiceAction
             $calc = $this->calculator->handle($data, $invoice->user, $branchId, $vatPct, $invoice);
 
             $invoice->update($calc['attributes']);
-            $completed = $invoice->settleAfterEdit((int) auth()->id());
+            $invoice->settleAfterEdit((int) auth()->id());
 
             // تاسك 100: ما يُكتب في الخانة عند التعديل رسالةٌ جديدة ممّن يعدّل —
             // لا استبدالٌ لما قيل قبلها.
@@ -114,7 +113,7 @@ class UpdateServiceInvoiceAction
 
             // الآجلة والمدفوعة جزئياً: لا عمولة ولا نقاط مخصومة ولا خامات بعد —
             // تنتظر الاعتماد. المدفوعة يُعاد عليها ما كتبه اعتمادها.
-            if ($wasPaid || $completed) {
+            if ($invoice->status === InvoiceStatusEnum::PAID) {
                 $this->markPaid->realise($invoice);
             } elseif ($invoice->status === InvoiceStatusEnum::PARTIALLY_PAID) {
                 $this->recalculateIncentive->refreshForInvoice($invoice);

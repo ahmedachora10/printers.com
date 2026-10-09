@@ -56,12 +56,12 @@ trait HasInvoicePayments
      * عند البيع بلا صفوف دفعات محصَّلُها إجماليُّها من تلقاء نفسه، والمسدَّدة
      * بدفعات تُكتب لها دفعة تسوية بالفرق (موجبة أو سالبة) ولا تُمسّ دفعاتها
      * السابقة. والمدفوعة جزئياً لا ينزل إجماليها تحت ما حُصِّل، فإن ساواه اكتمل
-     * سدادها — فتُعاد true ليكتب المتصل أثر الاعتماد.
+     * سدادها — والمتصل يقرأ الحالة بعدها ليكتب أثر الاعتماد.
      */
-    public function settleAfterEdit(int $actorId): bool
+    public function settleAfterEdit(int $actorId): void
     {
         if (! $this->payments()->exists()) {
-            return false;
+            return;
         }
 
         $total = round((float) $this->total_amount, 2);
@@ -74,16 +74,10 @@ trait HasInvoicePayments
                 ]);
             }
 
-            if ($total !== $collected) {
-                return false;
+            if ($total === $collected) {
+                $this->update(['status' => InvoiceStatusEnum::PAID, 'paid_at' => $this->payments()->max('paid_at')]);
             }
-
-            $this->update(['status' => InvoiceStatusEnum::PAID, 'paid_at' => $this->payments()->max('paid_at')]);
-
-            return true;
-        }
-
-        if ($this->status === InvoiceStatusEnum::PAID && $total !== $collected) {
+        } elseif ($this->status === InvoiceStatusEnum::PAID && $total !== $collected) {
             $this->payments()->create([
                 'branch_id' => $this->branch_id,
                 'payment_method_id' => $this->payment_method_id,
@@ -93,8 +87,6 @@ trait HasInvoicePayments
                 'notes' => 'تسوية بعد تعديل الفاتورة',
             ]);
         }
-
-        return false;
     }
 
     /** المتبقي على العميل — لا ينزل تحت الصفر. */
