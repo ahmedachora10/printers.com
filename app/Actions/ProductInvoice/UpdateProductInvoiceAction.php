@@ -13,7 +13,6 @@ use App\Models\ProductInvoice;
 use App\Models\User;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\ValidationException;
 
 /**
  * يعدّل فاتورة منتجات قائمة — آجلةً أو مدفوعة — في مكانها، برقمها نفسه. الحارس
@@ -57,39 +56,8 @@ class UpdateProductInvoiceAction
             $invoice->lines()->delete();
 
             $calc = $this->creator->calculate($data, (int) $invoice->branch_id, (float) $invoice->vat_pct, $invoice, $heldQty);
-            $total = (float) $calc['attributes']['total_amount'];
-
-            $status = $invoice->status;
-            $paidAt = $invoice->paid_at;
-            $hasPayments = $invoice->payments()->exists();
-            $collected = round((float) $invoice->payments()->sum('amount'), 2);
-
-            if ($hasPayments && $status !== InvoiceStatusEnum::PAID) {
-                if ($total < $collected) {
-                    throw ValidationException::withMessages([
-                        'lines' => 'الإجمالي الجديد أقل مما حُصِّل من الفاتورة ('.number_format($collected, 2).' ر.س).',
-                    ]);
-                }
-
-                // التعديل أنزل الإجمالي إلى ما حُصِّل بالضبط: اكتمل السداد.
-                if ($total === $collected) {
-                    $status = InvoiceStatusEnum::PAID;
-                    $paidAt = now();
-                }
-            }
-
-            $invoice->update([...$calc['attributes'], 'status' => $status, 'paid_at' => $paidAt]);
-
-            if ($hasPayments && $invoice->status === InvoiceStatusEnum::PAID && round($total - $collected, 2) !== 0.0) {
-                $invoice->payments()->create([
-                    'branch_id' => $invoice->branch_id,
-                    'payment_method_id' => $invoice->payment_method_id,
-                    'amount' => round($total - $collected, 2),
-                    'paid_at' => now(),
-                    'recorded_by' => $actor->id,
-                    'notes' => 'تسوية بعد تعديل الفاتورة',
-                ]);
-            }
+            $invoice->update($calc['attributes']);
+            $invoice->settleAfterEdit($actor->id);
 
             if ($receipt !== null) {
                 $invoice->addMedia($receipt)->toMediaCollection(ProductInvoice::RECEIPT_COLLECTION);

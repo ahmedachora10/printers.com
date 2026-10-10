@@ -2,6 +2,7 @@
 
 namespace App\Actions\ServiceInvoice;
 
+use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\InvoiceMessage\PostInvoiceMessageAction;
 use App\Actions\ServiceInvoice\Concerns\LogsAuthoredMaterialsCost;
 use App\Actions\ServiceInvoice\Concerns\ReversesServiceInvoiceAccruals;
@@ -10,17 +11,22 @@ use App\Actions\ServiceInvoice\Concerns\SyncsServiceInvoiceShipments;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\Branch;
+use App\Models\CommissionLedger;
 use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceLine;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Re-edits a DUE service invoice in place (before an accountant approves it),
- * keeping the same invoice number and id. The invoice's existing accruals are
- * unwound first (unpaid commission reversed, redeemed points restored, coupon
- * released), then the whole invoice is recomputed from the submitted data and
- * re-persisted. Only a due invoice may be edited — settled invoices are locked.
+ * Re-edits a service invoice in place, keeping the same invoice number and id.
+ * The invoice's existing accruals are unwound first (unpaid commission
+ * reversed, redeemed points restored, earned points clawed back, coupon
+ * released, materials put back), then the whole invoice is recomputed from the
+ * submitted data and re-persisted — and, for an approved invoice, approval's
+ * effects are written again (MarkServiceInvoicePaidAction::realise). The
+ * status never moves, except a partially paid invoice edited down to what was
+ * collected, which completes. Who may edit which status: ServiceInvoicePolicy::update.
  */
 class UpdateServiceInvoiceAction
 {
@@ -29,17 +35,14 @@ class UpdateServiceInvoiceAction
     public function __construct(
         private readonly CalculateServiceInvoiceAction $calculator,
         private readonly PostInvoiceMessageAction $postMessage,
+        private readonly MarkServiceInvoicePaidAction $markPaid,
+        private readonly ConsumeServiceMaterialsAction $consumeMaterials,
+        private readonly RecalculateIncentivePlanAction $recalculateIncentive,
     ) {}
 
     /** @param array<string, mixed> $data */
     public function handle(ServiceInvoice $invoice, array $data, ?UploadedFile $receipt = null): ServiceInvoice
     {
-        if ($invoice->status !== InvoiceStatusEnum::DUE) {
-            throw ValidationException::withMessages([
-                'status' => 'لا يمكن تعديل إلا فاتورة آجلة قبل اعتمادها.',
-            ]);
-        }
-
         // An agent rebate already rolled into a payment would be left dangling if
         // the invoice were recomputed underneath it.
         if ($invoice->invoiceAgents()->whereNotNull('agent_payment_id')->exists()) {
@@ -48,29 +51,44 @@ class UpdateServiceInvoiceAction
             ]);
         }
 
+        // عمولةٌ صُرفت للموظف لا يُعكس صفّها (reverseUnpaidCommission يتخطّاه)،
+        // فإعادة كتابة العمولة فوقه تدفعها له مرتين.
+        if (CommissionLedger::query()
+            ->where('invoice_line_type', ServiceInvoiceLine::class)
+            ->whereIn('invoice_line_id', $invoice->lines()->select('id'))
+            ->whereNotNull('paid_at')
+            ->exists()) {
+            throw ValidationException::withMessages([
+                'invoice' => 'لا يمكن تعديل فاتورة صُرفت عمولتها للموظف.',
+            ]);
+        }
+
         $branchId = (int) $invoice->branch_id;
-        $userId = (int) $invoice->user_id;
-        $branch = Branch::findOrFail($branchId);
-        $vatPct = (float) $branch->vat_rate_override;
+        // المعتمَدة طُبعت ضريبيةً بنسبتها، فتبقى عليها وإن تغيّرت نسبة الفرع.
+        $vatPct = $invoice->status === InvoiceStatusEnum::DUE
+            ? (float) Branch::findOrFail($branchId)->vat_rate_override
+            : (float) $invoice->vat_pct;
 
         return DB::transaction(function () use ($invoice, $data, $receipt, $branchId, $vatPct) {
             // Unwind the current invoice before recomputing. Restoring the
             // redeemed points first means the recomputation sees the customer's
-            // real balance, so an unchanged redemption nets to zero.
-            $this->reverseUnpaidCommission($invoice);
+            // real balance, so an unchanged redemption nets to zero. The
+            // commission reversal keeps each row's period: the rewritten rows
+            // land on the invoice's paid_at, so the month nets to the new figure.
+            $this->reverseUnpaidCommission($invoice, keepEarnedAt: true);
             $this->restoreRedeemedPoints($invoice);
+            $this->clawBackEarnedPoints($invoice);
             $this->releaseCoupon($invoice);
+            // قبل حذف الأسطر: حركات الإرجاع تحمل رقم السطر الذي صُرفت له.
+            $this->consumeMaterials->restore($invoice, (int) auth()->id());
             $invoice->lines()->delete();
 
             // الفاتورة نفسها تُستثنى من حساب النقاط المحجوزة، فإعادة إرسال العدد
             // نفسه لا تصطدم بحجزها هي.
             $calc = $this->calculator->handle($data, $invoice->user, $branchId, $vatPct, $invoice);
 
-            $invoice->update([
-                'status' => InvoiceStatusEnum::DUE,
-                'paid_at' => null,
-                ...$calc['attributes'],
-            ]);
+            $invoice->update($calc['attributes']);
+            $invoice->settleAfterEdit((int) auth()->id());
 
             // تاسك 100: ما يُكتب في الخانة عند التعديل رسالةٌ جديدة ممّن يعدّل —
             // لا استبدالٌ لما قيل قبلها.
@@ -83,8 +101,6 @@ class UpdateServiceInvoiceAction
                 $invoice->addMedia($receipt)->toMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);
             }
 
-            // The invoice stays due here, so no commission ledger is written; it is
-            // deferred until the accountant approves (pays) the invoice.
             $this->writeLines($invoice, $calc['lines']);
 
             $this->syncShipments($invoice, $calc['shipments']);
@@ -95,8 +111,13 @@ class UpdateServiceInvoiceAction
                 $calc['coupon']->increment('used_count');
             }
 
-            // الفاتورة تبقى آجلة هنا، فنقاطها تبقى محجوزة لا مخصومة — كالعمولة
-            // تماماً، تنتظر اعتماد المحاسب.
+            // الآجلة والمدفوعة جزئياً: لا عمولة ولا نقاط مخصومة ولا خامات بعد —
+            // تنتظر الاعتماد. المدفوعة يُعاد عليها ما كتبه اعتمادها.
+            if ($invoice->status === InvoiceStatusEnum::PAID) {
+                $this->markPaid->realise($invoice);
+            } elseif ($invoice->status === InvoiceStatusEnum::PARTIALLY_PAID) {
+                $this->recalculateIncentive->refreshForInvoice($invoice);
+            }
 
             return $invoice->refresh();
         });

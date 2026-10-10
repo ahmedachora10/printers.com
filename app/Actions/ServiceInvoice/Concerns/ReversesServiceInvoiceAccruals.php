@@ -23,8 +23,10 @@ trait ReversesServiceInvoiceAccruals
     /**
      * Reverse every unpaid commission row for the invoice's lines in full by
      * inserting a negative offsetting row. Paid commission is left untouched.
+     * $keepEarnedAt dates each reversal on its row's own earned_at (an edit
+     * that rewrites the rows in the same period) instead of now (a return).
      */
-    protected function reverseUnpaidCommission(ServiceInvoice $invoice): void
+    protected function reverseUnpaidCommission(ServiceInvoice $invoice, bool $keepEarnedAt = false): void
     {
         $lineIds = $invoice->lines()->pluck('id');
 
@@ -50,7 +52,7 @@ trait ReversesServiceInvoiceAccruals
                 'is_tahazir' => $entry->is_tahazir,
                 'tier_applied' => $entry->tier_applied,
                 'source_type' => CommissionSourceTypeEnum::STANDARD,
-                'earned_at' => now(),
+                'earned_at' => $keepEarnedAt ? $entry->earned_at : now(),
             ]);
         }
     }

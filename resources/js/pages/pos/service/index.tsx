@@ -80,7 +80,7 @@ interface Props {
     shippingZones: PosShippingZone[];
     /** الإدارة تكتب القيمة يدوياً؛ الموظف يختار الشريحة وسعرُها هو الحاكم. */
     canEditShippingFee: boolean;
-    /** Present only when the owning employee re-opens a DUE invoice to edit it. */
+    /** Present only when an existing invoice is re-opened to edit it. */
     invoice?: EditServiceInvoice;
 }
 
@@ -1069,8 +1069,8 @@ export default function ServicePos({
                     <div className="flex items-start gap-2 rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-sm text-sky-700 dark:text-sky-400">
                         <Info className="mt-0.5 size-4 shrink-0" />
                         <span>
-                            تعدّل فاتورة الموظف <span className="font-semibold">{invoice!.employeeName ?? '—'}</span> — تبقى الفاتورة معلّقة بعد
-                            الحفظ، وعمولتها تُحتسب له هو، ويُسجَّل التعديل في سجلّ النشاط.
+                            تعدّل فاتورة الموظف <span className="font-semibold">{invoice!.employeeName ?? '—'}</span> — تبقى الفاتورة{' '}
+                            {invoice!.statusLabel} بعد الحفظ، وعمولتها تُحتسب له هو، ويُسجَّل التعديل في سجلّ النشاط.
                         </span>
                     </div>
                 </div>
@@ -1165,7 +1165,7 @@ export default function ServicePos({
                                 <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
                                     {isEditing ? (
                                         <>
-                                            تبقى الفاتورة <span className="font-semibold">معلقة</span> بعد التعديل — تُعتمد من طابور المراجعة.
+                                            تبقى الفاتورة <span className="font-semibold">{invoice!.statusLabel}</span> بعد التعديل.
                                         </>
                                     ) : (
                                         <>

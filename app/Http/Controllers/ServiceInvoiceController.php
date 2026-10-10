@@ -127,10 +127,11 @@ class ServiceInvoiceController extends Controller
     }
 
     /**
-     * Re-open a DUE invoice in the POS form (before an accountant approves it):
-     * for its owning employee, or for a reviewer in its branch correcting it —
-     * the materials cost above all, which the employee may not touch (تاسك 70).
-     * The form is seeded from the invoice.
+     * Re-open an invoice in the POS form: a DUE one for its owning employee or
+     * a reviewer in its branch correcting it — the materials cost above all,
+     * which the employee may not touch (تاسك 70) — and an approved one for the
+     * branch admin or super admin (ServiceInvoicePolicy::update). The form is
+     * seeded from the invoice.
      */
     public function edit(ServiceInvoice $invoice, ListBranchAgentsAction $listBranchAgents, ResolveAvailablePointsAction $availablePoints): Response
     {
@@ -159,6 +160,7 @@ class ServiceInvoiceController extends Controller
                 // صاحب الفاتورة — تعرضه اللافتة حين يفتحها غيرُه (تاسك 70).
                 'employeeName' => $invoice->user?->name,
                 'isOwn' => $user->id === (int) $invoice->user_id,
+                'statusLabel' => $invoice->status->label(),
                 // حجز هذه الفاتورة نفسها لا يُطرح من رصيد عميلها هنا: نقاطها لها،
                 // فإعادة إرسال العدد نفسه لا تُرفض ولا يظهر الرصيد منقوصاً مرتين.
                 'customer' => $invoice->customer?->toPosArray(
@@ -268,9 +270,8 @@ class ServiceInvoiceController extends Controller
     }
 
     /**
-     * Persist an in-place edit of a DUE invoice — by its owning employee, or by
-     * a reviewer in its branch (تاسك 70) — then return to the invoice viewer.
-     * The invoice stays DUE either way: editing never approves it.
+     * Persist an in-place edit — see edit() for who — then return to the
+     * invoice viewer. Editing never moves the status (UpdateServiceInvoiceAction).
      */
     public function update(UpdateServiceInvoiceRequest $request, ServiceInvoice $invoice, UpdateServiceInvoiceAction $action): RedirectResponse
     {
