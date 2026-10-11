@@ -174,6 +174,18 @@ export interface Invoice {
         address: string | null;
         fee: number;
     }[];
+    /** توصيلٌ طُلب بعد اعتماد الفاتورة ولم يعتمده المحاسب — خارج الإجمالي. */
+    pendingShipments: {
+        id: number;
+        providerName: string | null;
+        zoneName: string | null;
+        address: string | null;
+        fee: number;
+        requestedByName: string | null;
+        requestedAt: string | null;
+    }[];
+    canRequestShipment: boolean;
+    canApproveShipment: boolean;
     employeeCommission: number | null;
     /** الموظف صاحب الفاتورة — مَن أنشأها، لا مَن يطبعها */
     userName: string | null;

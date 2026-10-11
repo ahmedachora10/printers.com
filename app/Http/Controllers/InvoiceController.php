@@ -11,6 +11,9 @@ use App\Enums\ReturnRequestStatusEnum;
 use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
 use App\Models\Branch;
+use App\Models\Customer;
+use App\Models\DeliveryProvider;
+use App\Models\DeliveryZone;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\InvoiceMessage;
@@ -275,7 +278,7 @@ class InvoiceController extends Controller
         // Product invoices carry a single agent on the row; service invoices list
         // several via the pivot, plus the per-line commission owners.
         if ($invoice instanceof ServiceInvoice) {
-            $invoice->load('invoiceAgents.agent:id,name', 'cancelledBy:id,name', 'deliveredBy:id,name', 'shipments.provider:id,name,phone', 'shipments.zone:id,name');
+            $invoice->load('invoiceAgents.agent:id,name', 'cancelledBy:id,name', 'deliveredBy:id,name', 'shipments.provider:id,name,phone', 'shipments.zone:id,name', 'pendingShipments.provider:id,name', 'pendingShipments.zone:id,name', 'pendingShipments.requestedBy:id,name');
 
             // صاحب عمولة السطر يُحمَّل على البنود المحمَّلة أصلاً: `load` لمسارٍ
             // متداخل (`lines.lineAgent`) يُعيد استعلام `lines` من أوّله.
@@ -333,6 +336,16 @@ class InvoiceController extends Controller
                     'branches' => Auth::user()->roleName?->isSuperAdmin()
                         ? [['id' => $invoice->branch_id, 'name' => $invoice->branch?->name]]
                         : null,
+                ]
+                : null,
+            // توصيلٌ بعد اعتماد الفاتورة: سائقو الفرع وشرائحه ودفتر عناوين العميل.
+            'shipmentForm' => $invoice instanceof ServiceInvoice && Gate::allows('requestShipment', $invoice)
+                ? fn () => [
+                    'providers' => DeliveryProvider::posOptions($invoice->branch_id),
+                    'zones' => DeliveryZone::posOptions($invoice->branch_id),
+                    // عميل الفاتورة محمَّلٌ بأعمدةٍ مختارة أعلاه، فيُقرأ كاملاً مع دفتره.
+                    'customer' => Customer::with('addresses')->find($invoice->customer_id)?->toPosArray(null, false),
+                    'canEditFee' => ! Auth::user()->roleName->isEmployee(),
                 ]
                 : null,
             'hasThread' => $hasThread,

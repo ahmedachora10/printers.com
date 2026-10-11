@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -102,5 +103,33 @@ class DeliveryZone extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()->logFillable()->useLogName('shipping');
+    }
+
+    /**
+     * شرائح أسعار التوصيل النشطة في الفرع، مرتّبةً: الأحياء أولاً ثم المسافات
+     * — والأحياء أولاً لأنها الطريق الأغلب في نقطة البيع.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    public static function posOptions(?int $branchId): Collection
+    {
+        if ($branchId === null) {
+            return collect();
+        }
+
+        return DeliveryZone::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->ordered()
+            ->get()
+            ->map(fn (DeliveryZone $zone) => [
+                'id' => $zone->id,
+                'name' => $zone->name,
+                'type' => $zone->type->value,
+                'fromKm' => $zone->from_km !== null ? (float) $zone->from_km : null,
+                'toKm' => $zone->to_km !== null ? (float) $zone->to_km : null,
+                'rangeLabel' => $zone->rangeLabel(),
+                'price' => (float) $zone->price,
+            ]);
     }
 }

@@ -28,6 +28,8 @@ class InvoicePaymentController extends Controller
     {
         $invoice = $this->resolveInvoice($type, $id);
         Gate::authorize('recordPayment', $invoice);
+        // رسم توصيلٍ يُحصَّل على فاتورةٍ معتمدة لا يعيد إشعار اعتمادها.
+        $wasPaid = $invoice->status === InvoiceStatusEnum::PAID;
 
         $payment = $action->handle(
             $invoice,
@@ -38,10 +40,13 @@ class InvoicePaymentController extends Controller
         );
 
         $invoice->refresh();
-        $this->notifyIfSettled($invoice);
+
+        if (! $wasPaid) {
+            $this->notifyIfSettled($invoice);
+        }
 
         $amount = number_format((float) $payment->amount, 2);
-        $message = $invoice->status === InvoiceStatusEnum::PAID
+        $message = $invoice->remainingAmount() <= 0
             ? "تم تسجيل دفعة {$amount} ر.س واكتمل سداد الفاتورة {$invoice->invoice_number}"
             : "تم تسجيل دفعة {$amount} ر.س — المتبقي ".number_format($invoice->remainingAmount(), 2).' ر.س';
 

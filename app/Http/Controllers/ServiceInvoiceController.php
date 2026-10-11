@@ -832,63 +832,12 @@ class ServiceInvoiceController extends Controller
             ],
             // تاسك 93 — التوصيل: استعلامان ثابتان بجوار طرق الدفع، لا واحدٌ لكل
             // خدمة، فلا يزيدان عدد استعلامات الشاشة بعدد الخدمات.
-            'shippingProviders' => $this->shippingProviderOptions($branchId),
-            'shippingZones' => $this->shippingZoneOptions($branchId),
+            'shippingProviders' => DeliveryProvider::posOptions($branchId),
+            'shippingZones' => DeliveryZone::posOptions($branchId),
             // من يملك كتابة قيمة التوصيل يدوياً: الإدارة لا الموظف. الواجهة
             // تُقفل الحقل، والخادم يتجاهل ما يُرسله الموظف على أي حال.
             'canEditShippingFee' => ! $user->roleName->isEmployee(),
         ];
-    }
-
-    /**
-     * مزوّدو التوصيل النشطون في الفرع (تاسك 93).
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function shippingProviderOptions(?int $branchId): Collection
-    {
-        if ($branchId === null) {
-            return collect();
-        }
-
-        return DeliveryProvider::query()
-            ->where('branch_id', $branchId)
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get()
-            ->map(fn (DeliveryProvider $provider) => [
-                'id' => $provider->id,
-                'name' => $provider->name,
-                'typeLabel' => $provider->type->label(),
-            ]);
-    }
-
-    /**
-     * شرائح أسعار التوصيل النشطة في الفرع، مرتّبةً: الأحياء أولاً ثم المسافات
-     * — والأحياء أولاً لأنها الطريق الأغلب في نقطة البيع.
-     *
-     * @return Collection<int, array<string, mixed>>
-     */
-    private function shippingZoneOptions(?int $branchId): Collection
-    {
-        if ($branchId === null) {
-            return collect();
-        }
-
-        return DeliveryZone::query()
-            ->where('branch_id', $branchId)
-            ->where('is_active', true)
-            ->ordered()
-            ->get()
-            ->map(fn (DeliveryZone $zone) => [
-                'id' => $zone->id,
-                'name' => $zone->name,
-                'type' => $zone->type->value,
-                'fromKm' => $zone->from_km !== null ? (float) $zone->from_km : null,
-                'toKm' => $zone->to_km !== null ? (float) $zone->to_km : null,
-                'rangeLabel' => $zone->rangeLabel(),
-                'price' => (float) $zone->price,
-            ]);
     }
 
     /**

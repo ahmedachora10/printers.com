@@ -23,6 +23,10 @@ class SettleDeliveryAction
             // القفل على الطلب يمنع تسويتين متزامنتين له.
             ServiceInvoiceShipment::whereKey($shipment->id)->lockForUpdate()->first();
 
+            if ($shipment->isPending()) {
+                throw ValidationException::withMessages(['amount' => 'طلب التوصيل لم يعتمده المحاسب بعد']);
+            }
+
             if ($shipment->settlement()->exists()) {
                 throw ValidationException::withMessages(['amount' => 'سُوّي هذا الطلب مسبقاً']);
             }
