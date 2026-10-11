@@ -7,6 +7,7 @@ use App\Enums\InvoiceStatusEnum;
 use App\Models\Concerns\HasInvoicePayments;
 use App\Models\Concerns\HasReceiptMedia;
 use App\Models\Concerns\HasVatBreakdown;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -209,6 +210,27 @@ class ServiceInvoice extends Model implements HasMedia
     public function lines(): HasMany
     {
         return $this->hasMany(ServiceInvoiceLine::class, 'invoice_id');
+    }
+
+    /** @return HasMany<ServiceInvoiceHelper, $this> */
+    public function helpers(): HasMany
+    {
+        return $this->hasMany(ServiceInvoiceHelper::class);
+    }
+
+    /**
+     * صفوف عمولة هذه الفاتورة في commission_ledger: صفوف أسطرها لصاحبها، وصفوف
+     * مساعديها لكلٍّ منهم. كل عكسٍ أو فحصٍ للعمولة يمرّ من هنا فلا يُنسى المساعد.
+     *
+     * @return Builder<CommissionLedger>
+     */
+    public function ledgerEntries(): Builder
+    {
+        return CommissionLedger::query()->where(fn (Builder $q) => $q
+            ->where(fn (Builder $q) => $q->where('invoice_line_type', ServiceInvoiceLine::class)
+                ->whereIn('invoice_line_id', $this->lines()->select('id')))
+            ->orWhere(fn (Builder $q) => $q->where('invoice_line_type', ServiceInvoiceHelper::class)
+                ->whereIn('invoice_line_id', $this->helpers()->select('id'))));
     }
 
     /** @return MorphMany<Refund, $this> */

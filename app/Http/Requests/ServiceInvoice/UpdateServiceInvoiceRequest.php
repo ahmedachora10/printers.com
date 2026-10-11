@@ -55,6 +55,7 @@ class UpdateServiceInvoiceRequest extends FormRequest
             // إعادة تحديد للموعد، فالموعد المنقضي يُدفع للأمام أو يُمسح.
             'delivery_at' => ['nullable', 'date', 'after_or_equal:today'],
             ...StoreServiceInvoiceRequest::shipmentRules(),
+            ...StoreServiceInvoiceRequest::helperRules(),
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.branch_service_id' => ['required', 'integer', 'exists:branch_services,id'],
             'lines.*.notes' => ['nullable', 'string', 'max:500'],

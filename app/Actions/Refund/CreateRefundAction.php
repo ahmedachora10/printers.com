@@ -15,7 +15,6 @@ use App\Models\CommissionLedger;
 use App\Models\ProductInvoice;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
-use App\Models\ServiceInvoiceLine;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -263,15 +262,8 @@ class CreateRefundAction
 
         $fraction = min(1.0, $amount / $invoiceTotal);
 
-        $lineIds = $invoice->lines()->pluck('id');
-
-        if ($lineIds->isEmpty()) {
-            return;
-        }
-
-        $entries = CommissionLedger::query()
-            ->where('invoice_line_type', ServiceInvoiceLine::class)
-            ->whereIn('invoice_line_id', $lineIds)
+        // صفوف صاحب الفاتورة ومساعديها معاً.
+        $entries = $invoice->ledgerEntries()
             ->whereNull('paid_at')
             ->where('amount', '>', 0)
             ->lockForUpdate()

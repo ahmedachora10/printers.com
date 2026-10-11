@@ -61,6 +61,7 @@ class StoreServiceInvoiceRequest extends FormRequest
             // تاسك 95: ملاحظة داخلية للموظفين والإدارة — لا تُطبع للعميل.
             'internal_notes' => ['nullable', 'string', 'max:1000'],
             ...self::shipmentRules(),
+            ...self::helperRules(),
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.branch_service_id' => ['required', 'integer', 'exists:branch_services,id'],
             'lines.*.notes' => ['nullable', 'string', 'max:500'],
@@ -105,6 +106,23 @@ class StoreServiceInvoiceRequest extends FormRequest
     }
 
     /**
+     * المساعدون في الفاتورة — الفرع وصاحب الفاتورة وسقف الحصص يُحسم في
+     * CalculateServiceInvoiceAction. يشاركها UpdateServiceInvoiceRequest.
+     *
+     * @return array<string, mixed>
+     */
+    public static function helperRules(): array
+    {
+        return [
+            'helpers' => ['nullable', 'array', 'max:20'],
+            'helpers.*.user_id' => ['required', 'integer', 'exists:users,id'],
+            'helpers.*.branch_service_id' => ['required', 'integer', 'exists:branch_services,id'],
+            'helpers.*.share_type' => ['required', Rule::in(['amount', 'percentage'])],
+            'helpers.*.share_value' => ['required', 'numeric', 'gt:0', 'max:999999.99'],
+        ];
+    }
+
+    /**
      * The payment methods enabled for the branch this invoice is raised in —
      * the very list the POS screen offered the operator.
      *
@@ -138,6 +156,7 @@ class StoreServiceInvoiceRequest extends FormRequest
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
             'status.in' => 'لا يمكنك إصدار فاتورة مدفوعة. يتم حفظ الفاتورة كمعلقة ليراجعها المحاسب.',
             'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',
+            'helpers.*.share_value.gt' => 'حصة المساعد يجب أن تكون أكبر من صفر.',
             'internal_notes.max' => 'الملاحظات الداخلية يجب ألا تتجاوز 1000 حرف.',
             'delivery_at.date' => 'موعد التسليم غير صالح.',
             'delivery_at.after_or_equal' => 'موعد التسليم يجب ألا يكون قبل اليوم.',

@@ -380,8 +380,15 @@ class CalculateServiceInvoiceAction
         // تاسك 93: النسبة تُقاس على `$servicesNet` لا على إجمالي الفاتورة —
         // رسم التوصيل خارج أساس العمولة بنصّ العميل، فرفعُه لا يزيد ريالاً
         // واحداً لأحد.
-        foreach ($this->lineCommissions($lines, $servicesNet, $subtotal) as $i => $commission) {
+        $helpers = $this->resolveHelpers($data, $user, $branchId);
+        $commissions = $this->commissions($lines, $helpers, $servicesNet, $subtotal, $vatPct);
+
+        foreach ($commissions['lines'] as $i => $commission) {
             $lines[$i]['commission_amount'] = $commission;
+        }
+
+        foreach ($commissions['helpers'] as $i => $amounts) {
+            $helpers[$i] = [...$helpers[$i], ...$amounts];
         }
 
         $totalCommission = round(array_sum(array_column($lines, 'commission_amount')), 2);
@@ -415,6 +422,7 @@ class CalculateServiceInvoiceAction
                 'delivery_at' => $this->normalizeDeliveryAt($data['delivery_at'] ?? null),
             ],
             'lines' => $lines,
+            'helpers' => $helpers,
             'shipments' => $shipments,
             'agents' => $agentRows,
             'coupon' => $coupon,
@@ -429,21 +437,137 @@ class CalculateServiceInvoiceAction
      * employee's rate applies. Shared with ApplyInvoiceDiscountAction, which
      * re-runs it on the stored lines when a discount moves the net.
      *
+     * المساعدون: حصّة كلٍّ منهم صافيةً من الضريبة — مبلغٌ شاملٌ يُقسم على (1 + ض)،
+     * أو نسبةٌ من مال الخدمات الصافي — تُقتطع من أساس صاحب الفاتورة **بعد**
+     * الخامات، فتنكمش أسس أسطره كلها بالنسبة نفسها، ويأخذ المساعد نسبته هو على
+     * حصّته. فالفاتورة بـ60 وعارف بـ20: صاحبها على 40 وعارف على 20 — والحصة تُقتطع
+     * وإن كانت نسبة المساعد صفراً (قرار العميل). ولا تتجاوز الحصص ذلك الأساس.
+     * بلا مساعدين لا يتغيّر رقمٌ واحد.
+     *
      * @param  iterable<int, array{subtotal: float|string, materials_total: float|string, commission_pct: float|string}|\ArrayAccess<string, mixed>>  $lines
-     * @return array<int, float> commission per line, keyed as `$lines`
+     * @param  iterable<int, array{share_type: string, share_value: float|string, commission_pct: float|string}|\ArrayAccess<string, mixed>>  $helpers
+     * @return array{lines: array<int, float>, helpers: array<int, array{share_net: float, commission_amount: float}>} keyed as the inputs
      */
-    public function lineCommissions(iterable $lines, float $servicesNet, float $subtotal): array
+    public function commissions(iterable $lines, iterable $helpers, float $servicesNet, float $subtotal, float $vatPct): array
     {
         $ratio = $subtotal > 0 ? $servicesNet / $subtotal : 0.0;
-        $commissions = [];
+        $bases = [];
+        $rates = [];
 
         foreach ($lines as $i => $line) {
             $lineNet = round((float) $line['subtotal'] * $ratio, 2);
             $materials = min((float) $line['materials_total'], $lineNet);
-            $commissions[$i] = round(round($lineNet - $materials, 2) * (float) $line['commission_pct'] / 100, 2);
+            $bases[$i] = round($lineNet - $materials, 2);
+            $rates[$i] = (float) $line['commission_pct'];
         }
 
-        return $commissions;
+        $pool = round(array_sum($bases), 2);
+        $helperAmounts = [];
+
+        foreach ($helpers as $i => $helper) {
+            $share = $helper['share_type'] === 'percentage'
+                ? round($servicesNet * (float) $helper['share_value'] / 100, 2)
+                : round((float) $helper['share_value'] / (1 + $vatPct / 100), 2);
+
+            $helperAmounts[$i] = [
+                'share_net' => $share,
+                'commission_amount' => round($share * (float) $helper['commission_pct'] / 100, 2),
+            ];
+        }
+
+        $shared = round(array_sum(array_column($helperAmounts, 'share_net')), 2);
+
+        if ($shared > $pool) {
+            throw ValidationException::withMessages([
+                'helpers' => 'مجموع حصص المساعدين ('.number_format($shared, 2).' ر.س صافية من الضريبة) يتجاوز صافي الفاتورة بعد الضريبة والخامات ('.number_format($pool, 2).' ر.س).',
+            ]);
+        }
+
+        $kept = $pool > 0 ? ($pool - $shared) / $pool : 0.0;
+        $lineAmounts = [];
+
+        foreach ($bases as $i => $base) {
+            $lineAmounts[$i] = round(round($base * $kept, 2) * $rates[$i] / 100, 2);
+        }
+
+        return ['lines' => $lineAmounts, 'helpers' => $helperAmounts];
+    }
+
+    /**
+     * المساعدون كما أُرسلوا، محسومةً هويّاتهم ونسبهم: موظفٌ نشطٌ في الفرع غير
+     * صاحب الفاتورة، على خدمةٍ من خدمات الفرع — وإن لم تكن في الفاتورة. ونسبته
+     * نسبته هو على تلك الخدمة (user_services)، وبلا نسبةٍ صفر: تُسجَّل مساعدته ولا
+     * عمولة له، كالموظف نفسه.
+     *
+     * @param  array<string, mixed>  $data
+     * @return list<array{user_id: int, branch_service_id: int, service_name: string, share_type: string, share_value: float, commission_pct: float, is_tahazir: bool}>
+     */
+    private function resolveHelpers(array $data, User $owner, int $branchId): array
+    {
+        $rows = array_values((array) ($data['helpers'] ?? []));
+
+        if ($rows === []) {
+            return [];
+        }
+
+        $userIds = array_map(fn ($row) => (int) $row['user_id'], $rows);
+        $serviceIds = array_map(fn ($row) => (int) $row['branch_service_id'], $rows);
+
+        $users = User::query()
+            ->where('branch_id', $branchId)
+            ->where('is_active', true)
+            ->whereDoesntHave('agentProfile')
+            ->whereKey($userIds)
+            ->pluck('id')
+            ->flip();
+
+        $services = BranchService::query()
+            ->where('branch_id', $branchId)
+            ->whereKey($serviceIds)
+            ->sellable()
+            ->with('serviceTemplate:id,name')
+            ->get()
+            ->keyBy('id');
+
+        $rates = UserService::query()
+            ->whereIn('user_id', $userIds)
+            ->whereIn('branch_service_id', $serviceIds)
+            ->get()
+            ->mapWithKeys(fn (UserService $r) => [$r->user_id.'-'.$r->branch_service_id => (float) $r->commission_override_pct]);
+
+        return array_map(function (array $row) use ($owner, $users, $services, $rates) {
+            $userId = (int) $row['user_id'];
+            $service = $services->get((int) $row['branch_service_id']);
+            $value = round((float) $row['share_value'], 2);
+
+            if ($userId === (int) $owner->id || ! $users->has($userId)) {
+                throw ValidationException::withMessages([
+                    'helpers' => 'المساعد يجب أن يكون موظفاً نشطاً في الفرع غير صاحب الفاتورة.',
+                ]);
+            }
+
+            if (! $service) {
+                throw ValidationException::withMessages([
+                    'helpers' => 'خدمة المساعد غير متاحة في هذا الفرع.',
+                ]);
+            }
+
+            if ($row['share_type'] === 'percentage' && $value > 100) {
+                throw ValidationException::withMessages([
+                    'helpers' => 'نسبة مساعدة الموظف يجب ألا تتجاوز 100%.',
+                ]);
+            }
+
+            return [
+                'user_id' => $userId,
+                'branch_service_id' => $service->id,
+                'service_name' => $service->serviceTemplate->name ?? 'خدمة',
+                'share_type' => $row['share_type'],
+                'share_value' => $value,
+                'commission_pct' => $rates[$userId.'-'.$service->id] ?? 0.0,
+                'is_tahazir' => (bool) $service->is_tahazir,
+            ];
+        }, $rows);
     }
 
     /**

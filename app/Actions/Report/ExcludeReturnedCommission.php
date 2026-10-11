@@ -3,6 +3,7 @@
 namespace App\Actions\Report;
 
 use App\Enums\InvoiceStatusEnum;
+use App\Models\ServiceInvoiceHelper;
 use App\Models\ServiceInvoiceLine;
 use Illuminate\Database\Query\Builder;
 
@@ -39,11 +40,20 @@ class ExcludeReturnedCommission
      */
     public static function returnedInvoice(Builder $query): Builder
     {
+        // الصفّ لسطر الفاتورة (صاحبها) أو لأحد مساعديها.
         return $query->selectRaw('1')
-            ->from('service_invoice_lines')
-            ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_lines.invoice_id')
-            ->whereColumn('service_invoice_lines.id', 'commission_ledger.invoice_line_id')
-            ->where('commission_ledger.invoice_line_type', ServiceInvoiceLine::class)
-            ->where('service_invoices.status', InvoiceStatusEnum::RETURNED->value);
+            ->from('service_invoices')
+            ->where('service_invoices.status', InvoiceStatusEnum::RETURNED->value)
+            ->where(fn (Builder $q) => $q
+                ->where(fn (Builder $q) => $q
+                    ->where('commission_ledger.invoice_line_type', ServiceInvoiceLine::class)
+                    ->whereExists(fn (Builder $s) => $s->selectRaw('1')->from('service_invoice_lines')
+                        ->whereColumn('service_invoice_lines.id', 'commission_ledger.invoice_line_id')
+                        ->whereColumn('service_invoice_lines.invoice_id', 'service_invoices.id')))
+                ->orWhere(fn (Builder $q) => $q
+                    ->where('commission_ledger.invoice_line_type', ServiceInvoiceHelper::class)
+                    ->whereExists(fn (Builder $s) => $s->selectRaw('1')->from('service_invoice_helpers')
+                        ->whereColumn('service_invoice_helpers.id', 'commission_ledger.invoice_line_id')
+                        ->whereColumn('service_invoice_helpers.service_invoice_id', 'service_invoices.id'))));
     }
 }

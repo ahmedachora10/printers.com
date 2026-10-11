@@ -42,6 +42,7 @@ import service from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import {
     type EditServiceInvoice,
+    type InvoiceHelper,
     type LineAgentCommissionType,
     type PosAgent,
     type PosCustomer,
@@ -80,6 +81,8 @@ interface Props {
     shippingZones: PosShippingZone[];
     /** الإدارة تكتب القيمة يدوياً؛ الموظف يختار الشريحة وسعرُها هو الحاكم. */
     canEditShippingFee: boolean;
+    /** موظفو الفرع الذين يمكن إضافتهم مساعدين — عدا صاحب الفاتورة. */
+    helperOptions: { id: number; name: string }[];
     /** Present only when an existing invoice is re-opened to edit it. */
     invoice?: EditServiceInvoice;
 }
@@ -283,6 +286,7 @@ export default function ServicePos({
     shippingProviders,
     shippingZones,
     canEditShippingFee,
+    helperOptions,
     invoice,
 }: Props) {
     const { props } = usePage<SharedData>();
@@ -430,6 +434,11 @@ export default function ServicePos({
     const [shipments, setShipments] = useState<ShipmentDraft[]>(() => (invoice?.shipments ?? []).map(savedShipment));
     const shippingAmount = round2(shipments.reduce((sum, s) => sum + shipmentFee(s, shippingZones, canEditShippingFee), 0));
     const updateShipment = (key: string, next: ShipmentDraft) => setShipments((list) => list.map((s) => (s.key === key ? next : s)));
+
+    // المساعدون: حصّة كلٍّ منهم تُقتطع من أساس عمولة صاحب الفاتورة.
+    const [helpers, setHelpers] = useState<InvoiceHelper[]>(() => invoice?.helpers ?? []);
+    const updateHelper = (index: number, patch: Partial<InvoiceHelper>) =>
+        setHelpers((list) => list.map((h, i) => (i === index ? { ...h, ...patch } : h)));
 
     useEffect(() => {
         if (props.success) {
@@ -582,18 +591,32 @@ export default function ServicePos({
     // materials (never scaled — a real SAR cost, clamped so commission can't go
     // negative), then applies the rate. Stays an estimate — it uses the service
     // base rate, not the employee's own rate.
+    // حصص المساعدين صافيةً من الضريبة — كالخادم: المبلغ يُقسم على (1 + ض)،
+    // والنسبة من مال الخدمات الصافي.
+    const helpersShare = useMemo(
+        () =>
+            round2(
+                helpers.reduce(
+                    (sum, h) =>
+                        sum + (h.shareType === 'percentage' ? round2((servicesNet * h.shareValue) / 100) : round2(h.shareValue / (1 + vatPct / 100))),
+                    0,
+                ),
+            ),
+        [helpers, servicesNet, vatPct],
+    );
     const commission = useMemo(() => {
         if (subtotal <= 0) return 0;
         const ratio = servicesNet / subtotal;
+        const bases = cart.map((l) => {
+            const lineNet = round2(lineTotal(l) * ratio);
+            return round2(lineNet - Math.min(lineMaterialsTotal(l), lineNet));
+        });
+        const pool = round2(bases.reduce((sum, b) => sum + b, 0));
+        // ما تأخذه حصص المساعدين يخرج من أساس صاحب الفاتورة.
+        const kept = pool > 0 ? Math.max(0, pool - helpersShare) / pool : 0;
 
-        return round2(
-            cart.reduce((sum, l) => {
-                const lineNet = round2(lineTotal(l) * ratio);
-                const materials = Math.min(lineMaterialsTotal(l), lineNet);
-                return sum + round2((round2(lineNet - materials) * l.baseCommissionPct) / 100);
-            }, 0),
-        );
-    }, [cart, servicesNet, subtotal]);
+        return round2(cart.reduce((sum, l, i) => sum + round2((round2(bases[i] * kept) * l.baseCommissionPct) / 100), 0));
+    }, [cart, servicesNet, subtotal, helpersShare]);
     // تفكيك ما يُعرض للكاشير: مجموع فرعي وخصومات صافية من الضريبة يجمعها العمود
     // مع الضريبة فيساوي الإجمالي بالقرش — نفس اشتقاق شاشة الفاتورة والطباعة.
     const totals = useMemo(
@@ -899,6 +922,7 @@ export default function ServicePos({
         setDeliveryTime('');
         // تاسك 93: الفاتورة التالية تبدأ بلا سائق ولا عنوان.
         setShipments([]);
+        setHelpers([]);
         removeCoupon();
     }
 
@@ -974,6 +998,12 @@ export default function ServicePos({
             delivery_at: deliveryAt,
             // تاسك 93، 170 — طلبات التوصيل.
             shipments: shipments.map((s) => shipmentPayload(s, canEditShippingFee)),
+            helpers: helpers.map((h) => ({
+                user_id: h.userId,
+                branch_service_id: h.branchServiceId,
+                share_type: h.shareType,
+                share_value: h.shareValue,
+            })),
             lines: cart.map((l) => ({
                 branch_service_id: l.branchServiceId,
                 notes: l.notes.trim() || null,
@@ -1546,6 +1576,93 @@ export default function ServicePos({
                             </Button>
                         </CardContent>
                     </Card>
+
+                    {/* المساعدون: موظفٌ ساعد في الشغل يأخذ نسبته هو على حصّته، والحصة
+                        تُقتطع من أساس عمولة صاحب الفاتورة. */}
+                    {helperOptions.length > 0 && (
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-base">المساعدون</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-3">
+                                {helpers.map((helper, index) => (
+                                    <div key={index} className="space-y-2 rounded-md border p-3">
+                                        <div className="flex items-center gap-2">
+                                            <Combobox
+                                                options={helperOptions.map((u) => ({ value: String(u.id), label: u.name }))}
+                                                value={helper.userId ? String(helper.userId) : undefined}
+                                                onChange={(v) => updateHelper(index, { userId: Number(v) })}
+                                                placeholder="اختر الموظف"
+                                                searchPlaceholder="ابحث باسم الموظف..."
+                                                className="w-72"
+                                                triggerClassName="h-11 flex-1 md:h-9"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="icon"
+                                                aria-label="حذف المساعد"
+                                                onClick={() => setHelpers((list) => list.filter((_, i) => i !== index))}
+                                            >
+                                                <X className="size-4" />
+                                            </Button>
+                                        </div>
+                                        <Combobox
+                                            options={services.map((s) => ({ value: String(s.id), label: s.name }))}
+                                            value={helper.branchServiceId ? String(helper.branchServiceId) : undefined}
+                                            onChange={(v) => updateHelper(index, { branchServiceId: Number(v) })}
+                                            placeholder="الخدمة التي ساعد فيها"
+                                            searchPlaceholder="ابحث باسم الخدمة..."
+                                            className="w-80"
+                                            triggerClassName="h-11 w-full md:h-9"
+                                        />
+                                        <div className="flex gap-2">
+                                            <Select
+                                                value={helper.shareType}
+                                                onValueChange={(v) => updateHelper(index, { shareType: v as InvoiceHelper['shareType'] })}
+                                            >
+                                                <SelectTrigger className="h-11 w-32 md:h-9">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="amount">مبلغ (ر.س)</SelectItem>
+                                                    <SelectItem value="percentage">نسبة %</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <DraftNumberInput
+                                                min={0}
+                                                max={helper.shareType === 'percentage' ? 100 : undefined}
+                                                step="0.01"
+                                                className="h-11 flex-1 md:h-9"
+                                                value={helper.shareValue}
+                                                onValueChange={(value) => updateHelper(index, { shareValue: Math.max(0, value) })}
+                                            />
+                                        </div>
+                                    </div>
+                                ))}
+                                {Object.entries(errors)
+                                    .filter(([key]) => key.startsWith('helpers'))
+                                    .map(([key, message]) => (
+                                        <p key={key} className="text-destructive text-xs">
+                                            {message}
+                                        </p>
+                                    ))}
+                                {helpers.length > 0 && (
+                                    <p className="text-muted-foreground text-xs">
+                                        حصص المساعدين {formatCurrency(helpersShare)} صافية من الضريبة — تُخصم من أساس عمولة صاحب الفاتورة.
+                                    </p>
+                                )}
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-11 w-full md:h-9"
+                                    onClick={() => setHelpers((list) => [...list, { userId: 0, branchServiceId: 0, shareType: 'amount', shareValue: 0 }])}
+                                >
+                                    <Plus className="size-4" /> إضافة مساعد
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    )}
 
                     {/* Actions */}
                     <div className="space-y-2">{saveActions('w-full')}</div>
