@@ -87,8 +87,9 @@ class UpdateServiceInvoiceAction
             // نفسه لا تصطدم بحجزها هي.
             $calc = $this->calculator->handle($data, $invoice->user, $branchId, $vatPct, $invoice);
 
+            $previousTotal = (float) $invoice->total_amount;
             $invoice->update($calc['attributes']);
-            $invoice->settleAfterEdit((int) auth()->id());
+            $invoice->settleAfterEdit((int) auth()->id(), $previousTotal);
 
             // تاسك 100: ما يُكتب في الخانة عند التعديل رسالةٌ جديدة ممّن يعدّل —
             // لا استبدالٌ لما قيل قبلها.

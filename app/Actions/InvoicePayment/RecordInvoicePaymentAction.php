@@ -55,7 +55,9 @@ class RecordInvoicePaymentAction
             // فيتجاوز مجموعُهما الإجمالي.
             $invoice = $invoice->newQuery()->whereKey($invoice->getKey())->lockForUpdate()->firstOrFail();
 
-            if (! $invoice->status->acceptsPayment()) {
+            $owesAfterApproval = $invoice->owesAfterApproval();
+
+            if (! $invoice->status->acceptsPayment() && ! $owesAfterApproval) {
                 throw ValidationException::withMessages([
                     'amount' => $invoice->status === InvoiceStatusEnum::PAID
                         ? 'الفاتورة مسدَّدة بالكامل — لا يمكن تسجيل دفعة جديدة عليها.'
@@ -108,7 +110,9 @@ class RecordInvoicePaymentAction
                 $payment->addMedia($receipt)->toMediaCollection(InvoicePayment::RECEIPT_COLLECTION);
             }
 
-            if (round($collected + $amount, 2) >= $total) {
+            if ($owesAfterApproval) {
+                // معتمدةٌ أصلاً: الدفعة تحصيلٌ فحسب.
+            } elseif (round($collected + $amount, 2) >= $total) {
                 $this->settle($invoice, $paidAt, $confirmedShortage);
             } else {
                 $invoice->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID]);

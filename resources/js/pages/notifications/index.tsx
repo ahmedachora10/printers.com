@@ -24,6 +24,7 @@ import {
     Trash2,
     TrendingDown,
     Trophy,
+    Truck,
     Undo2,
     Wallet,
 } from 'lucide-react';
@@ -44,6 +45,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
     Trophy,
     ShieldAlert,
     MessageSquare,
+    Truck,
 };
 
 interface Props {

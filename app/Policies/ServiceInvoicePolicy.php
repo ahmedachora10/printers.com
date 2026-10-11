@@ -82,7 +82,25 @@ class ServiceInvoicePolicy
      */
     public function recordPayment(User $user, ServiceInvoice $invoice): bool
     {
-        return $this->updateStatus($user, $invoice) && $invoice->status->acceptsPayment();
+        return $this->updateStatus($user, $invoice)
+            && ($invoice->status->acceptsPayment() || $invoice->owesAfterApproval());
+    }
+
+    /**
+     * توصيلٌ بعد اعتماد الفاتورة: يطلبه كلُّ من في الفرع عدا مراجع الحسابات،
+     * ويُضاف إلى الفاتورة حين يعتمده المحاسب (approveShipment).
+     */
+    public function requestShipment(User $user, ServiceInvoice $invoice): bool
+    {
+        return ($this->review($user) || $user->roleName->isEmployee())
+            && ($user->roleName->isSuperAdmin() || $user->branchId === $invoice->branch_id)
+            && in_array($invoice->status, [InvoiceStatusEnum::PAID, InvoiceStatusEnum::PARTIALLY_PAID], true);
+    }
+
+    public function approveShipment(User $user, ServiceInvoice $invoice): bool
+    {
+        return $this->updateStatus($user, $invoice)
+            && in_array($invoice->status, [InvoiceStatusEnum::PAID, InvoiceStatusEnum::PARTIALLY_PAID], true);
     }
 
     /**
@@ -91,8 +109,8 @@ class ServiceInvoicePolicy
      */
     public function discount(User $user, ServiceInvoice $invoice): bool
     {
-        return $this->recordPayment($user, $invoice)
-            || ($user->roleName->isEmployee() && $user->id === $invoice->user_id && $invoice->status->acceptsPayment());
+        return $invoice->status->acceptsPayment()
+            && ($this->updateStatus($user, $invoice) || ($user->roleName->isEmployee() && $user->id === $invoice->user_id));
     }
 
     /**

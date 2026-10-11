@@ -507,7 +507,7 @@ class CalculateServiceInvoiceAction
      * @param  array<string, mixed>  $data
      * @return array{id: ?int, fee: float, provider_id: ?int, zone_id: ?int, distance_km: ?float, customer_address_id: ?int, address: ?string, save_address: bool, address_label: ?string, location_url: ?string}|null
      */
-    private function resolveShipment(array $data, string $key, int $branchId, ?int $customerId): ?array
+    public function resolveShipment(array $data, string $key, int $branchId, ?int $customerId): ?array
     {
         $providerId = (int) ($data['provider_id'] ?? 0) ?: null;
         $zoneId = (int) ($data['zone_id'] ?? 0) ?: null;

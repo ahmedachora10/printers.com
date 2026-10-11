@@ -60,6 +60,7 @@ use App\Http\Controllers\PurchaseRequestController;
 use App\Http\Controllers\RefundController;
 use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\ServiceInvoiceController;
+use App\Http\Controllers\ShipmentRequestController;
 use App\Http\Controllers\ServicePriceListController;
 use App\Http\Controllers\ServiceTemplateController;
 use App\Http\Controllers\SettlementFileController;
@@ -364,6 +365,10 @@ Route::middleware(['auth'])->group(function () {
             Route::patch('{invoice}/pay', [ServiceInvoiceController::class, 'markPaid'])->name('pay');
             Route::patch('{invoice}/cancel', [ServiceInvoiceController::class, 'cancel'])->name('cancel');
             Route::post('{invoice}/receipt', [InvoiceReceiptController::class, 'store'])->name('receipt');
+            Route::patch('{invoice}/shipment-requests/{pendingShipment}/approve', [ShipmentRequestController::class, 'approve'])
+                ->scopeBindings()->name('shipment-requests.approve');
+            Route::delete('{invoice}/shipment-requests/{pendingShipment}', [ShipmentRequestController::class, 'reject'])
+                ->scopeBindings()->name('shipment-requests.reject');
         });
 
         // طريقة الدفع — على الفاتورة أو على دفعةٍ منها، لكلا النوعين، قبل الاعتماد
@@ -400,6 +405,10 @@ Route::middleware(['auth'])->group(function () {
         // ServiceInvoicePolicy::deliver، لا على الميدلوير وحده.
         Route::post('invoices/service/{invoice}/deliver', [ServiceInvoiceController::class, 'deliver'])
             ->name('invoices.service.deliver');
+
+        // توصيلٌ بعد اعتماد الفاتورة: يطلبه الجميع، ويعتمده المحاسب (المجموعة أدناه).
+        Route::post('invoices/service/{invoice}/shipment-requests', [ShipmentRequestController::class, 'store'])
+            ->name('invoices.service.shipment-requests.store');
     });
 
     // ⚠️ يبقيان في متناول المحاسب بعد تاسك 40: نقطة بيع المنتجات تحتاج البحث عن

@@ -178,6 +178,20 @@ class InvoiceResource extends JsonResource
                 'address' => $s->address,
                 'fee' => (float) $s->fee,
             ])->values() : [],
+            // توصيلٌ طُلب بعد اعتماد الفاتورة ولم يعتمده المحاسب — خارج الإجمالي.
+            'pendingShipments' => $isServiceInvoice && $this->resource->relationLoaded('pendingShipments')
+                ? $this->resource->pendingShipments->map(fn ($s) => [
+                    'id' => $s->id,
+                    'providerName' => $s->provider?->name,
+                    'zoneName' => $s->zone?->name,
+                    'address' => $s->address,
+                    'fee' => (float) $s->fee,
+                    'requestedByName' => $s->requestedBy?->name,
+                    'requestedAt' => $s->created_at?->toIso8601String(),
+                ])->values()
+                : [],
+            'canRequestShipment' => $user !== null && $isServiceInvoice && $user->can('requestShipment', $this->resource),
+            'canApproveShipment' => $user !== null && $isServiceInvoice && $user->can('approveShipment', $this->resource),
             'employeeCommission' => $this->resource instanceof ServiceInvoice
                 ? (float) $this->resource->employee_commission
                 : null,

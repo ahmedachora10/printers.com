@@ -47,6 +47,7 @@ class DeliveryLogController extends Controller
         // ⚠️ كل عمودٍ مؤهَّلٌ باسم جدوله: `byProvider()` تضمّ `delivery_providers`
         // وفيه `branch_id` كذلك، فعمودٌ مجرَّد يجعل الاستعلام ملتبساً ويسقط.
         $base = ServiceInvoiceShipment::query()
+            ->approved()
             ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_shipments.service_invoice_id')
             ->whereNull('service_invoices.deleted_at')
             // الطلب بلا مزوّد لم يُشحن أصلاً، فلا محلّ له في كشف السائقين.

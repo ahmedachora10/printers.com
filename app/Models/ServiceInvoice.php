@@ -175,7 +175,18 @@ class ServiceInvoice extends Model implements HasMedia
      */
     public function shipments(): HasMany
     {
-        return $this->hasMany(ServiceInvoiceShipment::class)->orderBy('id');
+        // الطلب المنتظر اعتماد المحاسب ليس توصيلاً بعد: لا رسم ولا كشف ولا تعديل.
+        return $this->hasMany(ServiceInvoiceShipment::class)->approved()->orderBy('id');
+    }
+
+    /**
+     * توصيلٌ طُلب بعد اعتماد الفاتورة ولم يعتمده المحاسب بعد.
+     *
+     * @return HasMany<ServiceInvoiceShipment, $this>
+     */
+    public function pendingShipments(): HasMany
+    {
+        return $this->hasMany(ServiceInvoiceShipment::class)->pending()->orderBy('id');
     }
 
     /** @return BelongsTo<PaymentMethod, $this> */

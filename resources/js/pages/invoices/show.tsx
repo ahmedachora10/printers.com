@@ -8,6 +8,7 @@ import MaterialsShortageDialog from '@/components/invoices/materials-shortage-di
 import { ReceiptField } from '@/components/invoices/receipt-field';
 import RecordPaymentModal, { type PaymentMethodOption } from '@/components/invoices/record-payment-modal';
 import ExpenseFormModal from '@/components/expenses/expense-form-modal';
+import { PendingShipments, ShipmentRequestDialog, type ShipmentRequestForm } from '@/components/invoices/shipment-requests';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,8 @@ interface Props {
     neighbours: { prevId: number | null; nextId: number | null };
     /** تاسك 149: لمن يسجّل المصروفات، وفي فاتورة الخدمات وحدها. */
     expenseForm: Pick<ComponentProps<typeof ExpenseFormModal>, 'categories' | 'branches' | 'isRequest'> | null;
+    /** توصيلٌ بعد اعتماد الفاتورة — لمن يملك طلبه. */
+    shipmentForm: ShipmentRequestForm | null;
     thread?: InvoiceThreadData | null;
 }
 
@@ -127,12 +130,13 @@ function TotalRow({ label, value, strong = false }: { label: string; value: stri
     );
 }
 
-export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory, hasThread, thread, neighbours, expenseForm }: Props) {
+export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory, hasThread, thread, neighbours, expenseForm, shipmentForm }: Props) {
     const { props } = usePage<SharedData>();
     // تاسك 125: مراجع الحسابات يطّلع على الشاشة ولا يطبع — ومسارات الطباعة خارج مجموعته.
     const canPrint = props.auth.role !== 'auditor';
     const [refundOpen, setRefundOpen] = useState(false);
     const [expenseOpen, setExpenseOpen] = useState(false);
+    const [shipmentOpen, setShipmentOpen] = useState(false);
     const [paymentMode, setPaymentMode] = useState<'payment' | 'discount' | null>(null);
     const [approveOpen, setApproveOpen] = useState(false);
     // نص عجز الخامات كما ردّه الخادم — وجودُه يفتح حوار الإقرار.
@@ -364,6 +368,12 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                     طلب استرجاع — {invoice.returnRequest.statusLabel}
                                 </Badge>
                             )}
+                            {/* رسم توصيلٍ اعتُمد بعد اعتماد الفاتورة ولم يُحصَّل بعد. */}
+                            {invoice.status === 'paid' && invoice.paymentRemaining > 0 && (
+                                <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
+                                    متبقٍّ {formatCurrency(invoice.paymentRemaining)}
+                                </Badge>
+                            )}
                             {invoice.isFullyRefunded && invoice.status !== 'returned' && (
                                 <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
                                     مُرتجعة
@@ -404,6 +414,11 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                         {invoice.canDeliver && (
                             <Button className="bg-green-600 text-white hover:bg-green-700" onClick={() => setDeliverOpen(true)}>
                                 <PackageCheck className="size-4" /> تم تسليم العمل
+                            </Button>
+                        )}
+                        {invoice.canRequestShipment && shipmentForm && (
+                            <Button variant="outline" onClick={() => setShipmentOpen(true)}>
+                                <Bike className="size-4" /> طلب توصيل
                             </Button>
                         )}
                         {invoice.canRefund && (
@@ -472,6 +487,8 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                         )}
                     </div>
                 </div>
+
+                <PendingShipments invoice={invoice} />
 
                 {/* تاسك 135: سبب رفض طلب الاسترجاع يصل الموظف. */}
                 {invoice.returnRequest?.status === 'rejected' && invoice.status !== 'returned' && (
@@ -895,6 +912,8 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                     </Deferred>
                 )}
             </div>
+
+            {shipmentForm && <ShipmentRequestDialog open={shipmentOpen} onOpenChange={setShipmentOpen} invoiceId={invoice.id} form={shipmentForm} />}
 
             {(invoice.canRecordPayment || invoice.canDiscount) && (
                 <RecordPaymentModal

@@ -56,8 +56,9 @@ class UpdateProductInvoiceAction
             $invoice->lines()->delete();
 
             $calc = $this->creator->calculate($data, (int) $invoice->branch_id, (float) $invoice->vat_pct, $invoice, $heldQty);
+            $previousTotal = (float) $invoice->total_amount;
             $invoice->update($calc['attributes']);
-            $invoice->settleAfterEdit($actor->id);
+            $invoice->settleAfterEdit($actor->id, $previousTotal);
 
             if ($receipt !== null) {
                 $invoice->addMedia($receipt)->toMediaCollection(ProductInvoice::RECEIPT_COLLECTION);

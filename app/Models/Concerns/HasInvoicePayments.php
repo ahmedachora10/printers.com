@@ -57,8 +57,11 @@ trait HasInvoicePayments
      * بدفعات تُكتب لها دفعة تسوية بالفرق (موجبة أو سالبة) ولا تُمسّ دفعاتها
      * السابقة. والمدفوعة جزئياً لا ينزل إجماليها تحت ما حُصِّل، فإن ساواه اكتمل
      * سدادها — والمتصل يقرأ الحالة بعدها ليكتب أثر الاعتماد.
+     *
+     * دفعة التسوية = الإجمالي الجديد − السابق، لا − المحصَّل: المدفوعة قد يبقى
+     * عليها رسم توصيلٍ طُلب بعد اعتمادها ولم يُحصَّل، فلا يُكتب محصَّلاً بتعديلٍ.
      */
-    public function settleAfterEdit(int $actorId): void
+    public function settleAfterEdit(int $actorId, float $previousTotal): void
     {
         if (! $this->payments()->exists()) {
             return;
@@ -77,16 +80,25 @@ trait HasInvoicePayments
             if ($total === $collected) {
                 $this->update(['status' => InvoiceStatusEnum::PAID, 'paid_at' => $this->payments()->max('paid_at')]);
             }
-        } elseif ($this->status === InvoiceStatusEnum::PAID && $total !== $collected) {
+        } elseif ($this->status === InvoiceStatusEnum::PAID && $total !== round($previousTotal, 2)) {
             $this->payments()->create([
                 'branch_id' => $this->branch_id,
                 'payment_method_id' => $this->payment_method_id,
-                'amount' => round($total - $collected, 2),
+                'amount' => round($total - $previousTotal, 2),
                 'paid_at' => now(),
                 'recorded_by' => $actorId,
                 'notes' => 'تسوية بعد تعديل الفاتورة',
             ]);
         }
+    }
+
+    /**
+     * مدفوعةٌ وعليها متبقٍّ: رسم توصيلٍ اعتُمد بعد اعتمادها ولم يُحصَّل. تقبل دفعته
+     * وتبقى «مدفوعة» — أثر اعتمادها (عمولة، نقاط، خامات) كُتب ولا يُعاد.
+     */
+    public function owesAfterApproval(): bool
+    {
+        return $this->status === InvoiceStatusEnum::PAID && $this->remainingAmount() > 0;
     }
 
     /** المتبقي على العميل — لا ينزل تحت الصفر. */
