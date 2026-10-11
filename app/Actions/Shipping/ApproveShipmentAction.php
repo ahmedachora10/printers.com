@@ -57,7 +57,7 @@ class ApproveShipmentAction
                 $this->recalculateIncentive->refreshForInvoice($invoice);
             }
 
-            $shipment->forceFill(['approved_by' => $actor->id, 'approved_at' => now()])->save();
+            $shipment->forceFill(['approved_at' => now()])->save();
         });
     }
 

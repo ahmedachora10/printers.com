@@ -42,7 +42,7 @@ class ShipmentRequestNotification extends Notification
                 'title' => 'طلب توصيل بانتظار الاعتماد',
                 'body' => "طلب {$this->shipment->requestedBy?->name} توصيلاً بقيمة {$fee} على الفاتورة {$invoice}.",
                 'url' => $url,
-                'icon' => 'Truck',
+                'icon' => 'Package',
             ],
             self::APPROVED => [
                 'type' => 'shipment_request_approved',

@@ -46,7 +46,7 @@ class InvoicePaymentController extends Controller
         }
 
         $amount = number_format((float) $payment->amount, 2);
-        $message = $invoice->status === InvoiceStatusEnum::PAID && $invoice->remainingAmount() <= 0
+        $message = $invoice->remainingAmount() <= 0
             ? "تم تسجيل دفعة {$amount} ر.س واكتمل سداد الفاتورة {$invoice->invoice_number}"
             : "تم تسجيل دفعة {$amount} ر.س — المتبقي ".number_format($invoice->remainingAmount(), 2).' ر.س';
 

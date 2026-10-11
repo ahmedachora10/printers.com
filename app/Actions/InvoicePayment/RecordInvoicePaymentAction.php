@@ -110,9 +110,12 @@ class RecordInvoicePaymentAction
                 $payment->addMedia($receipt)->toMediaCollection(InvoicePayment::RECEIPT_COLLECTION);
             }
 
+            // معتمدةٌ أصلاً: الدفعة تحصيلٌ فحسب.
             if ($owesAfterApproval) {
-                // معتمدةٌ أصلاً: الدفعة تحصيلٌ فحسب.
-            } elseif (round($collected + $amount, 2) >= $total) {
+                return $payment;
+            }
+
+            if (round($collected + $amount, 2) >= $total) {
                 $this->settle($invoice, $paidAt, $confirmedShortage);
             } else {
                 $invoice->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID]);

@@ -99,8 +99,7 @@ class ServiceInvoicePolicy
 
     public function approveShipment(User $user, ServiceInvoice $invoice): bool
     {
-        return $this->updateStatus($user, $invoice)
-            && in_array($invoice->status, [InvoiceStatusEnum::PAID, InvoiceStatusEnum::PARTIALLY_PAID], true);
+        return $this->updateStatus($user, $invoice) && $this->requestShipment($user, $invoice);
     }
 
     /**

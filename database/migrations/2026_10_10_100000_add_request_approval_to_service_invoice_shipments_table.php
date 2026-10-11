@@ -16,8 +16,7 @@ return new class extends Migration
     {
         Schema::table('service_invoice_shipments', function (Blueprint $table) {
             $table->foreignId('requested_by')->nullable()->after('fee')->constrained('users')->nullOnDelete();
-            $table->foreignId('approved_by')->nullable()->after('requested_by')->constrained('users')->nullOnDelete();
-            $table->timestamp('approved_at')->nullable()->after('approved_by');
+            $table->timestamp('approved_at')->nullable()->after('requested_by');
         });
     }
 
@@ -25,7 +24,6 @@ return new class extends Migration
     {
         Schema::table('service_invoice_shipments', function (Blueprint $table) {
             $table->dropConstrainedForeignId('requested_by');
-            $table->dropConstrainedForeignId('approved_by');
             $table->dropColumn('approved_at');
         });
     }

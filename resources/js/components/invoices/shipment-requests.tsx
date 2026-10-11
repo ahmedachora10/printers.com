@@ -21,8 +21,6 @@ export interface ShipmentRequestForm {
     canEditFee: boolean;
 }
 
-const firstError = (errors: Record<string, string>) => Object.values(errors)[0] ?? 'تعذّر حفظ طلب التوصيل.';
-
 /**
  * توصيلٌ بعد اعتماد الفاتورة («كنت سآخذها، أرسلوها»): نافذة الطلب بحقول نقطة
  * البيع نفسها. يذهب الطلب للمحاسب، ولا يمسّ الفاتورة حتى يعتمده.
@@ -70,7 +68,6 @@ export function ShipmentRequestDialog({ open, onOpenChange, invoiceId, form }: {
                     onChange={setDraft}
                     onRemove={close}
                 />
-                {errors.shipments && <p className="text-destructive text-xs">{errors.shipments}</p>}
                 <DialogFooter>
                     <Button variant="outline" onClick={close} disabled={saving}>
                         إلغاء
@@ -101,7 +98,7 @@ export function PendingShipments({ invoice }: { invoice: Invoice }) {
         const args = { invoice: invoice.id, pendingShipment: decision.shipment.id };
         const options = {
             preserveScroll: true,
-            onError: (e: Record<string, string>) => toast.error(firstError(e)),
+            onError: (e: Record<string, string>) => toast.error(Object.values(e)[0] ?? 'تعذّر حفظ القرار.'),
             onSuccess: () => setDecision(null),
             onFinish: () => setSaving(false),
         };
