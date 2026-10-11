@@ -10,6 +10,7 @@ use App\Enums\AgentDiscountTypeEnum;
 use App\Enums\CouponDiscountTypeEnum;
 use App\Enums\CustomerTypeEnum;
 use App\Enums\LineAgentCommissionTypeEnum;
+use App\Enums\Roles;
 use App\Enums\ServicePricingTypeEnum;
 use App\Models\Agent;
 use App\Models\AgentService;
@@ -516,7 +517,7 @@ class CalculateServiceInvoiceAction
         $users = User::query()
             ->where('branch_id', $branchId)
             ->where('is_active', true)
-            ->whereDoesntHave('agentProfile')
+            ->whereHas('roles', fn ($q) => $q->where('name', Roles::EMPLOYEE->value))
             ->whereKey($userIds)
             ->pluck('id')
             ->flip();

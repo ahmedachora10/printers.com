@@ -843,13 +843,12 @@ class ServiceInvoiceController extends Controller
             // من يملك كتابة قيمة التوصيل يدوياً: الإدارة لا الموظف. الواجهة
             // تُقفل الحقل، والخادم يتجاهل ما يُرسله الموظف على أي حال.
             'canEditShippingFee' => ! $user->roleName->isEmployee(),
-            // المساعدون: موظفو الفرع النشطون عدا صاحب الفاتورة. المندوب يُستبعد
-            // بملفّه لا بدوره: الشاشة لا تقرأ role_user (PosServiceQueryCountTest).
+            // المساعدون: موظفو الفرع النشطون (دور «موظف» وحده) عدا صاحب الفاتورة.
             'helperOptions' => User::query()
                 ->where('branch_id', $branchId)
                 ->where('is_active', true)
                 ->whereKeyNot($commissionUserId)
-                ->whereDoesntHave('agentProfile')
+                ->whereHas('roles', fn ($q) => $q->where('name', Roles::EMPLOYEE->value))
                 ->orderBy('name')
                 ->get(['id', 'name']),
         ];

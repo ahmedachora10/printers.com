@@ -139,17 +139,30 @@ it('caps the helper shares at the net after materials', function () {
     expect(ServiceInvoice::count())->toBe(0);
 });
 
-it('rejects the owner as their own helper and a helper from another branch', function (string $who) {
-    $helper = $who === 'owner'
-        ? $this->employee
-        : User::factory()->create(['branch_id' => Branch::factory()->create()->id]);
+it('lists only the branch employees other than the owner as helpers', function () {
+    $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+    $accountant->addRole(Roles::ACCOUNTANT->value);
+
+    $this->actingAs($this->employee)
+        ->get(route('pos.service.create'))
+        ->assertInertia(fn ($page) => $page
+            ->has('helperOptions', 1)
+            ->where('helperOptions.0.id', $this->arif->id));
+});
+
+it('rejects the owner, another branch and a non-employee as helper', function (string $who) {
+    $helper = match ($who) {
+        'owner' => $this->employee,
+        'other branch' => User::factory()->create(['branch_id' => Branch::factory()->create()->id]),
+        'accountant' => tap(User::factory()->create(['branch_id' => $this->branch->id]))->addRole(Roles::ACCOUNTANT->value),
+    };
 
     $this->actingAs($this->employee)
         ->post(route('pos.service.store'), ($this->payload)([
             ['user_id' => $helper->id, 'branch_service_id' => $this->helpService->id, 'share_type' => 'amount', 'share_value' => 10],
         ]))
         ->assertSessionHasErrors('helpers');
-})->with(['owner', 'other branch']);
+})->with(['owner', 'other branch', 'accountant']);
 
 it('reverses the helper commission when the invoice is returned', function () {
     $this->actingAs($this->employee)->post(route('pos.service.store'), ($this->payload)([
