@@ -68,6 +68,8 @@ interface HistoryRow {
     devicesTotal: number;
     /** null = غير معتمدة — الرقم الحيّ يُرى بفتح اليوم */
     systemNet: number | null;
+    /** الشبكة (النظام) — المطلوب مطابقته؛ null = غير معتمدة */
+    networkSystem: number | null;
     approvedBy: string | null;
     /** null = غير معتمدة بعد — الفرق يُحسب حيّاً عند فتح اليوم */
     difference: number | null;
@@ -485,6 +487,7 @@ export default function ReconciliationIndex({ filters, branches, networkDevices,
                                 <tr>
                                     <th className="py-2 text-start font-medium">التاريخ</th>
                                     <th className="py-2 text-start font-medium">صافي النظام</th>
+                                    <th className="py-2 text-start font-medium">المطلوب مطابقته</th>
                                     <th className="py-2 text-start font-medium">موازنات الأجهزة</th>
                                     <th className="py-2 text-start font-medium">النتيجة</th>
                                     <th className="py-2 text-start font-medium">المعتمِد</th>
@@ -500,6 +503,7 @@ export default function ReconciliationIndex({ filters, branches, networkDevices,
                                     >
                                         <td className="py-2">{row.date.split('-').reverse().join('/')}</td>
                                         <td className="py-2 tabular-nums">{row.systemNet === null ? '—' : formatSar(row.systemNet)}</td>
+                                        <td className="py-2 tabular-nums">{row.networkSystem === null ? '—' : formatSar(row.networkSystem)}</td>
                                         <td className="py-2 tabular-nums">{formatSar(row.devicesTotal)}</td>
                                         <td className="py-2">
                                             {row.difference === null ? (
@@ -516,7 +520,7 @@ export default function ReconciliationIndex({ filters, branches, networkDevices,
                                 ))}
                                 {history.data.length === 0 && (
                                     <tr>
-                                        <td colSpan={5} className="text-muted-foreground py-6 text-center">
+                                        <td colSpan={6} className="text-muted-foreground py-6 text-center">
                                             لا مطابقات محفوظة في هذه الفترة.
                                         </td>
                                     </tr>
