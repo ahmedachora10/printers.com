@@ -195,6 +195,13 @@ class InvoiceResource extends JsonResource
             'employeeCommission' => $this->resource instanceof ServiceInvoice
                 ? (float) $this->resource->employee_commission
                 : null,
+            'helpers' => $isServiceInvoice && $this->resource->relationLoaded('helpers')
+                ? $this->resource->helpers->map(fn ($h) => [
+                    'name' => $h->user?->name,
+                    'serviceName' => $h->service_name,
+                    'commission' => (float) $h->commission_amount,
+                ])->values()
+                : [],
             // الموظف صاحب الفاتورة — مَن أنشأها لا مَن يطبعها، فيبقى الاسم واحداً
             // مهما تغيّر الطابع.
             'userName' => $this->user?->name,

@@ -140,7 +140,7 @@ class ServiceInvoiceController extends Controller
         $user = Auth::user();
         $branchId = (int) $invoice->branch_id;
 
-        $invoice->load(['lines', 'shipments', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'customer.addresses', 'invoiceAgents:id,service_invoice_id,agent_id,discount_amount,rebate_amount,line_commission_amount']);
+        $invoice->load(['lines', 'helpers', 'shipments', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'customer.addresses', 'invoiceAgents:id,service_invoice_id,agent_id,discount_amount,rebate_amount,line_commission_amount']);
 
         $loyalty = LoyaltyConfig::forBranch($branchId);
         $loyaltyActive = (bool) $loyalty->is_active;
@@ -197,6 +197,12 @@ class ServiceInvoiceController extends Controller
                     'distanceKm' => $shipment->distance_km !== null ? (float) $shipment->distance_km : null,
                     'customerAddressId' => $shipment->customer_address_id,
                     'address' => $shipment->address,
+                ])->values(),
+                'helpers' => $invoice->helpers->map(fn ($helper) => [
+                    'userId' => $helper->user_id,
+                    'branchServiceId' => $helper->branch_service_id,
+                    'shareType' => $helper->share_type,
+                    'shareValue' => (float) $helper->share_value,
                 ])->values(),
                 'lines' => $invoice->lines->map(function ($line) use ($servicesById) {
                     $service = $servicesById->get($line->branch_service_id);
@@ -837,6 +843,14 @@ class ServiceInvoiceController extends Controller
             // من يملك كتابة قيمة التوصيل يدوياً: الإدارة لا الموظف. الواجهة
             // تُقفل الحقل، والخادم يتجاهل ما يُرسله الموظف على أي حال.
             'canEditShippingFee' => ! $user->roleName->isEmployee(),
+            // المساعدون: موظفو الفرع النشطون (دور «موظف» وحده) عدا صاحب الفاتورة.
+            'helperOptions' => User::query()
+                ->where('branch_id', $branchId)
+                ->where('is_active', true)
+                ->whereKeyNot($commissionUserId)
+                ->whereHas('roles', fn ($q) => $q->where('name', Roles::EMPLOYEE->value))
+                ->orderBy('name')
+                ->get(['id', 'name']),
         ];
     }
 

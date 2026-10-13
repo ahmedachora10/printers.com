@@ -230,7 +230,16 @@ export interface EditServiceInvoice {
     deliveryAt: string | null;
     /** طلبات التوصيل كما حُفظت (تاسك 93، 170) — «التوصيل» غير «موعد التسليم» أعلاه */
     shipments: EditServiceInvoiceShipment[];
+    helpers: InvoiceHelper[];
     lines: EditServiceInvoiceLine[];
+}
+
+/** موظفٌ ساعد في الفاتورة: حصّته مبلغٌ بالريال شاملاً الضريبة أو نسبةٌ من الإجمالي. */
+export interface InvoiceHelper {
+    userId: number;
+    branchServiceId: number;
+    shareType: 'amount' | 'percentage';
+    shareValue: number;
 }
 
 /** تاسك 170 — طلب توصيلٍ محفوظ؛ `id` يُعاد مع الحفظ فتبقى تسوية سائقه مربوطةً به. */

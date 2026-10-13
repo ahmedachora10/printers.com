@@ -5,6 +5,7 @@ namespace App\Actions\ServiceInvoice\Concerns;
 use App\Enums\CommissionSourceTypeEnum;
 use App\Models\CommissionLedger;
 use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceHelper;
 use App\Models\ServiceInvoiceLine;
 
 /**
@@ -57,11 +58,39 @@ trait WritesServiceInvoiceLines
     }
 
     /**
-     * Write one immutable commission-ledger row per persisted line. Called only
-     * when the invoice is (or becomes) paid — never for a due invoice.
+     * المساعدون كما حسبتهم الحاسبة — لقطةٌ يُكتب منها صفّ عمولة كلٍّ منهم عند الاعتماد.
+     *
+     * @param  list<array<string, mixed>>  $helpers  rows from CalculateServiceInvoiceAction
+     */
+    protected function writeHelpers(ServiceInvoice $invoice, array $helpers): void
+    {
+        foreach ($helpers as $helper) {
+            $invoice->helpers()->create($helper);
+        }
+    }
+
+    /**
+     * Write one immutable commission-ledger row per persisted line, and one per
+     * helper (to the helper). Called only when the invoice is (or becomes) paid —
+     * never for a due invoice.
      */
     protected function writeLedgerFromLines(ServiceInvoice $invoice, int $userId, int $branchId): void
     {
+        foreach ($invoice->helpers()->get() as $helper) {
+            /** @var ServiceInvoiceHelper $helper */
+            CommissionLedger::create([
+                'user_id' => $helper->user_id,
+                'branch_id' => $branchId,
+                'invoice_line_id' => $helper->id,
+                'invoice_line_type' => ServiceInvoiceHelper::class,
+                'amount' => $helper->commission_amount,
+                'is_tahazir' => $helper->is_tahazir,
+                'tier_applied' => null,
+                'source_type' => CommissionSourceTypeEnum::STANDARD,
+                'earned_at' => $invoice->paid_at ?? now(),
+            ]);
+        }
+
         foreach ($invoice->lines()->get() as $line) {
             /** @var ServiceInvoiceLine $line */
             // Tier resolution will populate tier_applied once commission tiers are

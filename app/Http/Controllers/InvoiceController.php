@@ -283,6 +283,7 @@ class InvoiceController extends Controller
             // صاحب عمولة السطر يُحمَّل على البنود المحمَّلة أصلاً: `load` لمسارٍ
             // متداخل (`lines.lineAgent`) يُعيد استعلام `lines` من أوّله.
             $invoice->lines->loadMissing('lineAgent:id,name');
+            $invoice->load('helpers.user:id,name');
 
             // تاسك 112: المصروفات المربوطة — لمن يدير المصروفات (لا المندوب).
             // تاسك 157: والموظف صاحب الفاتورة يرى طلباته هو وحدها.

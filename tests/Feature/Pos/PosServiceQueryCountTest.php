@@ -66,10 +66,12 @@ it('loads the employee branch once, not once per consumer', function () {
 it('answers role checks from the cache instead of re-reading role_user', function () {
     $tally = posCreateQueries($this->employee);
 
-    // The agent lookup legitimately joins role_user (agents are users holding
-    // the agent role); a role *check* must add nothing on top of it.
+    // The agent lookup and the helper list (branch employees) legitimately join
+    // role_user — they list users by role; a role *check* must add nothing on top.
     $roleChecks = collect($tally)
-        ->filter(fn ($count, $sql) => str_contains($sql, '"role_user"') && ! str_contains($sql, 'agent_branch'))
+        ->filter(fn ($count, $sql) => str_contains($sql, '"role_user"')
+            && ! str_contains($sql, 'agent_branch')
+            && ! str_starts_with($sql, 'select "id", "name" from "users"'))
         ->sum();
 
     expect($roleChecks)->toBe(0);

@@ -10,6 +10,7 @@ use App\Enums\Roles;
 use App\Exports\CommissionReportExport;
 use App\Http\Requests\Report\CommissionReportFilterRequest;
 use App\Models\Branch;
+use App\Models\ServiceInvoiceHelper;
 use App\Models\ServiceInvoiceLine;
 use App\Models\User;
 use Illuminate\Database\Query\Builder;
@@ -336,11 +337,17 @@ class CommissionReportController extends Controller
      */
     private function detailLines(array $scope): Collection
     {
+        // الصفّ لسطرٍ (صاحب الفاتورة) أو لمساعد — والفاتورة من أيّهما وُجد.
         return $this->baseQuery($scope)
-            ->where('commission_ledger.invoice_line_type', ServiceInvoiceLine::class)
+            ->whereIn('commission_ledger.invoice_line_type', [ServiceInvoiceLine::class, ServiceInvoiceHelper::class])
             ->join('users', 'users.id', '=', 'commission_ledger.user_id')
-            ->join('service_invoice_lines', 'service_invoice_lines.id', '=', 'commission_ledger.invoice_line_id')
-            ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_lines.invoice_id')
+            ->leftJoin('service_invoice_lines', fn ($j) => $j
+                ->on('service_invoice_lines.id', '=', 'commission_ledger.invoice_line_id')
+                ->where('commission_ledger.invoice_line_type', ServiceInvoiceLine::class))
+            ->leftJoin('service_invoice_helpers', fn ($j) => $j
+                ->on('service_invoice_helpers.id', '=', 'commission_ledger.invoice_line_id')
+                ->where('commission_ledger.invoice_line_type', ServiceInvoiceHelper::class))
+            ->join('service_invoices', 'service_invoices.id', '=', DB::raw('COALESCE(service_invoice_lines.invoice_id, service_invoice_helpers.service_invoice_id)'))
             ->orderByDesc('commission_ledger.earned_at')
             ->orderByDesc('commission_ledger.id')
             ->get([
@@ -351,9 +358,10 @@ class CommissionReportController extends Controller
                 'service_invoices.invoice_number as invoice_number',
                 'service_invoices.total_amount as invoice_total',
                 'service_invoices.status as invoice_status',
-                'service_invoice_lines.service_name as service_name',
-                'service_invoice_lines.agent_commission_amount as agent_commission_amount',
-                'service_invoice_lines.materials_total as materials_total',
+                DB::raw('COALESCE(service_invoice_lines.service_name, service_invoice_helpers.service_name) as service_name'),
+                DB::raw('COALESCE(service_invoice_lines.agent_commission_amount, 0) as agent_commission_amount'),
+                DB::raw('COALESCE(service_invoice_lines.materials_total, 0) as materials_total'),
+                'commission_ledger.invoice_line_type as invoice_line_type',
                 'commission_ledger.amount as amount',
                 'commission_ledger.is_tahazir as is_tahazir',
                 'commission_ledger.tier_applied as tier_applied',
@@ -381,7 +389,9 @@ class CommissionReportController extends Controller
                 'isTahazir' => (bool) $row->is_tahazir,
                 'tierApplied' => $row->tier_applied !== null ? (int) $row->tier_applied : null,
                 'sourceType' => $row->source_type,
-                'sourceLabel' => CommissionSourceTypeEnum::tryFrom((string) $row->source_type)?->label() ?? $row->source_type,
+                'sourceLabel' => $row->invoice_line_type === ServiceInvoiceHelper::class
+                    ? 'عمولة مساعدة'
+                    : (CommissionSourceTypeEnum::tryFrom((string) $row->source_type)?->label() ?? $row->source_type),
                 'earnedAt' => $row->earned_at ? Carbon::parse($row->earned_at)->toIso8601String() : null,
                 'paidAt' => $row->paid_at ? Carbon::parse($row->paid_at)->toIso8601String() : null,
             ])

@@ -11,7 +11,6 @@ use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
-use App\Models\ServiceInvoiceLine;
 
 /**
  * Unwinds the accruals a service invoice created, using the immutable-ledger
@@ -28,15 +27,8 @@ trait ReversesServiceInvoiceAccruals
      */
     protected function reverseUnpaidCommission(ServiceInvoice $invoice, bool $keepEarnedAt = false): void
     {
-        $lineIds = $invoice->lines()->pluck('id');
-
-        if ($lineIds->isEmpty()) {
-            return;
-        }
-
-        $entries = CommissionLedger::query()
-            ->where('invoice_line_type', ServiceInvoiceLine::class)
-            ->whereIn('invoice_line_id', $lineIds)
+        // صفوف صاحب الفاتورة ومساعديها معاً.
+        $entries = $invoice->ledgerEntries()
             ->whereNull('paid_at')
             ->where('amount', '>', 0)
             ->lockForUpdate()

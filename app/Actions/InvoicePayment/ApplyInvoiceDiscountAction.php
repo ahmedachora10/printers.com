@@ -108,13 +108,19 @@ class ApplyInvoiceDiscountAction
     private function repriceService(ServiceInvoice $invoice, float $servicesNet): void
     {
         $lines = $invoice->lines()->get()->keyBy('id');
-        $commissions = $this->serviceCalculator->lineCommissions($lines, $servicesNet, (float) $invoice->subtotal);
+        // حصة المساعد بالنسبة تتبع الصافي الجديد، وبالمبلغ تبقى — وتُقتطع من صاحب الفاتورة كما عند البيع.
+        $helpers = $invoice->helpers()->get()->keyBy('id');
+        $commissions = $this->serviceCalculator->commissions($lines, $helpers, $servicesNet, (float) $invoice->subtotal, (float) $invoice->vat_pct);
 
         foreach ($lines as $id => $line) {
-            $line->update(['commission_amount' => $commissions[$id]]);
+            $line->update(['commission_amount' => $commissions['lines'][$id]]);
         }
 
-        $invoice->employee_commission = round(array_sum($commissions), 2);
+        foreach ($helpers as $id => $helper) {
+            $helper->update($commissions['helpers'][$id]);
+        }
+
+        $invoice->employee_commission = round(array_sum($commissions['lines']), 2);
 
         // صفوف المندوب المضافة من السطور وحدها ريبيتها صفرٌ عمداً — لا تُمسّ.
         $invoice->invoiceAgents()

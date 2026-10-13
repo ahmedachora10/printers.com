@@ -845,6 +845,17 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                             {invoice.employeeCommission !== null && (
                                 <MetaRow label="عمولة الموظف" value={<span dir="ltr">{formatCurrency(invoice.employeeCommission)}</span>} />
                             )}
+                            {invoice.helpers.map((helper, i) => (
+                                <MetaRow
+                                    key={i}
+                                    label={`مساعد — ${helper.serviceName}`}
+                                    value={
+                                        <span>
+                                            {helper.name ?? '—'} · <span dir="ltr">{formatCurrency(helper.commission)}</span>
+                                        </span>
+                                    }
+                                />
+                            ))}
                             <Separator className="my-3" />
                             <MetaRow label="الفرع" value={invoice.branch.name ?? '—'} />
                             {invoice.branch.taxNumber && <MetaRow label="الرقم الضريبي" value={<span dir="ltr">{invoice.branch.taxNumber}</span>} />}

@@ -187,6 +187,8 @@ export interface Invoice {
     canRequestShipment: boolean;
     canApproveShipment: boolean;
     employeeCommission: number | null;
+    /** المساعدون في فاتورة الخدمة — عمولة كلٍّ منهم على حصّته */
+    helpers: { name: string | null; serviceName: string; commission: number }[];
     /** الموظف صاحب الفاتورة — مَن أنشأها، لا مَن يطبعها */
     userName: string | null;
     customerName: string | null;

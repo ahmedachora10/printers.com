@@ -11,9 +11,7 @@ use App\Actions\ServiceInvoice\Concerns\SyncsServiceInvoiceShipments;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\Branch;
-use App\Models\CommissionLedger;
 use App\Models\ServiceInvoice;
-use App\Models\ServiceInvoiceLine;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -53,13 +51,9 @@ class UpdateServiceInvoiceAction
 
         // عمولةٌ صُرفت للموظف لا يُعكس صفّها (reverseUnpaidCommission يتخطّاه)،
         // فإعادة كتابة العمولة فوقه تدفعها له مرتين.
-        if (CommissionLedger::query()
-            ->where('invoice_line_type', ServiceInvoiceLine::class)
-            ->whereIn('invoice_line_id', $invoice->lines()->select('id'))
-            ->whereNotNull('paid_at')
-            ->exists()) {
+        if ($invoice->ledgerEntries()->whereNotNull('paid_at')->exists()) {
             throw ValidationException::withMessages([
-                'invoice' => 'لا يمكن تعديل فاتورة صُرفت عمولتها للموظف.',
+                'invoice' => 'لا يمكن تعديل فاتورة صُرفت عمولتها للموظف أو لأحد مساعديه.',
             ]);
         }
 
@@ -82,6 +76,7 @@ class UpdateServiceInvoiceAction
             // قبل حذف الأسطر: حركات الإرجاع تحمل رقم السطر الذي صُرفت له.
             $this->consumeMaterials->restore($invoice, (int) auth()->id());
             $invoice->lines()->delete();
+            $invoice->helpers()->delete();
 
             // الفاتورة نفسها تُستثنى من حساب النقاط المحجوزة، فإعادة إرسال العدد
             // نفسه لا تصطدم بحجزها هي.
@@ -103,6 +98,7 @@ class UpdateServiceInvoiceAction
             }
 
             $this->writeLines($invoice, $calc['lines']);
+            $this->writeHelpers($invoice, $calc['helpers']);
 
             $this->syncShipments($invoice, $calc['shipments']);
             $this->logAuthoredMaterialsCost($invoice, $calc['lines']);

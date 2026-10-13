@@ -59,6 +59,7 @@ class CreateServiceInvoiceAction
             }
 
             $this->writeLines($invoice, $calc['lines']);
+            $this->writeHelpers($invoice, $calc['helpers']);
             // تاسك 93: عنوانٌ جديد يُضاف إلى دفتر العميل داخل المعاملة نفسها،
             // فإمّا حُفظت الفاتورة وعنوانها معاً أو لم يُحفظ شيء.
             $this->syncShipments($invoice, $calc['shipments']);
