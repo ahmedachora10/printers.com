@@ -94,7 +94,7 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
             { key: 'total', header: 'الإجمالي', className: 'font-semibold text-green-600', cell: (row) => formatCurrency(row.total) },
             // المحصَّل: ما دخل الصندوق فعلاً ذلك اليوم (دفعات الفواتير)، لا ما استُحق.
             { key: 'collected', header: 'المحصَّل', className: 'font-medium text-sky-600', cell: (row) => formatCurrency(row.collected) },
-            // المرتجعات مطروحة أصلاً من المحصَّل — تُعرض ليُرى سببُ نقصه.
+            // تاسك 181: المحصَّل كامل، والمرتجعات تُطرح في «المبلغ المتبقي».
             { key: 'refunds', header: 'المرتجعات', className: 'text-rose-600', cell: (row) => formatCurrency(row.refunds) },
         );
 
@@ -103,13 +103,16 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
         }
 
         cols.push(
-            // عمود عرض فقط — لم يعد يُطرح من «المبلغ المتبقي» (تاسك 58).
+            // لا تُطرح من «المبلغ المتبقي» (تاسك 58)، بل من «بعد خصم العمولة» (تاسك 181).
             { key: 'commission', header: 'عمولة الموظفين', className: 'text-amber-600', cell: (row) => formatCurrency(row.commission) },
             { key: 'vat', header: 'الضريبة', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.vat) },
         );
 
         if (showPurchases) {
-            cols.push({ key: 'remaining', header: 'المبلغ المتبقي', className: 'font-medium', cell: (row) => formatCurrency(row.remaining) });
+            cols.push(
+                { key: 'remaining', header: 'المبلغ المتبقي', className: 'font-medium', cell: (row) => formatCurrency(row.remaining) },
+                { key: 'afterCommission', header: 'بعد خصم العمولة', className: 'font-medium', cell: (row) => formatCurrency(row.afterCommission) },
+            );
         }
 
         return cols;
@@ -193,7 +196,7 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
                             icon={<CalendarDays className="size-4" />}
                             label="المبلغ المتبقي"
                             value={formatCurrency(totals.remaining)}
-                            hint="المبيعات − المرتجعات − المشتريات"
+                            hint="المحصَّل − المرتجعات − المشتريات"
                         />
                     )}
                 </div>
@@ -227,6 +230,7 @@ export default function DailyReportIndex({ rows, totals, showPurchases, detailed
                                     <TableCell className="font-bold text-amber-600">{formatCurrency(totals.commission)}</TableCell>
                                     <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.vat)}</TableCell>
                                     {showPurchases && <TableCell className="font-bold">{formatCurrency(totals.remaining)}</TableCell>}
+                                    {showPurchases && <TableCell className="font-bold">{formatCurrency(totals.afterCommission)}</TableCell>}
                                 </TableRow>
                             }
                         />

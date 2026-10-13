@@ -29,9 +29,10 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
  * purchases (expenses + received stock), VAT, and the remaining cash amount.
  * VAT is the tax inside «المحصَّل», not inside «الإجمالي» (تاسك 139).
  *
- * «المبلغ المتبقي» = المبيعات الشاملة − المرتجعات القابلة للخصم − المشتريات.
- * لا تُطرح العمولة ولا الضريبة — رقمٌ نقدي إجمالي بطلب العميل، بينما تقرير
- * المبيعات ولوحة التحكم يبقيان على الصافي قبل الضريبة (تاسك 37).
+ * تاسك 181: «المحصَّل» كاملٌ لا تُطرح منه المرتجعات، و«المبلغ المتبقي» =
+ * المحصَّل − المرتجعات − المشتريات، و«بعد خصم العمولة» = المتبقي − عمولة
+ * الموظفين. الضريبة لا تُطرح — بينما تقرير المبيعات ولوحة التحكم يبقيان على
+ * الصافي قبل الضريبة (تاسك 37).
  *
  * المبيعات لا تُحتسب إلا بعد اعتماد المحاسب: تدخل التقرير الفواتير المعتمَدة
  * وحدها (مدفوعة أو مدفوعة جزئياً)، مؤرَّخةً **بيوم اعتمادها** لا بيوم إنشائها.
@@ -193,7 +194,7 @@ class DailyReportController extends Controller
             $buckets[$day][$employeeId]['vat'] += (float) $row->vat;
         }
 
-        // المرتجعات تُعرض في عمودها وتُخصم من المحصَّل يوم الإرجاع (تاسك 172).
+        // المرتجعات تُعرض في عمودها وتُخصم من المتبقي يوم الإرجاع (تاسك 172، 181).
         foreach ($this->refundsDaily($scope, $employeeIds, $detailed) as $row) {
             $day = (string) $row->day;
             $employeeId = $detailed ? (int) $row->user_id : 0;
@@ -226,16 +227,13 @@ class DailyReportController extends Controller
             uasort($dayRows, fn (array $a, array $b) => strcmp((string) $a['employeeName'], (string) $b['employeeName']));
 
             foreach ($dayRows as $row) {
-                // المرتجع مالٌ خرج فعلاً، فيُخصم من المحصَّل ومن الصافي المتبقي.
-                $row['collected'] -= $row['refunds'];
                 $row['vat'] = round($row['vat'], 2);
-                // المتبقي = المبيعات (شاملة الضريبة) − المرتجعات − المشتريات.
-                // العمولة والضريبة عمودا عرض لا تُطرحان (تاسك 58): نصّ العميل
-                // يقول «+ عمولة الموظفين + الضريبة» ومثاله الرقمي في الجدول نفسه
-                // ‏115 − 10 − 10 = 95 لا يجمعهما ولا يطرحهما — أي أن المقصود
-                // «لا تُخصما كما كنتم تفعلون». فالرقم نقدي إجمالي لا صافٍ محاسبي.
+                // تاسك 181 — انظر docblock الكلاس.
                 $row['remaining'] = $showPurchases
-                    ? $row['total'] - $row['refunds'] - $row['purchases']
+                    ? $row['collected'] - $row['refunds'] - $row['purchases']
+                    : 0.0;
+                $row['afterCommission'] = $showPurchases
+                    ? $row['remaining'] - $row['commission']
                     : 0.0;
 
                 $rows[] = $row;
@@ -270,13 +268,12 @@ class DailyReportController extends Controller
             'shipping' => $sum('shipping'),
             'services' => $sum('services'),
             'total' => $sum('total'),
-            // صفوف اليوم خُصمت منها مرتجعاتها قبل بلوغ هذه الدالة، فالمجموع
-            // يجمع محصَّلاً صافياً.
             'collected' => $sum('collected'),
             'refunds' => $sum('refunds'),
             'commission' => $sum('commission'),
             'purchases' => 0.0,
             'remaining' => 0.0,
+            'afterCommission' => 0.0,
             'vat' => $sum('vat'),
         ];
     }
@@ -576,6 +573,7 @@ class DailyReportController extends Controller
             'commission' => (float) $details->sum('commission'),
             'purchases' => $showPurchases ? (float) $details->sum('purchases') : 0.0,
             'remaining' => $showPurchases ? (float) $details->sum('remaining') : 0.0,
+            'afterCommission' => $showPurchases ? (float) $details->sum('afterCommission') : 0.0,
             'vat' => (float) $details->sum('vat'),
         ];
     }
