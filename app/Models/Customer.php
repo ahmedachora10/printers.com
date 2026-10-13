@@ -148,6 +148,46 @@ class Customer extends Model
     }
 
     /**
+     * الصيغة الموحّدة للجوال، بلا مسافات: السعودي 05XXXXXXXX، والدولي +رمز الدولة
+     * (+923029216123). الأرقام العربية تصير لاتينية، ويُحذف كل ما ليس رقماً (مسافات،
+     * شرطات، علامات الاتجاه في النصّ الملصوق) إلا + في أوله، و00 في أوله تصير +.
+     * ما لا يطابق بعدها يردّه التحقق (PhoneNumber).
+     */
+    public static function normalizePhone(?string $phone): ?string
+    {
+        $phone = preg_replace('/[^\d+]/', '', str_replace(mb_str_split('٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹'), [...range(0, 9), ...range(0, 9)], (string) $phone));
+        $international = str_starts_with($phone, '+') || str_starts_with($phone, '00');
+        $digits = preg_replace('/^00/', '', preg_replace('/\D/', '', $phone));
+
+        if ($digits === '') {
+            return null;
+        }
+
+        // الجوال السعودي بأي صيغة (+966 / 00966 / 966 / بلا صفر) ← 05XXXXXXXX.
+        $digits = preg_replace('/^966(?=5)/', '0', $digits);
+
+        if (preg_match('/^5\d{8}$/', $digits)) {
+            return '0'.$digits;
+        }
+
+        return $international && ! str_starts_with($digits, '0') ? '+'.$digits : $digits;
+    }
+
+    /**
+     * بحثٌ بالاسم أو الجوال. نصٌّ بلا حروف يُقرأ جوالاً بصيغته الموحّدة، فـ«+966 55 172»
+     * تجد 0551728069.
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeMatching(Builder $query, string $term): void
+    {
+        $term = trim($term);
+        $phone = preg_match('/\p{L}/u', $term) ? null : self::normalizePhone($term);
+
+        $phone !== null ? $query->where('phone', 'like', "%{$phone}%") : $query->where('full_name', 'like', "%{$term}%");
+    }
+
+    /**
      * فلاتر شاشة العملاء — تقرؤها الشاشة والتصدير معاً. فلتر الفرع ليس هنا: هو
      * نطاق صلاحية يحسمه المتحكّم قبل أي فلتر.
      *
@@ -159,9 +199,7 @@ class Customer extends Model
         $search = $filters['search'] ?? null;
 
         $query
-            ->when(filled($search), fn ($q) => $q->where(fn ($q) => $q
-                ->where('full_name', 'like', '%'.$search.'%')
-                ->orWhere('phone', 'like', '%'.$search.'%')))
+            ->when(filled($search), fn ($q) => $q->matching($search))
             ->when(filled($filters['tier'] ?? null), fn ($q) => $q->where('tier', $filters['tier']))
             ->when(filled($filters['type'] ?? null), fn ($q) => $q->where('customer_type', $filters['type']))
             ->when(filled($filters['agent_id'] ?? null), fn ($q) => $q->where('agent_id', (int) $filters['agent_id']))

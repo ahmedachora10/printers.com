@@ -2,7 +2,9 @@
 
 namespace App\Http\Requests\ServiceInvoice;
 
+use App\Models\Customer;
 use App\Models\ServiceInvoice;
+use App\Rules\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -19,6 +21,7 @@ class UpdateInvoiceCustomerRequest extends FormRequest
         // the nullable/digits rule instead of failing on an empty string.
         $tax = $this->input('tax_number');
         $this->merge([
+            'phone' => Customer::normalizePhone($this->input('phone')),
             'tax_number' => is_string($tax) && trim($tax) !== '' ? trim($tax) : null,
         ]);
     }
@@ -30,7 +33,7 @@ class UpdateInvoiceCustomerRequest extends FormRequest
         $invoice = $this->route('invoice');
         $customer = $invoice->customer;
 
-        $phone = ['required', 'string', 'max:20'];
+        $phone = ['required', new PhoneNumber];
 
         // Editing a linked customer must not collide with another record's phone.
         // When the invoice has no customer yet, the phone is resolved via

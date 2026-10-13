@@ -475,9 +475,10 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                     <Input
                                         value={walkinPhone}
                                         onChange={(e) => setWalkinPhone(e.target.value)}
-                                        placeholder="رقم الهاتف"
+                                        placeholder="رقم الجوال (05XXXXXXXX أو +رمز الدولة)"
                                         inputMode="tel"
                                     />
+                                    {errors.walkin_phone && <p className="text-destructive text-xs">{errors.walkin_phone}</p>}
                                 </>
                             )}
                         </CardContent>

@@ -253,7 +253,8 @@ describe('Invoice list filters', function () {
         $his = filterInvoice($this->branch->id, $this->alice->id, ['customer_id' => $customer->id]);
         filterInvoice($this->branch->id, $this->alice->id);
 
-        foreach (['مبروك', '657662'] as $term) {
+        // والجوال بأي صيغة كُتب: مسافات أو +966.
+        foreach (['مبروك', '657662', '+966 54 657 6625', '054 657'] as $term) {
             $this->actingAs($this->branchAdmin)
                 ->get(route('invoices.index', ['search' => $term]))
                 ->assertInertia(fn ($page) => $page->has('items.data', 1)

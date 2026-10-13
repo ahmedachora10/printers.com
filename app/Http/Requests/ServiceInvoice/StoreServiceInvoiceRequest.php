@@ -5,12 +5,19 @@ namespace App\Http\Requests\ServiceInvoice;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\LineAgentCommissionTypeEnum;
 use App\Models\Branch;
+use App\Models\Customer;
 use App\Models\PaymentMethod;
+use App\Rules\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreServiceInvoiceRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $this->merge(['walkin_phone' => Customer::normalizePhone($this->input('walkin_phone'))]);
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -33,7 +40,7 @@ class StoreServiceInvoiceRequest extends FormRequest
             'agent_ids' => ['nullable', 'array'],
             'agent_ids.*' => ['integer', 'distinct', 'exists:users,id'],
             'walkin_name' => ['nullable', 'string', 'max:255'],
-            'walkin_phone' => ['nullable', 'string', 'max:30'],
+            'walkin_phone' => ['nullable', new PhoneNumber],
             'walkin_tax_number' => ['nullable', 'string', 'digits:15'],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],

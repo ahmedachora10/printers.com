@@ -720,12 +720,13 @@ class InvoiceController extends Controller
                     );
             })
             ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($table, $request) {
-                $term = '%'.$request->input('search').'%';
-                // تاسك 171: والعميل باسمه أو جواله — جدوله موصولٌ أعلاه أصلاً.
+                $search = trim($request->input('search'));
+                $term = '%'.$search.'%';
+                // تاسك 171: والعميل باسمه أو جواله. يُحسم في جدول العملاء الصغير أولاً
+                // بدل «أو» على الأعمدة الموصولة، والجوال بصيغته الموحّدة (05XXXXXXXX).
                 $q->where("{$table}.invoice_number", 'like', $term)
                     ->orWhere('users.name', 'like', $term)
-                    ->orWhere('customers.full_name', 'like', $term)
-                    ->orWhere('customers.phone', 'like', $term);
+                    ->orWhereIn("{$table}.customer_id", Customer::withTrashed()->matching($search)->select('id'));
             }))
             ->select([
                 "{$table}.id",

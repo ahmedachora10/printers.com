@@ -1138,9 +1138,10 @@ export default function ServicePos({
                                     <Input
                                         value={walkinPhone}
                                         onChange={(e) => setWalkinPhone(e.target.value)}
-                                        placeholder="رقم الهاتف"
+                                        placeholder="رقم الجوال (05XXXXXXXX أو +رمز الدولة)"
                                         inputMode="tel"
                                     />
+                                    {errors.walkin_phone && <p className="text-destructive text-xs">{errors.walkin_phone}</p>}
                                     <Input
                                         value={walkinTaxNumber}
                                         onChange={(e) => setWalkinTaxNumber(e.target.value.replace(/[^0-9]/g, ''))}
