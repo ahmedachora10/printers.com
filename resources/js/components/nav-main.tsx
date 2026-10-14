@@ -90,7 +90,7 @@ function NavGroupDropdown({ group, currentPath }: { group: NavGroup; currentPath
     if (state === 'collapsed' && !isMobile) {
         return (
             <SidebarMenuItem>
-                <DropdownMenu>
+                <DropdownMenu dir="rtl">
                     <DropdownMenuTrigger asChild>
                         <SidebarMenuButton tooltip={label} isActive={containsActive}>
                             {Icon && <Icon />}
