@@ -8,6 +8,7 @@ use App\Models\Concerns\HasInvoicePayments;
 use App\Models\Concerns\HasReceiptMedia;
 use App\Models\Concerns\HasVatBreakdown;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -238,7 +239,8 @@ class ServiceInvoice extends Model implements HasMedia
     /**
      * تاسك 182: أقلّ ما يجب أن يبلغه المحصَّل قبل أن تُقبل دفعةٌ جزئية — الخامات
      * وعمولات الموظف ومساعديه والضريبة. بلوغه يكتب العمولة قبل اكتمال السداد.
-     * الشحن وريبيت المندوب خارجه. يُقرأ من الفاتورة المحفوظة لا يُعاد حسابه.
+     * الشحن وريبيت المندوب خارجه. يُقرأ من الفاتورة المحفوظة لا يُعاد حسابه، ولا
+     * يتجاوز الإجمالي — فالدفعة المُكمِلة مقبولةٌ دائماً.
      */
     public function commissionFloor(): float
     {
@@ -247,19 +249,18 @@ class ServiceInvoice extends Model implements HasMedia
         $lines = $this->relationLoaded('lines') ? $this->lines : $this->lines()->get(['materials_total', 'commission_amount']);
         $helpers = $this->relationLoaded('helpers') ? $this->helpers : $this->helpers()->get(['commission_amount']);
 
-        return round(
+        return round(min(
             (float) $lines->sum('materials_total')
             + (float) $lines->sum('commission_amount')
             + (float) $helpers->sum('commission_amount')
             + (float) $this->vat_amount,
-            2,
-        );
+            (float) $this->total_amount,
+        ), 2);
     }
 
     /**
      * أقلّ دفعة جزئية مقبولة الآن، أو null حين يُقبل أيّ مبلغ (العمولة مكتوبة،
-     * أو المحصَّل بلغ الحدّ). الدفعة المُكمِلة للإجمالي مقبولةٌ دائماً، فالحدّ لا
-     * يتجاوز الإجمالي.
+     * أو المحصَّل بلغ الحدّ).
      */
     public function minimumPayment(): ?float
     {
@@ -267,9 +268,25 @@ class ServiceInvoice extends Model implements HasMedia
             return null;
         }
 
-        $min = round(min($this->commissionFloor(), (float) $this->total_amount) - $this->paidAmount(), 2);
+        $min = round($this->commissionFloor() - $this->paidAmount(), 2);
 
         return $min > 0 ? $min : null;
+    }
+
+    /**
+     * صفوف العمولة غير المصروفة مقفلةً ومجمَّعةً لكل سطر (ومساعد) — ما يعكسه
+     * الإرجاع والتعديل بصافيه لا بصفوفه الموجبة (تاسك 182).
+     *
+     * @return Collection<string, Collection<int, CommissionLedger>>
+     */
+    public function unpaidLedgerByLine(): Collection
+    {
+        return $this->ledgerEntries()
+            ->whereNull('paid_at')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get()
+            ->groupBy(fn (CommissionLedger $e) => $e->invoice_line_type.'#'.$e->invoice_line_id.'#'.$e->user_id);
     }
 
     /** @return MorphMany<Refund, $this> */

@@ -265,14 +265,7 @@ class CreateRefundAction
         // صفوف صاحب الفاتورة ومساعديها معاً، مجمَّعةً لكل سطر. تاسك 182: عمولةٌ
         // كُتبت عند دفعة جزئية قد يعيد الخصمُ تسعيرها (صفّ سالب ثم موجب جديد)، فالنسبة
         // تُؤخذ من آخر كتابة موجبة، ولا يتجاوز العكسُ ما بقي قائماً من السطر.
-        $groups = $invoice->ledgerEntries()
-            ->whereNull('paid_at')
-            ->orderBy('id')
-            ->lockForUpdate()
-            ->get()
-            ->groupBy(fn (CommissionLedger $e) => $e->invoice_line_type.'#'.$e->invoice_line_id.'#'.$e->user_id);
-
-        foreach ($groups as $rows) {
+        foreach ($invoice->unpaidLedgerByLine() as $rows) {
             $entry = $rows->where('amount', '>', 0)->last();
 
             if ($entry === null) {

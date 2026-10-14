@@ -30,7 +30,7 @@ class BackfillPartialCommissionsCommand extends Command
             ->whereNull('commission_earned_at')
             ->with(['payments' => fn ($q) => $q->orderBy('paid_at')->orderBy('id')])
             ->each(function (ServiceInvoice $invoice) use ($markPaid, $dryRun, &$rows) {
-                $floor = min($invoice->commissionFloor(), round((float) $invoice->total_amount, 2));
+                $floor = $invoice->commissionFloor();
                 $running = 0.0;
                 $reachedAt = null;
 

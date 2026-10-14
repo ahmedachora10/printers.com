@@ -103,15 +103,10 @@ class RecordInvoicePaymentAction
                 && $amount > 0
                 && round($collected + $amount, 2) < $total;
 
-            if ($earnCommission) {
-                $floor = min($invoice->commissionFloor(), $total);
-
-                if (round($collected + $amount, 2) < $floor) {
-                    throw ValidationException::withMessages([
-                        'amount' => 'أقلّ مبلغ مقبول للدفعة: '.number_format($floor - $collected, 2)
-                            .' ر.س — يجب أن يغطّي المحصَّل الخاماتِ وعمولةَ الموظفين والضريبة ('.number_format($floor, 2).' ر.س).',
-                    ]);
-                }
+            if ($earnCommission && $amount < ($min = $invoice->minimumPayment() ?? 0.0)) {
+                throw ValidationException::withMessages([
+                    'amount' => 'أقلّ مبلغ مقبول للدفعة: '.number_format($min, 2).' ر.س — يغطّي الخاماتِ وعمولةَ الموظفين والضريبة.',
+                ]);
             }
 
             $paidAt = isset($data['paid_at']) && $data['paid_at'] !== null

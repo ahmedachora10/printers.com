@@ -32,14 +32,7 @@ trait ReversesServiceInvoiceAccruals
     protected function reverseUnpaidCommission(ServiceInvoice $invoice, bool $keepEarnedAt = false): void
     {
         // صفوف صاحب الفاتورة ومساعديها معاً.
-        $entries = $invoice->ledgerEntries()
-            ->whereNull('paid_at')
-            ->orderBy('id')
-            ->lockForUpdate()
-            ->get()
-            ->groupBy(fn (CommissionLedger $e) => $e->invoice_line_type.'#'.$e->invoice_line_id.'#'.$e->user_id);
-
-        foreach ($entries as $rows) {
+        foreach ($invoice->unpaidLedgerByLine() as $rows) {
             $net = round((float) $rows->sum('amount'), 2);
 
             if ($net <= 0) {
