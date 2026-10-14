@@ -222,7 +222,8 @@ describe('Daily Report', function () {
             ->get(route('reports.daily', $day(now())))
             ->assertInertia(fn ($page) => $page
                 ->where('totals.products', 0)
-                ->where('totals.collected', -115)
+                // تاسك 181: المحصَّل لا تُطرح منه المرتجعات — تُطرح في المتبقي.
+                ->where('totals.collected', 0)
                 ->where('totals.vat', -15)
                 ->where('totals.refunds', 115)
                 ->where('totals.remaining', -115));
@@ -247,7 +248,7 @@ describe('Daily Report', function () {
             ->get(route('reports.daily'))
             ->assertInertia(fn ($page) => $page
                 ->where('totals.products', 115)
-                ->where('totals.collected', 0)
+                ->where('totals.collected', 115)
                 ->where('totals.refunds', 115)
                 ->where('totals.remaining', 0));
     });
@@ -264,7 +265,7 @@ describe('Daily Report', function () {
                 ->where('totals.refunds', 0));
     });
 
-    it('subtracts a partial refund from the collected amount and shows it', function () {
+    it('subtracts a partial refund from the remaining amount, not the collected one', function () {
         $invoice = dailyProductInvoice($this->branch, $this->branchAdmin, [
             'status' => 'paid', 'paid_at' => now(), 'vat_amount' => 15, 'total_amount' => 115,
         ]);
@@ -282,9 +283,10 @@ describe('Daily Report', function () {
         $this->actingAs($this->superAdmin)
             ->get(route('reports.daily'))
             ->assertInertia(fn ($page) => $page
-                // حُصِّل 115 ورُدَّ 40، فالصافي 75 — والمرتجع ظاهر في عموده.
-                ->where('totals.collected', 75)
+                // تاسك 181: حُصِّل 115 ورُدَّ 40 — المحصَّل كامل والمتبقي 75.
+                ->where('totals.collected', 115)
                 ->where('totals.refunds', 40)
+                ->where('totals.remaining', 75)
                 // المبيعات المستحقة لا تتأثر: الفاتورة قائمة ولم تُرتجع كلها.
                 ->where('totals.products', 115));
     });
@@ -507,8 +509,35 @@ describe('Daily Report', function () {
             ->get(route('reports.daily'))
             ->assertInertia(fn ($page) => $page
                 ->where('totals.total', 130)
-                ->where('totals.collected', 100)
+                // تاسك 181: المحصَّل كامل؛ الضريبة تبقى صافية من ضريبة المرتجع.
+                ->where('totals.collected', 130)
+                ->where('totals.remaining', 100)
                 ->where('totals.vat', 13.04));
+    });
+
+    it('computes remaining from collected and deducts commission in its own column (task 181)', function () {
+        // مثال صورة العميل: محصَّل 1650، مرتجعات 200، مشتريات 100، عمولة 500.
+        $invoice = dailyServiceInvoice($this->branch, $this->branchAdmin, [
+            'subtotal' => 1434.78, 'vat_amount' => 215.22, 'total_amount' => 1650,
+        ]);
+        Refund::create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'invoice_type' => ServiceInvoice::class,
+            'amount' => 200,
+            'reason' => 'مرتجع جزئي',
+        ]);
+        Expense::factory()->create(['branch_id' => $this->branch->id, 'user_id' => $this->branchAdmin->id, 'total' => 100, 'date' => today()]);
+        ledgerRow($this->branch, $this->branchAdmin, ['amount' => 500]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.daily'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.collected', 1650)
+                ->where('totals.remaining', 1350)
+                ->where('totals.afterCommission', 850));
     });
 
     // ── EMPLOYEE FILTER ────────────────────────────────────────────

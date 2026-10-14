@@ -85,7 +85,9 @@ describe('Account reconciliation', function () {
                 ->where('figures.systemNet', 1000)
                 ->where('figures.autoTotal', 500)
                 ->where('figures.frozen', true)
-                ->where('history.data.0.difference', $difference));
+                ->where('history.data.0.difference', $difference)
+                // تاسك 180: المطلوب مطابقته = صافي النظام − التلقائي.
+                ->where('history.data.0.networkSystem', 500));
     })->with([
         'مطابق — جهازان لنفس الطريقة' => [[200, 300], 0],
         'عجز 100' => [[400], -100],
@@ -129,7 +131,8 @@ describe('Account reconciliation', function () {
         $this->actingAs($this->branchAdmin)->post(route('finance.reconciliation.unapprove', AccountReconciliation::sole()));
         $this->actingAs($this->accountant)
             ->get(route('finance.reconciliation.index'))
-            ->assertInertia(fn ($page) => $page->where('figures.systemNet', 1499)->where('figures.frozen', false));
+            ->assertInertia(fn ($page) => $page->where('figures.systemNet', 1499)->where('figures.frozen', false)
+                ->where('history.data.0.networkSystem', null));
     });
 
     it('locks an approved reconciliation and keeps approval from the accountant', function () {

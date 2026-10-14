@@ -10,13 +10,15 @@ export interface DailyReportRow {
     /** جملة رسوم التوصيل — خارج «الخدمات» وداخلٌ في «الإجمالي» (تاسك 93) */
     shipping: number;
     total: number;
-    /** ما حُصِّل فعلاً في اليوم من دفعات الفواتير، صافياً بعد طرح المرتجعات. */
+    /** ما حُصِّل فعلاً في اليوم من دفعات الفواتير، كاملاً قبل المرتجعات (تاسك 181). */
     collected: number;
-    /** ما رُدَّ للعملاء في اليوم — مطروح أصلاً من collected ومن remaining. */
+    /** ما رُدَّ للعملاء في اليوم — يُطرح في remaining لا من collected. */
     refunds: number;
     commission: number;
     purchases: number;
     remaining: number;
+    /** المتبقي − عمولة الموظفين (تاسك 181). */
+    afterCommission: number;
     vat: number;
 }
 
@@ -32,6 +34,7 @@ export interface DailyReportTotals {
     commission: number;
     purchases: number;
     remaining: number;
+    afterCommission: number;
     vat: number;
 }
 

@@ -124,6 +124,8 @@ class AccountReconciliationController extends Controller
                 'date' => $r->date,
                 'devicesTotal' => (float) $r->devices_total,
                 'systemNet' => $r->isApproved() ? (float) $r->system_net : null,
+                // تاسك 180: «المطلوب مطابقته» = صافي النظام − المسحوب تلقائياً، كبطاقة اليوم.
+                'networkSystem' => $r->isApproved() ? round((float) $r->system_net - (float) $r->auto_total, 2) : null,
                 'approvedBy' => $r->approvedBy?->name,
                 'difference' => $r->isApproved()
                     ? round((float) $r->devices_total + (float) $r->auto_total - (float) $r->system_net, 2)

@@ -41,7 +41,7 @@ class DailyReportExport implements FromCollection, ShouldAutoSize, WithHeadings,
         array_push($headings, 'عمولة الموظفين', 'الضريبة');
 
         if ($this->showPurchases) {
-            $headings[] = 'المبلغ المتبقي';
+            array_push($headings, 'المبلغ المتبقي', 'بعد خصم العمولة');
         }
 
         return $headings;
@@ -78,6 +78,7 @@ class DailyReportExport implements FromCollection, ShouldAutoSize, WithHeadings,
 
             if ($this->showPurchases) {
                 $cells[] = number_format((float) $row['remaining'], 2);
+                $cells[] = number_format((float) $row['afterCommission'], 2);
             }
 
             return $cells;
