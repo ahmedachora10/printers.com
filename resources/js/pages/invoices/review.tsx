@@ -63,6 +63,8 @@ interface ReviewInvoice {
     totalAmount: number;
     /** سقف الدفعة الأولى — يساوي الإجمالي، فالطابور لا يضم إلا ما لم يُقبض منه شيء. */
     remainingAmount: number;
+    /** تاسك 182: أقلّ عربون مقبول — الخامات والعمولات والضريبة. */
+    minPayment: number | null;
     discountBase: number;
     /** فتح شاشة التعديل الكاملة — لمدير الفرع لا للمحاسب */
     canEdit: boolean;
@@ -733,6 +735,7 @@ export default function InvoiceReview({ invoices, meta, summary, filters, isSupe
                     invoiceNumber={payingPartial.invoiceNumber}
                     remaining={payingPartial.remainingAmount}
                     discountBase={payingPartial.discountBase}
+                    minPayment={payingPartial.minPayment}
                     paymentMethods={payingPartial.paymentMethodOptions}
                 />
             )}

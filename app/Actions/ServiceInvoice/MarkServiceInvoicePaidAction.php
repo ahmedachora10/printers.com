@@ -77,7 +77,8 @@ class MarkServiceInvoicePaidAction
                 'paid_at' => $paidAt ?? now(),
             ]);
 
-            $this->realise($invoice);
+            // تاسك 182: عمولةٌ كُتبت حين بلغ المحصَّل حدَّها لا تُكتب ثانيةً عند الاكتمال.
+            $this->realise($invoice, commissionWritten: $invoice->commission_earned_at !== null);
 
             return $invoice;
         });
@@ -88,11 +89,14 @@ class MarkServiceInvoicePaidAction
      * والحوافز. يستدعيه تعديل فاتورةٍ معتمدة أيضاً بعد أن يفكّ أثرها القديم.
      * داخل معاملة المتصل.
      */
-    public function realise(ServiceInvoice $invoice): void
+    public function realise(ServiceInvoice $invoice, bool $commissionWritten = false): void
     {
         // The invoice is now approved, so the employee earns their commission:
-        // write the immutable ledger rows from the persisted lines.
-        $this->writeLedgerFromLines($invoice, (int) $invoice->user_id, (int) $invoice->branch_id);
+        // write the immutable ledger rows from the persisted lines — dated when
+        // it was first earned (task 182) or, failing that, when it was paid.
+        if (! $commissionWritten) {
+            $this->earnCommission($invoice, $invoice->commission_earned_at ?? $invoice->paid_at ?? now());
+        }
 
         // الآن وقد اعتُمدت الفاتورة تُخصم نقاطها المحجوزة من رصيد العميل: قبل
         // الاعتماد كان الخصم ظاهراً على الفاتورة فقط والرصيد لم يُمسّ.
@@ -109,5 +113,16 @@ class MarkServiceInvoicePaidAction
 
         // تاسك 160: الفاتورة المعتمدة تدخل محقَّق حوافز صاحبها.
         $this->recalculateIncentive->refreshForInvoice($invoice);
+    }
+
+    /**
+     * تاسك 182: تُكتب العمولة ويُختم تاريخ استحقاقها — عند الاعتماد، أو قبله حين
+     * تبلغ دفعةٌ جزئية حدَّ commissionFloor(). داخل معاملة المتصل.
+     */
+    public function earnCommission(ServiceInvoice $invoice, CarbonInterface $earnedAt): void
+    {
+        $invoice->update(['commission_earned_at' => $earnedAt]);
+
+        $this->writeLedgerFromLines($invoice, (int) $invoice->user_id, (int) $invoice->branch_id);
     }
 }

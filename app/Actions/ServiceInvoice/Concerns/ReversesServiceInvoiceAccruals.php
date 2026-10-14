@@ -20,27 +20,33 @@ use App\Models\ServiceInvoice;
 trait ReversesServiceInvoiceAccruals
 {
     /**
-     * Reverse every unpaid commission row for the invoice's lines in full by
-     * inserting a negative offsetting row. Paid commission is left untouched.
+     * Reverse what still stands of the invoice's unpaid commission, one negative
+     * offsetting row per line (and helper). Paid commission is left untouched.
+     * Netting per line matters since task 182: commission written at a partial
+     * payment can already carry reversals (a discount re-pricing it, a partial
+     * refund), and reversing its positive row again would push it below zero —
+     * which PayCommissionAction would then deduct from the employee's pay.
      * $keepEarnedAt dates each reversal on its row's own earned_at (an edit
      * that rewrites the rows in the same period) instead of now (a return).
      */
     protected function reverseUnpaidCommission(ServiceInvoice $invoice, bool $keepEarnedAt = false): void
     {
         // صفوف صاحب الفاتورة ومساعديها معاً.
-        $entries = $invoice->ledgerEntries()
-            ->whereNull('paid_at')
-            ->where('amount', '>', 0)
-            ->lockForUpdate()
-            ->get();
+        foreach ($invoice->unpaidLedgerByLine() as $rows) {
+            $net = round((float) $rows->sum('amount'), 2);
 
-        foreach ($entries as $entry) {
+            if ($net <= 0) {
+                continue;
+            }
+
+            $entry = $rows->where('amount', '>', 0)->last();
+
             CommissionLedger::create([
                 'user_id' => $entry->user_id,
                 'branch_id' => $entry->branch_id,
                 'invoice_line_id' => $entry->invoice_line_id,
                 'invoice_line_type' => $entry->invoice_line_type,
-                'amount' => -1 * (float) $entry->amount,
+                'amount' => -$net,
                 'is_tahazir' => $entry->is_tahazir,
                 'tier_applied' => $entry->tier_applied,
                 'source_type' => CommissionSourceTypeEnum::STANDARD,

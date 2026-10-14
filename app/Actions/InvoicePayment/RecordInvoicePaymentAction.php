@@ -21,7 +21,8 @@ use Illuminate\Validation\ValidationException;
  * يسجّل دفعة على فاتورة — عربوناً كانت أو دفعة لاحقة — ويحرّك حالة الفاتورة تبعاً
  * لما تجمّع من تحصيل:
  *
- *  - مجموع الدفعات < الإجمالي  ← «مدفوعة جزئياً»
+ *  - مجموع الدفعات < الإجمالي  ← «مدفوعة جزئياً»، بشرط أن يبلغ حدَّ
+ *    ServiceInvoice::commissionFloor() فتُكتب عمولة الموظف عندها (تاسك 182)
  *  - مجموع الدفعات = الإجمالي  ← «مدفوعة»، وتاريخ السداد لحظةُ آخر دفعة، ثم تُسلك
  *    مسارات الاعتماد المعتادة (عمولة الموظف في commission_ledger، ونقاط الولاء:
  *    خصمُ ما استبدله العميل واحتسابُ ما اكتسبه).
@@ -93,6 +94,21 @@ class RecordInvoicePaymentAction
                 ]);
             }
 
+            // تاسك 182: الدفعة الجزئية لا تُقبل ما لم يبلغ المحصَّل بعدها الخاماتِ
+            // والعمولاتِ والضريبة؛ وبلوغه يكتب العمولة الآن لا عند الاكتمال. الدفعة
+            // المُكمِلة مقبولةٌ دائماً، والتصحيح السالب لا يفكّ عمولةً كُتبت.
+            $earnCommission = $invoice instanceof ServiceInvoice
+                && ! $owesAfterApproval
+                && $invoice->commission_earned_at === null
+                && $amount > 0
+                && round($collected + $amount, 2) < $total;
+
+            if ($earnCommission && $amount < ($min = $invoice->minimumPayment() ?? 0.0)) {
+                throw ValidationException::withMessages([
+                    'amount' => 'أقلّ مبلغ مقبول للدفعة: '.number_format($min, 2).' ر.س — يغطّي الخاماتِ وعمولةَ الموظفين والضريبة.',
+                ]);
+            }
+
             $paidAt = isset($data['paid_at']) && $data['paid_at'] !== null
                 ? Date::parse($data['paid_at'])
                 : now();
@@ -119,6 +135,10 @@ class RecordInvoicePaymentAction
                 $this->settle($invoice, $paidAt, $confirmedShortage);
             } else {
                 $invoice->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID]);
+
+                if ($earnCommission) {
+                    $this->markServiceInvoicePaid->earnCommission($invoice, $paidAt);
+                }
 
                 // تاسك 160: المدفوعة جزئياً معتمدة — تدخل المحقَّق من أول دفعة.
                 if ($invoice instanceof ServiceInvoice) {

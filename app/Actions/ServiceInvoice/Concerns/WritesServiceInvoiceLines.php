@@ -71,11 +71,16 @@ trait WritesServiceInvoiceLines
 
     /**
      * Write one immutable commission-ledger row per persisted line, and one per
-     * helper (to the helper). Called only when the invoice is (or becomes) paid —
-     * never for a due invoice.
+     * helper (to the helper). Called when the invoice is (or becomes) paid, or
+     * once a partial payment reaches its commissionFloor() (task 182) — never
+     * for a due invoice.
      */
     protected function writeLedgerFromLines(ServiceInvoice $invoice, int $userId, int $branchId): void
     {
+        // تاسك 166: العمولة تُستحق لحظة التحصيل — تاريخ الدفعة الأخيرة كما أدخله
+        // المستخدم، لا لحظة إدخالها. تاسك 182: أو الدفعة التي بلغت الحدّ قبلها.
+        $earnedAt = $invoice->commission_earned_at ?? $invoice->paid_at ?? now();
+
         foreach ($invoice->helpers()->get() as $helper) {
             /** @var ServiceInvoiceHelper $helper */
             CommissionLedger::create([
@@ -87,7 +92,7 @@ trait WritesServiceInvoiceLines
                 'is_tahazir' => $helper->is_tahazir,
                 'tier_applied' => null,
                 'source_type' => CommissionSourceTypeEnum::STANDARD,
-                'earned_at' => $invoice->paid_at ?? now(),
+                'earned_at' => $earnedAt,
             ]);
         }
 
@@ -104,9 +109,7 @@ trait WritesServiceInvoiceLines
                 'is_tahazir' => $line->is_tahazir,
                 'tier_applied' => null,
                 'source_type' => CommissionSourceTypeEnum::STANDARD,
-                // تاسك 166: العمولة تُستحق لحظة التحصيل — تاريخ الدفعة الأخيرة
-                // كما أدخله المستخدم، لا لحظة إدخالها في النظام.
-                'earned_at' => $invoice->paid_at ?? now(),
+                'earned_at' => $earnedAt,
             ]);
         }
     }

@@ -93,7 +93,10 @@ it('closes the client example: 200, deposit 100, then 80 paid with a 20 discount
         // العمولة على الصافي الجديد 156.52 لا على 173.91.
         ->and((float) $invoice->employee_commission)->toBe(15.65)
         ->and((float) $invoice->lines()->first()->commission_amount)->toBe(15.65)
-        ->and((float) CommissionLedger::sole()->amount)->toBe(15.65);
+        // تاسك 182: العربون بلغ الحدّ فكُتبت 17.39، والخصم عكسها وأعاد كتابتها 15.65،
+        // والسداد لم يكتب شيئاً فوقها.
+        ->and(round((float) CommissionLedger::sum('amount'), 2))->toBe(15.65)
+        ->and(CommissionLedger::count())->toBe(3);
 });
 
 it('closes the invoice from the discount button when what was collected already covers it', function () {
@@ -110,7 +113,9 @@ it('closes the invoice from the discount button when what was collected already 
         ->and($invoice->payments()->count())->toBe(2)
         // المال وصل مع آخر دفعة، لا لحظة الخصم.
         ->and($invoice->paid_at->toDateString())->toBe(now()->subDay()->toDateString())
-        ->and(CommissionLedger::count())->toBe(1);
+        // تاسك 182: العمولة كُتبت عند العربون وبتاريخه، وأعاد الخصم تسعيرها بالتاريخ نفسه.
+        ->and(round((float) CommissionLedger::sum('amount'), 2))->toBe(15.65)
+        ->and(CommissionLedger::pluck('earned_at')->map->toDateString()->unique()->all())->toBe([now()->subDays(2)->toDateString()]);
 });
 
 it('accepts a percentage-sized discount and a negative correction, staying open', function () {
@@ -125,7 +130,8 @@ it('accepts a percentage-sized discount and a negative correction, staying open'
         ->and((float) $invoice->manual_discount)->toBe(20.0)
         ->and((float) $invoice->total_amount)->toBe(180.0)
         ->and($invoice->remainingAmount())->toBe(80.0)
-        ->and(CommissionLedger::count())->toBe(0);
+        // تاسك 182: العمولة المكتوبة عند العربون تتبع كل خصمٍ وتصحيحه — صافيها على 180.
+        ->and(round((float) CommissionLedger::sum('amount'), 2))->toBe(15.65);
 });
 
 it('refuses a discount that would drop the total below what was collected', function () {

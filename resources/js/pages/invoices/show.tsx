@@ -936,6 +936,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                     invoiceNumber={invoice.invoiceNumber}
                     remaining={invoice.paymentRemaining}
                     discountBase={invoice.discountBase}
+                    minPayment={invoice.minPayment}
                     paymentMethods={paymentMethodOptions}
                 />
             )}

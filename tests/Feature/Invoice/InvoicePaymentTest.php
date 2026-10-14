@@ -21,7 +21,8 @@ uses(RefreshDatabase::class);
 /**
  * نظام الدفعات: عربون + دفعات لاحقة على فاتورة خدمة. الفاتورة تُصبح «مدفوعة
  * جزئياً» ما دام المحصَّل أقل من الإجمالي، وتُغلق «مدفوعة» عند اكتماله — عندها
- * فقط تُكتب العمولة وتُحتسب النقاط، ومرة واحدة لا أكثر.
+ * تُحتسب النقاط. العمولة تُكتب مرة واحدة: عند الدفعة التي تبلغ حدّ الخامات
+ * والعمولات والضريبة (تاسك 182)، أو عند الاكتمال إن جاء دفعةً واحدة.
  */
 function paymentTestInvoice(array $overrides = [], float $commission = 10): ServiceInvoice
 {
@@ -99,17 +100,19 @@ describe('Invoice payments', function () {
         Notification::fake();
         $invoice = paymentTestInvoice();
 
-        // العربون: الفاتورة تصير مدفوعة جزئياً، ولا عمولة بعد.
+        // العربون يغطّي الحدّ (عمولة 10 + ضريبة 15): الفاتورة مدفوعة جزئياً،
+        // وعمولتها تُكتب الآن (تاسك 182).
         postPayment($invoice, ['amount' => 50])->assertRedirect();
 
         $invoice->refresh();
         expect($invoice->status)->toBe(InvoiceStatusEnum::PARTIALLY_PAID)
             ->and($invoice->paid_at)->toBeNull()
+            ->and($invoice->commission_earned_at)->not->toBeNull()
             ->and($invoice->paidAmount())->toBe(50.0)
             ->and($invoice->remainingAmount())->toBe(65.0)
-            ->and(CommissionLedger::count())->toBe(0);
+            ->and(CommissionLedger::count())->toBe(1);
 
-        // دفعة المتبقي: تُغلق الفاتورة وتُكتب العمولة.
+        // دفعة المتبقي: تُغلق الفاتورة ولا تكتب العمولة ثانيةً.
         $this->travel(1)->days();
         postPayment($invoice, ['amount' => 65])->assertRedirect();
 
@@ -130,15 +133,26 @@ describe('Invoice payments', function () {
         Notification::assertSentTo($this->employee, ServiceInvoiceReviewedNotification::class);
     });
 
-    // تاسك 166: الدفعة الأخيرة تُسجَّل بتاريخ سابق ⇒ العمولة بتاريخها لا بيوم إدخالها.
-    it('dates the commission by the final payment, not by when it was entered', function () {
+    // تاسك 166: دفعةٌ تُسجَّل بتاريخ سابق ⇒ العمولة بتاريخها لا بيوم إدخالها.
+    it('dates the commission by the settling payment, not by when it was entered', function () {
         $invoice = paymentTestInvoice();
-        postPayment($invoice, ['amount' => 50])->assertRedirect();
 
         $collectedAt = now()->subMonth()->startOfDay()->addHours(10);
-        postPayment($invoice, ['amount' => 65, 'paid_at' => $collectedAt->toDateTimeString()])->assertRedirect();
+        postPayment($invoice, ['amount' => 115, 'paid_at' => $collectedAt->toDateTimeString()])->assertRedirect();
 
         expect(CommissionLedger::sole()->earned_at->toDateTimeString())->toBe($collectedAt->toDateTimeString());
+    });
+
+    // تاسك 182: عربون سبتمبر وإكمال أكتوبر ⇒ العمولة في سبتمبر، شهر الدفعة التي بلغت الحدّ.
+    it('dates the commission by the payment that reached the floor, not the final one', function () {
+        $invoice = paymentTestInvoice();
+
+        $depositAt = now()->subMonth()->startOfDay()->addHours(10);
+        postPayment($invoice, ['amount' => 50, 'paid_at' => $depositAt->toDateTimeString()])->assertRedirect();
+        postPayment($invoice, ['amount' => 65])->assertRedirect();
+
+        expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::PAID)
+            ->and(CommissionLedger::sole()->earned_at->toDateTimeString())->toBe($depositAt->toDateTimeString());
     });
 
     it('refuses another payment once the invoice is settled, so nothing is written twice', function () {
@@ -216,8 +230,9 @@ describe('Invoice payments', function () {
             ->patch(route('invoices.service.pay', $invoice))
             ->assertSessionHasErrors('status');
 
+        // صفّ العربون وحده (تاسك 182) — الاعتماد المرفوض لا يكتب شيئاً.
         expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::PARTIALLY_PAID)
-            ->and(CommissionLedger::count())->toBe(0);
+            ->and(CommissionLedger::count())->toBe(1);
     });
 
     it('records the payment method of each instalment', function () {
