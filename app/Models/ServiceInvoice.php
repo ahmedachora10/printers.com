@@ -51,6 +51,7 @@ class ServiceInvoice extends Model implements HasMedia
         'delivered_by',
         'status',
         'paid_at',
+        'commission_earned_at',
         'cancellation_reason',
         'cancelled_by',
         'cancelled_at',
@@ -75,6 +76,7 @@ class ServiceInvoice extends Model implements HasMedia
         'total_amount' => 'decimal:2',
         'employee_commission' => 'decimal:2',
         'paid_at' => 'datetime',
+        'commission_earned_at' => 'datetime',
         'cancelled_at' => 'datetime',
         'delivery_at' => 'datetime',
         'delivered_at' => 'datetime',
@@ -231,6 +233,43 @@ class ServiceInvoice extends Model implements HasMedia
                 ->whereIn('invoice_line_id', $this->lines()->select('id')))
             ->orWhere(fn (Builder $q) => $q->where('invoice_line_type', ServiceInvoiceHelper::class)
                 ->whereIn('invoice_line_id', $this->helpers()->select('id'))));
+    }
+
+    /**
+     * تاسك 182: أقلّ ما يجب أن يبلغه المحصَّل قبل أن تُقبل دفعةٌ جزئية — الخامات
+     * وعمولات الموظف ومساعديه والضريبة. بلوغه يكتب العمولة قبل اكتمال السداد.
+     * الشحن وريبيت المندوب خارجه. يُقرأ من الفاتورة المحفوظة لا يُعاد حسابه.
+     */
+    public function commissionFloor(): float
+    {
+        // المحمَّل يُقرأ كما هو (طابور المراجعة)، وإلا فمن القاعدة — فالدفعة تقرأ
+        // أرقام الخصم الذي سبقها في المعاملة نفسها.
+        $lines = $this->relationLoaded('lines') ? $this->lines : $this->lines()->get(['materials_total', 'commission_amount']);
+        $helpers = $this->relationLoaded('helpers') ? $this->helpers : $this->helpers()->get(['commission_amount']);
+
+        return round(
+            (float) $lines->sum('materials_total')
+            + (float) $lines->sum('commission_amount')
+            + (float) $helpers->sum('commission_amount')
+            + (float) $this->vat_amount,
+            2,
+        );
+    }
+
+    /**
+     * أقلّ دفعة جزئية مقبولة الآن، أو null حين يُقبل أيّ مبلغ (العمولة مكتوبة،
+     * أو المحصَّل بلغ الحدّ). الدفعة المُكمِلة للإجمالي مقبولةٌ دائماً، فالحدّ لا
+     * يتجاوز الإجمالي.
+     */
+    public function minimumPayment(): ?float
+    {
+        if ($this->commission_earned_at !== null || ! $this->status->acceptsPayment()) {
+            return null;
+        }
+
+        $min = round(min($this->commissionFloor(), (float) $this->total_amount) - $this->paidAmount(), 2);
+
+        return $min > 0 ? $min : null;
     }
 
     /** @return MorphMany<Refund, $this> */

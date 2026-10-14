@@ -368,7 +368,7 @@ class ServiceInvoiceController extends Controller
             ->first();
 
         $paginator = $query
-            ->with(['lines', 'customer:id,full_name,phone,tax_number', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media'])
+            ->with(['lines', 'helpers', 'payments', 'customer:id,full_name,phone,tax_number', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media'])
             ->orderBy($request->sortColumn(), $request->sortDirection())
             // فارز ثانوي ثابت: صفّان بنفس اللحظة كانا يتبادلان الترتيب بين صفحة
             // وأخرى فيتكرّر أحدهما ويسقط الآخر.
@@ -442,6 +442,8 @@ class ServiceInvoiceController extends Controller
                     // لم يُقبض منها شيء، فالمتبقي هو الإجمالي — ويُرسل صراحةً لأن
                     // نافذة تسجيل الدفعة تحدّ به المبلغ.
                     'remainingAmount' => $invoice->remainingAmount(),
+                    // تاسك 182: أقلّ عربون مقبول — الخامات والعمولات والضريبة.
+                    'minPayment' => $invoice->minimumPayment(),
                     'discountBase' => $invoice->discountBase(),
                     // زرّ تعديل الفاتورة في الطابور: لمدير الفرع لا للمحاسب —
                     // الصلاحية هي الفيصل، فلا يُكرَّر الدور في الواجهة.

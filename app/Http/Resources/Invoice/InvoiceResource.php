@@ -251,6 +251,8 @@ class InvoiceResource extends JsonResource
             'isFullyRefunded' => $refundedTotal > 0 && $refundableRemaining <= 0,
             'paidAmount' => $paidAmount,
             'paymentRemaining' => $paymentRemaining,
+            // تاسك 182: أقلّ دفعة جزئية مقبولة (فواتير الخدمات)، أو null.
+            'minPayment' => $this->resource instanceof ServiceInvoice ? $this->resource->minimumPayment() : null,
             'discountBase' => $this->resource->discountBase(),
             'canRecordPayment' => $canRecordPayment,
             'canDiscount' => $user !== null && $user->can('discount', $this->resource),

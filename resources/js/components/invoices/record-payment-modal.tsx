@@ -31,6 +31,8 @@ interface Props {
     remaining: number;
     /** ما يُحسب عليه الخصم بالنسبة: الإجمالي قبل أي خصم إضافي، بلا التوصيل. */
     discountBase: number;
+    /** تاسك 182: أقلّ دفعة جزئية مقبولة (الخامات + العمولات + الضريبة)، أو null. الخادم هو الحَكَم. */
+    minPayment?: number | null;
     /** `discount`: خصمٌ بلا دفعة (زر «إضافة خصم») — بلا طريقة دفع ولا إيصال. */
     mode?: 'payment' | 'discount';
     paymentMethods: PaymentMethodOption[];
@@ -54,6 +56,7 @@ export default function RecordPaymentModal({
     invoiceNumber,
     remaining,
     discountBase,
+    minPayment = null,
     mode = 'payment',
     paymentMethods,
     onRecorded,
@@ -251,6 +254,12 @@ export default function RecordPaymentModal({
                                     المتبقي كاملاً
                                 </Button>
                             </div>
+                            {/* الخصم يغيّر الحدّ (عمولةً وضريبة)، فلا يُعرض الرقم القديم معه. */}
+                            {minPayment !== null && discountAmount === 0 && !settlesInvoice && (
+                                <p className="text-muted-foreground text-xs">
+                                    أقلّ دفعة مقبولة {formatCurrency(minPayment)} — تغطّي الخامات وعمولة الموظفين والضريبة — أو المتبقي كاملاً.
+                                </p>
+                            )}
                             {errors.amount && <p className="text-destructive text-xs">{errors.amount}</p>}
                             {settlesInvoice && (
                                 <p className="text-xs text-green-600 dark:text-green-400">تُغلق هذه الدفعة الفاتورة وتحوّلها إلى مدفوعة.</p>

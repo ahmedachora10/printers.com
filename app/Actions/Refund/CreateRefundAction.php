@@ -262,15 +262,24 @@ class CreateRefundAction
 
         $fraction = min(1.0, $amount / $invoiceTotal);
 
-        // صفوف صاحب الفاتورة ومساعديها معاً.
-        $entries = $invoice->ledgerEntries()
+        // صفوف صاحب الفاتورة ومساعديها معاً، مجمَّعةً لكل سطر. تاسك 182: عمولةٌ
+        // كُتبت عند دفعة جزئية قد يعيد الخصمُ تسعيرها (صفّ سالب ثم موجب جديد)، فالنسبة
+        // تُؤخذ من آخر كتابة موجبة، ولا يتجاوز العكسُ ما بقي قائماً من السطر.
+        $groups = $invoice->ledgerEntries()
             ->whereNull('paid_at')
-            ->where('amount', '>', 0)
+            ->orderBy('id')
             ->lockForUpdate()
-            ->get();
+            ->get()
+            ->groupBy(fn (CommissionLedger $e) => $e->invoice_line_type.'#'.$e->invoice_line_id.'#'.$e->user_id);
 
-        foreach ($entries as $entry) {
-            $reversal = round((float) $entry->amount * $fraction, 2);
+        foreach ($groups as $rows) {
+            $entry = $rows->where('amount', '>', 0)->last();
+
+            if ($entry === null) {
+                continue;
+            }
+
+            $reversal = min(round((float) $entry->amount * $fraction, 2), round((float) $rows->sum('amount'), 2));
 
             if ($reversal <= 0) {
                 continue;

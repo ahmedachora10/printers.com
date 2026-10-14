@@ -211,6 +211,8 @@ export interface Invoice {
     paymentRemaining: number;
     /** ما يُحسب عليه الخصم الإضافي بالنسبة — الإجمالي قبله، بلا التوصيل. */
     discountBase: number;
+    /** تاسك 182: أقلّ دفعة جزئية مقبولة، أو null حين يُقبل أيّ مبلغ. */
+    minPayment: number | null;
     canRecordPayment: boolean;
     canDiscount: boolean;
     payments?: InvoicePayment[];
