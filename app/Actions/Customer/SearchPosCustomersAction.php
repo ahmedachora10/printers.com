@@ -30,10 +30,7 @@ class SearchPosCustomersAction
         $customers = Customer::query()
             ->where('branch_id', $branchId)
             ->where('is_active', true)
-            ->when($term !== '', fn ($q) => $q->where(function ($q) use ($term) {
-                $q->where('full_name', 'like', '%'.$term.'%')
-                    ->orWhere('phone', 'like', $term.'%');
-            }))
+            ->when($term !== '', fn ($q) => $q->matching($term))
             ->orderBy('full_name')
             ->limit($limit)
             // تاسك 93: دفتر العناوين يسافر مع البطاقة — تحميلٌ واحد لكل القائمة

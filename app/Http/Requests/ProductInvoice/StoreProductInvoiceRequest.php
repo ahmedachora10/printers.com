@@ -4,12 +4,19 @@ namespace App\Http\Requests\ProductInvoice;
 
 use App\Enums\InvoiceStatusEnum;
 use App\Models\Branch;
+use App\Models\Customer;
 use App\Models\PaymentMethod;
+use App\Rules\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class StoreProductInvoiceRequest extends FormRequest
 {
+    protected function prepareForValidation(): void
+    {
+        $this->merge(['walkin_phone' => Customer::normalizePhone($this->input('walkin_phone'))]);
+    }
+
     public function authorize(): bool
     {
         return true;
@@ -22,7 +29,7 @@ class StoreProductInvoiceRequest extends FormRequest
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'agent_id' => ['nullable', 'integer', 'exists:users,id'],
             'walkin_name' => ['nullable', 'string', 'max:255'],
-            'walkin_phone' => ['nullable', 'string', 'max:30'],
+            'walkin_phone' => ['nullable', new PhoneNumber],
             'coupon_code' => ['nullable', 'string', 'max:100'],
             'redeem_points' => ['nullable', 'integer', 'min:0'],
             // طريقة الدفع إلزامية على كل فاتورة، مدفوعةً كانت أو آجلة: فاتورةٌ

@@ -359,6 +359,19 @@ describe('Service POS', function () {
         expect(ServiceInvoice::firstOrFail()->customer_id)->not->toBeNull();
     });
 
+    it('links a walk-in phone typed with spaces or +966 to the existing customer', function () {
+        $existing = Customer::factory()->create(['branch_id' => $this->branch->id, 'phone' => '0551728069']);
+
+        $this->post(route('pos.service.store'), svcPayload(['walkin_phone' => '+966 55 172 8069']))
+            ->assertSessionHasNoErrors();
+
+        expect(ServiceInvoice::firstOrFail()->customer_id)->toBe($existing->id)
+            ->and(Customer::count())->toBe(1);
+
+        $this->post(route('pos.service.store'), svcPayload(['walkin_phone' => '0112345678']))
+            ->assertSessionHasErrors('walkin_phone');
+    });
+
     it('saves the walk-in tax number on the created customer', function () {
         $this->post(route('pos.service.store'), svcPayload([
             'walkin_name' => 'زائر الناسخ',

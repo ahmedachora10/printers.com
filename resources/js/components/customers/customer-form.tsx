@@ -72,7 +72,7 @@ export default function CustomerForm({ customer, submitUrl, method, submitLabel,
                         id="phone"
                         value={data.phone}
                         onChange={(e) => setData('phone', e.target.value)}
-                        placeholder="05XXXXXXXX"
+                        placeholder="05XXXXXXXX أو +رمز الدولة"
                         dir="ltr"
                     />
                     {errors.phone && (
