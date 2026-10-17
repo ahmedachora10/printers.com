@@ -76,9 +76,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 
-Route::get('/', function () {
-    return Inertia::render('welcome');
-})->name('home');
+Route::redirect('/', '/dashboard')->name('home');
 
 Route::match(['get', 'post'], 'deploy', DeployController::class)
     ->withoutMiddleware([ValidateCsrfToken::class])
