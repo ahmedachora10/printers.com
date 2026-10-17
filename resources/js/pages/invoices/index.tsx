@@ -313,6 +313,8 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'invoiceNumber',
                 header: 'رقم الفاتورة',
+                // تاسك 184: SINV-016-01760 ينكسر عند الشرطات فيلتفّ على 3 أسطر حين يضيق العمود.
+                className: 'whitespace-nowrap',
                 cell: (item) => (
                     <span className="inline-flex items-center gap-1.5">
                         <Link href={`/invoices/${item.type}/${item.id}`} className="text-foreground font-medium hover:underline" dir="ltr">
@@ -377,7 +379,8 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 header: 'العميل',
                 cell: (item) => (
                     <div className="group flex items-start justify-start gap-1.5">
-                        <div className="min-w-0">
+                        {/* تاسك 184: عرضٌ أقصى + كسرٌ داخل الكلمة — اسمٌ طويل بلا مسافات يلتفّ بدل أن يمدّ العمود. */}
+                        <div className="min-w-0 [overflow-wrap:anywhere] md:max-w-44">
                             {item.customerName ? <span>{item.customerName}</span> : <span className="text-muted-foreground">عميل نقدي</span>}
                             {item.customerPhone && (
                                 <div className="text-muted-foreground text-xs" dir="ltr">

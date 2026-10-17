@@ -8,6 +8,7 @@ import agentCommissions from '@/routes/users/agent-commissions';
 import { type LineAgentCommissionType } from '@/types/pos';
 import { type ManagedUser } from '@/types/user';
 import { useForm } from '@inertiajs/react';
+import { Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface AgentServiceCommission {
@@ -38,6 +39,7 @@ export default function AgentServiceCommissionsModal({ user, open, onOpenChange 
     const [terms, setTerms] = useState<Record<number, Term>>({});
     const [selected, setSelected] = useState<Set<number>>(() => new Set());
     const [bulk, setBulk] = useState<Term>({ type: 'percentage', value: '' });
+    const [search, setSearch] = useState('');
     const { transform, put, processing, errors } = useForm({});
 
     useEffect(() => {
@@ -46,6 +48,7 @@ export default function AgentServiceCommissionsModal({ user, open, onOpenChange 
         let cancelled = false;
         setServices(null);
         setSelected(new Set());
+        setSearch('');
 
         fetch(agentCommissions.show(user.id).url, { headers: { Accept: 'application/json' } })
             .then((res) => res.json())
@@ -66,7 +69,11 @@ export default function AgentServiceCommissionsModal({ user, open, onOpenChange 
 
     const rows = services ?? [];
     const multiBranch = new Set(rows.map((s) => s.branchName)).size > 1;
-    const allSelected = rows.length > 0 && selected.size === rows.length;
+    // تاسك 188: التحديد والتطبيق الجماعي على الظاهر وحده؛ الحفظ يرسل كل الخدمات.
+    const term = search.trim().toLowerCase();
+    const visible = term ? rows.filter((s) => s.serviceName.toLowerCase().includes(term)) : rows;
+    const selectedRows = visible.filter((s) => selected.has(s.branchServiceId));
+    const allSelected = visible.length > 0 && selectedRows.length === visible.length;
 
     function setTerm(id: number, patch: Partial<Term>) {
         setTerms((prev) => ({ ...prev, [id]: { ...prev[id], ...patch } }));
@@ -86,8 +93,6 @@ export default function AgentServiceCommissionsModal({ user, open, onOpenChange 
         const eligible = targets.filter((s) => term.type !== 'per_sqm' || s.measured);
         setTerms((prev) => ({ ...prev, ...Object.fromEntries(eligible.map((s) => [s.branchServiceId, term])) }));
     }
-
-    const selectedRows = () => rows.filter((s) => selected.has(s.branchServiceId));
 
     function handleSave() {
         if (!user) return;
@@ -127,15 +132,20 @@ export default function AgentServiceCommissionsModal({ user, open, onOpenChange 
                     <p className="text-muted-foreground py-8 text-center text-sm">لا توجد خدمات نشطة في فروع هذا المندوب.</p>
                 ) : (
                     <>
+                        <div className="relative">
+                            <Search className="text-muted-foreground pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2" />
+                            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث باسم الخدمة..." className="pe-9" />
+                        </div>
+
                         <div className="bg-muted/60 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2">
                             <div className="flex items-center gap-2">
                                 <Checkbox
                                     id="agent-comm-select-all"
-                                    checked={allSelected ? true : selected.size > 0 ? 'indeterminate' : false}
-                                    onCheckedChange={(c) => setSelected(c === true ? new Set(rows.map((s) => s.branchServiceId)) : new Set())}
+                                    checked={allSelected ? true : selectedRows.length > 0 ? 'indeterminate' : false}
+                                    onCheckedChange={(c) => setSelected(c === true ? new Set(visible.map((s) => s.branchServiceId)) : new Set())}
                                 />
                                 <Label htmlFor="agent-comm-select-all" className="cursor-pointer text-xs whitespace-nowrap">
-                                    {selected.size > 0 ? `محدَّد ${selected.size} من ${rows.length}` : 'تحديد الكل'}
+                                    {selectedRows.length > 0 ? `محدَّد ${selectedRows.length} من ${visible.length}` : 'تحديد الكل'}
                                 </Label>
                             </div>
                             <AgentCommissionTypeSelect value={bulk.type} measured onChange={(type) => setBulk((b) => ({ ...b, type }))} />
@@ -151,29 +161,30 @@ export default function AgentServiceCommissionsModal({ user, open, onOpenChange 
                                 dir="ltr"
                                 aria-label="قيمة العمولة للتطبيق الجماعي"
                             />
-                            <Button type="button" size="sm" variant="secondary" onClick={() => apply(rows, bulk)}>
+                            <Button type="button" size="sm" variant="secondary" onClick={() => apply(visible, bulk)}>
                                 طبّق على الكل
                             </Button>
-                            <Button type="button" size="sm" variant="secondary" disabled={selected.size === 0} onClick={() => apply(selectedRows(), bulk)}>
+                            <Button type="button" size="sm" variant="secondary" disabled={selectedRows.length === 0} onClick={() => apply(selectedRows, bulk)}>
                                 طبّق على المحدَّد
                             </Button>
                             <Button
                                 type="button"
                                 size="sm"
                                 variant="ghost"
-                                disabled={selected.size === 0}
-                                onClick={() => apply(selectedRows(), { type: '', value: '' })}
+                                disabled={selectedRows.length === 0}
+                                onClick={() => apply(selectedRows, { type: '', value: '' })}
                             >
                                 تفريغ المحدَّد
                             </Button>
                         </div>
 
                         <div className="flex-1 space-y-2 overflow-y-auto py-2 pe-1">
-                            {rows.map((s, i) => {
+                            {visible.length === 0 && <p className="text-muted-foreground py-6 text-center text-sm">لا خدمة مطابقة للبحث</p>}
+                            {visible.map((s, i) => {
                                 const t = terms[s.branchServiceId] ?? { type: '', value: '' };
                                 return (
                                     <div key={s.branchServiceId}>
-                                        {multiBranch && s.branchName !== rows[i - 1]?.branchName && (
+                                        {multiBranch && s.branchName !== visible[i - 1]?.branchName && (
                                             <p className="text-muted-foreground mt-3 mb-1 text-xs font-semibold">{s.branchName}</p>
                                         )}
                                         <div className="bg-muted/40 flex flex-wrap items-center justify-between gap-2 rounded-lg px-3 py-2">

@@ -13,7 +13,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Expense, type PaginatedExpense } from '@/types/expense';
 import { Link, router, usePage } from '@inertiajs/react';
-import { Check, CheckCheck, CheckCircle2, FileArchive, Paperclip, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react';
+import { Check, CheckCheck, CheckCircle2, Eye, FileArchive, Paperclip, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'المصروفات', href: '/expenses' }];
@@ -222,11 +222,10 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                                 <Undo2 className="h-3.5 w-3.5" />
                             </Button>
                         )}
-                        {item.canUpdate && (
-                            <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
-                                <Pencil className="h-3.5 w-3.5" />
-                            </Button>
-                        )}
+                        {/* تاسك 186: بلا صلاحية تعديل ⇒ «عرض» يفتح النافذة نفسها للقراءة فقط. */}
+                        <Button variant="outline" size="sm" title={item.canUpdate ? 'تعديل' : 'عرض'} onClick={() => openEdit(item)}>
+                            {item.canUpdate ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                        </Button>
                         {item.canDelete && (
                             <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleting(item)}>
                                 <Trash2 className="h-3.5 w-3.5" />

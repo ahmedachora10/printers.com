@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import serviceCommissions from '@/routes/users/service-commissions';
 import { type UserServiceCommission } from '@/types/user';
 import { useForm } from '@inertiajs/react';
-import { Percent } from 'lucide-react';
+import { Percent, Search } from 'lucide-react';
 import { useState } from 'react';
 
 interface Props {
@@ -29,10 +29,16 @@ export default function UserServiceCommissionsCard({ userId, canEdit, services, 
     // تاسك 84: التحديد الجماعي — حالةُ عرضٍ خالصة لا تُرسل إلى الخادم أصلاً.
     const [selected, setSelected] = useState<Set<number>>(() => new Set());
     const [bulkRate, setBulkRate] = useState('');
+    const [search, setSearch] = useState('');
     const { transform, put, processing } = useForm({});
 
-    const allSelected = services.length > 0 && selected.size === services.length;
-    const someSelected = selected.size > 0 && !allSelected;
+    // تاسك 188: التحديد والتطبيق الجماعي على الظاهر وحده — وإلا طُبِّق على ما لا يراه المستخدم.
+    // الحفظ يبقى يرسل كل الخدمات فلا يضيع ما خارج البحث.
+    const term = search.trim().toLowerCase();
+    const visible = term ? services.filter((s) => s.serviceName.toLowerCase().includes(term)) : services;
+    const selectedIds = visible.map((s) => s.branchServiceId).filter((id) => selected.has(id));
+    const allSelected = visible.length > 0 && selectedIds.length === visible.length;
+    const someSelected = selectedIds.length > 0 && !allSelected;
 
     function toggleRow(branchServiceId: number, checked: boolean) {
         setSelected((prev) => {
@@ -44,7 +50,7 @@ export default function UserServiceCommissionsCard({ userId, canEdit, services, 
     }
 
     function toggleAll(checked: boolean) {
-        setSelected(checked ? new Set(services.map((s) => s.branchServiceId)) : new Set());
+        setSelected(checked ? new Set(visible.map((s) => s.branchServiceId)) : new Set());
     }
 
     /**
@@ -57,8 +63,6 @@ export default function UserServiceCommissionsCard({ userId, canEdit, services, 
 
         setRates((prev) => ({ ...prev, ...Object.fromEntries(ids.map((id) => [id, value])) }));
     }
-
-    const selectedIds = () => services.map((s) => s.branchServiceId).filter((id) => selected.has(id));
 
     function handleSave() {
         transform(() => ({
@@ -95,6 +99,11 @@ export default function UserServiceCommissionsCard({ userId, canEdit, services, 
                     <>
                         <p className="text-muted-foreground mb-3 text-xs">النسبة الخاصة بهذا الموظف لكل خدمة. الخدمة بدون نسبة تعني عمولة 0%.</p>
 
+                        <div className="relative mb-3">
+                            <Search className="text-muted-foreground pointer-events-none absolute end-3 top-1/2 size-4 -translate-y-1/2" />
+                            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="ابحث باسم الخدمة..." className="pe-9" />
+                        </div>
+
                         {canEdit && (
                             <div className="bg-muted/60 mb-3 flex flex-wrap items-center gap-2 rounded-lg px-3 py-2">
                                 <div className="flex items-center gap-2">
@@ -105,7 +114,7 @@ export default function UserServiceCommissionsCard({ userId, canEdit, services, 
                                         className="data-[state=indeterminate]:bg-primary/50 data-[state=indeterminate]:text-primary-foreground"
                                     />
                                     <Label htmlFor="svc-comm-select-all" className="cursor-pointer text-xs whitespace-nowrap">
-                                        {selected.size > 0 ? `محدَّد ${selected.size} من ${services.length}` : 'تحديد الكل'}
+                                        {selectedIds.length > 0 ? `محدَّد ${selectedIds.length} من ${visible.length}` : 'تحديد الكل'}
                                     </Label>
                                 </div>
 
@@ -132,7 +141,7 @@ export default function UserServiceCommissionsCard({ userId, canEdit, services, 
                                         variant="secondary"
                                         onClick={() =>
                                             applyRate(
-                                                services.map((s) => s.branchServiceId),
+                                                visible.map((s) => s.branchServiceId),
                                                 bulkRate.trim(),
                                             )
                                         }
@@ -143,8 +152,8 @@ export default function UserServiceCommissionsCard({ userId, canEdit, services, 
                                         type="button"
                                         size="sm"
                                         variant="secondary"
-                                        disabled={selected.size === 0}
-                                        onClick={() => applyRate(selectedIds(), bulkRate.trim())}
+                                        disabled={selectedIds.length === 0}
+                                        onClick={() => applyRate(selectedIds, bulkRate.trim())}
                                     >
                                         طبّق على المحدَّد
                                     </Button>
@@ -152,8 +161,8 @@ export default function UserServiceCommissionsCard({ userId, canEdit, services, 
                                         type="button"
                                         size="sm"
                                         variant="ghost"
-                                        disabled={selected.size === 0}
-                                        onClick={() => applyRate(selectedIds(), '')}
+                                        disabled={selectedIds.length === 0}
+                                        onClick={() => applyRate(selectedIds, '')}
                                     >
                                         تفريغ المحدَّد
                                     </Button>
@@ -162,7 +171,8 @@ export default function UserServiceCommissionsCard({ userId, canEdit, services, 
                         )}
 
                         <div className="space-y-2">
-                            {services.map((s) => (
+                            {visible.length === 0 && <p className="text-muted-foreground py-6 text-center text-sm">لا خدمة مطابقة للبحث</p>}
+                            {visible.map((s) => (
                                 <div key={s.branchServiceId} className="bg-muted/40 flex items-center justify-between gap-3 rounded-lg px-3 py-2">
                                     <div className="flex min-w-0 items-center gap-2">
                                         {canEdit && (
