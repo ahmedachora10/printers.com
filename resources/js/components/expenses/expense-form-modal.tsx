@@ -337,15 +337,11 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                         <div className="space-y-1">
                             <Label htmlFor="exp-attachment">المرفق</Label>
                             {readOnly ? (
-                                <p className="py-2 text-sm">
-                                    {expense.attachmentUrl ? (
-                                        <a href={expense.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                                            عرض المرفق
-                                        </a>
-                                    ) : (
-                                        <span className="text-muted-foreground">—</span>
-                                    )}
-                                </p>
+                                expense.attachmentUrl && (
+                                    <a href={expense.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary block py-2 text-sm hover:underline">
+                                        عرض المرفق
+                                    </a>
+                                )
                             ) : (
                                 <Input
                                     id="exp-attachment"
