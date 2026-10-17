@@ -2,7 +2,6 @@
 
 namespace App\Actions\Report;
 
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Inertia\Inertia;
@@ -50,8 +49,7 @@ class ResolveReportScope
             ? Carbon::parse($request->input('to'))->endOfDay()
             : Carbon::today()->endOfDay();
 
-        $floor = self::minDate($actor);
-        if ($floor) {
+        if ($floor = $actor->roleName?->isAccountant() ? Carbon::today()->subDays(90) : null) {
             $from = $from->max($floor);
             $to = $to->max($from->copy()->endOfDay());
         }
@@ -65,11 +63,5 @@ class ResolveReportScope
             'from' => $from,
             'to' => $to,
         ];
-    }
-
-    /** أقدم يومٍ يبلغه المستخدم في التقارير، أو null بلا حدّ (تاسك 189). */
-    private static function minDate(User $user): ?Carbon
-    {
-        return $user->roleName?->isAccountant() ? Carbon::today()->subDays(90) : null;
     }
 }

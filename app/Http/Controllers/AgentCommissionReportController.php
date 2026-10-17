@@ -23,7 +23,7 @@ use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * What each مندوب earned, for the people who owe it to them — the branch admin
- * and the accountant. The agent portal answers the same question for the agent;
+ * (task 189 took the accountant out). The agent portal answers the same question for the agent;
  * this is the other side of that counter.
  *
  * Money is read exactly where the payment run reads it (GenerateAgentPaymentAction):
