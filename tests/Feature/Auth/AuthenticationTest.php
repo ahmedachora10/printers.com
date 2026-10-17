@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Branch;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 
@@ -111,7 +112,7 @@ describe('Deactivated accounts', function () {
     });
 
     test('a user deactivated mid-session is logged out on the next request', function () {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['branch_id' => Branch::factory()]);
 
         $this->actingAs($user)->get('/dashboard')->assertOk();
 
@@ -126,7 +127,7 @@ describe('Deactivated accounts', function () {
     });
 
     test('an active user is not affected by the active-account check', function () {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['branch_id' => Branch::factory()]);
 
         $this->actingAs($user)->get('/dashboard')->assertOk();
         $this->assertAuthenticated();

@@ -137,6 +137,15 @@ describe('Daily Report', function () {
             ->assertInertia(fn ($page) => $page->where('isSuperAdmin', false));
     });
 
+    it('forbids a branch admin with no branch yet instead of showing every branch', function () {
+        $unassigned = User::factory()->create();
+        $unassigned->addRole(Roles::BRANCH_ADMIN->value);
+
+        $this->actingAs($unassigned)
+            ->get(route('reports.daily'))
+            ->assertForbidden();
+    });
+
     it('forbids an employee from viewing the report', function () {
         $employee = User::factory()->create(['branch_id' => $this->branch->id]);
         $employee->addRole(Roles::EMPLOYEE->value);

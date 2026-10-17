@@ -29,6 +29,8 @@ class ResolveReportScope
     {
         $actor = $request->user();
         $isSuper = $actor->roleName?->isSuperAdmin() ?? false;
+        // بلا فرعٍ لا نطاق له: branchIds الفارغة تعني «كل الفروع»، فلا تُعطى لغير السوبر أدمن.
+        abort_if(! $isSuper && ! $actor->branchId, 403);
         // غير السوبر أدمن مثبَّتٌ على فرعه مهما أرسل.
         $branchIds = $isSuper
             ? array_values(array_unique(array_map('intval', array_filter(
