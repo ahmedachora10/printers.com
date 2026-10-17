@@ -68,6 +68,8 @@ function todayIso(): string {
 
 export default function ExpenseFormModal({ open, onOpenChange, expense, categories, branches, defaults, isRequest = false }: Props) {
     const isEdit = !!expense;
+    // تاسك 186: من لا يملك التعديل (المحاسب بعد الاعتماد، تسوية التوصيل…) يرى التفاصيل للقراءة فقط.
+    const readOnly = isEdit && !expense.canUpdate;
     const isSuperAdmin = Array.isArray(branches);
     // تاسك 135: التاريخ القديم لمدير الفرع ومدير النظام فقط (والتاريخ الحالي للمصروف يبقى).
     const { role } = usePage<SharedData>().props.auth;
@@ -156,11 +158,12 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-xl">
                 <DialogHeader>
-                    <DialogTitle>{isEdit ? 'تعديل مصروف' : isRequest ? 'طلب تسجيل مصروف' : 'تسجيل مصروف'}</DialogTitle>
+                    <DialogTitle>{readOnly ? 'تفاصيل المصروف' : isEdit ? 'تعديل مصروف' : isRequest ? 'طلب تسجيل مصروف' : 'تسجيل مصروف'}</DialogTitle>
                     {isRequest && <p className="text-muted-foreground text-sm">يُرسل الطلب إلى المحاسب، ولا يُحتسب المصروف حتى يقبله.</p>}
                 </DialogHeader>
 
-                <form id="expense-form" onSubmit={handleSubmit} className="space-y-4 py-2">
+                <form id="expense-form" onSubmit={handleSubmit}>
+                    <fieldset disabled={readOnly} className="min-w-0 space-y-4 py-2">
                     {isSuperAdmin && (
                         <div className="space-y-1">
                             <Label htmlFor="exp-branch">الفرع</Label>
@@ -333,12 +336,20 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
 
                         <div className="space-y-1">
                             <Label htmlFor="exp-attachment">المرفق</Label>
-                            <Input
-                                id="exp-attachment"
-                                type="file"
-                                accept="image/jpeg,image/png,image/webp,application/pdf"
-                                onChange={(e) => setData('attachment', e.target.files?.[0] ?? null)}
-                            />
+                            {readOnly ? (
+                                expense.attachmentUrl && (
+                                    <a href={expense.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary block py-2 text-sm hover:underline">
+                                        عرض المرفق
+                                    </a>
+                                )
+                            ) : (
+                                <Input
+                                    id="exp-attachment"
+                                    type="file"
+                                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                                    onChange={(e) => setData('attachment', e.target.files?.[0] ?? null)}
+                                />
+                            )}
                             <InputError message={errors.attachment} />
                         </div>
                     </div>
@@ -355,6 +366,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                         />
                         <InputError message={errors.comment} />
                     </div>
+                    </fieldset>
                     {/* تاسك 113: تعديلات ما بعد الاعتماد — القديم ⇒ الجديد، من ومتى. */}
                     {expense && expense.history.length > 0 && (
                         <div className="space-y-2 border-t pt-3">
@@ -382,11 +394,13 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                         onClick={() => onOpenChange(false)}
                         disabled={processing}
                     >
-                        إلغاء
+                        {readOnly ? 'إغلاق' : 'إلغاء'}
                     </Button>
-                    <Button type="submit" form="expense-form" disabled={processing}>
-                        {processing ? 'جاري الحفظ...' : isEdit ? 'حفظ التعديلات' : 'تسجيل'}
-                    </Button>
+                    {!readOnly && (
+                        <Button type="submit" form="expense-form" disabled={processing}>
+                            {processing ? 'جاري الحفظ...' : isEdit ? 'حفظ التعديلات' : 'تسجيل'}
+                        </Button>
+                    )}
                 </DialogFooter>
             </DialogContent>
         </Dialog>
