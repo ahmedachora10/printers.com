@@ -239,4 +239,31 @@ describe('Commission System', function () {
 
         expect(CommissionPayment::query()->count())->toBe(0);
     });
+
+    // ── PAYMENT LOG FILTERS (task 183) ─────────────────────────────
+
+    it('filters the payment log by employee and paid date, independent of month', function () {
+        $other = User::factory()->create(['branch_id' => $this->branch->id]);
+        $recent = CommissionPayment::factory()->create([
+            'user_id' => $this->employee->id, 'branch_id' => $this->branch->id, 'paid_at' => now(),
+        ]);
+        $old = CommissionPayment::factory()->create([
+            'user_id' => $other->id, 'branch_id' => $this->branch->id, 'paid_at' => now()->subMonths(3),
+        ]);
+
+        $ids = fn (array $query) => collect($this->actingAs($this->branchAdmin)
+            ->get(route('commissions.index', $query))
+            ->assertOk()
+            ->inertiaProps('payments.data'))->pluck('id')->all();
+
+        expect($ids([]))->toEqualCanonicalizing([$recent->id, $old->id])
+            ->and($ids(['payments_user' => $other->id]))->toBe([$old->id])
+            ->and($ids(['payments_from' => now()->subMonth()->toDateString()]))->toBe([$recent->id])
+            ->and($ids(['payments_to' => now()->subMonth()->toDateString()]))->toBe([$old->id])
+            ->and($ids(['month' => now()->subYear()->format('Y-m')]))->toHaveCount(2);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('commissions.index'))
+            ->assertInertia(fn ($page) => $page->has('paymentEmployees', 2));
+    });
 });

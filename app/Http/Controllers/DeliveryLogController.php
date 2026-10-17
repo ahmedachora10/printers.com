@@ -98,13 +98,7 @@ class DeliveryLogController extends Controller
                 'statusLabel' => $shipment->invoice->status->label(),
                 'branchId' => $shipment->invoice->branch_id,
                 // تاسك 111 — تسوية أجر السائق، مستقلةٌ عن حالة سداد العميل أعلاه.
-                'settlement' => $shipment->settlement ? [
-                    'expenseId' => $shipment->settlement->id,
-                    'amount' => (float) $shipment->settlement->total,
-                    'paidFromLabel' => $shipment->settlement->paid_from->label(),
-                    'settledByName' => $shipment->settlement->user?->name,
-                    'settledAt' => $shipment->settlement->created_at?->toIso8601String(),
-                ] : null,
+                'settlement' => $shipment->settlementSummary(),
             ]),
             'byProvider' => $byProvider,
             // الجُمل مقروءةٌ من صفوف السائقين نفسها — استعلامٌ ثالثٌ يعيد جمع

@@ -1,3 +1,6 @@
+import { type DeliveryLogRow } from './delivery-log';
+import { type ReturnRequestItem } from './return-request';
+
 export type InvoiceType = 'product' | 'service';
 export type InvoiceStatus = 'paid' | 'partially_paid' | 'due' | 'cancelled' | 'returned';
 /** حالة موعد التسليم مقارنةً باليوم — تُحسب على الخادم (DeliveryStatusEnum). */
@@ -173,6 +176,8 @@ export interface Invoice {
         distanceKm: number | null;
         address: string | null;
         fee: number;
+        /** تاسك 190 — تسوية أجر السائق؛ تصل لمن يسوّي وحده (settleForm) */
+        settlement: DeliveryLogRow['settlement'];
     }[];
     /** توصيلٌ طُلب بعد اعتماد الفاتورة ولم يعتمده المحاسب — خارج الإجمالي. */
     pendingShipments: {
@@ -225,8 +230,8 @@ export interface Invoice {
     /** تعديل طريقة كل دفعة — لفاتورةٍ سُدّدت بدفعات (تاسك 99) */
     canEditPaymentRows: boolean;
     canReturn: boolean;
-    /** تاسك 135 — آخر طلب استرجاع للموظف على الفاتورة */
-    returnRequest: { status: 'pending' | 'completed' | 'rejected'; statusLabel: string; rejectionReason: string | null } | null;
+    /** تاسك 135 — آخر طلب استرجاع للموظف على الفاتورة (تاسك 185: يُعتمد منها) */
+    returnRequest: ReturnRequestItem | null;
     refunds?: InvoiceRefund[];
     branch: InvoiceBranch;
 }

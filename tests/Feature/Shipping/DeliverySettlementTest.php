@@ -160,4 +160,37 @@ describe('Delivery settlement', function () {
 
         expect(Expense::count())->toBe(0);
     });
+
+    it('settles from the invoice page and shows the settlement there (task 190)', function () {
+        $invoiceUrl = route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]);
+
+        $this->actingAs($this->accountant)
+            ->get($invoiceUrl)
+            ->assertInertia(fn ($page) => $page
+                ->where('settleForm.categories.0.id', $this->category->id)
+                ->where('invoice.shipments.0.settlement', null));
+
+        $this->from($invoiceUrl)
+            ->post(route('shipping.deliveries.settle', $this->shipment), [
+                'amount' => 25, 'paid_from' => 'cash_drawer', 'expense_category_id' => $this->category->id,
+            ])
+            ->assertRedirect($invoiceUrl);
+
+        expect(Expense::sole()->delivery_provider_id)->toBe($this->driver->id);
+
+        $this->get($invoiceUrl)
+            ->assertInertia(fn ($page) => $page->where('invoice.shipments.0.settlement.amount', 25));
+
+        // صاحب الفاتورة يراها بلا زرّ التسوية ولا مبلغها.
+        $employee = User::factory()->create(['branch_id' => $this->branch->id]);
+        $employee->addRole(Roles::EMPLOYEE->value);
+        $this->invoice->update(['user_id' => $employee->id]);
+
+        $this->actingAs($employee)
+            ->get($invoiceUrl)
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('settleForm', null)
+                ->where('invoice.shipments.0.settlement', null));
+    });
 });

@@ -4,6 +4,7 @@ namespace App\Http\Resources\Invoice;
 
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
+use App\Http\Resources\InvoiceReturnRequest\InvoiceReturnRequestResource;
 use App\Models\Expense;
 use App\Models\InvoicePayment;
 use App\Models\ProductInvoice;
@@ -177,6 +178,8 @@ class InvoiceResource extends JsonResource
                 'distanceKm' => $s->distance_km !== null ? (float) $s->distance_km : null,
                 'address' => $s->address,
                 'fee' => (float) $s->fee,
+                // تاسك 190: تُحمَّل لمن يسوّي أجر السائق وحده (InvoiceController::show).
+                'settlement' => $s->relationLoaded('settlement') ? $s->settlementSummary() : null,
             ])->values() : [],
             // توصيلٌ طُلب بعد اعتماد الفاتورة ولم يعتمده المحاسب — خارج الإجمالي.
             'pendingShipments' => $isServiceInvoice && $this->resource->relationLoaded('pendingShipments')
@@ -276,13 +279,10 @@ class InvoiceResource extends JsonResource
             'canEditCustomer' => $canEditCustomer,
             'canEditPaymentMethod' => $canEditPaymentMethod,
             'canReturn' => $canReturn,
-            // تاسك 135: آخر طلب استرجاع للموظف — شارة الحالة وسبب الرفض.
+            // تاسك 135: آخر طلب استرجاع للموظف — شارة الحالة وسبب الرفض؛
+            // وتاسك 185: بشكل صفّ «طلبات الاسترجاع» ليُعتمد من الفاتورة نفسها.
             'returnRequest' => $isServiceInvoice && ($returnRequest = $this->resource->returnRequests()->first())
-                ? [
-                    'status' => $returnRequest->status->value,
-                    'statusLabel' => $returnRequest->status->label(),
-                    'rejectionReason' => $returnRequest->rejection_reason,
-                ]
+                ? (new InvoiceReturnRequestResource($returnRequest->setRelation('invoice', $this->resource)))->resolve($request)
                 : null,
             'refunds' => $this->whenLoaded('refunds', fn () => $this->refunds
                 ->map(fn (Refund $refund) => [

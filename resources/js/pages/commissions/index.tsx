@@ -1,7 +1,7 @@
 import { AmountSortSelect, sortByAmount, type AmountSort } from '@/components/commissions/amount-sort-select';
 import CommissionPayModal from '@/components/commissions/commission-pay-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
-import { Badge } from '@/components/ui/badge';
+import { DateRangeFields, FilterSelect, type FilterOption } from '@/components/reports/filter-fields';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -28,10 +28,11 @@ interface Props {
     payments: PaginatedCommissionPayment;
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
-    filters: { branch?: string; month: string };
+    paymentEmployees: FilterOption[];
+    filters: { branch?: string; month: string; paymentsUser?: string; paymentsFrom?: string; paymentsTo?: string };
 }
 
-export default function CommissionsIndex({ employees, summary, payments, branches, isSuperAdmin, filters }: Props) {
+export default function CommissionsIndex({ employees, summary, payments, branches, isSuperAdmin, paymentEmployees, filters }: Props) {
     const [paying, setPaying] = useState<CommissionEmployeeRow | null>(null);
     const [payOpen, setPayOpen] = useState(false);
     const [sort, setSort] = useState<AmountSort>('name');
@@ -42,11 +43,19 @@ export default function CommissionsIndex({ employees, summary, payments, branche
         setPayOpen(true);
     }
 
-    function applyFilters(next: { branch?: string; month?: string }) {
-        const branch = next.branch ?? filters.branch;
+    // Every filter rides along so changing one keeps the others; the page resets to 1.
+    function applyFilters(next: Partial<Props['filters']>) {
+        const { branch, month, paymentsUser, paymentsFrom, paymentsTo } = { ...filters, ...next };
+        const keep = (value?: string) => (value && value !== 'all' ? value : undefined);
         router.get(
             commissions.index().url,
-            { ...(branch && branch !== 'all' && { branch }), month: next.month ?? filters.month },
+            {
+                branch: keep(branch),
+                month,
+                payments_user: keep(paymentsUser),
+                payments_from: keep(paymentsFrom),
+                payments_to: keep(paymentsTo),
+            },
             { preserveState: true, replace: true },
         );
     }
@@ -245,8 +254,26 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                 </Card>
 
                 <Card>
-                    <CardHeader>
+                    <CardHeader className="space-y-4">
                         <CardTitle>سجل صرف العمولات</CardTitle>
+                        <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-3">
+                            <FilterSelect
+                                label="الموظف"
+                                allLabel="كل الموظفين"
+                                searchable
+                                value={filters.paymentsUser ?? 'all'}
+                                onChange={(paymentsUser) => applyFilters({ paymentsUser })}
+                                options={paymentEmployees}
+                            />
+                            <DateRangeFields
+                                fromLabel="تاريخ الصرف من"
+                                toLabel="إلى"
+                                from={filters.paymentsFrom ?? ''}
+                                to={filters.paymentsTo ?? ''}
+                                onFromChange={(paymentsFrom) => applyFilters({ paymentsFrom })}
+                                onToChange={(paymentsTo) => applyFilters({ paymentsTo })}
+                            />
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <DataTable

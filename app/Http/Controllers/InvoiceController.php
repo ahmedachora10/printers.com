@@ -275,6 +275,12 @@ class InvoiceController extends Controller
             'payments' => fn ($q) => $q->with(['paymentMethod:id,name', 'recordedBy:id,name', 'media'])->oldest('paid_at'),
         ]);
 
+        // تاسك 190: «تسليم مبلغ التوصيل» من الفاتورة — كما في كشف التوصيل، الذي
+        // لا يعرض الملغاة والمرتجعة.
+        $canSettleDeliveries = $invoice instanceof ServiceInvoice
+            && ! in_array($invoice->status, [InvoiceStatusEnum::CANCELLED, InvoiceStatusEnum::RETURNED], true)
+            && Gate::allows('settle', [DeliveryProvider::class, $invoice->branch_id]);
+
         // Product invoices carry a single agent on the row; service invoices list
         // several via the pivot, plus the per-line commission owners.
         if ($invoice instanceof ServiceInvoice) {
@@ -284,6 +290,10 @@ class InvoiceController extends Controller
             // متداخل (`lines.lineAgent`) يُعيد استعلام `lines` من أوّله.
             $invoice->lines->loadMissing('lineAgent:id,name');
             $invoice->load('helpers.user:id,name');
+
+            if ($canSettleDeliveries) {
+                $invoice->shipments->load('settlement.user:id,name');
+            }
 
             // تاسك 112: المصروفات المربوطة — لمن يدير المصروفات (لا المندوب).
             // تاسك 157: والموظف صاحب الفاتورة يرى طلباته هو وحدها.
@@ -338,6 +348,9 @@ class InvoiceController extends Controller
                         ? [['id' => $invoice->branch_id, 'name' => $invoice->branch?->name]]
                         : null,
                 ]
+                : null,
+            'settleForm' => $canSettleDeliveries
+                ? fn () => ['categories' => ExpenseCategory::activeOptionsFor($invoice->branch_id)]
                 : null,
             // توصيلٌ بعد اعتماد الفاتورة: سائقو الفرع وشرائحه ودفتر عناوين العميل.
             'shipmentForm' => $invoice instanceof ServiceInvoice && Gate::allows('requestShipment', $invoice)

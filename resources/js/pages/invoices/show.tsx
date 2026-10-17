@@ -10,6 +10,8 @@ import RecordPaymentModal, { type PaymentMethodOption } from '@/components/invoi
 import ExpenseFormModal from '@/components/expenses/expense-form-modal';
 import { PendingShipments, ShipmentRequestDialog, type ShipmentRequestForm } from '@/components/invoices/shipment-requests';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
+import { CancelSettlementDialog, SettleDeliveryDialog, type SettleTarget } from '@/components/shipping/settle-dialogs';
+import ReturnRequestDialogs from '@/components/refunds/return-request-dialogs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,7 +33,7 @@ import posService from '@/routes/pos/service';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice, type InvoiceThread as InvoiceThreadData, type InvoicePayment, type PaymentMethodChange } from '@/types/invoice';
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/react';
-import { BadgePercent, Ban, Bike, CheckCircle2, ChevronLeft, ChevronRight, Coins, CreditCard, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet } from 'lucide-react';
+import { BadgePercent, Ban, Bike, Check, CheckCircle2, ChevronLeft, ChevronRight, Coins, CreditCard, HandCoins, PackageCheck, Paperclip, Pencil, Printer, ReceiptText, Undo2, UserPen, Wallet, X } from 'lucide-react';
 import { type ComponentProps, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -46,6 +48,8 @@ interface Props {
     expenseForm: Pick<ComponentProps<typeof ExpenseFormModal>, 'categories' | 'branches' | 'isRequest'> | null;
     /** توصيلٌ بعد اعتماد الفاتورة — لمن يملك طلبه. */
     shipmentForm: ShipmentRequestForm | null;
+    /** تاسك 190: لمن يسوّي أجر السائق — فئات مصروف التسوية في فرع الفاتورة. */
+    settleForm: { categories: { id: number; name: string }[] } | null;
     thread?: InvoiceThreadData | null;
 }
 
@@ -130,7 +134,7 @@ function TotalRow({ label, value, strong = false }: { label: string; value: stri
     );
 }
 
-export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory, hasThread, thread, neighbours, expenseForm, shipmentForm }: Props) {
+export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMethodHistory, hasThread, thread, neighbours, expenseForm, shipmentForm, settleForm }: Props) {
     const { props } = usePage<SharedData>();
     // تاسك 125: مراجع الحسابات يطّلع على الشاشة ولا يطبع — ومسارات الطباعة خارج مجموعته.
     const canPrint = props.auth.role !== 'auditor';
@@ -145,6 +149,10 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     const [returnOpen, setReturnOpen] = useState(false);
     const [returnReason, setReturnReason] = useState('');
     const [returning, setReturning] = useState(false);
+    // تاسك 185: قرار طلب الاسترجاع من الفاتورة نفسها.
+    const [returnDecision, setReturnDecision] = useState<'approve' | 'reject' | null>(null);
+    // تاسك 190: تسوية أجر سائق طلبٍ من الفاتورة، أو إلغاؤها.
+    const [settlement, setSettlement] = useState<{ target: SettleTarget; cancel: boolean } | null>(null);
     const [deliverOpen, setDeliverOpen] = useState(false);
     const [delivering, setDelivering] = useState(false);
     // بيانات العميل وطريقة الدفع: ما يملك المحاسب تصحيحه على فاتورة الموظف —
@@ -473,6 +481,28 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                             </Button>
                                         ),
                                 )}
+                                {/* تاسك 190: بعد «بيان توصيل» وقبل «إيصال حراري» — كزرّ كشف التوصيل. */}
+                                {settleForm &&
+                                    invoice.shipments.map((shipment, i) => {
+                                        if (!shipment.providerName) return null;
+                                        const target = { ...shipment, invoiceNumber: invoice.invoiceNumber, shippingFee: shipment.fee };
+                                        const suffix = invoice.shipments.length > 1 ? ` ${i + 1}` : '';
+                                        return shipment.settlement ? (
+                                            <Button
+                                                key={`settle-${shipment.id}`}
+                                                variant="outline"
+                                                className="text-green-700"
+                                                title={`${shipment.settlement.paidFromLabel} — ${shipment.settlement.settledByName ?? '—'} · اضغط لإلغاء التسوية`}
+                                                onClick={() => setSettlement({ target, cancel: true })}
+                                            >
+                                                <HandCoins className="size-4" /> مسوّاة{suffix} — {formatCurrency(shipment.settlement.amount)}
+                                            </Button>
+                                        ) : (
+                                            <Button key={`settle-${shipment.id}`} variant="outline" onClick={() => setSettlement({ target, cancel: false })}>
+                                                <HandCoins className="size-4" /> تسليم مبلغ التوصيل{suffix}
+                                            </Button>
+                                        );
+                                    })}
                                 <Button variant="outline" asChild>
                                     <a href={`${printBase}?format=thermal`} target="_blank" rel="noreferrer">
                                         <ReceiptText className="size-4" /> إيصال حراري
@@ -482,6 +512,17 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                     <a href={`${printBase}?format=a4`} target="_blank" rel="noreferrer">
                                         <Printer className="size-4" /> طباعة A4
                                     </a>
+                                </Button>
+                            </>
+                        )}
+                        {/* تاسك 185: نفس زرّي صفّ «طلبات الاسترجاع». */}
+                        {invoice.returnRequest?.canDecide && (
+                            <>
+                                <Button className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setReturnDecision('approve')}>
+                                    <Check className="size-4" /> اعتماد طلب الاسترجاع
+                                </Button>
+                                <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setReturnDecision('reject')}>
+                                    <X className="size-4" /> رفض طلب الاسترجاع
                                 </Button>
                             </>
                         )}
@@ -954,6 +995,22 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                         service_invoice_id: String(invoice.id),
                         invoiceLabel: invoice.invoiceNumber,
                     }}
+                />
+            )}
+
+            {settlement && settleForm &&
+                (settlement.cancel ? (
+                    <CancelSettlementDialog row={settlement.target} onClose={() => setSettlement(null)} />
+                ) : (
+                    <SettleDeliveryDialog row={settlement.target} categories={settleForm.categories} onClose={() => setSettlement(null)} />
+                ))}
+
+            {invoice.returnRequest?.canDecide && (
+                <ReturnRequestDialogs
+                    approving={returnDecision === 'approve' ? invoice.returnRequest : null}
+                    rejecting={returnDecision === 'reject' ? invoice.returnRequest : null}
+                    paymentMethods={paymentMethodOptions}
+                    onClose={() => setReturnDecision(null)}
                 />
             )}
 

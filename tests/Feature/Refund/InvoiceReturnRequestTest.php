@@ -221,6 +221,28 @@ describe('طلبات الاسترجاع (تاسك 135)', function () {
                 ->where('items.data.0.canDecide', true));
     });
 
+    it('lets the accountant decide the request from the invoice page itself (task 185)', function () {
+        $request = raiseReturnRequest();
+        $invoiceUrl = route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]);
+
+        $this->actingAs($this->employee)
+            ->get($invoiceUrl)
+            ->assertInertia(fn ($page) => $page->where('invoice.returnRequest.canDecide', false));
+
+        $this->actingAs($this->accountant)
+            ->get($invoiceUrl)
+            ->assertInertia(fn ($page) => $page
+                ->where('invoice.returnRequest.id', $request->id)
+                ->where('invoice.returnRequest.amount', 1150)
+                ->where('invoice.returnRequest.canDecide', true));
+
+        $this->from($invoiceUrl)
+            ->post(route('refunds.requests.approve', $request), ['payment_method_id' => $this->method])
+            ->assertRedirect($invoiceUrl);
+
+        expect($request->refresh()->status->value)->toBe('completed');
+    });
+
     it('still returns an uncollected due invoice straight away', function () {
         $this->invoice->update(['status' => InvoiceStatusEnum::DUE, 'paid_at' => null]);
 

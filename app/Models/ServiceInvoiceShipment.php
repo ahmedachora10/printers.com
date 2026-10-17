@@ -84,4 +84,22 @@ class ServiceInvoiceShipment extends Model
     {
         return $this->hasOne(Expense::class)->whereNotNull('delivery_provider_id');
     }
+
+    /**
+     * شكل التسوية في كشف التوصيل وفي الفاتورة (تاسك 190) — null = غير مسوّاة.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function settlementSummary(): ?array
+    {
+        $settlement = $this->settlement;
+
+        return $settlement ? [
+            'expenseId' => $settlement->id,
+            'amount' => (float) $settlement->total,
+            'paidFromLabel' => $settlement->paid_from->label(),
+            'settledByName' => $settlement->user?->name,
+            'settledAt' => $settlement->created_at?->toIso8601String(),
+        ] : null;
+    }
 }
