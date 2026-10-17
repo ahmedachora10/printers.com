@@ -84,9 +84,26 @@ class CommissionController extends Controller
             })
             ->values();
 
-        $payments = CommissionPayment::query()
+        // The payment log has its own filters (task 183), apart from `month` which drives the table above.
+        $paymentsQuery = CommissionPayment::query()
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
+
+        $paymentEmployees = User::query()
+            ->withTrashed()
+            ->whereIn('id', (clone $paymentsQuery)->select('user_id'))
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (User $user) => ['value' => (string) $user->id, 'label' => $user->name]);
+
+        $isoDate = fn (string $key) => preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) $request->input($key))
+            ? $request->input($key)
+            : null;
+
+        $payments = $paymentsQuery
             ->with(['user', 'paidBy'])
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($request->integer('payments_user'), fn ($q, $userId) => $q->where('user_id', $userId))
+            ->when($isoDate('payments_from'), fn ($q, $from) => $q->whereDate('paid_at', '>=', $from))
+            ->when($isoDate('payments_to'), fn ($q, $to) => $q->whereDate('paid_at', '<=', $to))
             ->latest('paid_at')
             ->paginate(10)
             ->withQueryString();
@@ -105,9 +122,13 @@ class CommissionController extends Controller
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
             'isSuperAdmin' => $isSuper,
+            'paymentEmployees' => $paymentEmployees,
             'filters' => [
                 'branch' => $request->input('branch'),
                 'month' => $month,
+                'paymentsUser' => $request->input('payments_user'),
+                'paymentsFrom' => $isoDate('payments_from'),
+                'paymentsTo' => $isoDate('payments_to'),
             ],
         ]);
     }
