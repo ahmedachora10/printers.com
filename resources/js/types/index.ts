@@ -41,6 +41,8 @@ export interface SharedData {
     quote: { message: string; author: string };
     auth: Auth;
     notifications?: NotificationsShared;
+    /** تاسك 189 — أقدم يومٍ يبلغه المحاسب في التقارير (YYYY-MM-DD)؛ null لغيره، وغائبٌ خارج التقارير. */
+    reportMinDate?: string | null;
     [key: string]: unknown;
 }
 

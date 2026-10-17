@@ -4,6 +4,7 @@ namespace App\Actions\Report;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Inertia\Inertia;
 
 /**
  * Fold role restrictions into the raw request filters for any report.
@@ -19,6 +20,10 @@ use Illuminate\Support\Carbon;
  * تاسك 124: `branchIds` — قائمة الفروع المختارة (فارغة = كل الفروع)، يقرؤها تقرير
  * المبيعات ولوحة التحكم (تاسك 128). و`branchId` يبقى كما هو لبقيّة التقارير: الفرع حين يكون واحداً، وإلا null.
  * ponytail: branchIds في المبيعات ولوحة التحكم وحدهما؛ يُنقل إليه تقريرٌ آخر حين يُطلب له.
+ *
+ * تاسك 189: المحاسب لا يرى ما قبل آخر 90 يوماً — المدى يُقصّ إلى الحدّ بصمت، والحدّ
+ * يُشارَك للصفحة (`reportMinDate`) فيقيّد شريط التاريخ في كل تقريرٍ يمرّ من هنا وحده.
+ * ponytail: الحدّ ثابت 90 — إعدادٌ لكل فرع إن طُلب.
  */
 class ResolveReportScope
 {
@@ -37,16 +42,26 @@ class ResolveReportScope
             ))))
             : array_filter([$actor->branchId]);
 
+        $from = $request->filled('from')
+            ? Carbon::parse($request->input('from'))->startOfDay()
+            : Carbon::today()->startOfDay();
+        $to = $request->filled('to')
+            ? Carbon::parse($request->input('to'))->endOfDay()
+            : Carbon::today()->endOfDay();
+
+        if ($floor = $actor->roleName?->isAccountant() ? Carbon::today()->subDays(90) : null) {
+            $from = $from->max($floor);
+            $to = $to->max($from->copy()->endOfDay());
+        }
+        // يُكتب دائماً (null لغير المحاسب) فلا يبقى حدُّ طلبٍ سابق في المشاركة.
+        Inertia::share('reportMinDate', $floor?->toDateString());
+
         return [
             'isSuper' => $isSuper,
             'branchId' => count($branchIds) === 1 ? $branchIds[0] : null,
             'branchIds' => array_values($branchIds),
-            'from' => $request->filled('from')
-                ? Carbon::parse($request->input('from'))->startOfDay()
-                : Carbon::today()->startOfDay(),
-            'to' => $request->filled('to')
-                ? Carbon::parse($request->input('to'))->endOfDay()
-                : Carbon::today()->endOfDay(),
+            'from' => $from,
+            'to' => $to,
         ];
     }
 }

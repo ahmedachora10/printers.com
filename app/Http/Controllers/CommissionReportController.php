@@ -87,7 +87,7 @@ class CommissionReportController extends Controller
     /**
      * Resolve the effective filter scope, folding role restrictions into the
      * raw request filters. Employees are locked to their own rows; branch-admins
-     * and accountants to their own branch. Only super-admin may pick freely.
+     * and the auditor to their own branch. Only super-admin may pick freely.
      *
      * @return array{isSuper: bool, branchId: ?int, userId: ?int, forcedBranchId: bool, forcedUserId: bool, from: ?Carbon, to: ?Carbon, status: string}
      */

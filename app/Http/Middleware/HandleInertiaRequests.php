@@ -362,14 +362,14 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('reports.commissions'),
                 'icon' => 'FileText',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE, Roles::AUDITOR],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::EMPLOYEE, Roles::AUDITOR],
             ],
             [
                 'title' => 'عمولات المناديب',
                 'url' => route('reports.agent-commissions'),
                 'icon' => 'Handshake',
                 'group' => 'reports',
-                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::AUDITOR],
             ],
             [
                 'title' => 'تقرير المصروفات',

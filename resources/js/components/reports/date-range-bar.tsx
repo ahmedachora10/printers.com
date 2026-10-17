@@ -3,6 +3,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type UseReportFilters } from '@/hooks/use-report-filters';
 import { shiftDay } from '@/lib/utils';
+import { type SharedData } from '@/types';
+import { usePage } from '@inertiajs/react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 /** Local YYYY-MM-DD — never toISOString(), which shifts across the UTC boundary. */
@@ -88,6 +90,8 @@ interface Props {
  */
 export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKey = 'to' }: Props) {
     const go = (next: { from: string; to: string }) => filters.replaceMany({ [fromKey]: next.from, [toKey]: next.to });
+    // تاسك 189: الخادم يقصّ المدى للمحاسب ويُرسل الحدّ — هنا يُقيَّد الإدخال ويُنبَّه عليه فقط.
+    const minDate = usePage<SharedData>().props.reportMinDate;
 
     const isCurrent = (range: { from: string; to: string }) => range.from === from && range.to === to;
 
@@ -100,7 +104,7 @@ export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKe
             size="icon"
             className="size-9 shrink-0 sm:size-8"
             aria-label={dir < 0 ? 'الفترة السابقة' : 'الفترة التالية'}
-            disabled={dir > 0 && to >= iso(new Date())}
+            disabled={dir > 0 ? to >= iso(new Date()) : !!minDate && from <= minDate}
             onClick={() => go(step(from, to, dir))}
         >
             {dir < 0 ? <ChevronRight className="size-4" /> : <ChevronLeft className="size-4" />}
@@ -142,6 +146,7 @@ export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKe
                             id={`range-${fromKey}`}
                             type="date"
                             value={from}
+                            min={minDate ?? undefined}
                             max={to || undefined}
                             onChange={(e) => e.target.value && go({ from: e.target.value, to })}
                             className="h-9 w-full sm:h-8 sm:w-36"
@@ -167,6 +172,7 @@ export default function DateRangeBar({ filters, from, to, fromKey = 'from', toKe
                     </div>
                 </div>
             </div>
+            {minDate && from <= minDate && <p className="text-muted-foreground w-full text-xs">التقارير متاحة للمحاسب عن آخر 90 يوماً فقط.</p>}
         </div>
     );
 }

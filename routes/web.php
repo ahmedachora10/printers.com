@@ -217,12 +217,14 @@ Route::middleware(['auth'])->group(function () {
         Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
         Route::get('invoices/{type}/{id}', [InvoiceController::class, 'show'])
             ->whereIn('type', ['product', 'service'])->whereNumber('id')->name('invoices.show');
-
-        // Employee commission report (M18): managers see their branch; employees
-        // see only their own rows — scoping is enforced in the controller.
-        Route::get('reports/commissions', [CommissionReportController::class, 'index'])
-            ->name('reports.commissions');
     });
+
+    // Employee commission report (M18): managers see their branch; employees
+    // see only their own rows — scoping is enforced in the controller.
+    // تاسك 189: المحاسب خارجه بطلب العميل.
+    Route::get('reports/commissions', [CommissionReportController::class, 'index'])
+        ->middleware('role:branch-admin|super-admin|employee|auditor')
+        ->name('reports.commissions');
 
     Route::middleware('role:branch-admin|super-admin|accountant|auditor')->group(function () {
         // Due service-invoice review queue — an accountant or branch admin settles
@@ -247,8 +249,6 @@ Route::middleware(['auth'])->group(function () {
         Route::get('reports/expenses', [ExpenseReportController::class, 'index'])->name('reports.expenses');
         Route::get('reports/materials', [MaterialsReportController::class, 'index'])->name('reports.materials');
         Route::get('reports/network', [NetworkReportController::class, 'index'])->name('reports.network');
-        Route::get('reports/agent-commissions', [AgentCommissionReportController::class, 'index'])
-            ->name('reports.agent-commissions');
 
         // Advanced analytics (M25): Recharts dashboards over paid invoices and
         // loyalty activity, same audience and scoping as the sales report.
@@ -260,6 +260,9 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware('role:branch-admin|super-admin|auditor')->group(function () {
         Route::get('reports/incentives', [IncentiveReportController::class, 'index'])
             ->name('reports.incentives');
+        // تاسك 189: عمولات المناديب كذلك — المحاسب خارجها بطلب العميل.
+        Route::get('reports/agent-commissions', [AgentCommissionReportController::class, 'index'])
+            ->name('reports.agent-commissions');
     });
 
     Route::middleware('role:branch-admin|super-admin|accountant')->group(function () {
@@ -493,6 +496,7 @@ Route::middleware(['auth'])->group(function () {
         });
 
         Route::get('reports/commissions/export', [CommissionReportController::class, 'export'])
+            ->middleware('role:branch-admin|super-admin|employee') // تاسك 189: بلا المحاسب.
             ->name('reports.commissions.export');
 
         // Internal purchase requests: employees and accountants raise them, the
@@ -536,8 +540,6 @@ Route::middleware(['auth'])->group(function () {
             ->name('reports.materials.export');
         Route::get('reports/network/export', [NetworkReportController::class, 'export'])
             ->name('reports.network.export');
-        Route::get('reports/agent-commissions/export', [AgentCommissionReportController::class, 'export'])
-            ->name('reports.agent-commissions.export');
     });
 
     // صرف عمولات المناديب — المحاسب هو من يصرف (تاسك 41)، بينما بيانات المندوب
@@ -682,6 +684,8 @@ Route::middleware(['auth'])->group(function () {
         // تقرير الحوافز والخصومات — تصديره للإدارة وحدها، وصفحته أعلاه.
         Route::get('reports/incentives/export', [IncentiveReportController::class, 'export'])
             ->name('reports.incentives.export');
+        Route::get('reports/agent-commissions/export', [AgentCommissionReportController::class, 'export'])
+            ->name('reports.agent-commissions.export');
 
         Route::prefix('inventory')->name('inventory.')->group(function () {
             // تاسك 72: تصدير/استيراد Excel — قبل الـresource لنفس سبب الفئات.
