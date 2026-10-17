@@ -80,8 +80,21 @@ describe('Agent Commission Report', function () {
 
     // ── ACCESS ─────────────────────────────────────────────────────
 
-    it('lets an accountant open the report for their branch', function () {
+    // تاسك 189 — المحاسب خارج تقريرَي العمولات وتصديرهما، والقائمة بلا بنديهما.
+    it('forbids an accountant from both commission reports and their exports', function () {
+        foreach (['reports.agent-commissions', 'reports.agent-commissions.export', 'reports.commissions', 'reports.commissions.export'] as $name) {
+            $this->actingAs($this->accountant)->get(route($name))->assertForbidden();
+        }
+
         $this->actingAs($this->accountant)
+            ->get(route('reports.sales'))
+            ->assertInertia(fn ($page) => expect(collect($page->toArray()['props']['auth']['sidebarItems'])->pluck('title')->flatten()->all())
+                ->not->toContain('تقرير العمولات')
+                ->not->toContain('عمولات المناديب'));
+    });
+
+    it('lets a branch admin open the report for their branch', function () {
+        $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions'))
             ->assertOk()
             ->assertInertia(fn ($page) => $page->component('reports/agent-commissions/index'));
@@ -110,7 +123,7 @@ describe('Agent Commission Report', function () {
         agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20, 'line_commission_amount' => 5]);
         agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 10, 'line_commission_amount' => 2.5]);
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions'))
             ->assertInertia(fn ($page) => $page
                 ->has('rows', 1)
@@ -142,7 +155,7 @@ describe('Agent Commission Report', function () {
             'paid_at' => now(),
         ]);
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions'))
             ->assertInertia(fn ($page) => $page
                 ->has('rows', 1)
@@ -162,7 +175,7 @@ describe('Agent Commission Report', function () {
             ['status' => 'due', 'paid_at' => null],
         );
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions'))
             ->assertInertia(fn ($page) => $page
                 ->where('rows.0.invoiceCount', 1)
@@ -184,7 +197,7 @@ describe('Agent Commission Report', function () {
         agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20, 'agent_payment_id' => $payment->id]);
         agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 15]);
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions'))
             ->assertInertia(fn ($page) => $page
                 ->where('rows.0.due', 35)
@@ -194,7 +207,7 @@ describe('Agent Commission Report', function () {
 
     // ── SCOPE ──────────────────────────────────────────────────────
 
-    it('scopes an accountant to their own branch', function () {
+    it('scopes a branch admin to their own branch', function () {
         agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20]);
 
         $otherBranch = Branch::factory()->create();
@@ -203,7 +216,7 @@ describe('Agent Commission Report', function () {
         $otherAgent = Agent::factory()->create(['branch_id' => $otherBranch->id]);
         agentServiceInvoice($otherBranch, $otherEmployee, $otherAgent, ['rebate_amount' => 77]);
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions'))
             ->assertInertia(fn ($page) => $page->has('rows', 1)->where('totals.due', 20));
 
@@ -219,11 +232,11 @@ describe('Agent Commission Report', function () {
         $old = agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 40]);
         $old->forceFill(['created_at' => now()->subDays(4)])->save();
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions'))
             ->assertInertia(fn ($page) => $page->where('totals.due', 20)->where('filters.from', now()->toDateString()));
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions', ['from' => now()->subDays(7)->toDateString(), 'to' => now()->toDateString()]))
             ->assertInertia(fn ($page) => $page->where('totals.due', 60));
     });
@@ -281,7 +294,7 @@ describe('Agent Commission Report', function () {
     it('names the employee and the service on each drill-down row', function () {
         $invoice = agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20]);
 
-        $this->actingAs($this->accountant)
+        $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions'))
             ->assertInertia(fn ($page) => $page
                 ->has('lines', 1)
@@ -295,7 +308,7 @@ describe('Agent Commission Report', function () {
     it('exports the report as an xlsx download', function () {
         agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20]);
 
-        $response = $this->actingAs($this->accountant)->get(route('reports.agent-commissions.export'));
+        $response = $this->actingAs($this->branchAdmin)->get(route('reports.agent-commissions.export'));
 
         $response->assertOk();
         expect($response->headers->get('content-disposition'))->toContain('.xlsx');

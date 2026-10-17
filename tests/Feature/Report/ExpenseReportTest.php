@@ -76,6 +76,33 @@ describe('Expense Report', function () {
         $this->actingAs($employee)->get(route('reports.expenses'))->assertForbidden();
     });
 
+    // تاسك 189 — المحاسب يرى آخر 90 يوماً؛ ما قبلها للمدير والسوبر أدمن.
+    it('clamps an accountant to the last 90 days while a branch admin sees further back', function () {
+        reportExpense($this->branch, $this->branchAdmin, $this->rent, 300, now()->subDays(120)->toDateString());
+        reportExpense($this->branch, $this->branchAdmin, $this->rent, 50, now()->subDays(10)->toDateString());
+        $range = ['from' => now()->subDays(200)->toDateString(), 'to' => $this->today];
+        $floor = now()->subDays(90)->toDateString();
+
+        $this->actingAs($this->accountant)
+            ->get(route('reports.expenses', $range))
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.from', $floor)
+                ->where('reportMinDate', $floor)
+                ->where('totals.total', 50));
+
+        // مدىً كلّه قبل الحدّ يُقصّ إلى يوم الحدّ، لا إلى مدىً مقلوب.
+        $this->actingAs($this->accountant)
+            ->get(route('reports.expenses', ['from' => now()->subDays(150)->toDateString(), 'to' => now()->subDays(100)->toDateString()]))
+            ->assertInertia(fn ($page) => $page->where('filters.from', $floor)->where('filters.to', $floor));
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.expenses', $range))
+            ->assertInertia(fn ($page) => $page
+                ->where('filters.from', $range['from'])
+                ->where('reportMinDate', null)
+                ->where('totals.total', 350));
+    });
+
     // ── FIGURES ────────────────────────────────────────────────────
 
     it('totals the rows it lists', function () {
