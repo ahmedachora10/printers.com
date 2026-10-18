@@ -4,12 +4,14 @@ use App\Enums\IncentivePlanStatusEnum;
 use App\Enums\Roles;
 use App\Models\BonusPayment;
 use App\Models\Branch;
+use App\Models\BranchService;
 use App\Models\EmployeeDeduction;
 use App\Models\IncentivePlan;
 use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\Refund\CreateRefundAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
 use App\Models\ServiceInvoice;
+use App\Models\ServiceTemplate;
 use App\Models\User;
 use App\Notifications\IncentiveShortfallNotification;
 use Illuminate\Support\Facades\Notification;
@@ -107,6 +109,37 @@ describe('Incentives', function () {
         refundIncentiveInvoice($invoice, 400, $this->branchAdmin);
         expect($invoice->fresh()->status->value)->toBe('returned')
             ->and((float) $plan->fresh()->achieved_amount)->toBe(0.0);
+    });
+
+    // المساعد يُحتسب له مبلغ حصته ويُطرح من صاحب الفاتورة، والمرتجع الجزئي عليهما بالنسبة.
+    it('splits an invoice between its owner and helper by the helper share', function () {
+        $helper = User::factory()->create(['branch_id' => $this->branch->id]);
+        $helper->addRole(Roles::EMPLOYEE->value);
+        $ownerPlan = monthPlan($this->employee, ['achieved_amount' => 0, 'status' => IncentivePlanStatusEnum::Active]);
+        $helperPlan = monthPlan($helper, ['achieved_amount' => 0, 'status' => IncentivePlanStatusEnum::Active]);
+
+        $template = ServiceTemplate::factory()->create();
+        BranchService::create(['branch_id' => $this->branch->id, 'service_template_id' => $template->id, 'base_commission_pct' => 0, 'max_discount_pct' => 0, 'is_tahazir' => false, 'is_active' => true]);
+        $service = BranchService::where('service_template_id', $template->id)->firstOrFail();
+
+        $invoice = salesInvoice($this->branch->id, $this->employee->id, 1150);
+        $invoice->update(['status' => 'due', 'paid_at' => null]);
+        $invoice->helpers()->create([
+            'user_id' => $helper->id,
+            'branch_service_id' => $service->id,
+            'service_name' => 'x',
+            'share_type' => 'amount',
+            'share_value' => 230,
+            'share_net' => 200,
+        ]);
+
+        app(MarkServiceInvoicePaidAction::class)->handle($invoice->fresh());
+        expect((float) $ownerPlan->fresh()->achieved_amount)->toBe(920.0)
+            ->and((float) $helperPlan->fresh()->achieved_amount)->toBe(230.0);
+
+        refundIncentiveInvoice($invoice, 115, $this->branchAdmin);
+        expect((float) $ownerPlan->fresh()->achieved_amount)->toBe(828.0)
+            ->and((float) $helperPlan->fresh()->achieved_amount)->toBe(207.0);
     });
 
     it('leaves a paid plan untouched by a refund and alerts the branch admin', function () {
