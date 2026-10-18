@@ -38,6 +38,8 @@ export interface ExpenseReportRow {
     unitPrice: number;
     total: number;
     paidFromLabel: string;
+    /** تاسك 187 — null للنقدي وللتحويلات القديمة */
+    bankAccountName: string | null;
     receiptReference: string | null;
     userName: string | null;
 }
@@ -47,4 +49,5 @@ export interface ExpenseReportFilters {
     to?: string | null;
     branch?: string | null;
     category?: string | null;
+    bank_account?: string | null;
 }

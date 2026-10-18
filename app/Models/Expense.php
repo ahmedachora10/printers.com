@@ -8,7 +8,9 @@ use Database\Factories\ExpenseFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Collection;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\MediaLibrary\HasMedia;
@@ -20,13 +22,12 @@ class Expense extends Model implements HasMedia
     /** @use HasFactory<ExpenseFactory> */
     use HasFactory, InteractsWithMedia, LogsActivity, SoftDeletes;
 
-    /** تاسك 112 — مستند إثبات المصروف، ملفٌّ واحد على القرص الخاص. */
+    /** تاسك 112 — مستندات إثبات المصروف على القرص الخاص (عدّة ملفات منذ تاسك 187). */
     public const ATTACHMENT = 'attachment';
 
     protected $fillable = [
         'expense_category_id',
         'branch_id',
-        'service_invoice_id',
         'delivery_provider_id',
         'user_id',
         'requested_by',
@@ -34,6 +35,7 @@ class Expense extends Model implements HasMedia
         'unit_price',
         'total',
         'paid_from',
+        'bank_account_id',
         'supplier_name',
         'receipt_reference',
         'comment',
@@ -92,20 +94,43 @@ class Expense extends Model implements HasMedia
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection(self::ATTACHMENT)
-            ->singleFile()
             ->useDisk('local')
             ->acceptsMimeTypes(ServiceInvoice::RECEIPT_MIME_TYPES);
     }
 
-    public function attachment(): ?Media
+    /** @return Collection<int, Media> */
+    public function attachments(): Collection
     {
-        return $this->getFirstMedia(self::ATTACHMENT);
+        return $this->getMedia(self::ATTACHMENT);
     }
 
-    /** @return BelongsTo<ServiceInvoice, $this> */
-    public function invoice(): BelongsTo
+    /**
+     * تاسك 187 — الفواتير المربوطة وحصّة كلٍّ منها من المصروف (`pivot->amount`).
+     *
+     * @return BelongsToMany<ServiceInvoice, $this>
+     */
+    public function invoices(): BelongsToMany
     {
-        return $this->belongsTo(ServiceInvoice::class, 'service_invoice_id');
+        return $this->belongsToMany(ServiceInvoice::class, 'expense_service_invoice')->withPivot('amount');
+    }
+
+    /**
+     * يكتب روابط الفواتير كما أُرسلت: فاتورةٌ واحدة تأخذ المبلغ كاملاً، وأكثر منها
+     * بحصصها (تحقّق مجموعها في ExpenseLinkRules).
+     *
+     * @param  array<int, array{id: int|string, amount?: numeric-string|float|null}>  $links
+     */
+    public function syncInvoices(array $links): void
+    {
+        $this->invoices()->sync(collect($links)->mapWithKeys(fn (array $link) => [
+            (int) $link['id'] => ['amount' => count($links) === 1 ? $this->total : $link['amount']],
+        ])->all());
+    }
+
+    /** @return BelongsTo<BankAccount, $this> */
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(BankAccount::class)->withTrashed();
     }
 
     /** @return BelongsTo<ExpenseCategory, $this> */

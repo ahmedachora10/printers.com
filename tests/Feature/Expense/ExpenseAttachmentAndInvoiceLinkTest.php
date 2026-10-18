@@ -71,24 +71,25 @@ describe('Expense attachment & invoice link', function () {
     it('stores a linked expense with its attachment and serves it to its branch only', function () {
         $this->actingAs($this->accountant)->post(route('expenses.store'), [
             ...$this->payload,
-            'service_invoice_id' => $this->invoice->id,
-            'attachment' => UploadedFile::fake()->createWithContent('receipt.pdf', "%PDF-1.4\n%%EOF"),
+            'invoices' => [['id' => $this->invoice->id]],
+            'attachments' => [UploadedFile::fake()->createWithContent('receipt.pdf', "%PDF-1.4\n%%EOF")],
         ])->assertSessionHasNoErrors();
 
         $expense = Expense::firstOrFail();
-        expect($expense->service_invoice_id)->toBe($this->invoice->id)
-            ->and($expense->attachment()?->file_name)->toBe('receipt.pdf');
+        $media = $expense->attachments()->first();
+        expect($expense->invoices->pluck('id')->all())->toBe([$this->invoice->id])
+            ->and($media?->file_name)->toBe('receipt.pdf');
 
-        $this->actingAs($this->accountant)->get(route('expenses.attachment', $expense))->assertOk();
-        $this->actingAs($this->otherAdmin)->get(route('expenses.attachment', $expense))->assertForbidden();
+        $this->actingAs($this->accountant)->get(route('expenses.attachment', [$expense, $media->id]))->assertOk();
+        $this->actingAs($this->otherAdmin)->get(route('expenses.attachment', [$expense, $media->id]))->assertForbidden();
     });
 
     it('rejects linking an invoice from another branch', function () {
         $theirs = linkableInvoice($this->otherBranch, $this->otherAdmin, 'SINV-099-00001');
 
         $this->actingAs($this->accountant)
-            ->post(route('expenses.store'), [...$this->payload, 'service_invoice_id' => $theirs->id])
-            ->assertSessionHasErrors('service_invoice_id');
+            ->post(route('expenses.store'), [...$this->payload, 'invoices' => [['id' => $theirs->id]]])
+            ->assertSessionHasErrors('invoices.0.id');
     });
 
     it('searches only the branch invoices', function () {
@@ -106,9 +107,8 @@ describe('Expense attachment & invoice link', function () {
             'branch_id' => $this->branch->id,
             'expense_category_id' => $this->category->id,
             'user_id' => $this->accountant->id,
-            'service_invoice_id' => $this->invoice->id,
             'total' => 25,
-        ]);
+        ])->invoices()->attach($this->invoice->id, ['amount' => 25]);
         $show = route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]);
 
         $this->actingAs($this->accountant)->get($show)->assertInertia(fn ($page) => $page

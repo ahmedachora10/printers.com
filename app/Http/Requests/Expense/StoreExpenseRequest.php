@@ -9,6 +9,8 @@ use Illuminate\Validation\Rule;
 
 class StoreExpenseRequest extends FormRequest
 {
+    use ExpenseLinkRules;
+
     public function authorize(): bool
     {
         return true;
@@ -47,9 +49,7 @@ class StoreExpenseRequest extends FormRequest
             'supplier_name' => ['nullable', 'string', 'max:255'],
             'receipt_reference' => ['nullable', 'string', 'max:255'],
             'comment' => ['nullable', 'string', 'max:1000'],
-            // تاسك 112: مستند إثبات + ربطٌ اختياري بطلبٍ من فرع المصروف نفسه.
-            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
-            'service_invoice_id' => ['nullable', 'integer', Rule::exists('service_invoices', 'id')->where('branch_id', $this->input('branch_id'))->whereNull('deleted_at')],
+            ...$this->linkRules($this->integer('branch_id')),
             // تاسك 135: التاريخ القديم لمدير الفرع ومدير النظام فقط.
             'date' => ['required', 'date', Rule::when(! self::canBackdate(), ['after_or_equal:today'])],
         ];

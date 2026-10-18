@@ -30,6 +30,7 @@ import { updatePaymentMethod as updateInvoicePaymentMethod } from '@/routes/invo
 import serviceInvoice from '@/routes/invoices/service';
 import posProduct from '@/routes/pos/product';
 import posService from '@/routes/pos/service';
+import { type BankAccountOption } from '@/types/expense';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice, type InvoiceThread as InvoiceThreadData, type InvoicePayment, type PaymentMethodChange } from '@/types/invoice';
 import { Deferred, Head, Link, router, usePage } from '@inertiajs/react';
@@ -45,11 +46,11 @@ interface Props {
     hasThread: boolean;
     neighbours: { prevId: number | null; nextId: number | null };
     /** تاسك 149: لمن يسجّل المصروفات، وفي فاتورة الخدمات وحدها. */
-    expenseForm: Pick<ComponentProps<typeof ExpenseFormModal>, 'categories' | 'branches' | 'isRequest'> | null;
+    expenseForm: Pick<ComponentProps<typeof ExpenseFormModal>, 'categories' | 'bankAccounts' | 'branches' | 'isRequest'> | null;
     /** توصيلٌ بعد اعتماد الفاتورة — لمن يملك طلبه. */
     shipmentForm: ShipmentRequestForm | null;
     /** تاسك 190: لمن يسوّي أجر السائق — فئات مصروف التسوية في فرع الفاتورة. */
-    settleForm: { categories: { id: number; name: string }[] } | null;
+    settleForm: { categories: { id: number; name: string }[]; bankAccounts: BankAccountOption[] } | null;
     thread?: InvoiceThreadData | null;
 }
 
@@ -912,7 +913,8 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                 <span>مصروفات مرتبطة</span>
                                 <span className="text-amber-600" dir="ltr">
                                     {/* تاسك 157: طلبٌ لم يُقبل خارج المجموع. */}
-                                    {formatCurrency(invoice.linkedExpenses.reduce((sum, e) => sum + (e.pendingRequest ? 0 : e.total), 0))}
+                                    {/* تاسك 187: حصّة هذه الفاتورة من كل مصروف. */}
+                                    {formatCurrency(invoice.linkedExpenses.reduce((sum, e) => sum + (e.pendingRequest ? 0 : e.amount), 0))}
                                 </span>
                             </CardTitle>
                         </CardHeader>
@@ -930,20 +932,25 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                     <span className="text-muted-foreground">
                                         {expense.date} — {expense.paidFromLabel}
                                     </span>
-                                    <span className="flex items-center gap-3">
-                                        {expense.attachmentUrl && (
+                                    <span className="flex flex-wrap items-center gap-3">
+                                        {expense.attachments.map((file, n) => (
                                             <a
-                                                href={expense.attachmentUrl}
+                                                key={file.id}
+                                                href={file.url}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
+                                                title={file.name}
                                                 className="text-primary inline-flex items-center gap-1 hover:underline"
                                             >
-                                                <Paperclip className="size-3.5" /> المرفق
+                                                <Paperclip className="size-3.5" /> المرفق{expense.attachments.length > 1 ? ` ${n + 1}` : ''}
                                             </a>
-                                        )}
+                                        ))}
                                         <span className="font-semibold" dir="ltr">
-                                            {formatCurrency(expense.total)}
+                                            {formatCurrency(expense.amount)}
                                         </span>
+                                        {expense.amount !== expense.total && (
+                                            <span className="text-muted-foreground text-xs">من {formatCurrency(expense.total)}</span>
+                                        )}
                                     </span>
                                 </div>
                             ))}
@@ -987,13 +994,13 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                     open={expenseOpen}
                     onOpenChange={setExpenseOpen}
                     categories={expenseForm.categories}
+                    bankAccounts={expenseForm.bankAccounts}
                     branches={expenseForm.branches}
                     isRequest={expenseForm.isRequest}
                     // تاسك 149: سعر الوحدة = تكلفة خامات الفاتورة (فارغٌ إن لم تكن)، والفاتورة مربوطة.
                     defaults={{
                         unit_price: materialsTotal > 0 ? materialsTotal.toFixed(2) : '',
-                        service_invoice_id: String(invoice.id),
-                        invoiceLabel: invoice.invoiceNumber,
+                        invoice: { id: String(invoice.id), label: invoice.invoiceNumber, amount: '' },
                     }}
                 />
             )}
@@ -1002,7 +1009,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                 (settlement.cancel ? (
                     <CancelSettlementDialog row={settlement.target} onClose={() => setSettlement(null)} />
                 ) : (
-                    <SettleDeliveryDialog row={settlement.target} categories={settleForm.categories} onClose={() => setSettlement(null)} />
+                    <SettleDeliveryDialog row={settlement.target} categories={settleForm.categories} bankAccounts={settleForm.bankAccounts} onClose={() => setSettlement(null)} />
                 ))}
 
             {invoice.returnRequest?.canDecide && (

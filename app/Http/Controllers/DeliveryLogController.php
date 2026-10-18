@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\Report\ResolveReportScope;
 use App\Http\Controllers\Concerns\BuildsPagedProps;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\DeliveryProvider;
 use App\Models\ExpenseCategory;
@@ -118,6 +119,7 @@ class DeliveryLogController extends Controller
             // الفارغ لا يقع إلا للسوبر أدمن، وهو يمرّ على `isSuperAdmin` أولاً.
             'canSettle' => Gate::allows('settle', [DeliveryProvider::class, (int) $scope['branchId']]),
             'expenseCategories' => ExpenseCategory::activeOptionsFor($scope['branchId']),
+            'bankAccounts' => BankAccount::optionsFor($scope['branchId']),
             'defaultDate' => now()->toDateString(),
             'filters' => [
                 'from' => $scope['from']->toDateString(),

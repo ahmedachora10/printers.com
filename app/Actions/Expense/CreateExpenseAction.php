@@ -14,13 +14,15 @@ class CreateExpenseAction
         // non super-admins, chosen branch for super-admin).
         $data['user_id'] = auth()->id();
         $data['total'] = bcmul((string) $data['qty'], (string) $data['unit_price'], 2);
-        $attachment = $data['attachment'] ?? null;
-        unset($data['attachment']);
+        $attachments = $data['attachments'] ?? [];
+        $invoices = $data['invoices'] ?? [];
+        unset($data['attachments'], $data['invoices']);
 
-        return DB::transaction(function () use ($data, $attachment) {
+        return DB::transaction(function () use ($data, $attachments, $invoices) {
             $expense = Expense::create($data);
+            $expense->syncInvoices($invoices);
 
-            if ($attachment) {
+            foreach ($attachments as $attachment) {
                 $expense->addMedia($attachment)->toMediaCollection(Expense::ATTACHMENT);
             }
 

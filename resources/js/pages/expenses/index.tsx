@@ -11,7 +11,7 @@ import { TableCell, TableRow } from '@/components/ui/table';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { type Expense, type PaginatedExpense } from '@/types/expense';
+import { type BankAccountOption, type Expense, type PaginatedExpense } from '@/types/expense';
 import { Link, router, usePage } from '@inertiajs/react';
 import { Check, CheckCheck, CheckCircle2, Eye, FileArchive, Paperclip, Pencil, Plus, Trash2, Undo2, X } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
@@ -33,6 +33,8 @@ interface Props {
     /** تاسك 161 — مصروفات بمرفق تحت الفلاتر الحالية. */
     attachmentsCount: number;
     categories: Category[];
+    /** تاسك 187 — حسابات الفرع البنكية: فلتر القائمة ومنتقي النافذة. */
+    bankAccounts: BankAccountOption[];
     /** تاسك 123 — خيارات فلتر مصدر المصروف، من ExpenseSourceEnum. */
     sources: { value: string; label: string }[];
     branches?: { id: number; name: string }[] | null;
@@ -41,6 +43,7 @@ interface Props {
         expense_category_id?: string;
         approval?: string;
         paid_from?: string;
+        bank_account_id?: string;
         /** المدى المطبَّق فعلاً — اليوم حين تُفتح الشاشة بلا مدى (تاسك 104) */
         from?: string | null;
         to?: string | null;
@@ -72,7 +75,7 @@ function rangeLabel(from: string, to: string): string {
     return from ? `من ${shortDate(from)}` : `حتى ${shortDate(to)}`;
 }
 
-export default function ExpensesIndex({ items, periodTotal, pendingSummary, canApproveAll, attachmentsCount, categories, sources, branches, filters, defaultDate }: Props) {
+export default function ExpensesIndex({ items, periodTotal, pendingSummary, canApproveAll, attachmentsCount, categories, bankAccounts, sources, branches, filters, defaultDate }: Props) {
     const [approvingAll, setApprovingAll] = useState(false);
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Expense | null>(null);
@@ -136,18 +139,20 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                 header: 'المرفق / الطلب',
                 cell: (item) => (
                     <div className="flex items-center gap-2 whitespace-nowrap">
-                        {/* وسمٌ عارٍ لا Link: الوجهة ملفٌ من القرص الخاص لا صفحة Inertia. */}
-                        {item.attachmentUrl && (
-                            <a href={item.attachmentUrl} target="_blank" rel="noopener noreferrer" title="المرفق" className="text-primary">
+                        {/* وسمٌ عارٍ لا Link: الوجهة ملفٌ من القرص الخاص لا صفحة Inertia.
+                            تاسك 187: عدّة مرفقات تُعرض أيقونةً بعدّادها، وتُفتح كلّها من «عرض». */}
+                        {item.attachments.length > 0 && (
+                            <a href={item.attachments[0].url} target="_blank" rel="noopener noreferrer" title={item.attachments.map((a) => a.name).join('\n')} className="text-primary inline-flex items-center gap-0.5">
                                 <Paperclip className="size-4" />
+                                {item.attachments.length > 1 && <span className="text-xs tabular-nums">{item.attachments.length}</span>}
                             </a>
                         )}
-                        {item.serviceInvoiceId && (
-                            <Link href={`/invoices/service/${item.serviceInvoiceId}`} className="text-primary hover:underline" dir="ltr">
-                                {item.invoiceNumber}
+                        {item.invoices.map((invoice) => (
+                            <Link key={invoice.id} href={`/invoices/service/${invoice.id}`} className="text-primary hover:underline" dir="ltr">
+                                {invoice.invoiceNumber}
                             </Link>
-                        )}
-                        {!item.attachmentUrl && !item.serviceInvoiceId && '—'}
+                        ))}
+                        {item.attachments.length === 0 && item.invoices.length === 0 && '—'}
                     </div>
                 ),
             },
@@ -155,9 +160,13 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                 key: 'paidFrom',
                 header: 'المصدر',
                 cell: (item) => (
-                    <Badge variant={item.paidFrom === 'cash_drawer' ? 'secondary' : 'outline'} className="whitespace-nowrap">
-                        {item.paidFrom === 'cash_drawer' ? 'نقد' : 'تحويل'}
-                    </Badge>
+                    <div className="flex flex-col items-start gap-0.5">
+                        <Badge variant={item.paidFrom === 'cash_drawer' ? 'secondary' : 'outline'} className="whitespace-nowrap">
+                            {item.paidFrom === 'cash_drawer' ? 'نقد' : 'تحويل'}
+                        </Badge>
+                        {/* تاسك 187 */}
+                        {item.bankAccountName && <span className="text-muted-foreground text-xs">{item.bankAccountName}</span>}
+                    </div>
                 ),
             },
             {
@@ -264,6 +273,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
         expense_category_id: filters.expense_category_id ?? '',
         approval: filters.approval ?? '',
         paid_from: filters.paid_from ?? '',
+        bank_account_id: filters.bank_account_id ?? '',
     });
     const searchTimeout = useRef<ReturnType<typeof setTimeout>>(null);
 
@@ -274,6 +284,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
             expense_category_id: filterValues.expense_category_id,
             approval: filterValues.approval,
             paid_from: filterValues.paid_from,
+            bank_account_id: filterValues.bank_account_id,
             from: filters.from ?? undefined,
             to: filters.to ?? undefined,
             range: filters.range ?? undefined,
@@ -301,7 +312,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
 
     const handleClearAll = () => {
         setSearch('');
-        setFilterValues({ expense_category_id: '', approval: '', paid_from: '' });
+        setFilterValues({ expense_category_id: '', approval: '', paid_from: '', bank_account_id: '' });
         if (searchTimeout.current) clearTimeout(searchTimeout.current);
         router.get(index.url(), {}, { preserveState: true, replace: true });
     };
@@ -370,6 +381,14 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                                 placeholder: 'المصدر',
                                 options: sources,
                             },
+                            // تاسك 187 — التحويلات من حسابٍ بعينه.
+                            ...(bankAccounts.length > 0
+                                ? [{
+                                      key: 'bank_account_id',
+                                      placeholder: 'الحساب البنكي',
+                                      options: bankAccounts.map((a) => ({ value: a.id.toString(), label: a.name })),
+                                  }]
+                                : []),
                         ]}
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
@@ -516,6 +535,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                 onOpenChange={setFormOpen}
                 expense={editing ?? undefined}
                 categories={categories}
+                bankAccounts={bankAccounts}
                 branches={branches}
             />
         </AppLayout>

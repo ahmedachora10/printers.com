@@ -33,8 +33,10 @@ class ExpenseRequestNotification extends Notification
     public function toArray(object $notifiable): array
     {
         $amount = number_format((float) $this->expense->total, 2).' ر.س';
-        $invoice = $this->expense->invoice?->invoice_number;
-        $invoiceUrl = route('invoices.show', ['type' => 'service', 'id' => $this->expense->service_invoice_id]);
+        // طلب الموظف مربوطٌ بفاتورته وحدها (تاسك 157).
+        $linked = $this->expense->invoices->first();
+        $invoice = $linked?->invoice_number;
+        $invoiceUrl = route('invoices.show', ['type' => 'service', 'id' => $linked?->id]);
 
         return match ($this->event) {
             self::SUBMITTED => [

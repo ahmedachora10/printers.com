@@ -58,6 +58,8 @@ interface Props {
     defaultDate: string;
     branches: { id: number; name: string }[];
     categories: { id: number; name: string }[];
+    /** تاسك 187 */
+    bankAccounts: { id: number; name: string }[];
     isSuperAdmin: boolean;
 }
 
@@ -70,19 +72,21 @@ export default function ExpenseReportIndex({
     defaultDate,
     branches,
     categories,
+    bankAccounts,
     isSuperAdmin,
 }: Props) {
     const canPickBranch = isSuperAdmin && branches.length > 0;
 
     // Today is the cleared state of the date fields, so an untouched report shows
     // no date chips and clearing one snaps that end back to today.
-    const defaults = useMemo<FilterValues>(() => ({ from: defaultDate, to: defaultDate, branch: 'all', category: 'all' }), [defaultDate]);
+    const defaults = useMemo<FilterValues>(() => ({ from: defaultDate, to: defaultDate, branch: 'all', category: 'all', bank_account: 'all' }), [defaultDate]);
 
     const applied: FilterValues = {
         from: filters.from ?? defaultDate,
         to: filters.to ?? defaultDate,
         branch: filters.branch ?? 'all',
         category: filters.category ?? 'all',
+        bank_account: filters.bank_account ?? 'all',
     };
     const f = useReportFilters(REPORT_URL, applied, defaults);
 
@@ -111,6 +115,7 @@ export default function ExpenseReportIndex({
             { key: 'unitPrice', header: 'سعر الوحدة', cell: (row) => formatCurrency(row.unitPrice) },
             { key: 'total', header: 'الإجمالي', className: 'font-semibold', cell: (row) => formatCurrency(row.total) },
             { key: 'paidFrom', header: 'مصدر الدفع', cell: (row) => row.paidFromLabel },
+            { key: 'bankAccountName', header: 'الحساب البنكي', cell: (row) => row.bankAccountName ?? dash },
             { key: 'receiptReference', header: 'المرجع', cell: (row) => row.receiptReference ?? dash },
             { key: 'userName', header: 'مَن سجّلها', cell: (row) => row.userName ?? dash },
         ],
@@ -126,6 +131,10 @@ export default function ExpenseReportIndex({
     if (f.isActive('category')) {
         const name = categories.find((c) => c.id.toString() === applied.category)?.name ?? applied.category;
         chips.push({ key: 'category', label: `الفئة: ${name}`, onRemove: () => f.remove('category') });
+    }
+    if (f.isActive('bank_account')) {
+        const name = bankAccounts.find((a) => a.id.toString() === applied.bank_account)?.name ?? applied.bank_account;
+        chips.push({ key: 'bank_account', label: `الحساب: ${name}`, onRemove: () => f.remove('bank_account') });
     }
 
     return (
@@ -152,6 +161,15 @@ export default function ExpenseReportIndex({
                                 allLabel="كل الفئات"
                                 options={categories.map((c) => ({ value: c.id.toString(), label: c.name }))}
                             />
+                            {bankAccounts.length > 0 && (
+                                <FilterSelect
+                                    label="الحساب البنكي"
+                                    value={f.draft.bank_account}
+                                    onChange={(v) => f.setField('bank_account', v)}
+                                    allLabel="كل الحسابات"
+                                    options={bankAccounts.map((a) => ({ value: a.id.toString(), label: a.name }))}
+                                />
+                            )}
                         </FilterModal>
                         <ReportExportButton href={exportUrl} disabled={totals.expenseCount === 0} />
                     </div>

@@ -8,6 +8,8 @@ use Illuminate\Validation\Rule;
 
 class UpdateExpenseRequest extends FormRequest
 {
+    use ExpenseLinkRules;
+
     public function authorize(): bool
     {
         return true;
@@ -29,9 +31,10 @@ class UpdateExpenseRequest extends FormRequest
             'supplier_name' => ['nullable', 'string', 'max:255'],
             'receipt_reference' => ['nullable', 'string', 'max:255'],
             'comment' => ['nullable', 'string', 'max:1000'],
-            // تاسك 112: مستند إثبات + ربطٌ اختياري بطلبٍ من فرع المصروف نفسه.
-            'attachment' => ['nullable', 'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
-            'service_invoice_id' => ['nullable', 'integer', Rule::exists('service_invoices', 'id')->where('branch_id', $branchId)->whereNull('deleted_at')],
+            ...$this->linkRules($branchId),
+            // تاسك 187: مرفقاتٌ قائمة يحذفها المستخدم من النافذة.
+            'remove_attachment_ids' => ['nullable', 'array'],
+            'remove_attachment_ids.*' => ['integer'],
             // تاسك 135: المحاسب لا ينقل مصروفاً إلى تاريخٍ قديم — تاريخه الحالي يبقى مقبولاً.
             'date' => ['required', 'date', Rule::when(
                 ! StoreExpenseRequest::canBackdate() && $this->input('date') !== $this->route('expense')->date?->toDateString(),

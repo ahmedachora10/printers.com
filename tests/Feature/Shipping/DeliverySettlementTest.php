@@ -2,6 +2,7 @@
 
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\Roles;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\DeliveryProvider;
 use App\Models\Expense;
@@ -49,10 +50,13 @@ describe('Delivery settlement', function () {
         ]);
         $this->shipment = $this->invoice->shipments()->create(['provider_id' => $this->driver->id, 'fee' => 0]);
 
+        // تاسك 187: التحويل من حساب الفرع البنكي.
+        $this->bankAccount = BankAccount::create(['branch_id' => $this->branch->id, 'name' => 'الحساب الرئيسي']);
         $this->settle = fn (string $source, $amount = 25) => $this->actingAs($this->admin)
             ->post(route('shipping.deliveries.settle', $this->shipment), [
                 'amount' => $amount,
                 'paid_from' => $source,
+                'bank_account_id' => $source === 'company_transfer' ? $this->bankAccount->id : null,
                 'expense_category_id' => $this->category->id,
             ]);
     });
@@ -63,7 +67,7 @@ describe('Delivery settlement', function () {
         ($this->settle)('cash_drawer')->assertSessionHasNoErrors();
 
         $expense = Expense::firstOrFail();
-        expect($expense->service_invoice_id)->toBe($this->invoice->id)
+        expect($expense->invoices->pluck('id')->all())->toBe([$this->invoice->id])
             ->and($expense->service_invoice_shipment_id)->toBe($this->shipment->id)
             ->and($expense->delivery_provider_id)->toBe($this->driver->id)
             ->and((float) $expense->total)->toBe(25.0)

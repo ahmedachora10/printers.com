@@ -15,6 +15,7 @@ use App\Http\Requests\Setting\UpdateLoyaltyConfigRequest;
 use App\Http\Resources\Branch\BranchResource;
 use App\Http\Resources\City\CityResource;
 use App\Http\Resources\PaymentMethod\PaymentMethodResource;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\CardType;
 use App\Models\City;
@@ -104,6 +105,22 @@ class AppSettingController extends Controller
                 ]),
             'cardTypes' => CardType::query()->orderBy('id')->get(['id', 'name']),
             'canManageNetworkDevices' => Gate::allows('create', NetworkDevice::class),
+            // تاسك 187 — حسابات الشركة البنكية (فرعه، أو الكل للمدير العام).
+            'bankAccounts' => BankAccount::query()
+                ->with('branch:id,name')
+                ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $branchId))
+                ->orderBy('branch_id')
+                ->orderBy('name')
+                ->get()
+                ->map(fn (BankAccount $a) => [
+                    'id' => $a->id,
+                    'branchId' => $a->branch_id,
+                    'branchName' => $a->branch?->name,
+                    'name' => $a->name,
+                    'bankName' => $a->bank_name,
+                    'ibanLast4' => $a->iban_last4,
+                ]),
+            'canManageBankAccounts' => Gate::allows('create', BankAccount::class),
             'isSuperAdmin' => $isSuperAdmin,
             'loyaltyConfig' => $loyaltyConfig ? [
                 'isActive' => (bool) $loyaltyConfig->is_active,

@@ -11,10 +11,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { type Expense, type ExpenseSource } from '@/types/expense';
+import { type BankAccountOption, type Expense, type ExpenseSource } from '@/types/expense';
 import { type SharedData } from '@/types';
 import { useForm, usePage } from '@inertiajs/react';
-import { useCallback, useEffect, useState } from 'react';
+import { Paperclip, X } from 'lucide-react';
+import { useCallback, useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Category {
@@ -34,12 +35,21 @@ interface Props {
     onOpenChange: (open: boolean) => void;
     expense?: Expense;
     categories: Category[];
+    /** تاسك 187: حسابات الشركة البنكية — تظهر تحت «تحويل بنكي». */
+    bankAccounts: BankAccountOption[];
     branches?: Branch[] | null;
     /** تاسك 149: قيمٌ مسبقة لمصروفٍ جديد يُسجَّل من صفحة الفاتورة. */
-    defaults?: { unit_price: string; service_invoice_id: string; invoiceLabel: string };
+    defaults?: { unit_price: string; invoice: LinkedInvoice };
     /** تاسك 157: الموظف يرسل طلباً يقبله المحاسب، والفاتورة ثابتة. */
     isRequest?: boolean;
 }
+
+/** تاسك 187: فاتورةٌ مربوطة وحصّتها — المبلغ يُكتب حين تُربط أكثر من فاتورة. */
+type LinkedInvoice = {
+    id: string;
+    label: string;
+    amount: string;
+};
 
 const SOURCES: { value: ExpenseSource; label: string }[] = [
     { value: 'cash_drawer', label: 'نقد من الكاشير' },
@@ -52,21 +62,29 @@ const FIELD_LABELS: Record<string, string> = {
     unit_price: 'سعر الوحدة',
     total: 'الإجمالي',
     paid_from: 'مصدر الدفع',
+    bank_account_id: 'الحساب البنكي',
     supplier_name: 'المورّد',
     receipt_reference: 'مرجع الإيصال',
     comment: 'الملاحظات',
     date: 'التاريخ',
     service_invoice_id: 'الفاتورة المربوطة',
+    invoices: 'الفواتير المربوطة',
 };
 
-const NO_INVOICE: AsyncOption = { value: 'none', label: '— بلا ربط —' };
+function money(value: number): string {
+    return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
 
 function todayIso(): string {
     // Local day, not UTC — after midnight in Riyadh UTC is still yesterday.
     return new Date().toLocaleDateString('en-CA');
 }
 
-export default function ExpenseFormModal({ open, onOpenChange, expense, categories, branches, defaults, isRequest = false }: Props) {
+function linkedOf(expense: Expense): LinkedInvoice[] {
+    return expense.invoices.map((i) => ({ id: String(i.id), label: i.invoiceNumber, amount: String(i.amount) }));
+}
+
+export default function ExpenseFormModal({ open, onOpenChange, expense, categories, bankAccounts, branches, defaults, isRequest = false }: Props) {
     const isEdit = !!expense;
     // تاسك 186: من لا يملك التعديل (المحاسب بعد الاعتماد، تسوية التوصيل…) يرى التفاصيل للقراءة فقط.
     const readOnly = isEdit && !expense.canUpdate;
@@ -82,15 +100,16 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         unit_price:          expense?.unitPrice?.toString() ?? defaults?.unit_price ?? '',
         // تاسك 110: بلا اختيار مسبق — المستخدم يحدّد المصدر صراحةً.
         paid_from:           expense?.paidFrom ?? '',
+        bank_account_id:     expense?.bankAccountId?.toString() ?? '',
         supplier_name:       expense?.supplierName ?? '',
         receipt_reference:   expense?.receiptReference ?? '',
         comment:             expense?.comment ?? '',
         date:                expense?.date ?? todayIso(),
-        // تاسك 112
-        service_invoice_id:  expense?.serviceInvoiceId?.toString() ?? defaults?.service_invoice_id ?? '',
-        attachment:          null as File | null,
+        // تاسك 112/187
+        invoices:            expense ? linkedOf(expense) : defaults ? [defaults.invoice] : [],
+        attachments:         [] as File[],
+        remove_attachment_ids: [] as number[],
     });
-    const [invoiceLabel, setInvoiceLabel] = useState(expense?.invoiceNumber ?? defaults?.invoiceLabel ?? '');
 
     useEffect(() => {
         if (expense) {
@@ -100,22 +119,23 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                 qty:                 expense.qty?.toString() ?? '1',
                 unit_price:          expense.unitPrice?.toString() ?? '',
                 paid_from:           expense.paidFrom,
+                bank_account_id:     expense.bankAccountId?.toString() ?? '',
                 supplier_name:       expense.supplierName ?? '',
                 receipt_reference:   expense.receiptReference ?? '',
                 comment:             expense.comment ?? '',
                 date:                expense.date ?? todayIso(),
-                service_invoice_id:  expense.serviceInvoiceId?.toString() ?? '',
-                attachment:          null,
+                invoices:            linkedOf(expense),
+                attachments:         [],
+                remove_attachment_ids: [],
             });
-            setInvoiceLabel(expense.invoiceNumber ?? '');
         } else {
             reset();
-            setInvoiceLabel(defaults?.invoiceLabel ?? '');
         }
     }, [expense, open]);
 
     // السوبر أدمن يستلم فئات كل الفروع؛ يُعرض منها العام وما يخصّ الفرع المختار.
     const branchCategories = isSuperAdmin ? categories.filter((c) => c.branchId === null || c.branchId.toString() === data.branch_id) : categories;
+    const branchAccounts = isSuperAdmin ? bankAccounts.filter((a) => a.branchId.toString() === data.branch_id) : bankAccounts;
 
     // فواتير خدمات فرع المصروف — السوبر أدمن يمرّر الفرع المختار في النافذة.
     const fetchInvoices = useCallback(
@@ -131,22 +151,36 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         [data.branch_id],
     );
 
-    const total = (parseFloat(data.qty || '0') * parseFloat(data.unit_price || '0') || 0).toLocaleString('en-US', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-    });
+    const totalValue = parseFloat(data.qty || '0') * parseFloat(data.unit_price || '0') || 0;
+    const total = money(totalValue);
+    // تاسك 187: أكثر من فاتورة ⇒ حصّةٌ لكلٍّ منها، ومجموعها = الإجمالي (يتحقّق منه الخادم).
+    const splits = data.invoices.length > 1;
+    const distributed = data.invoices.reduce((sum, i) => sum + (parseFloat(i.amount) || 0), 0);
+    const keptAttachments = expense?.attachments.filter((a) => !data.remove_attachment_ids.includes(a.id)) ?? [];
+
+    function addInvoice(value: string, label: string) {
+        if (!value || data.invoices.some((i) => i.id === value)) return;
+        setData('invoices', [...data.invoices, { id: value, label, amount: '' }]);
+    }
+
+    function setInvoiceAmount(index: number, amount: string) {
+        setData('invoices', data.invoices.map((i, n) => (n === index ? { ...i, amount } : i)));
+    }
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
+        // الوسم للعرض وحده؛ الخادم يقرأ المعرّف والحصّة.
+        const payload = (d: typeof data) => ({ ...d, invoices: d.invoices.map(({ id, amount }) => ({ id, amount })) });
 
         if (isEdit) {
             // الملفّ multipart، وPHP لا يقرأ ملفات PUT — فـPOST بـ_method.
-            transform((d) => ({ ...d, _method: 'put' }));
+            transform((d) => ({ ...payload(d), _method: 'put' }));
             post(update.url(expense), {
                 preserveScroll: true,
                 onSuccess: () => { onOpenChange(false); reset(); },
             });
         } else {
+            transform(payload);
             post(isRequest ? request.url() : store.url(), {
                 preserveScroll: true,
                 onSuccess: () => { onOpenChange(false); reset(); },
@@ -275,7 +309,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                                     type="button"
                                     variant={data.paid_from === s.value ? 'default' : 'outline'}
                                     aria-pressed={data.paid_from === s.value}
-                                    onClick={() => setData('paid_from', s.value)}
+                                    onClick={() => setData((d) => ({ ...d, paid_from: s.value, bank_account_id: s.value === 'company_transfer' ? d.bank_account_id : '' }))}
                                 >
                                     {s.label}
                                 </Button>
@@ -283,6 +317,29 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                         </div>
                         <InputError message={errors.paid_from} />
                     </div>
+
+                    {/* تاسك 187: الحساب الذي خرج منه التحويل — إلزاميّ للتحويل. */}
+                    {data.paid_from === 'company_transfer' && (
+                        <div className="space-y-1">
+                            <Label htmlFor="exp-bank-account">الحساب البنكي</Label>
+                            <Select value={data.bank_account_id} onValueChange={(val) => setData('bank_account_id', val)}>
+                                <SelectTrigger id="exp-bank-account">
+                                    <SelectValue placeholder="اختر الحساب" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {branchAccounts.map((a) => (
+                                        <SelectItem key={a.id} value={a.id.toString()}>
+                                            {a.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {branchAccounts.length === 0 && (
+                                <p className="text-muted-foreground text-xs">لا توجد حسابات بنكية للفرع — يضيفها مدير الفرع من الإعدادات.</p>
+                            )}
+                            <InputError message={errors.bank_account_id} />
+                        </div>
+                    )}
 
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
@@ -309,49 +366,114 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                         </div>
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="space-y-1">
-                            <Label>ربط بفاتورة/طلب</Label>
-                            {isRequest ? (
-                                <Input value={invoiceLabel} readOnly disabled dir="ltr" />
-                            ) : (
+                    {/* تاسك 187: فاتورة أو أكثر؛ طلب الموظف ثابتٌ على فاتورته. */}
+                    <div className="space-y-2">
+                        <Label>ربط بفاتورة/طلب</Label>
+                        {data.invoices.map((invoice, index) => (
+                            <div key={invoice.id} className="flex items-center gap-2">
+                                <span className="min-w-0 flex-1 truncate text-sm" dir="ltr">
+                                    {invoice.label}
+                                </span>
+                                {splits && (
+                                    <Input
+                                        type="number"
+                                        min="0.01"
+                                        step="0.01"
+                                        dir="ltr"
+                                        className="w-28"
+                                        aria-label={`حصّة ${invoice.label}`}
+                                        placeholder="المبلغ"
+                                        value={invoice.amount}
+                                        onChange={(e) => setInvoiceAmount(index, e.target.value)}
+                                    />
+                                )}
+                                {!isRequest && !readOnly && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label="إزالة الفاتورة"
+                                        onClick={() => setData('invoices', data.invoices.filter((_, n) => n !== index))}
+                                    >
+                                        <X className="size-4" />
+                                    </Button>
+                                )}
+                            </div>
+                        ))}
+                        {splits && (
+                            <p className={`text-xs tabular-nums ${Math.abs(distributed - totalValue) < 0.005 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                الموزَّع {money(distributed)} من {total} ر.س
+                            </p>
+                        )}
+                        {!isRequest && !readOnly && (
                             <AsyncCombobox
                                 fetcher={fetchInvoices}
-                                value={data.service_invoice_id || NO_INVOICE.value}
-                                selectedLabel={invoiceLabel}
-                                onChange={(value, option) => {
-                                    setData('service_invoice_id', value === NO_INVOICE.value ? '' : value);
-                                    setInvoiceLabel(option?.label.split(' — ')[0] ?? '');
-                                }}
-                                sentinel={NO_INVOICE}
+                                value=""
+                                placeholder={data.invoices.length ? 'إضافة فاتورة أخرى…' : 'اختر فاتورة (اختياري)'}
+                                onChange={(value, option) => addInvoice(value, option?.label.split(' — ')[0] ?? value)}
                                 inline
                                 searchPlaceholder="رقم الفاتورة أو اسم العميل"
                                 emptyText="لا توجد فاتورة مطابقة"
                                 triggerClassName="w-full"
                                 className="w-[var(--radix-popover-trigger-width)] min-w-64"
                             />
-                            )}
-                            <InputError message={errors.service_invoice_id} />
-                        </div>
+                        )}
+                        <InputError message={errors.invoices ?? Object.entries(errors).find(([k]) => k.startsWith('invoices.'))?.[1]} />
+                    </div>
 
-                        <div className="space-y-1">
-                            <Label htmlFor="exp-attachment">المرفق</Label>
-                            {readOnly ? (
-                                expense.attachmentUrl && (
-                                    <a href={expense.attachmentUrl} target="_blank" rel="noopener noreferrer" className="text-primary block py-2 text-sm hover:underline">
-                                        عرض المرفق
-                                    </a>
-                                )
-                            ) : (
-                                <Input
-                                    id="exp-attachment"
-                                    type="file"
-                                    accept="image/jpeg,image/png,image/webp,application/pdf"
-                                    onChange={(e) => setData('attachment', e.target.files?.[0] ?? null)}
-                                />
-                            )}
-                            <InputError message={errors.attachment} />
-                        </div>
+                    {/* تاسك 187: عدّة مرفقات — القائم يُحذف بعلامة، والجديد يُعاين ويُزال قبل الحفظ. */}
+                    <div className="space-y-2">
+                        <Label htmlFor="exp-attachments">المرفقات</Label>
+                        {keptAttachments.map((a) => (
+                            <div key={a.id} className="flex items-center gap-2 text-sm">
+                                <Paperclip className="text-muted-foreground size-4 shrink-0" />
+                                <a href={a.url} target="_blank" rel="noopener noreferrer" className="text-primary min-w-0 flex-1 truncate hover:underline">
+                                    {a.name}
+                                </a>
+                                {!readOnly && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        aria-label="حذف المرفق"
+                                        onClick={() => setData('remove_attachment_ids', [...data.remove_attachment_ids, a.id])}
+                                    >
+                                        <X className="size-4" />
+                                    </Button>
+                                )}
+                            </div>
+                        ))}
+                        {data.attachments.map((file, index) => (
+                            <div key={`${file.name}-${index}`} className="flex items-center gap-2 text-sm">
+                                <Paperclip className="size-4 shrink-0 text-emerald-600" />
+                                <a href={URL.createObjectURL(file)} target="_blank" rel="noopener noreferrer" className="min-w-0 flex-1 truncate hover:underline">
+                                    {file.name}
+                                </a>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label="إزالة الملف"
+                                    onClick={() => setData('attachments', data.attachments.filter((_, n) => n !== index))}
+                                >
+                                    <X className="size-4" />
+                                </Button>
+                            </div>
+                        ))}
+                        {readOnly && keptAttachments.length === 0 && <p className="text-muted-foreground text-sm">لا توجد مرفقات</p>}
+                        {!readOnly && (
+                            <Input
+                                id="exp-attachments"
+                                type="file"
+                                multiple
+                                accept="image/jpeg,image/png,image/webp,application/pdf"
+                                onChange={(e) => {
+                                    setData('attachments', [...data.attachments, ...Array.from(e.target.files ?? [])]);
+                                    e.target.value = '';
+                                }}
+                            />
+                        )}
+                        <InputError message={errors.attachments ?? Object.entries(errors).find(([k]) => k.startsWith('attachments.'))?.[1]} />
                     </div>
 
                     <div className="space-y-1">

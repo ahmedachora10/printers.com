@@ -10,6 +10,7 @@ use App\Enums\InvoiceTypeEnum;
 use App\Enums\ReturnRequestStatusEnum;
 use App\Http\Resources\Invoice\InvoiceListResource;
 use App\Http\Resources\Invoice\InvoiceResource;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\DeliveryProvider;
@@ -344,13 +345,14 @@ class InvoiceController extends Controller
                 ? fn () => [
                     'isRequest' => ! Gate::allows('create', Expense::class),
                     'categories' => ExpenseCategory::activeOptionsFor($invoice->branch_id),
+                    'bankAccounts' => BankAccount::optionsFor($invoice->branch_id),
                     'branches' => Auth::user()->roleName?->isSuperAdmin()
                         ? [['id' => $invoice->branch_id, 'name' => $invoice->branch?->name]]
                         : null,
                 ]
                 : null,
             'settleForm' => $canSettleDeliveries
-                ? fn () => ['categories' => ExpenseCategory::activeOptionsFor($invoice->branch_id)]
+                ? fn () => ['categories' => ExpenseCategory::activeOptionsFor($invoice->branch_id), 'bankAccounts' => BankAccount::optionsFor($invoice->branch_id)]
                 : null,
             // توصيلٌ بعد اعتماد الفاتورة: سائقو الفرع وشرائحه ودفتر عناوين العميل.
             'shipmentForm' => $invoice instanceof ServiceInvoice && Gate::allows('requestShipment', $invoice)

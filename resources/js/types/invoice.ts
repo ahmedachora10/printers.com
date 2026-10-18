@@ -132,9 +132,11 @@ export interface Invoice {
         id: number;
         categoryName: string | null;
         total: number;
+        /** تاسك 187 — حصّة هذه الفاتورة من المصروف (= total حين لا توزيع) */
+        amount: number;
         date: string;
         paidFromLabel: string;
-        attachmentUrl: string | null;
+        attachments: { id: number; name: string; url: string }[];
         /** تاسك 157 — طلب موظفٍ لم يقبله المحاسب: يُعرض ولا يدخل المجموع. */
         pendingRequest: boolean;
     }[];
