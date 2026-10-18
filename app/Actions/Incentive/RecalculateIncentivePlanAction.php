@@ -61,9 +61,8 @@ class RecalculateIncentivePlanAction
             ->select('invoice_id', DB::raw('SUM(amount) as refunded'));
 
         // ‎1.0 و100.0: SQLite يقسم الأعداد الصحيحة قسمةً صحيحة.
-        $kept = 'CASE WHEN service_invoices.total_amount > 0 THEN '
-            .'(service_invoices.total_amount - COALESCE(r.refunded, 0)) * 1.0 / service_invoices.total_amount ELSE 0 END';
-        $helperShare = 'ROUND(service_invoice_helpers.share_net * (1 + service_invoices.vat_pct / 100.0), 2)';
+        $kept = 'COALESCE((service_invoices.total_amount - COALESCE(r.refunded, 0)) * 1.0 / NULLIF(service_invoices.total_amount, 0), 0)';
+        $withVat = 'ROUND(%s * (1 + service_invoices.vat_pct / 100.0), 2)';
 
         $approvedInMonth = fn () => ServiceInvoice::query()
             ->leftJoinSub($firstPayment, 'fp', 'fp.invoice_id', '=', 'service_invoices.id')
@@ -73,14 +72,15 @@ class RecalculateIncentivePlanAction
             ->whereBetween(DB::raw('COALESCE(fp.first_paid_at, service_invoices.paid_at)'), [$start, $end]);
 
         $shared = DB::table('service_invoice_helpers')
-            ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_helpers.service_invoice_id')
-            ->groupBy('service_invoice_helpers.service_invoice_id')
-            ->select('service_invoice_helpers.service_invoice_id', DB::raw("SUM({$helperShare}) as shared"));
+            ->groupBy('service_invoice_id')
+            ->select('service_invoice_id', DB::raw('SUM(share_net) as shared_net'));
+        $ownShare = sprintf($withVat, 'COALESCE(h.shared_net, 0)');
+        $helperShare = sprintf($withVat, 'service_invoice_helpers.share_net');
 
         $own = $approvedInMonth()
             ->leftJoinSub($shared, 'h', 'h.service_invoice_id', '=', 'service_invoices.id')
             ->where('service_invoices.user_id', $plan->user_id)
-            ->sum(DB::raw("(service_invoices.total_amount - COALESCE(h.shared, 0)) * {$kept}"));
+            ->sum(DB::raw("(service_invoices.total_amount - {$ownShare}) * {$kept}"));
 
         $helped = $approvedInMonth()
             ->join('service_invoice_helpers', 'service_invoice_helpers.service_invoice_id', '=', 'service_invoices.id')
