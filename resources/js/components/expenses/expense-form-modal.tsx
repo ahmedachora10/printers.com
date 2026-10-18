@@ -1,4 +1,5 @@
 import { request, store, update } from '@/actions/App/Http/Controllers/ExpenseController';
+import BankAccountField, { keepAccount } from '@/components/expenses/bank-account-field';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Button } from '@/components/ui/button';
 import {
@@ -309,7 +310,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                                     type="button"
                                     variant={data.paid_from === s.value ? 'default' : 'outline'}
                                     aria-pressed={data.paid_from === s.value}
-                                    onClick={() => setData((d) => ({ ...d, paid_from: s.value, bank_account_id: s.value === 'company_transfer' ? d.bank_account_id : '' }))}
+                                    onClick={() => setData((d) => ({ ...d, paid_from: s.value, bank_account_id: keepAccount(s.value, d.bank_account_id) }))}
                                 >
                                     {s.label}
                                 </Button>
@@ -320,25 +321,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
 
                     {/* تاسك 187: الحساب الذي خرج منه التحويل — إلزاميّ للتحويل. */}
                     {data.paid_from === 'company_transfer' && (
-                        <div className="space-y-1">
-                            <Label htmlFor="exp-bank-account">الحساب البنكي</Label>
-                            <Select value={data.bank_account_id} onValueChange={(val) => setData('bank_account_id', val)}>
-                                <SelectTrigger id="exp-bank-account">
-                                    <SelectValue placeholder="اختر الحساب" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {branchAccounts.map((a) => (
-                                        <SelectItem key={a.id} value={a.id.toString()}>
-                                            {a.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {branchAccounts.length === 0 && (
-                                <p className="text-muted-foreground text-xs">لا توجد حسابات بنكية للفرع — يضيفها مدير الفرع من الإعدادات.</p>
-                            )}
-                            <InputError message={errors.bank_account_id} />
-                        </div>
+                        <BankAccountField accounts={branchAccounts} value={data.bank_account_id} onChange={(v) => setData('bank_account_id', v)} error={errors.bank_account_id} />
                     )}
 
                     <div className="grid grid-cols-2 gap-4">

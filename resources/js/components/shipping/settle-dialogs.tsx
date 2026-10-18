@@ -1,3 +1,4 @@
+import BankAccountField, { keepAccount } from '@/components/expenses/bank-account-field';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -64,7 +65,7 @@ export function SettleDeliveryDialog({
                                     type="button"
                                     variant={data.paid_from === s.value ? 'default' : 'outline'}
                                     aria-pressed={data.paid_from === s.value}
-                                    onClick={() => setData((d) => ({ ...d, paid_from: s.value, bank_account_id: s.value === 'company_transfer' ? d.bank_account_id : '' }))}
+                                    onClick={() => setData((d) => ({ ...d, paid_from: s.value, bank_account_id: keepAccount(s.value, d.bank_account_id) }))}
                                 >
                                     {s.label}
                                 </Button>
@@ -73,22 +74,7 @@ export function SettleDeliveryDialog({
                         <InputError message={errors.paid_from} />
                     </div>
                     {data.paid_from === 'company_transfer' && (
-                        <div className="space-y-1">
-                            <Label>الحساب البنكي</Label>
-                            <Select value={data.bank_account_id} onValueChange={(v) => setData('bank_account_id', v)}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="اختر الحساب" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {bankAccounts.map((a) => (
-                                        <SelectItem key={a.id} value={String(a.id)}>
-                                            {a.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <InputError message={errors.bank_account_id} />
-                        </div>
+                        <BankAccountField accounts={bankAccounts} value={data.bank_account_id} onChange={(v) => setData('bank_account_id', v)} error={errors.bank_account_id} />
                     )}
                     <div className="space-y-1">
                         <Label>فئة المصروف</Label>
