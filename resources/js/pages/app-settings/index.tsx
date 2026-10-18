@@ -7,6 +7,7 @@ import {
     updateInventoryAlerts,
     updatePaymentMethods,
 } from '@/actions/App/Http/Controllers/AppSettingController';
+import BankAccountsTab, { type BankAccount } from '@/components/app-settings/bank-accounts-tab';
 import BranchProfileTab from '@/components/app-settings/branch-profile-tab';
 import LoyaltyTab from '@/components/app-settings/loyalty-tab';
 import NetworkDevicesTab, { type CardType, type NetworkDevice } from '@/components/app-settings/network-devices-tab';
@@ -40,7 +41,7 @@ import { Banknote, CreditCard, Paperclip, Pencil, Plus, Trash2 } from 'lucide-re
 import { useState } from 'react';
 import InputError from '@/components/input-error';
 
-const VALID_TABS = ['general', 'branch-profile', 'payment-methods', 'network-devices', 'loyalty', 'inventory-alerts'] as const;
+const VALID_TABS = ['general', 'branch-profile', 'payment-methods', 'network-devices', 'bank-accounts', 'loyalty', 'inventory-alerts'] as const;
 type TabValue = (typeof VALID_TABS)[number];
 
 function getInitialTab(isSuperAdmin: boolean, hasBranchProfile: boolean): TabValue {
@@ -80,6 +81,9 @@ interface Props {
     networkDevices: NetworkDevice[];
     cardTypes: CardType[];
     canManageNetworkDevices: boolean;
+    /** تاسك 187 */
+    bankAccounts: BankAccount[];
+    canManageBankAccounts: boolean;
     isSuperAdmin: boolean;
     loyaltyConfig: AppSettingsLoyaltyData | null;
     canConfigureLoyalty: boolean;
@@ -100,6 +104,8 @@ export default function AppSettingsIndex({
     networkDevices,
     cardTypes,
     canManageNetworkDevices,
+    bankAccounts,
+    canManageBankAccounts,
     isSuperAdmin,
     loyaltyConfig,
     canConfigureLoyalty,
@@ -186,6 +192,7 @@ export default function AppSettingsIndex({
                         {branchProfile && <TabsTrigger value="branch-profile">بيانات الفرع</TabsTrigger>}
                         <TabsTrigger value="payment-methods">طرق الدفع</TabsTrigger>
                         <TabsTrigger value="network-devices">أجهزة الشبكة</TabsTrigger>
+                        <TabsTrigger value="bank-accounts">الحسابات البنكية</TabsTrigger>
                         <TabsTrigger value="loyalty">برنامج الولاء</TabsTrigger>
                         <TabsTrigger value="inventory-alerts">تنبيهات المخزون</TabsTrigger>
                     </TabsList>
@@ -353,6 +360,11 @@ export default function AppSettingsIndex({
                             isSuperAdmin={isSuperAdmin}
                             canManageDevices={canManageNetworkDevices}
                         />
+                    </TabsContent>
+
+                    {/* ── Bank accounts (تاسك 187) ───────────────────────── */}
+                    <TabsContent value="bank-accounts">
+                        <BankAccountsTab accounts={bankAccounts} branches={loyaltyBranches} isSuperAdmin={isSuperAdmin} canManage={canManageBankAccounts} />
                     </TabsContent>
 
                     {/* ── Loyalty Program ──────────────────────────────── */}

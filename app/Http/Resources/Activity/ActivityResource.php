@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Activity;
 
 use App\Enums\InvoiceStatusEnum;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\CustomerAddress;
@@ -130,6 +131,8 @@ class ActivityResource extends JsonResource
         'paid_from' => 'مصدر الدفع',
         'expense_category_id' => 'فئة المصروف',
         'service_invoice_id' => 'الفاتورة المرتبطة',
+        'invoices' => 'الفواتير المرتبطة',
+        'bank_account_id' => 'الحساب البنكي',
         'supplier_name' => 'المورّد',
         'receipt_reference' => 'مرجع الإيصال',
         'approved_at' => 'الاعتماد',
@@ -244,6 +247,7 @@ class ActivityResource extends JsonResource
         'customer_id' => [Customer::class, 'full_name'],
         'branch_id' => [Branch::class, 'name'],
         'expense_category_id' => [ExpenseCategory::class, 'name'],
+        'bank_account_id' => [BankAccount::class, 'name'],
         'supplier_id' => [Supplier::class, 'name'],
         'shipping_provider_id' => [DeliveryProvider::class, 'name'],
         'service_invoice_id' => [ServiceInvoice::class, 'invoice_number'],

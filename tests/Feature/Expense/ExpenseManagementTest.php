@@ -2,6 +2,7 @@
 
 use App\Enums\ExpenseSourceEnum;
 use App\Enums\Roles;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
@@ -206,10 +207,14 @@ describe('Expense Management', function () {
 
         $this->post(route('expenses.store'), $payload)->assertSessionHasErrors(['paid_from']);
 
-        $this->post(route('expenses.store'), [...$payload, 'paid_from' => 'company_transfer'])
+        // تاسك 187: التحويل يحمل حساب الفرع البنكي.
+        $account = BankAccount::create(['branch_id' => $this->branch->id, 'name' => 'الحساب الرئيسي']);
+
+        $this->post(route('expenses.store'), [...$payload, 'paid_from' => 'company_transfer', 'bank_account_id' => $account->id])
             ->assertSessionHasNoErrors();
 
-        expect(Expense::firstOrFail()->paid_from)->toBe(ExpenseSourceEnum::CompanyTransfer);
+        expect(Expense::firstOrFail()->paid_from)->toBe(ExpenseSourceEnum::CompanyTransfer)
+            ->and(Expense::firstOrFail()->bank_account_id)->toBe($account->id);
     });
 
     // ── UPDATE ─────────────────────────────────────────────────────

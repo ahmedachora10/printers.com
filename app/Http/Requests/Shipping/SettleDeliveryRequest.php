@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Shipping;
 
 use App\Enums\ExpenseSourceEnum;
+use App\Http\Requests\Expense\StoreExpenseRequest;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -22,6 +23,8 @@ class SettleDeliveryRequest extends FormRequest
         return [
             'amount' => ['required', 'numeric', 'gt:0'],
             'paid_from' => ['required', Rule::enum(ExpenseSourceEnum::class)],
+            // تاسك 187: التحويل من حساب الفرع البنكي.
+            'bank_account_id' => StoreExpenseRequest::bankAccountRule($branchId),
             // فئةٌ عامة أو فئة فرع الطلب (تاسك 102).
             'expense_category_id' => ['required', 'integer', Rule::exists('expense_categories', 'id')
                 ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId))],

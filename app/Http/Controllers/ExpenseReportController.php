@@ -7,6 +7,7 @@ use App\Actions\Report\ResolveReportScope;
 use App\Enums\ExpenseSourceEnum;
 use App\Exports\ExpenseReportExport;
 use App\Http\Requests\Report\ExpenseReportFilterRequest;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
@@ -52,6 +53,7 @@ class ExpenseReportController extends Controller
                 'to' => $scope['to']?->toDateString(),
                 'branch' => $scope['isSuper'] && $scope['branchId'] ? (string) $scope['branchId'] : null,
                 'category' => $scope['categoryId'] ? (string) $scope['categoryId'] : null,
+                'bank_account' => $scope['bankAccountId'] ? (string) $scope['bankAccountId'] : null,
             ],
             // The "cleared" value of the date fields — the report opens on today,
             // so the client treats today as the default and not as a live filter.
@@ -60,6 +62,7 @@ class ExpenseReportController extends Controller
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
             'categories' => ExpenseCategory::activeOptionsFor($scope['branchId']),
+            'bankAccounts' => BankAccount::optionsFor($scope['branchId']),
             'isSuperAdmin' => $scope['isSuper'],
         ]);
     }
@@ -75,15 +78,16 @@ class ExpenseReportController extends Controller
     }
 
     /**
-     * The shared report scope plus this report's own category filter.
+     * The shared report scope plus this report's own category and bank-account filters.
      *
-     * @return array{isSuper: bool, branchId: ?int, categoryId: ?int, from: Carbon, to: Carbon}
+     * @return array{isSuper: bool, branchId: ?int, categoryId: ?int, bankAccountId: ?int, from: Carbon, to: Carbon}
      */
     private function scope(ExpenseReportFilterRequest $request, ResolveReportScope $resolveScope): array
     {
         return [
             ...$resolveScope->handle($request),
             'categoryId' => $request->filled('category') ? (int) $request->input('category') : null,
+            'bankAccountId' => $request->filled('bank_account') ? (int) $request->input('bank_account') : null,
         ];
     }
 
@@ -106,6 +110,8 @@ class ExpenseReportController extends Controller
             // وغير المعتمد يُحصى على حدة في `totals` كي لا يُقرأ الرقم مثبَّتاً.
             ->when($scope['branchId'], fn ($q) => $q->where('expenses.branch_id', $scope['branchId']))
             ->when($scope['categoryId'], fn ($q) => $q->where('expenses.expense_category_id', $scope['categoryId']))
+            // تاسك 187: التحويلات من حسابٍ بنكي بعينه.
+            ->when($scope['bankAccountId'], fn ($q) => $q->where('expenses.bank_account_id', $scope['bankAccountId']))
             ->when($scope['from'], fn ($q) => $q->whereDate('expenses.date', '>=', $scope['from']->toDateString()))
             ->when($scope['to'], fn ($q) => $q->whereDate('expenses.date', '<=', $scope['to']->toDateString()));
     }
@@ -215,7 +221,7 @@ class ExpenseReportController extends Controller
      */
     private function detailRows(array $scope): Collection
     {
-        return $this->baseQuery($scope)
+        $rows = $this->baseQuery($scope)
             ->leftJoin('expense_categories', 'expense_categories.id', '=', 'expenses.expense_category_id')
             ->leftJoin('users', 'users.id', '=', 'expenses.user_id')
             ->leftJoin('branches', 'branches.id', '=', 'expenses.branch_id')
@@ -231,9 +237,15 @@ class ExpenseReportController extends Controller
                 'expenses.unit_price as unit_price',
                 'expenses.total as total',
                 'expenses.paid_from as paid_from',
+                'expenses.bank_account_id as bank_account_id',
                 'expenses.receipt_reference as receipt_reference',
                 'users.name as user_name',
-            ])
+            ]);
+
+        // تاسك 187: اسم الحساب كما يُعرض في الشاشة (BankAccount::label)، والمحذوف ناعماً يبقى.
+        $accounts = BankAccount::withTrashed()->whereKey($rows->pluck('bank_account_id')->filter()->unique())->get()->keyBy('id');
+
+        return $rows
             ->map(fn ($row) => [
                 'id' => (int) $row->id,
                 'date' => Carbon::parse($row->date)->toDateString(),
@@ -244,6 +256,7 @@ class ExpenseReportController extends Controller
                 'unitPrice' => (float) $row->unit_price,
                 'total' => (float) $row->total,
                 'paidFromLabel' => ExpenseSourceEnum::from($row->paid_from)->label(),
+                'bankAccountName' => $accounts->get($row->bank_account_id)?->label(),
                 'receiptReference' => $row->receipt_reference,
                 'userName' => $row->user_name,
             ])

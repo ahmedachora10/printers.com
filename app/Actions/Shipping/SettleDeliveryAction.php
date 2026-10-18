@@ -16,7 +16,7 @@ use Illuminate\Validation\ValidationException;
  */
 class SettleDeliveryAction
 {
-    /** @param array{amount: numeric, paid_from: string, expense_category_id: int} $data */
+    /** @param array{amount: numeric, paid_from: string, bank_account_id?: ?int, expense_category_id: int} $data */
     public function handle(ServiceInvoiceShipment $shipment, array $data): Expense
     {
         return DB::transaction(function () use ($shipment, $data) {
@@ -34,10 +34,9 @@ class SettleDeliveryAction
             $user = auth()->user();
             $invoice = $shipment->invoice;
 
-            return Expense::query()->forceCreate([
+            $expense = Expense::query()->forceCreate([
                 'expense_category_id' => $data['expense_category_id'],
                 'branch_id' => $invoice->branch_id,
-                'service_invoice_id' => $invoice->id,
                 'service_invoice_shipment_id' => $shipment->id,
                 'delivery_provider_id' => $shipment->provider_id,
                 'user_id' => $user->id,
@@ -45,6 +44,7 @@ class SettleDeliveryAction
                 'unit_price' => $data['amount'],
                 'total' => $data['amount'],
                 'paid_from' => $data['paid_from'],
+                'bank_account_id' => $data['bank_account_id'] ?? null,
                 'supplier_name' => $shipment->provider?->name,
                 'comment' => "تسوية توصيل {$invoice->invoice_number}",
                 'date' => today(),
@@ -52,6 +52,9 @@ class SettleDeliveryAction
                 'approved_at' => now(),
                 'approved_by' => $user->id,
             ]);
+            $expense->syncInvoices([['id' => $invoice->id]]);
+
+            return $expense;
         });
     }
 }

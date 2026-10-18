@@ -204,7 +204,6 @@ describe('Shipping on the service POS screen', function () {
         Expense::query()->forceCreate([
             'expense_category_id' => ExpenseCategory::factory()->create()->id,
             'branch_id' => $this->branch->id,
-            'service_invoice_id' => $invoice->id,
             'service_invoice_shipment_id' => $shipment->id,
             'delivery_provider_id' => $this->provider->id,
             'user_id' => $this->employee->id,

@@ -12,6 +12,7 @@ use App\Enums\InvoiceStatusEnum;
 use App\Http\Requests\Expense\StoreExpenseRequest;
 use App\Http\Requests\Expense\UpdateExpenseRequest;
 use App\Http\Resources\Expense\ExpenseResource;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
@@ -42,7 +43,7 @@ class ExpenseController extends Controller
         $base = $this->filteredQuery($request);
 
         $items = (clone $base)
-            ->with(['category', 'user', 'requestedBy:id,name', 'media', 'invoice:id,invoice_number', 'approvedBy:id,name', 'activities.causer:id,name'])
+            ->with(['category', 'user', 'requestedBy:id,name', 'media', 'invoices:id,invoice_number', 'bankAccount', 'approvedBy:id,name', 'activities.causer:id,name'])
             ->orderByDesc('date')
             ->orderByDesc('id')
             ->paginate(15)
@@ -68,6 +69,8 @@ class ExpenseController extends Controller
                 ExpenseSourceEnum::cases(),
             ),
             'categories' => $categories,
+            // تاسك 187: حسابات الفرع البنكية — لفلتر القائمة ولنافذة المصروف.
+            'bankAccounts' => BankAccount::optionsFor($branchId),
             'branches' => auth()->user()->roleName?->isSuperAdmin()
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,
@@ -76,6 +79,7 @@ class ExpenseController extends Controller
                 'expense_category_id' => $request->input('expense_category_id'),
                 'approval' => $request->input('approval'),
                 'paid_from' => $request->input('paid_from'),
+                'bank_account_id' => $request->input('bank_account_id'),
                 // المدى المطبَّق فعلاً لا المُرسَل — فيُضيء زرّ «اليوم» حين
                 // تُفتح الشاشة بلا مدى.
                 'from' => $from,
@@ -114,6 +118,7 @@ class ExpenseController extends Controller
                 ExpenseSourceEnum::tryFrom((string) $request->input('paid_from')),
                 fn ($q, ExpenseSourceEnum $source) => $q->where('paid_from', $source->value),
             )
+            ->when($request->filled('bank_account_id'), fn ($q) => $q->where('bank_account_id', $request->integer('bank_account_id')))
             ->when($from, fn ($q) => $q->whereDate('date', '>=', $from))
             ->when($to, fn ($q) => $q->whereDate('date', '<=', $to));
     }
@@ -161,11 +166,13 @@ class ExpenseController extends Controller
             return back()->with('error', 'لا توجد مرفقات في هذه التصفية');
         }
 
-        $files = $expenses->map(fn (Expense $e) => [$e->attachment(), implode('-', [
+        // تاسك 187: كل مرفقات المصروف؛ الثاني فما بعده يُرقَّم (…-12-2).
+        $files = $expenses->flatMap(fn (Expense $e) => $e->attachments()->values()->map(fn ($media, $i) => [$media, implode('-', array_filter([
             $e->date->format('Y-m-d'),
             $e->supplier_name ?: ($e->category?->name ?? 'مصروف'),
             $e->id,
-        ])])->all();
+            $i > 0 ? $i + 1 : null,
+        ]))]))->all();
 
         return MediaZip::download($files, 'مرفقات-المصروفات-'.now()->format('Y-m-d').'.zip');
     }
@@ -195,11 +202,12 @@ class ExpenseController extends Controller
     }
 
     /** تاسك 112 — مرفق المصروف من القرص الخاص، مفوَّضاً بصلاحية العرض (فرع المصروف). */
-    public function attachment(Expense $expense, Request $request): FileResponse
+    public function attachment(Expense $expense, int $media, Request $request): FileResponse
     {
         Gate::authorize('view', $expense);
 
-        $media = $expense->attachment();
+        // من مرفقات هذا المصروف وحده — لا ملفّ نموذجٍ آخر بمعرّفه.
+        $media = $expense->attachments()->firstWhere('id', $media);
         abort_if($media === null, 404);
 
         return $media->toInlineResponse($request);
@@ -248,10 +256,11 @@ class ExpenseController extends Controller
     /** تاسك 157 — الموظف يطلب مصروفاً على فاتورته؛ لا يُحسب حتى يقبله المحاسب. */
     public function request(StoreExpenseRequest $request, CreateExpenseAction $action): RedirectResponse
     {
-        $invoice = ServiceInvoice::findOrFail($request->validated('service_invoice_id'));
+        // الطلب على فاتورة الموظف وحدها، فلا يُقبل غير الرابط الأول.
+        $invoice = ServiceInvoice::findOrFail($request->validated('invoices.0.id'));
         Gate::authorize('request', [Expense::class, $invoice]);
 
-        $expense = $action->handle([...$request->validated(), 'requested_by' => $request->user()->id]);
+        $expense = $action->handle([...$request->validated(), 'invoices' => [['id' => $invoice->id]], 'requested_by' => $request->user()->id]);
 
         Notification::send(
             BranchNotifiables::forBranch($expense->branch_id, ['branch-admin', 'accountant']),

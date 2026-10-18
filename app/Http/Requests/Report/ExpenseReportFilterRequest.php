@@ -21,6 +21,7 @@ class ExpenseReportFilterRequest extends FormRequest
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'branch' => ['nullable', 'integer', 'exists:branches,id'],
             'category' => ['nullable', 'integer', 'exists:expense_categories,id'],
+            'bank_account' => ['nullable', 'integer', 'exists:bank_accounts,id'],
         ];
     }
 }

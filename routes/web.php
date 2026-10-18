@@ -8,6 +8,7 @@ use App\Http\Controllers\AgentPaymentController;
 use App\Http\Controllers\AgentPortalController;
 use App\Http\Controllers\AnalyticsController;
 use App\Http\Controllers\AppSettingController;
+use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BranchController;
 use App\Http\Controllers\BranchServiceController;
 use App\Http\Controllers\CardTypeController;
@@ -156,6 +157,11 @@ Route::middleware(['auth'])->group(function () {
         Route::patch('payment-methods/{paymentMethod}/toggle-status', [PaymentMethodController::class, 'toggleStatus'])
             ->name('payment-methods.toggle-status');
 
+        // تاسك 187 — حسابات الشركة البنكية لكل فرع.
+        Route::resource('bank-accounts', BankAccountController::class)
+            ->parameters(['bank-accounts' => 'bankAccount'])
+            ->only(['store', 'update', 'destroy']);
+
         // تاسك 146 — أجهزة الشبكة (مدير الفرع لفرعه) وأنواع البطاقات (المدير العام وحده).
         Route::resource('network-devices', NetworkDeviceController::class)
             ->parameters(['network-devices' => 'networkDevice'])
@@ -302,7 +308,7 @@ Route::middleware(['auth'])->group(function () {
         Route::post('refunds/requests/{returnRequest}/reject', [InvoiceReturnRequestController::class, 'reject'])->name('refunds.requests.reject');
 
         Route::get('expenses/invoice-options', [ExpenseController::class, 'invoiceOptions'])->name('expenses.invoice-options');
-        Route::get('expenses/{expense}/attachment', [ExpenseController::class, 'attachment'])->name('expenses.attachment');
+        Route::get('expenses/{expense}/attachment/{media}', [ExpenseController::class, 'attachment'])->name('expenses.attachment');
         Route::get('expenses/attachments', [ExpenseController::class, 'attachments'])->name('expenses.attachments');
         Route::post('expenses/approve-all', [ExpenseController::class, 'approveAll'])->name('expenses.approve-all');
         Route::post('expenses/{expense}/approve', [ExpenseController::class, 'approve'])->name('expenses.approve');

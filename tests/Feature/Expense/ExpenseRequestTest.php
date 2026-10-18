@@ -53,7 +53,7 @@ describe('Expense requests', function () {
             'unit_price' => 40,
             'paid_from' => 'cash_drawer',
             'date' => today()->toDateString(),
-            'service_invoice_id' => $invoice->id,
+            'invoices' => [['id' => $invoice->id]],
         ];
 
         $this->submit = function () {
@@ -138,6 +138,6 @@ describe('Expense requests', function () {
                 ->where('expenseForm.isRequest', true)
                 ->has('invoice.linkedExpenses', 1)
                 ->where('invoice.linkedExpenses.0.pendingRequest', true)
-                ->where('invoice.linkedExpenses.0.attachmentUrl', null));
+                ->where('invoice.linkedExpenses.0.attachments', []));
     });
 });

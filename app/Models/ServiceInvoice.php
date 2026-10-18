@@ -200,13 +200,14 @@ class ServiceInvoice extends Model implements HasMedia
     }
 
     /**
-     * تاسك 112 — المصروفات المربوطة بهذا الطلب (توصيل، خامات، مشتريات).
+     * تاسك 112 — المصروفات المربوطة بهذا الطلب (توصيل، خامات، مشتريات)، و`pivot->amount`
+     * حصّته من كلٍّ منها (تاسك 187: المصروف الواحد يتوزّع على عدّة فواتير).
      *
-     * @return HasMany<Expense, $this>
+     * @return BelongsToMany<Expense, $this>
      */
-    public function expenses(): HasMany
+    public function expenses(): BelongsToMany
     {
-        return $this->hasMany(Expense::class);
+        return $this->belongsToMany(Expense::class, 'expense_service_invoice')->withPivot('amount');
     }
 
     /** @return HasMany<ServiceInvoiceLine, $this> */

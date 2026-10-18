@@ -4,6 +4,7 @@ namespace App\Http\Resources\Invoice;
 
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
+use App\Http\Resources\Expense\ExpenseResource;
 use App\Http\Resources\InvoiceReturnRequest\InvoiceReturnRequestResource;
 use App\Models\Expense;
 use App\Models\InvoicePayment;
@@ -241,12 +242,14 @@ class InvoiceResource extends JsonResource
                     'id' => $expense->id,
                     'categoryName' => $expense->category?->name,
                     'total' => (float) $expense->total,
+                    // تاسك 187: حصّة هذه الفاتورة من المصروف (تساوي الإجمالي حين لا توزيع).
+                    'amount' => (float) $expense->pivot->amount,
                     'date' => $expense->date->format('d/m/Y'),
                     'paidFromLabel' => $expense->paid_from->label(),
                     // تاسك 157: طلب موظفٍ لم يُقبل — يُعرض ولا يدخل المجموع.
                     'pendingRequest' => $expense->isPendingRequest(),
                     // تاسك 157: الموظف يرى طلبه ولا يفتح مسار المرفق (مسار المحاسبين).
-                    'attachmentUrl' => $expense->attachment() && $request->user()?->can('view', $expense) ? route('expenses.attachment', $expense->id) : null,
+                    'attachments' => $request->user()?->can('view', $expense) ? ExpenseResource::attachmentLinks($expense) : [],
                 ])->all()
                 : [],
             'refundedTotal' => $refundedTotal,

@@ -3,6 +3,7 @@
 namespace App\Http\Resources\Expense;
 
 use App\Enums\ExpenseSourceEnum;
+use App\Models\BankAccount;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\ServiceInvoice;
@@ -36,13 +37,19 @@ class ExpenseResource extends JsonResource
             'unitPrice' => (float) $this->unit_price,
             'total' => (float) $this->total,
             'paidFrom' => $this->paid_from->value,
+            // تاسك 187: الحساب الذي خرج منه التحويل — القديم بلا حساب.
+            'bankAccountId' => $this->bank_account_id,
+            'bankAccountName' => $this->bankAccount?->label(),
             'supplierName' => $this->supplier_name,
             'receiptReference' => $this->receipt_reference,
             'comment' => $this->comment,
-            // تاسك 112: المرفق عبر مسارٍ مفوَّض لا رابطٍ عام، والطلب المربوط.
-            'attachmentUrl' => $this->attachment() ? route('expenses.attachment', $this->id) : null,
-            'serviceInvoiceId' => $this->service_invoice_id,
-            'invoiceNumber' => $this->invoice?->invoice_number,
+            // تاسك 112/187: المرفقات عبر مسارٍ مفوَّض لا رابطٍ عام، والفواتير المربوطة بحصصها.
+            'attachments' => self::attachmentLinks($this->resource),
+            'invoices' => $this->invoices->map(fn (ServiceInvoice $invoice) => [
+                'id' => $invoice->id,
+                'invoiceNumber' => $invoice->invoice_number,
+                'amount' => (float) $invoice->pivot->amount,
+            ])->values()->all(),
             'date' => $this->date->format('Y-m-d'),
             'dateLabel' => $this->date->format('d/m/Y'),
             'userName' => $this->user?->name,
@@ -64,10 +71,24 @@ class ExpenseResource extends JsonResource
     }
 
     /**
+     * يقرؤه أيضاً «مصروفات مرتبطة» في الفاتورة (InvoiceResource).
+     *
+     * @return list<array{id: int, name: string, url: string}>
+     */
+    public static function attachmentLinks(Expense $expense): array
+    {
+        return $expense->attachments()->map(fn ($media) => [
+            'id' => $media->id,
+            'name' => $media->file_name,
+            'url' => route('expenses.attachment', [$expense->id, $media->id]),
+        ])->values()->all();
+    }
+
+    /**
      * سجلّ ما بعد الاعتماد بقيمٍ مقروءة: اسم الفئة ورقم الفاتورة بدل معرّفيهما،
      * ومصدر الدفع والتاريخ بصيغتهما المعروضة.
      *
-     * ponytail: استعلامان لكل صفٍّ له سجلّ — نادرٌ (معتمدٌ ثم عُدّل) وفي صفحة من 15؛
+     * ponytail: ثلاثة استعلامات لكل صفٍّ له سجلّ — نادرٌ (معتمدٌ ثم عُدّل) وفي صفحة من 15؛
      * يُجمع على مستوى الصفحة إن صار شائعاً.
      *
      * @return list<array<string, mixed>>
@@ -76,12 +97,15 @@ class ExpenseResource extends JsonResource
     {
         $values = $history->flatMap(fn ($a) => [$a->properties['old'] ?? [], $a->properties['attributes'] ?? []]);
         $categories = ExpenseCategory::whereKey($values->pluck('expense_category_id')->filter()->unique())->pluck('name', 'id');
+        $accounts = BankAccount::withTrashed()->whereKey($values->pluck('bank_account_id')->filter()->unique())->get()->keyBy('id');
         $invoices = ServiceInvoice::whereKey($values->pluck('service_invoice_id')->filter()->unique())->pluck('invoice_number', 'id');
 
         $readable = fn (array $fields) => collect($fields)->map(fn ($value, $field) => match (true) {
             $value === null => null,
             $field === 'expense_category_id' => $categories[$value] ?? $value,
+            // قبل تاسك 187 كان الربط عموداً واحداً، فالسجلّ القديم يحمله.
             $field === 'service_invoice_id' => $invoices[$value] ?? $value,
+            $field === 'bank_account_id' => $accounts->get($value)?->label() ?? $value,
             $field === 'paid_from' => ExpenseSourceEnum::tryFrom($value)?->label() ?? $value,
             $field === 'date' => Carbon::parse($value)->format('d/m/Y'),
             default => $value,

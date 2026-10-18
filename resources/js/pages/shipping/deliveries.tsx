@@ -12,6 +12,7 @@ import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters'
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDateTime } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
+import { type BankAccountOption } from '@/types/expense';
 import {
     type DeliveryLogFilters,
     type DeliveryLogProviderRow,
@@ -35,6 +36,8 @@ interface Props {
     providers: { id: number; name: string }[];
     /** تاسك 111 — فئة مصروف التسوية؛ branchId null = عامة */
     expenseCategories: { id: number; name: string; branchId: number | null }[];
+    /** تاسك 187 */
+    bankAccounts: BankAccountOption[];
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
     /** تاسك 127: المحاسب يقرأ الكشف ولا يسوّي أجر السائق. */
@@ -55,6 +58,7 @@ export default function DeliveriesIndex({
     totals,
     providers,
     expenseCategories,
+    bankAccounts,
     branches,
     isSuperAdmin,
     canSettle,
@@ -282,6 +286,7 @@ export default function DeliveriesIndex({
                 <SettleDeliveryDialog
                     row={settling}
                     categories={expenseCategories.filter((c) => c.branchId === null || c.branchId === settling.branchId)}
+                    bankAccounts={bankAccounts.filter((a) => a.branchId === settling.branchId)}
                     onClose={() => setSettling(null)}
                 />
             )}

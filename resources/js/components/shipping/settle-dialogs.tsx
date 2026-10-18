@@ -1,3 +1,4 @@
+import BankAccountField, { keepAccount } from '@/components/expenses/bank-account-field';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -5,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type DeliveryLogRow } from '@/types/delivery-log';
+import { type BankAccountOption } from '@/types/expense';
 import { useForm } from '@inertiajs/react';
 
 /** تاسك 111 — تسوية أجر السائق لطلب توصيل وإلغاؤها؛ من كشف التوصيل ومن الفاتورة (تاسك 190). */
@@ -15,10 +17,22 @@ const SOURCES = [
     { value: 'company_transfer', label: 'تحويل من حساب الشركة' },
 ];
 
-export function SettleDeliveryDialog({ row, categories, onClose }: { row: SettleTarget; categories: { id: number; name: string }[]; onClose: () => void }) {
+export function SettleDeliveryDialog({
+    row,
+    categories,
+    bankAccounts,
+    onClose,
+}: {
+    row: SettleTarget;
+    categories: { id: number; name: string }[];
+    /** تاسك 187: حسابات فرع الطلب — للتحويل. */
+    bankAccounts: BankAccountOption[];
+    onClose: () => void;
+}) {
     const { data, setData, post, processing, errors } = useForm({
         amount: row.shippingFee > 0 ? String(row.shippingFee) : '',
         paid_from: '',
+        bank_account_id: '',
         expense_category_id: '',
     });
 
@@ -51,7 +65,7 @@ export function SettleDeliveryDialog({ row, categories, onClose }: { row: Settle
                                     type="button"
                                     variant={data.paid_from === s.value ? 'default' : 'outline'}
                                     aria-pressed={data.paid_from === s.value}
-                                    onClick={() => setData('paid_from', s.value)}
+                                    onClick={() => setData((d) => ({ ...d, paid_from: s.value, bank_account_id: keepAccount(s.value, d.bank_account_id) }))}
                                 >
                                     {s.label}
                                 </Button>
@@ -59,6 +73,9 @@ export function SettleDeliveryDialog({ row, categories, onClose }: { row: Settle
                         </div>
                         <InputError message={errors.paid_from} />
                     </div>
+                    {data.paid_from === 'company_transfer' && (
+                        <BankAccountField accounts={bankAccounts} value={data.bank_account_id} onChange={(v) => setData('bank_account_id', v)} error={errors.bank_account_id} />
+                    )}
                     <div className="space-y-1">
                         <Label>فئة المصروف</Label>
                         <Select value={data.expense_category_id} onValueChange={(v) => setData('expense_category_id', v)}>
