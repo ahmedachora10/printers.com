@@ -189,9 +189,12 @@ export default function DeliveriesIndex({
                             )}
                         </div>
                     ) : canSettle ? (
-                        <Button size="sm" variant="outline" className="whitespace-nowrap" onClick={() => setSettling(row)}>
-                            <HandCoins className="size-4" /> تسليم مبلغ التوصيل
-                        </Button>
+                        // تاسك 193: التلميح على الغلاف — الزرّ المعطّل pointer-events-none.
+                        <span title={row.invoicePaid ? undefined : 'بانتظار سداد الفاتورة'}>
+                            <Button size="sm" variant="outline" className="whitespace-nowrap" disabled={!row.invoicePaid} onClick={() => setSettling(row)}>
+                                <HandCoins className="size-4" /> تسليم مبلغ التوصيل
+                            </Button>
+                        </span>
                     ) : (
                         dash
                     ),

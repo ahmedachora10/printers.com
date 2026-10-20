@@ -17,7 +17,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { INVOICE_STATUS_COLORS } from '@/lib/invoice';
-import { cn, formatCurrency, formatDate } from '@/lib/utils';
+import { cn, formatCurrency, formatDateNumeric } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import posProduct from '@/routes/pos/product';
 import posService from '@/routes/pos/service';
@@ -313,25 +313,30 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             {
                 key: 'invoiceNumber',
                 header: 'رقم الفاتورة',
-                // تاسك 184: SINV-016-01760 ينكسر عند الشرطات فيلتفّ على 3 أسطر حين يضيق العمود.
-                className: 'whitespace-nowrap',
-                cell: (item) => (
-                    <span className="inline-flex items-center gap-1.5">
-                        <Link href={`/invoices/${item.type}/${item.id}`} className="text-foreground font-medium hover:underline" dir="ltr">
-                            {item.invoiceNumber}
-                        </Link>
-                        {/* تاسك 100: رسائل داخلية غير مقروءة على الفاتورة */}
-                        {item.unreadMessages > 0 && (
-                            <span
-                                className="inline-flex items-center gap-0.5 rounded-full bg-sky-100 px-1.5 text-xs font-medium text-sky-700 tabular-nums dark:bg-sky-950 dark:text-sky-300"
-                                title={`${item.unreadMessages} رسالة داخلية غير مقروءة`}
-                            >
-                                <MessageSquare className="size-3" aria-hidden />
-                                {item.unreadMessages}
-                            </span>
-                        )}
-                    </span>
-                ),
+                // تاسك 194: سطران على الأكثر حين يضيق العمود — كسرٌ واحد قبل التسلسل
+                // (SINV-016- / 01985)، لا عند كل شرطة (تاسك 184: ثلاثة أسطر).
+                cell: (item) => {
+                    const cut = item.invoiceNumber.lastIndexOf('-') + 1;
+                    return (
+                        <span className="inline-flex items-center gap-1.5">
+                            <Link href={`/invoices/${item.type}/${item.id}`} className="text-foreground font-medium hover:underline" dir="ltr">
+                                <span className="whitespace-nowrap">{item.invoiceNumber.slice(0, cut)}</span>
+                                <wbr />
+                                <span className="whitespace-nowrap">{item.invoiceNumber.slice(cut)}</span>
+                            </Link>
+                            {/* تاسك 100: رسائل داخلية غير مقروءة على الفاتورة */}
+                            {item.unreadMessages > 0 && (
+                                <span
+                                    className="inline-flex items-center gap-0.5 rounded-full bg-sky-100 px-1.5 text-xs font-medium text-sky-700 tabular-nums dark:bg-sky-950 dark:text-sky-300"
+                                    title={`${item.unreadMessages} رسالة داخلية غير مقروءة`}
+                                >
+                                    <MessageSquare className="size-3" aria-hidden />
+                                    {item.unreadMessages}
+                                </span>
+                            )}
+                        </span>
+                    );
+                },
             },
             {
                 key: 'type',
@@ -357,7 +362,8 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 key: 'createdAt',
                 header: 'التاريخ',
                 className: 'whitespace-nowrap',
-                cell: (item) => <span>{formatDate(item.createdAt)}</span>,
+                // تاسك 194: رقميٌّ أضيق من «20 أكتوبر 2026».
+                cell: (item) => <span>{formatDateNumeric(item.createdAt)}</span>,
             },
             {
                 key: 'deliveryAt',
@@ -379,11 +385,12 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                 header: 'العميل',
                 cell: (item) => (
                     <div className="group flex items-start justify-start gap-1.5">
-                        {/* تاسك 184: عرضٌ أقصى + كسرٌ داخل الكلمة — اسمٌ طويل بلا مسافات يلتفّ بدل أن يمدّ العمود. */}
-                        <div className="min-w-0 [overflow-wrap:anywhere] md:max-w-44">
+                        {/* تاسك 184/194: break-words لا anywhere — anywhere يُنزل العرض الأدنى إلى حرف فيضغط
+                            الجدولُ العمود حتى «عم/يل». العرض الأدنى يحفظ الاسم، والطويل بلا مسافات يلتفّ. */}
+                        <div className="min-w-36 break-words md:max-w-56">
                             {item.customerName ? <span>{item.customerName}</span> : <span className="text-muted-foreground">عميل نقدي</span>}
                             {item.customerPhone && (
-                                <div className="text-muted-foreground text-xs" dir="ltr">
+                                <div className="text-muted-foreground text-xs">
                                     {item.customerPhone}
                                 </div>
                             )}
@@ -416,8 +423,15 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                       {
                           key: 'branchName',
                           header: 'الفرع',
-                          className: 'whitespace-nowrap',
-                          cell: (item: InvoiceListItem) => item.branchName ?? <span className="text-muted-foreground">—</span>,
+                          // تاسك 194: سطران بدل سطرٍ عريض يأخذ عرض العميل.
+                          cell: (item: InvoiceListItem) =>
+                              item.branchName ? (
+                                  <span className="line-clamp-2 max-w-40" title={item.branchName}>
+                                      {item.branchName}
+                                  </span>
+                              ) : (
+                                  <span className="text-muted-foreground">—</span>
+                              ),
                       },
                   ]
                 : []),

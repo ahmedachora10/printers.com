@@ -28,6 +28,8 @@ export interface DeliveryLogRow {
         settledByName: string | null;
         settledAt: string | null;
     } | null;
+    /** تاسك 193 — لا تسوية قبل سداد الفاتورة كاملاً. */
+    invoicePaid: boolean;
 }
 
 /** صفٌّ لكل سائق على المدى كلّه — لا على الصفحة المعروضة. */
