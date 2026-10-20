@@ -193,6 +193,17 @@ class ServiceInvoice extends Model implements HasMedia
         return $this->hasMany(ServiceInvoiceShipment::class)->pending()->orderBy('id');
     }
 
+    /**
+     * تاسك 196 — فواتير عليها طلب توصيلٍ ينتظر المحاسب، وما زالت تقبله
+     * (ServiceInvoicePolicy::requestShipment). عدّاد القائمة وفلتر الفواتير معاً.
+     *
+     * @param  Builder<self>  $query
+     */
+    public function scopeAwaitingShipmentApproval(Builder $query): void
+    {
+        $query->whereIn('status', [InvoiceStatusEnum::PAID, InvoiceStatusEnum::PARTIALLY_PAID])->whereHas('pendingShipments');
+    }
+
     /** @return BelongsTo<PaymentMethod, $this> */
     public function paymentMethod(): BelongsTo
     {

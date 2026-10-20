@@ -52,7 +52,7 @@ class InvoiceController extends Controller
         $branchId = $isSuperAdmin ? null : $user->branchId;
         $filters = $request->only([
             'search', 'type', 'status', 'date_from', 'date_to', 'time_from', 'time_to', 'branch_id', 'delivery',
-            'user_id', 'payment_method_id', 'branch_service_id',
+            'user_id', 'payment_method_id', 'branch_service_id', 'pending_shipments',
         ]);
         $request->session()->put(self::LIST_FILTERS_SESSION_KEY, $filters);
 
@@ -696,6 +696,10 @@ class InvoiceController extends Controller
                     ->whereColumn('service_invoice_lines.invoice_id', "{$table}.id")
                     ->where('service_invoice_lines.branch_service_id', (int) $request->input('branch_service_id')));
             })
+            // تاسك 196: وجهة عدّاد «طلبات التوصيل» في القائمة الجانبية.
+            ->when($request->boolean('pending_shipments'), fn ($q) => $type === InvoiceTypeEnum::SERVICE
+                ? $q->whereIn("{$table}.id", ServiceInvoice::query()->awaitingShipmentApproval()->select('id'))
+                : $q->whereRaw('1 = 0'))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate("{$table}.created_at", '>=', $request->input('date_from')))
             ->when($request->filled('date_to'), fn ($q) => $q->whereDate("{$table}.created_at", '<=', $request->input('date_to')))
             // تاسك 114: ساعاتٌ من كل يومٍ في المدى (18:00–22:00 مثلاً)، على وقت الإنشاء

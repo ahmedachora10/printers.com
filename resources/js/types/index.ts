@@ -34,6 +34,8 @@ export interface NavItem {
     url: string;
     icon?: LucideIcon | null;
     isActive?: boolean;
+    /** تاسك 196 — مفتاحه في pendingCounts، ووجهة البند ما دام عليه معلّق. */
+    pending?: { key: string; url: string };
 }
 
 export interface SharedData {
@@ -41,6 +43,8 @@ export interface SharedData {
     quote: { message: string; author: string };
     auth: Auth;
     notifications?: NotificationsShared;
+    /** تاسك 196 — عدد المعلّق في كل طابور يقرّر فيه المستخدم. */
+    pendingCounts?: Record<string, number>;
     /** تاسك 189 — أقدم يومٍ يبلغه المحاسب في التقارير (YYYY-MM-DD)؛ null لغيره، وغائبٌ خارج التقارير. */
     reportMinDate?: string | null;
     [key: string]: unknown;
