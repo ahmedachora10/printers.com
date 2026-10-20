@@ -63,6 +63,8 @@ class DeliveryLogController extends Controller
         $rows = (clone $base)
             ->select('service_invoice_shipments.*')
             ->with([
+                // تاسك 193: invoicePaid يقرأ الدفعات المحمّلة — بلا N+1.
+                'invoice.payments:id,invoice_id,invoice_type,amount',
                 'invoice.customer:id,full_name,phone',
                 'invoice.branch:id,name',
                 'invoice.user:id,name',
@@ -100,6 +102,7 @@ class DeliveryLogController extends Controller
                 'branchId' => $shipment->invoice->branch_id,
                 // تاسك 111 — تسوية أجر السائق، مستقلةٌ عن حالة سداد العميل أعلاه.
                 'settlement' => $shipment->settlementSummary(),
+                'invoicePaid' => $shipment->invoice->remainingAmount() == 0,
             ]),
             'byProvider' => $byProvider,
             // الجُمل مقروءةٌ من صفوف السائقين نفسها — استعلامٌ ثالثٌ يعيد جمع

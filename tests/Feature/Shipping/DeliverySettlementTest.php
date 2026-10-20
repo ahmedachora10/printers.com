@@ -35,7 +35,7 @@ describe('Delivery settlement', function () {
         $this->driver = DeliveryProvider::factory()->create(['branch_id' => $this->branch->id, 'name' => 'أبو محمد']);
         $this->category = ExpenseCategory::factory()->create(['name' => 'توصيل']);
 
-        // طلبٌ «مجاني» غير مسدَّد — السائق يُدفع له ولو لم يدفع العميل.
+        // طلبٌ «مجاني» مسدَّد — تاسك 193: لا تسوية قبل سداد الفاتورة.
         $this->invoice = ServiceInvoice::create([
             'invoice_number' => 'SINV-018-00025',
             'branch_id' => $this->branch->id,
@@ -46,7 +46,8 @@ describe('Delivery settlement', function () {
             'vat_amount' => 13.04,
             'total_amount' => 100,
             'employee_commission' => 0,
-            'status' => InvoiceStatusEnum::DUE,
+            'status' => InvoiceStatusEnum::PAID,
+            'paid_at' => now(),
         ]);
         $this->shipment = $this->invoice->shipments()->create(['provider_id' => $this->driver->id, 'fee' => 0]);
 
@@ -72,7 +73,7 @@ describe('Delivery settlement', function () {
             ->and($expense->delivery_provider_id)->toBe($this->driver->id)
             ->and((float) $expense->total)->toBe(25.0)
             ->and($expense->isApproved())->toBeTrue()
-            ->and($this->invoice->fresh()->status)->toBe(InvoiceStatusEnum::DUE);
+            ->and($this->invoice->fresh()->status)->toBe(InvoiceStatusEnum::PAID);
 
         $this->actingAs($this->admin)->get(route('reports.sales'))
             ->assertInertia(fn ($page) => $page->where('totals.cashExpenses', 25));
@@ -86,6 +87,21 @@ describe('Delivery settlement', function () {
 
         $this->actingAs($this->admin)->get(route('reports.sales'))
             ->assertInertia(fn ($page) => $page->where('totals.expenses', 25)->where('totals.cashExpenses', 0));
+    });
+
+    // تاسك 193 — الزرّ في الفاتورة وكشف التوصيل يمرّان بالحارس نفسه.
+    it('refuses to settle before the invoice is fully paid', function () {
+        $this->invoice->update(['status' => InvoiceStatusEnum::DUE, 'paid_at' => null]);
+
+        ($this->settle)('cash_drawer')->assertSessionHasErrors(['amount' => 'لا يُسلَّم مبلغ التوصيل قبل سداد الفاتورة كاملاً']);
+        expect(Expense::count())->toBe(0);
+        $this->actingAs($this->admin)->get(route('shipping.deliveries'))
+            ->assertInertia(fn ($page) => $page->where('deliveries.data.0.invoicePaid', false));
+
+        $this->invoice->update(['status' => InvoiceStatusEnum::PAID, 'paid_at' => now()]);
+
+        ($this->settle)('cash_drawer')->assertSessionHasNoErrors();
+        expect(Expense::count())->toBe(1);
     });
 
     it('refuses a second settlement and a zero amount', function () {

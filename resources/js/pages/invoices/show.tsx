@@ -499,9 +499,17 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                                 <HandCoins className="size-4" /> مسوّاة{suffix} — {formatCurrency(shipment.settlement.amount)}
                                             </Button>
                                         ) : (
-                                            <Button key={`settle-${shipment.id}`} variant="outline" onClick={() => setSettlement({ target, cancel: false })}>
-                                                <HandCoins className="size-4" /> تسليم مبلغ التوصيل{suffix}
-                                            </Button>
+                                            // تاسك 193: ظاهرٌ لكن معطّل حتى تُسدَّد الفاتورة؛ التلميح على الغلاف لأن
+                                            // الزرّ المعطّل pointer-events-none.
+                                            <span key={`settle-${shipment.id}`} title={invoice.paymentRemaining > 0 ? 'بانتظار سداد الفاتورة' : undefined}>
+                                                <Button
+                                                    variant="outline"
+                                                    disabled={invoice.paymentRemaining > 0}
+                                                    onClick={() => setSettlement({ target, cancel: false })}
+                                                >
+                                                    <HandCoins className="size-4" /> تسليم مبلغ التوصيل{suffix}
+                                                </Button>
+                                            </span>
                                         );
                                     })}
                                 <Button variant="outline" asChild>

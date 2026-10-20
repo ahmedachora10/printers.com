@@ -10,7 +10,7 @@ use Illuminate\Validation\ValidationException;
 /**
  * تاسك 111 — «تسليم مبلغ التوصيل»: يُسجَّل أجر السائق مصروفاً معتمداً مربوطاً
  * بالطلب وسائقه. النقدي يُطرح من نقد الدرج (تاسك 110) والتحويل لا يمسّه.
- * حالة الفاتورة (سداد العميل) لا تُمسّ.
+ * حالة الفاتورة (سداد العميل) لا تُمسّ — لكن لا تسوية قبل سدادها كاملاً (تاسك 193).
  *
  * تاسك 170: التسوية لكل طلب توصيل — فاتورةٌ بسائقين تُسوّى مع كلٍّ على حدة.
  */
@@ -33,6 +33,11 @@ class SettleDeliveryAction
 
             $user = auth()->user();
             $invoice = $shipment->invoice;
+
+            // تاسك 193: مكانٌ واحد يحمي زرّ الفاتورة وكشف التوصيل معاً.
+            if ($invoice->remainingAmount() > 0) {
+                throw ValidationException::withMessages(['amount' => 'لا يُسلَّم مبلغ التوصيل قبل سداد الفاتورة كاملاً']);
+            }
 
             $expense = Expense::query()->forceCreate([
                 'expense_category_id' => $data['expense_category_id'],
