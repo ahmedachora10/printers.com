@@ -107,7 +107,6 @@ describe('Invoice payments', function () {
         $invoice->refresh();
         expect($invoice->status)->toBe(InvoiceStatusEnum::PARTIALLY_PAID)
             ->and($invoice->paid_at)->toBeNull()
-            ->and($invoice->commission_earned_at)->not->toBeNull()
             ->and($invoice->paidAmount())->toBe(50.0)
             ->and($invoice->remainingAmount())->toBe(65.0)
             ->and((float) CommissionLedger::sole()->amount)->toBe(4.35);

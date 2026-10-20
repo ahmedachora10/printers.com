@@ -138,7 +138,7 @@ class RecordInvoicePaymentAction
                 // تاسك 191: نصيب هذه الدفعة من العمولة بتاريخها — والتصحيح السالب يعكسه.
                 // تاسك 160: المدفوعة جزئياً معتمدة — تدخل المحقَّق من أول دفعة.
                 if ($invoice instanceof ServiceInvoice) {
-                    $this->markServiceInvoicePaid->syncCommission($invoice, $paidAt);
+                    $this->markServiceInvoicePaid->syncCommissionLedger($invoice, $paidAt);
                     $this->recalculateIncentive->refreshForInvoice($invoice);
                 }
             }

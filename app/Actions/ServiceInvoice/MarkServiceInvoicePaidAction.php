@@ -92,7 +92,7 @@ class MarkServiceInvoicePaidAction
     {
         // The invoice is now approved, so the employee earns the rest of their
         // commission — what the partial payments already wrote stays (task 191).
-        $this->syncCommission($invoice, $invoice->paid_at ?? now());
+        $this->syncCommissionLedger($invoice, $invoice->paid_at ?? now());
 
         // الآن وقد اعتُمدت الفاتورة تُخصم نقاطها المحجوزة من رصيد العميل: قبل
         // الاعتماد كان الخصم ظاهراً على الفاتورة فقط والرصيد لم يُمسّ.
@@ -109,11 +109,5 @@ class MarkServiceInvoicePaidAction
 
         // تاسك 160: الفاتورة المعتمدة تدخل محقَّق حوافز صاحبها.
         $this->recalculateIncentive->refreshForInvoice($invoice);
-    }
-
-    /** تاسك 191: العمولة بنسبة المحصَّل — انظر syncCommissionLedger(). داخل معاملة المتصل. */
-    public function syncCommission(ServiceInvoice $invoice, CarbonInterface $at): void
-    {
-        $this->syncCommissionLedger($invoice, $at);
     }
 }

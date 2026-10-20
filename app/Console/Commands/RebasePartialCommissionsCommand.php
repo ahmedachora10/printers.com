@@ -34,20 +34,13 @@ class RebasePartialCommissionsCommand extends Command
                     return;
                 }
 
+                // خطأٌ يُنهي الأمر قبل commit، فتُلغى المعاملة المفتوحة معه.
                 DB::beginTransaction();
-
-                try {
-                    $before = round((float) $invoice->ledgerEntries()->sum('amount'), 2);
-                    $markPaid->syncCommission($invoice, Date::parse($invoice->payments()->max('paid_at') ?? now()));
-                    $after = round((float) $invoice->ledgerEntries()->sum('amount'), 2);
-                    $paid = round((float) $invoice->ledgerEntries()->whereNotNull('paid_at')->sum('amount'), 2);
-
-                    $dryRun ? DB::rollBack() : DB::commit();
-                } catch (\Throwable $e) {
-                    DB::rollBack();
-
-                    throw $e;
-                }
+                $before = round((float) $invoice->ledgerEntries()->sum('amount'), 2);
+                $markPaid->syncCommissionLedger($invoice, Date::parse($invoice->payments()->max('paid_at') ?? now()));
+                $after = round((float) $invoice->ledgerEntries()->sum('amount'), 2);
+                $paid = round((float) $invoice->ledgerEntries()->whereNotNull('paid_at')->sum('amount'), 2);
+                $dryRun ? DB::rollBack() : DB::commit();
 
                 if ($before !== $after) {
                     $rows[] = [

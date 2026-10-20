@@ -144,7 +144,7 @@ it('earns the commission payment by payment, each dated by its payment, summing 
         ->and(CommissionLedger::pluck('amount')->map(fn ($a) => (float) $a)->all())->toBe([4.0, 3.0, 3.0]);
 
     // لا تكرار: إعادة المزامنة لا تكتب شيئاً.
-    app(MarkServiceInvoicePaidAction::class)->syncCommission($invoice->refresh(), now());
+    app(MarkServiceInvoicePaidAction::class)->syncCommissionLedger($invoice->refresh(), now());
     expect(CommissionLedger::count())->toBe(3);
 });
 

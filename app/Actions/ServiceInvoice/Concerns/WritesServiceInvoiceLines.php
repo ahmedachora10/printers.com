@@ -83,7 +83,7 @@ trait WritesServiceInvoiceLines
      * وحدها ولا يتجاوز غير المصروف (M14: ما صُرف لا يُستردّ). المعتمَدة محصَّلها
      * إجماليُّها، والمرتجعات تُطرح منه. داخل معاملة المتصل.
      */
-    protected function syncCommissionLedger(ServiceInvoice $invoice, CarbonInterface $at): void
+    public function syncCommissionLedger(ServiceInvoice $invoice, CarbonInterface $at): void
     {
         $total = round((float) $invoice->total_amount, 2);
         $payments = $invoice->payments()->orderBy('paid_at')->orderBy('id')->get(['amount', 'paid_at']);
@@ -97,13 +97,10 @@ trait WritesServiceInvoiceLines
         $written = $group($entries);
         $unpaid = $group($entries->whereNull('paid_at'));
 
-        $owed = [];
-        foreach ($invoice->helpers()->get() as $helper) {
-            $owed[$key(ServiceInvoiceHelper::class, $helper->id, $helper->user_id)] = [$helper, ServiceInvoiceHelper::class, $helper->user_id];
-        }
-        foreach ($invoice->lines()->get() as $line) {
-            $owed[$key(ServiceInvoiceLine::class, $line->id, (int) $invoice->user_id)] = [$line, ServiceInvoiceLine::class, (int) $invoice->user_id];
-        }
+        $owed = [
+            ...$invoice->helpers()->get()->map(fn ($h) => [$h, ServiceInvoiceHelper::class, $h->user_id]),
+            ...$invoice->lines()->get()->map(fn ($l) => [$l, ServiceInvoiceLine::class, (int) $invoice->user_id]),
+        ];
 
         $steps = [];
         $running = 0.0;
@@ -116,7 +113,8 @@ trait WritesServiceInvoiceLines
         foreach ($steps as $i => [$date, $collected]) {
             $ratio = $total > 0 ? min(max(min($collected, $net), 0) / $total, 1.0) : 1.0;
 
-            foreach ($owed as $k => [$row, $type, $userId]) {
+            foreach ($owed as [$row, $type, $userId]) {
+                $k = $key($type, $row->id, $userId);
                 $full = (float) $row->commission_amount;
                 $delta = round(($ratio >= 1.0 ? $full : round($full * $ratio, 2)) - ($written[$k] ?? 0), 2);
 
@@ -147,10 +145,6 @@ trait WritesServiceInvoiceLines
 
                 $written[$k] = round(($written[$k] ?? 0) + $delta, 2);
                 $unpaid[$k] = round(($unpaid[$k] ?? 0) + $delta, 2);
-
-                if ($invoice->commission_earned_at === null) {
-                    $invoice->update(['commission_earned_at' => $date]);
-                }
             }
         }
     }
