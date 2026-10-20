@@ -34,8 +34,8 @@ export interface NavItem {
     url: string;
     icon?: LucideIcon | null;
     isActive?: boolean;
-    /** تاسك 196 — مفتاحه في pendingCounts، ووجهة البند ما دام عليه معلّق. */
-    pending?: { key: string; url: string };
+    /** تاسك 196 — مفتاحه في pendingCounts، ووجهة البند ما دام عليه معلّق (البند نفسه إن غابت). */
+    pending?: { key: string; url?: string };
 }
 
 export interface SharedData {

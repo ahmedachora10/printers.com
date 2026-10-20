@@ -10,7 +10,6 @@ import {
     SidebarMenuSubItem,
     useSidebar,
 } from '@/components/ui/sidebar';
-import { cn } from '@/lib/utils';
 import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { ChevronDown, type LucideIcon } from 'lucide-react';
@@ -42,16 +41,16 @@ function isActivePath(itemUrl: string, currentPath: string): boolean {
 function usePending() {
     const counts = usePage<SharedData>().props.pendingCounts ?? {};
     const countOf = (item: NavItem) => (item.pending ? (counts[item.pending.key] ?? 0) : 0);
-    const hrefOf = (item: NavItem) => (item.pending && countOf(item) > 0 ? item.pending.url : item.url);
+    const hrefOf = (item: NavItem) => (countOf(item) > 0 ? (item.pending?.url ?? item.url) : item.url);
 
     return { countOf, hrefOf };
 }
 
-function PendingBadge({ count, className }: { count: number; className?: string }) {
+function PendingBadge({ count }: { count: number }) {
     if (count <= 0) return null;
 
     return (
-        <span className={cn('flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-4 text-white tabular-nums', className)}>
+        <span className="ms-auto flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-4 text-white tabular-nums">
             {count > 99 ? '99+' : count}
         </span>
     );
@@ -62,7 +61,7 @@ function ItemLabel({ item, count }: { item: NavItem; count: number }) {
         <>
             {item.icon && <item.icon />}
             <span className="truncate">{item.title}</span>
-            <PendingBadge count={count} className="ms-auto" />
+            <PendingBadge count={count} />
         </>
     );
 }
@@ -70,7 +69,6 @@ function ItemLabel({ item, count }: { item: NavItem; count: number }) {
 export function NavMain({ groups = [] }: { groups: NavGroup[] }) {
     const page = usePage();
     const currentPath = toPath(page.url);
-    const { countOf, hrefOf } = usePending();
 
     return (
         <>
@@ -82,8 +80,9 @@ export function NavMain({ groups = [] }: { groups: NavGroup[] }) {
                               group.items.map((item) => (
                                   <SidebarMenuItem key={item.title}>
                                       <SidebarMenuButton asChild isActive={isActivePath(item.url, currentPath)} tooltip={item.title}>
-                                          <Link href={hrefOf(item)} prefetch>
-                                              <ItemLabel item={item} count={countOf(item)} />
+                                          <Link href={item.url} prefetch>
+                                              {item.icon && <item.icon />}
+                                              <span>{item.title}</span>
                                           </Link>
                                       </SidebarMenuButton>
                                   </SidebarMenuItem>
@@ -151,10 +150,10 @@ function NavGroupDropdown({ group, currentPath }: { group: NavGroup; currentPath
                 <CollapsibleTrigger asChild>
                     <SidebarMenuButton tooltip={label} isActive={containsActive && !open}>
                         {Icon && <Icon />}
-                        <span>{label}</span>
+                        <span className="flex-1 truncate">{label}</span>
                         {/* مطويّةً تجمع عدد بنودها — وإلا ضاع العدّاد داخلها. */}
-                        <PendingBadge count={open ? 0 : groupCount} className="ms-auto" />
-                        <ChevronDown className={cn('transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180', (open || groupCount === 0) && 'ms-auto')} />
+                        <PendingBadge count={open ? 0 : groupCount} />
+                        <ChevronDown className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
                     </SidebarMenuButton>
                 </CollapsibleTrigger>
                 <CollapsibleContent>

@@ -233,7 +233,7 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('invoices.service.review'),
                 'icon' => 'ClipboardList',
                 'group' => 'sales',
-                'pending' => ['key' => 'reviewQueue', 'url' => route('invoices.service.review')],
+                'pending' => ['key' => 'reviewQueue'],
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             [
