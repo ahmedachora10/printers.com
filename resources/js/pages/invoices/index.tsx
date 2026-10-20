@@ -390,7 +390,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                         <div className="min-w-36 break-words md:max-w-56">
                             {item.customerName ? <span>{item.customerName}</span> : <span className="text-muted-foreground">عميل نقدي</span>}
                             {item.customerPhone && (
-                                <div className="text-muted-foreground text-xs" dir="ltr">
+                                <div className="text-muted-foreground text-xs">
                                     {item.customerPhone}
                                 </div>
                             )}
