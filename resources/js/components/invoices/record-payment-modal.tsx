@@ -257,7 +257,7 @@ export default function RecordPaymentModal({
                             {/* الخصم يغيّر الحدّ (عمولةً وضريبة)، فلا يُعرض الرقم القديم معه. */}
                             {minPayment !== null && discountAmount === 0 && !settlesInvoice && (
                                 <p className="text-muted-foreground text-xs">
-                                    أقلّ دفعة مقبولة {formatCurrency(minPayment)} — تغطّي الخامات وعمولة الموظفين والضريبة — أو المتبقي كاملاً.
+                                    أقلّ دفعة مقبولة {formatCurrency(minPayment)} — تغطّي تكلفة الخامات — أو المتبقي كاملاً.
                                 </p>
                             )}
                             {errors.amount && <p className="text-destructive text-xs">{errors.amount}</p>}

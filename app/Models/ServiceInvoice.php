@@ -238,38 +238,27 @@ class ServiceInvoice extends Model implements HasMedia
     }
 
     /**
-     * تاسك 182: أقلّ ما يجب أن يبلغه المحصَّل قبل أن تُقبل دفعةٌ جزئية — الخامات
-     * وعمولات الموظف ومساعديه والضريبة. بلوغه يكتب العمولة قبل اكتمال السداد.
-     * الشحن وريبيت المندوب خارجه. يُقرأ من الفاتورة المحفوظة لا يُعاد حسابه، ولا
-     * يتجاوز الإجمالي — فالدفعة المُكمِلة مقبولةٌ دائماً.
+     * تاسك 192: أقلّ ما يجب أن يبلغه المحصَّل قبل أن تُقبل دفعةٌ جزئية — تكلفة
+     * الخامات وحدها (العمولة تُكتب بنسبة المحصَّل، تاسك 191). يُقرأ من الفاتورة
+     * المحفوظة، ولا يتجاوز الإجمالي — فالدفعة المُكمِلة مقبولةٌ دائماً.
      */
-    public function commissionFloor(): float
+    public function paymentFloor(): float
     {
         // المحمَّل يُقرأ كما هو (طابور المراجعة)، وإلا فمن القاعدة — فالدفعة تقرأ
         // أرقام الخصم الذي سبقها في المعاملة نفسها.
-        $lines = $this->relationLoaded('lines') ? $this->lines : $this->lines()->get(['materials_total', 'commission_amount']);
-        $helpers = $this->relationLoaded('helpers') ? $this->helpers : $this->helpers()->get(['commission_amount']);
+        $lines = $this->relationLoaded('lines') ? $this->lines : $this->lines()->get(['materials_total']);
 
-        return round(min(
-            (float) $lines->sum('materials_total')
-            + (float) $lines->sum('commission_amount')
-            + (float) $helpers->sum('commission_amount')
-            + (float) $this->vat_amount,
-            (float) $this->total_amount,
-        ), 2);
+        return round(min((float) $lines->sum('materials_total'), (float) $this->total_amount), 2);
     }
 
-    /**
-     * أقلّ دفعة جزئية مقبولة الآن، أو null حين يُقبل أيّ مبلغ (العمولة مكتوبة،
-     * أو المحصَّل بلغ الحدّ).
-     */
+    /** أقلّ دفعة جزئية مقبولة الآن، أو null حين يُقبل أيّ مبلغ (المحصَّل بلغ الحدّ). */
     public function minimumPayment(): ?float
     {
-        if ($this->commission_earned_at !== null || ! $this->status->acceptsPayment()) {
+        if (! $this->status->acceptsPayment()) {
             return null;
         }
 
-        $min = round($this->commissionFloor() - $this->paidAmount(), 2);
+        $min = round($this->paymentFloor() - $this->paidAmount(), 2);
 
         return $min > 0 ? $min : null;
     }

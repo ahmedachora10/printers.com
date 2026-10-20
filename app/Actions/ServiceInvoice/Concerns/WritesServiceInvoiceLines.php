@@ -3,10 +3,12 @@
 namespace App\Actions\ServiceInvoice\Concerns;
 
 use App\Enums\CommissionSourceTypeEnum;
+use App\Enums\InvoiceStatusEnum;
 use App\Models\CommissionLedger;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceHelper;
 use App\Models\ServiceInvoiceLine;
+use Carbon\CarbonInterface;
 
 /**
  * Persists a service invoice's calculated line rows and, once the invoice is
@@ -19,7 +21,8 @@ use App\Models\ServiceInvoiceLine;
  * commission is only earned once the accountant approves the invoice, mirroring
  * how loyalty points are credited only on paid invoices. So a due invoice never
  * writes a ledger row (nothing to reverse if it is later cancelled), and payment
- * writes the ledger from the persisted lines.
+ * writes the ledger from the persisted lines — each partial payment its share
+ * (task 191), approval the rest.
  */
 trait WritesServiceInvoiceLines
 {
@@ -70,47 +73,85 @@ trait WritesServiceInvoiceLines
     }
 
     /**
-     * Write one immutable commission-ledger row per persisted line, and one per
-     * helper (to the helper). Called when the invoice is (or becomes) paid, or
-     * once a partial payment reaches its commissionFloor() (task 182) — never
-     * for a due invoice.
+     * تاسك 191: العمولة تتبع المحصَّل. لكل سطر (لصاحب الفاتورة) ولكل مساعد الهدفُ =
+     * عمولته × صافي المحصَّل ÷ الإجمالي — وعمولته كاملةً بالضبط متى بلغ الإجمالي —
+     * ويُكتب الفرق عمّا في الدفتر صفّاً غير قابل للتعديل. idempotent: استدعاءٌ ثانٍ
+     * لا يكتب شيئاً، فيمرّ به الجميع (الدفعة، الاعتماد، الخصم، التعديل، المرتجع).
+     *
+     * تُمشى الدفعات بترتيب تاريخها فيُؤرَّخ نصيب كلٍّ منها بتاريخها (البند 4)، ثم
+     * خطوةٌ أخيرة بتاريخ $at تُطابق الهدف بالضبط. الفرق السالب يُكتب في الأخيرة
+     * وحدها ولا يتجاوز غير المصروف (M14: ما صُرف لا يُستردّ). المعتمَدة محصَّلها
+     * إجماليُّها، والمرتجعات تُطرح منه. داخل معاملة المتصل.
      */
-    protected function writeLedgerFromLines(ServiceInvoice $invoice, int $userId, int $branchId): void
+    protected function syncCommissionLedger(ServiceInvoice $invoice, CarbonInterface $at): void
     {
-        // تاسك 166: العمولة تُستحق لحظة التحصيل — تاريخ الدفعة الأخيرة كما أدخله
-        // المستخدم، لا لحظة إدخالها. تاسك 182: أو الدفعة التي بلغت الحدّ قبلها.
-        $earnedAt = $invoice->commission_earned_at ?? $invoice->paid_at ?? now();
+        $total = round((float) $invoice->total_amount, 2);
+        $payments = $invoice->payments()->orderBy('paid_at')->orderBy('id')->get(['amount', 'paid_at']);
+        $net = round(($invoice->status === InvoiceStatusEnum::PAID ? $total : (float) $payments->sum('amount'))
+            - (float) $invoice->refunds()->sum('amount'), 2);
 
+        $key = fn (string $type, int $id, int $userId) => $type.'#'.$id.'#'.$userId;
+        $entries = $invoice->ledgerEntries()->lockForUpdate()->get();
+        $group = fn ($rows) => $rows->groupBy(fn (CommissionLedger $e) => $key($e->invoice_line_type, $e->invoice_line_id, $e->user_id))
+            ->map(fn ($g) => round((float) $g->sum('amount'), 2))->all();
+        $written = $group($entries);
+        $unpaid = $group($entries->whereNull('paid_at'));
+
+        $owed = [];
         foreach ($invoice->helpers()->get() as $helper) {
-            /** @var ServiceInvoiceHelper $helper */
-            CommissionLedger::create([
-                'user_id' => $helper->user_id,
-                'branch_id' => $branchId,
-                'invoice_line_id' => $helper->id,
-                'invoice_line_type' => ServiceInvoiceHelper::class,
-                'amount' => $helper->commission_amount,
-                'is_tahazir' => $helper->is_tahazir,
-                'tier_applied' => null,
-                'source_type' => CommissionSourceTypeEnum::STANDARD,
-                'earned_at' => $earnedAt,
-            ]);
+            $owed[$key(ServiceInvoiceHelper::class, $helper->id, $helper->user_id)] = [$helper, ServiceInvoiceHelper::class, $helper->user_id];
+        }
+        foreach ($invoice->lines()->get() as $line) {
+            $owed[$key(ServiceInvoiceLine::class, $line->id, (int) $invoice->user_id)] = [$line, ServiceInvoiceLine::class, (int) $invoice->user_id];
         }
 
-        foreach ($invoice->lines()->get() as $line) {
-            /** @var ServiceInvoiceLine $line */
-            // Tier resolution will populate tier_applied once commission tiers are
-            // built (M07/M15).
-            CommissionLedger::create([
-                'user_id' => $userId,
-                'branch_id' => $branchId,
-                'invoice_line_id' => $line->id,
-                'invoice_line_type' => ServiceInvoiceLine::class,
-                'amount' => $line->commission_amount,
-                'is_tahazir' => $line->is_tahazir,
-                'tier_applied' => null,
-                'source_type' => CommissionSourceTypeEnum::STANDARD,
-                'earned_at' => $earnedAt,
-            ]);
+        $steps = [];
+        $running = 0.0;
+        foreach ($payments as $payment) {
+            $steps[] = [$payment->paid_at, $running = round($running + (float) $payment->amount, 2)];
+        }
+        $steps[] = [$at, $net];
+        $last = count($steps) - 1;
+
+        foreach ($steps as $i => [$date, $collected]) {
+            $ratio = $total > 0 ? min(max(min($collected, $net), 0) / $total, 1.0) : 1.0;
+
+            foreach ($owed as $k => [$row, $type, $userId]) {
+                $full = (float) $row->commission_amount;
+                $delta = round(($ratio >= 1.0 ? $full : round($full * $ratio, 2)) - ($written[$k] ?? 0), 2);
+
+                if ($delta < 0) {
+                    if ($i < $last) {
+                        continue;
+                    }
+
+                    $delta = -min(-$delta, max($unpaid[$k] ?? 0, 0));
+                }
+
+                // سطرٌ بلا عمولة يُكتب صفُّه الصفري مرّة، كما كان الاعتماد يكتبه.
+                if ($delta == 0 && ! ($i === $last && ! isset($written[$k]) && $full == 0)) {
+                    continue;
+                }
+
+                CommissionLedger::create([
+                    'user_id' => $userId,
+                    'branch_id' => $invoice->branch_id,
+                    'invoice_line_id' => $row->id,
+                    'invoice_line_type' => $type,
+                    'amount' => $delta,
+                    'is_tahazir' => $row->is_tahazir,
+                    'tier_applied' => null,
+                    'source_type' => CommissionSourceTypeEnum::STANDARD,
+                    'earned_at' => $date,
+                ]);
+
+                $written[$k] = round(($written[$k] ?? 0) + $delta, 2);
+                $unpaid[$k] = round(($unpaid[$k] ?? 0) + $delta, 2);
+
+                if ($invoice->commission_earned_at === null) {
+                    $invoice->update(['commission_earned_at' => $date]);
+                }
+            }
         }
     }
 }

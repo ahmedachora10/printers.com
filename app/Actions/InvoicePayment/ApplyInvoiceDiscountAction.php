@@ -6,9 +6,9 @@ use App\Actions\Agent\ResolveInvoiceAgentAction;
 use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\ProductInvoice\CreateProductInvoiceAction;
 use App\Actions\ServiceInvoice\CalculateServiceInvoiceAction;
-use App\Actions\ServiceInvoice\Concerns\ReversesServiceInvoiceAccruals;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\AgentDiscountModeEnum;
+use App\Enums\InvoiceStatusEnum;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use Illuminate\Validation\ValidationException;
@@ -30,7 +30,7 @@ use Illuminate\Validation\ValidationException;
  */
 class ApplyInvoiceDiscountAction
 {
-    use ReversesServiceInvoiceAccruals, WritesServiceInvoiceLines;
+    use WritesServiceInvoiceLines;
 
     public function __construct(
         private readonly CalculateServiceInvoiceAction $serviceCalculator,
@@ -55,16 +55,6 @@ class ApplyInvoiceDiscountAction
         if ($inAgentPayment) {
             throw ValidationException::withMessages([
                 'discount' => 'لا يمكن الخصم على فاتورة مُدرجة ضمن دفعة مندوب.',
-            ]);
-        }
-
-        // تاسك 182: عمولةٌ كُتبت عند دفعة جزئية ثم صُرفت لا يُعاد تسعيرها من تحتها —
-        // عكسُها يتخطّى المصروف، فإعادة كتابتها تدفعها مرتين. القاعدة نفسها في التعديل.
-        $earned = $invoice instanceof ServiceInvoice && $invoice->commission_earned_at !== null;
-
-        if ($earned && $invoice->ledgerEntries()->whereNotNull('paid_at')->exists()) {
-            throw ValidationException::withMessages([
-                'discount' => 'لا يمكن الخصم على فاتورة صُرفت عمولتها للموظف أو لأحد مساعديه.',
             ]);
         }
 
@@ -112,14 +102,13 @@ class ApplyInvoiceDiscountAction
 
         $invoice->save();
 
-        // تاسك 182: العمولة المكتوبة تتبع التسعير الجديد — تُعكس وتُكتب بتاريخها.
-        if ($earned) {
-            $this->reverseUnpaidCommission($invoice, keepEarnedAt: true);
-            $this->writeLedgerFromLines($invoice, (int) $invoice->user_id, (int) $invoice->branch_id);
-        }
-
-        // تاسك 160: المدفوعة جزئياً داخلةٌ في المحقَّق، فيتبع الإجماليَّ الجديد.
+        // تاسك 191: العمولة المكتوبة بنسبة المحصَّل تتبع التسعير الجديد بفرقها وحده،
+        // فلا تُدفع مرتين ولا يُستردّ منها ما صُرف. تاسك 160: والمحقَّق يتبع الإجمالي.
         if ($invoice instanceof ServiceInvoice) {
+            if ($invoice->status === InvoiceStatusEnum::PARTIALLY_PAID) {
+                $this->syncCommissionLedger($invoice, now());
+            }
+
             $this->recalculateIncentive->refreshForInvoice($invoice);
         }
     }
