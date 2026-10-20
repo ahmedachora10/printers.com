@@ -51,7 +51,6 @@ use App\Http\Controllers\MediaZipController;
 use App\Http\Controllers\MyIncentiveController;
 use App\Http\Controllers\NetworkDeviceController;
 use App\Http\Controllers\NetworkReportController;
-use App\Http\Controllers\NotFoundController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentMethodController;
 use App\Http\Controllers\ProductCategoryController;
