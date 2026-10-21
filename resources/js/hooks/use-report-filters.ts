@@ -36,8 +36,9 @@ export interface UseReportFilters {
  * @param url       report index route
  * @param applied   the currently applied values (from server props, defaulted)
  * @param defaults  the "cleared" value for each key ('' for dates, 'all' for selects)
+ * @param only      props to reload when filtering — skips the ones filters never change (option lists)
  */
-export function useReportFilters(url: string, applied: FilterValues, defaults: FilterValues): UseReportFilters {
+export function useReportFilters(url: string, applied: FilterValues, defaults: FilterValues, only?: string[]): UseReportFilters {
     const [draft, setDraft] = useState<FilterValues>(applied);
     const [open, setOpen] = useState(false);
 
@@ -54,7 +55,7 @@ export function useReportFilters(url: string, applied: FilterValues, defaults: F
         return params;
     };
 
-    const navigate = (values: FilterValues) => router.get(url, buildQuery(values), { preserveState: true, preserveScroll: true, replace: true });
+    const navigate = (values: FilterValues) => router.get(url, buildQuery(values), { only, preserveState: true, preserveScroll: true, replace: true });
 
     const onOpenChange = (next: boolean) => {
         if (next) setDraft(applied);

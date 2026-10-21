@@ -106,7 +106,8 @@ class InvoiceController extends Controller
                 $allowedTypes,
             ),
             // Only super-admins browse across branches, so only they get the picker.
-            'branches' => $isSuperAdmin
+            // دوالّ لا قيم: إعادة التحميل الجزئية من البحث والترقيم لا تطلبها فلا تُحسب.
+            'branches' => fn () => $isSuperAdmin
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,
             // خيارات الحالة من المصدر لا نسخةً يدوية في الواجهة — النسخة اليدوية
@@ -119,7 +120,7 @@ class InvoiceController extends Controller
                     InvoiceStatusEnum::cases(),
                 ),
             ),
-            'filterOptions' => $this->filterOptions($isSuperAdmin, $branchId),
+            'filterOptions' => fn () => $this->filterOptions($isSuperAdmin, $branchId),
             'filters' => $filters,
             // تاسك 173: totals.materials للمراجعين وحدهم، ووجوده يُظهر عمود «تكلفة الخامات».
             'totals' => $this->listTotals($filtered, $request->input('status'), $user->roleName->seesInternalCosts()),
@@ -700,8 +701,9 @@ class InvoiceController extends Controller
             ->when($request->boolean('pending_shipments'), fn ($q) => $type === InvoiceTypeEnum::SERVICE
                 ? $q->whereIn("{$table}.id", ServiceInvoice::query()->awaitingShipmentApproval()->select('id'))
                 : $q->whereRaw('1 = 0'))
-            ->when($request->filled('date_from'), fn ($q) => $q->whereDate("{$table}.created_at", '>=', $request->input('date_from')))
-            ->when($request->filled('date_to'), fn ($q) => $q->whereDate("{$table}.created_at", '<=', $request->input('date_to')))
+            // مدى على العمود نفسه لا whereDate: DATE(created_at) يُعطّل فهرس (branch_id, created_at).
+            ->when($request->filled('date_from'), fn ($q) => $q->where("{$table}.created_at", '>=', $request->input('date_from').' 00:00:00'))
+            ->when($request->filled('date_to'), fn ($q) => $q->where("{$table}.created_at", '<=', $request->input('date_to').' 23:59:59'))
             // تاسك 114: ساعاتٌ من كل يومٍ في المدى (18:00–22:00 مثلاً)، على وقت الإنشاء
             // أي وقت حضور العميل. ونافذةٌ تعبر منتصف الليل (22:00–02:00) تصير «أو».
             ->when($this->timeWindow($request), function ($q, array $window) use ($table) {
@@ -738,14 +740,21 @@ class InvoiceController extends Controller
                         fn ($q) => $q->whereDate("{$table}.delivery_at", '<', today()),
                     );
             })
+            // البحث موجَّهٌ بشكل النصّ بدل «أو» على كل الأعمدة: رقم فاتورة بصيغته
+            // (INV-/SINV-) ← بادئته وحدها فيعمل الفهرس الفريد؛ أرقام ← رقم الفاتورة
+            // أو جوال العميل؛ حروف ← اسم الموظف أو العميل. والعميل (تاسك 171) يُحسم
+            // في جدول العملاء أولاً، وCustomer::matching يفرّق بين الاسم والجوال.
             ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($table, $request) {
                 $search = trim($request->input('search'));
-                $term = '%'.$search.'%';
-                // تاسك 171: والعميل باسمه أو جواله. يُحسم في جدول العملاء الصغير أولاً
-                // بدل «أو» على الأعمدة الموصولة، والجوال بصيغته الموحّدة (05XXXXXXXX).
-                $q->where("{$table}.invoice_number", 'like', $term)
-                    ->orWhere('users.name', 'like', $term)
-                    ->orWhereIn("{$table}.customer_id", Customer::withTrashed()->matching($search)->select('id'));
+
+                if (preg_match('/^s?inv\b/i', $search)) {
+                    $q->where("{$table}.invoice_number", 'like', $search.'%');
+                } else {
+                    preg_match('/\p{L}/u', $search)
+                        ? $q->where('users.name', 'like', "%{$search}%")
+                        : $q->where("{$table}.invoice_number", 'like', '%'.Customer::latinDigits($search).'%');
+                    $q->orWhereIn("{$table}.customer_id", Customer::withTrashed()->matching($search)->select('id'));
+                }
             }))
             ->select([
                 "{$table}.id",

@@ -31,6 +31,8 @@ import { toast } from 'sonner';
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'الفواتير', href: '/invoices' }];
 
 const INVOICES_URL = '/invoices';
+/** ما يتغيّر بالتصفية والترقيم — قوائم الخيارات لا تتغيّر، فلا تُعاد. */
+const FILTERED_PROPS = ['items', 'filters', 'totals'];
 
 /** Row actions are thumb-sized on touch and shrink back to the table scale at md. */
 const ACTION_BUTTON = 'size-11 p-0 md:size-8';
@@ -114,7 +116,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         time_to: filters.time_to ?? '',
         pending_shipments: filters.pending_shipments ?? '',
     };
-    const f = useReportFilters(INVOICES_URL, applied, defaults);
+    const f = useReportFilters(INVOICES_URL, applied, defaults, FILTERED_PROPS);
 
     // اختيار السوبر أدمن فرعاً يُضيّق الموظفين والخدمات وطرق الدفع على ذلك الفرع —
     // كما يراها مدير الفرع. طرق الدفع العامة (بلا فرع) تبقى لكل فرع.
@@ -773,7 +775,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                     from={items.meta.from as number}
                     to={items.meta.to as number}
                     onPageChange={(page) => {
-                        router.reload({ data: { page } });
+                        router.reload({ data: { page }, only: FILTERED_PROPS });
                     }}
                 />
             </div>
