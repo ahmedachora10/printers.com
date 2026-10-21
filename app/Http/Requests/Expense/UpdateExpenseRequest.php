@@ -18,9 +18,14 @@ class UpdateExpenseRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
-        $branchId = $this->route('expense')->branch_id;
+        $expense = $this->route('expense');
+        $branchId = $expense->branch_id;
 
         return [
+            // تاسك 198: سائق التسوية يتغيّر ولا يُفرَّغ (فيبقى المصروف تسويةً)، ولا يُضاف لمصروفٍ عادي.
+            'delivery_provider_id' => $expense->delivery_provider_id === null ? ['prohibited'] : ['required', 'integer',
+                Rule::exists('delivery_providers', 'id')->where('branch_id', $branchId)
+                    ->where(fn ($q) => $q->where('is_active', true)->orWhere('id', $expense->delivery_provider_id))],
             // تاسك 102: فئةٌ عامة أو فئة فرع المصروف.
             'expense_category_id' => ['required', 'integer', Rule::exists('expense_categories', 'id')
                 ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId))],

@@ -27,6 +27,8 @@ export interface Expense {
     bankAccountId: number | null;
     bankAccountName: string | null;
     supplierName: string | null;
+    /** تاسك 198 — غير null = مصروف تسوية توصيل: السائق يتغيّر وربط الفاتورة ثابت */
+    deliveryProviderId: number | null;
     receiptReference: string | null;
     comment: string | null;
     /** تاسك 112/187 — المرفقات عبر مسارٍ مفوَّض، والفواتير المربوطة بحصّة كلٍّ منها */

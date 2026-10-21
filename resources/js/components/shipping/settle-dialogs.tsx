@@ -106,7 +106,8 @@ export function SettleDeliveryDialog({
     );
 }
 
-export function CancelSettlementDialog({ row, onClose }: { row: SettleTarget; onClose: () => void }) {
+/** تاسك 198: تُفتح أيضاً من /expenses — لا تحتاج إلا رقم الفاتورة ومعرّف مصروف التسوية. */
+export function CancelSettlementDialog({ row, onClose }: { row: { invoiceNumber: string; settlement: { expenseId: number } | null }; onClose: () => void }) {
     const form = useForm({ reason: '' });
 
     return (

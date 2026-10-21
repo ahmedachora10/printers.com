@@ -130,10 +130,49 @@ describe('Delivery settlement', function () {
             ->toBe([[$this->shipment->id, $this->driver->id, 25.0], [$second->id, $other->id, 40.0]]);
     });
 
+    // تاسك 198 — مدير الفرع يعدّل التسوية من /expenses مباشرةً، والمحاسب يعرض فقط.
+    it('lets the branch admin edit the settlement expense, driver included, without touching its link', function () {
+        ($this->settle)('cash_drawer');
+        $expense = Expense::firstOrFail();
+        $otherDriver = DeliveryProvider::factory()->create(['branch_id' => $this->branch->id, 'name' => 'أبو عبد الرحمن']);
+        $payload = [
+            'expense_category_id' => $this->category->id,
+            'qty' => 1,
+            'unit_price' => 40,
+            'paid_from' => 'company_transfer',
+            'bank_account_id' => $this->bankAccount->id,
+            'delivery_provider_id' => $otherDriver->id,
+            // الربط ثابت: ما يُرسل هنا يُتجاهل.
+            'invoices' => [],
+            'date' => $expense->date->toDateString(),
+        ];
+
+        $this->actingAs($this->accountant)->put(route('expenses.update', $expense), $payload)->assertForbidden();
+        $this->actingAs($this->accountant)->get(route('expenses.index'))
+            ->assertInertia(fn ($page) => $page->where('items.data.0.canUpdate', false)->where('deliveryProviders', []));
+
+        $this->actingAs($this->admin)->put(route('expenses.update', $expense), $payload)->assertSessionHasNoErrors();
+
+        $expense->refresh();
+        expect((float) $expense->total)->toBe(40.0)
+            ->and($expense->delivery_provider_id)->toBe($otherDriver->id)
+            ->and($expense->supplier_name)->toBe('أبو عبد الرحمن')
+            ->and($expense->service_invoice_shipment_id)->toBe($this->shipment->id)
+            ->and($expense->invoices->pluck('id')->all())->toBe([$this->invoice->id]);
+
+        // لا يُفرَّغ السائق، ولا يصير مصروفٌ عادي تسويةً.
+        $this->actingAs($this->admin)->put(route('expenses.update', $expense), [...$payload, 'delivery_provider_id' => null])
+            ->assertSessionHasErrors('delivery_provider_id');
+        $plain = Expense::factory()->create(['branch_id' => $this->branch->id, 'expense_category_id' => $this->category->id]);
+        $this->actingAs($this->admin)->put(route('expenses.update', $plain), $payload)
+            ->assertSessionHasErrors('delivery_provider_id');
+    });
+
     it('locks the settlement expense on the expenses screen and lets the branch admin cancel it', function () {
         ($this->settle)('cash_drawer');
         $expense = Expense::firstOrFail();
 
+        // الحذف من /expenses يمرّ بإلغاء التسوية (بسبب) لا بالحذف العادي.
         $this->actingAs($this->admin)->delete(route('expenses.destroy', $expense))->assertForbidden();
 
         $this->actingAs($this->admin)

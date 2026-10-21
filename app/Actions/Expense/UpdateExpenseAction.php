@@ -2,6 +2,7 @@
 
 namespace App\Actions\Expense;
 
+use App\Models\DeliveryProvider;
 use App\Models\Expense;
 use App\Models\ServiceInvoice;
 use Illuminate\Support\Facades\DB;
@@ -20,11 +21,19 @@ class UpdateExpenseAction
         $invoices = $data['invoices'] ?? [];
         unset($data['attachments'], $data['remove_attachment_ids'], $data['invoices']);
 
-        return DB::transaction(function () use ($expense, $data, $attachments, $removeIds, $invoices) {
+        // تاسك 198: ربط التسوية بطلبها وفاتورته ثابت، والمورّد اسم سائقها.
+        $isSettlement = $expense->delivery_provider_id !== null;
+        if ($isSettlement) {
+            $data['supplier_name'] = DeliveryProvider::whereKey($data['delivery_provider_id'])->value('name');
+        }
+
+        return DB::transaction(function () use ($expense, $data, $attachments, $removeIds, $invoices, $isSettlement) {
             $before = $this->invoicesLabel($expense);
 
             $expense->update($data);
-            $expense->syncInvoices($invoices);
+            if (! $isSettlement) {
+                $expense->syncInvoices($invoices);
+            }
 
             // الروابط في جدولٍ وسيط لا يراه logFillable — تُسجَّل هنا كي يبقى سجلّ
             // ما بعد الاعتماد (تاسك 113) كاملاً.
