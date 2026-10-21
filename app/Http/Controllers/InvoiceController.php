@@ -581,29 +581,6 @@ class InvoiceController extends Controller
     }
 
     /**
-     * البحث موجَّهٌ بشكل النصّ بدل «أو» على كل الأعمدة:
-     * - رقم فاتورة بصيغته (INV-/SINV-) ← بادئته وحدها، فيعمل الفهرس الفريد.
-     * - أرقام بلا حروف ← رقم الفاتورة أو جوال العميل.
-     * - نصٌّ بحروف ← اسم الموظف أو اسم العميل.
-     * والعميل (تاسك 171) يُحسم في جدول العملاء الصغير أولاً، والجوال بصيغته
-     * الموحّدة (05XXXXXXXX) — Customer::matching يفرّق بين الاسم والجوال بنفسه.
-     */
-    private function applySearch(Builder $q, string $table, string $search): void
-    {
-        if (preg_match('/^s?inv\b/i', $search)) {
-            $q->where("{$table}.invoice_number", 'like', $search.'%');
-
-            return;
-        }
-
-        preg_match('/\p{L}/u', $search)
-            ? $q->where('users.name', 'like', "%{$search}%")
-            : $q->where("{$table}.invoice_number", 'like', '%'.Customer::latinDigits($search).'%');
-
-        $q->orWhereIn("{$table}.customer_id", Customer::withTrashed()->matching($search)->select('id'));
-    }
-
-    /**
      * Build a normalized sub-query for one invoice type, with filters applied.
      */
     private function buildTypeQuery(InvoiceTypeEnum $type, Request $request, bool $isSuperAdmin, ?int $branchId): Builder
@@ -763,7 +740,22 @@ class InvoiceController extends Controller
                         fn ($q) => $q->whereDate("{$table}.delivery_at", '<', today()),
                     );
             })
-            ->when($request->filled('search'), fn ($q) => $q->where(fn ($q) => $this->applySearch($q, $table, trim($request->input('search')))))
+            // البحث موجَّهٌ بشكل النصّ بدل «أو» على كل الأعمدة: رقم فاتورة بصيغته
+            // (INV-/SINV-) ← بادئته وحدها فيعمل الفهرس الفريد؛ أرقام ← رقم الفاتورة
+            // أو جوال العميل؛ حروف ← اسم الموظف أو العميل. والعميل (تاسك 171) يُحسم
+            // في جدول العملاء أولاً، وCustomer::matching يفرّق بين الاسم والجوال.
+            ->when($request->filled('search'), fn ($q) => $q->where(function ($q) use ($table, $request) {
+                $search = trim($request->input('search'));
+
+                if (preg_match('/^s?inv\b/i', $search)) {
+                    $q->where("{$table}.invoice_number", 'like', $search.'%');
+                } else {
+                    preg_match('/\p{L}/u', $search)
+                        ? $q->where('users.name', 'like', "%{$search}%")
+                        : $q->where("{$table}.invoice_number", 'like', '%'.Customer::latinDigits($search).'%');
+                    $q->orWhereIn("{$table}.customer_id", Customer::withTrashed()->matching($search)->select('id'));
+                }
+            }))
             ->select([
                 "{$table}.id",
                 "{$table}.invoice_number",
