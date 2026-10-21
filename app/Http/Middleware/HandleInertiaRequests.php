@@ -2,9 +2,18 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\InvoiceStatusEnum;
+use App\Enums\PurchaseRequestStatusEnum;
+use App\Enums\ReturnRequestStatusEnum;
 use App\Enums\Roles;
+use App\Models\Expense;
+use App\Models\InvoiceReturnRequest;
+use App\Models\PurchaseRequest;
+use App\Models\ServiceInvoice;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Middleware;
 
 class HandleInertiaRequests extends Middleware
@@ -53,6 +62,7 @@ class HandleInertiaRequests extends Middleware
                     : null,
             ],
             'notifications' => fn () => $this->notifications($request),
+            'pendingCounts' => fn () => $this->pendingCounts($request),
             'success' => $request->session()->get('success'),
             'error' => $request->session()->get('error'),
         ]);
@@ -111,6 +121,39 @@ class HandleInertiaRequests extends Middleware
             'unreadCount' => $user->unreadNotifications()->count(),
             'items' => $items,
         ];
+    }
+
+    /**
+     * تاسك 196 — عدّادات الطوابير المعلّقة على القائمة الجانبية، لمن يقرّر فيها
+     * وحده (مراجع الحسابات يطّلع ولا يقرّر، فلا يُلاحَق بعدّاد). كسولٌ ليُحدَّث
+     * مع استطلاع الجرس. المفاتيح هي `pending.key` على بنود القائمة.
+     *
+     * @return array<string, int>
+     */
+    private function pendingCounts(Request $request): array
+    {
+        $user = $request->user();
+
+        if (! $user || ! Gate::forUser($user)->allows('review', ServiceInvoice::class)) {
+            return [];
+        }
+
+        $isSuperAdmin = $user->roleName->isSuperAdmin();
+        $inBranch = fn (Builder $q) => $q->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $user->branchId));
+
+        $counts = [
+            'reviewQueue' => $inBranch(ServiceInvoice::query()->where('status', InvoiceStatusEnum::DUE))->count(),
+            'returnRequests' => $inBranch(InvoiceReturnRequest::query()->where('status', ReturnRequestStatusEnum::PENDING))->count(),
+            'shipmentRequests' => $inBranch(ServiceInvoice::query()->awaitingShipmentApproval())->count(),
+            'expenseRequests' => $inBranch(Expense::query()->whereNotNull('requested_by')->whereNull('accepted_at'))->count(),
+        ];
+
+        // طلبات الشراء يقرّر فيها المدير وحده (PurchaseRequestPolicy::decide).
+        if ($isSuperAdmin || $user->roleName->isBranchAdmin()) {
+            $counts['purchaseRequests'] = $inBranch(PurchaseRequest::query()->where('status', PurchaseRequestStatusEnum::PENDING))->count();
+        }
+
+        return $counts;
     }
 
     // sidebar items for each role
@@ -181,6 +224,8 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('invoices.index'),
                 'icon' => 'FileText',
                 'group' => 'sales',
+                // طلبات التوصيل لا شاشة لها — تُعتمد من صفحة الفاتورة.
+                'pending' => ['key' => 'shipmentRequests', 'url' => route('invoices.index', ['pending_shipments' => 1])],
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE, Roles::AUDITOR],
             ],
             [
@@ -188,6 +233,7 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('invoices.service.review'),
                 'icon' => 'ClipboardList',
                 'group' => 'sales',
+                'pending' => ['key' => 'reviewQueue'],
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             [
@@ -204,6 +250,7 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('refunds.index'),
                 'icon' => 'Undo2',
                 'group' => 'sales',
+                'pending' => ['key' => 'returnRequests', 'url' => route('refunds.requests.index')],
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             // ---- Customers & Agents ----
@@ -280,6 +327,7 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('purchase-requests.index'),
                 'icon' => 'ShoppingBasket',
                 'group' => 'inventory',
+                'pending' => ['key' => 'purchaseRequests', 'url' => route('purchase-requests.index', ['status' => 'pending'])],
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
             ],
             [
@@ -302,6 +350,8 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('expenses.index'),
                 'icon' => 'Receipt',
                 'group' => 'finance',
+                // range=all: الشاشة تفتح على اليوم، والطلب قد يكون من أمس.
+                'pending' => ['key' => 'expenseRequests', 'url' => route('expenses.index', ['approval' => 'requested', 'range' => 'all'])],
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [

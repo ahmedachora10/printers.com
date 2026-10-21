@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\Roles;
 use App\Models\Branch;
@@ -8,6 +9,7 @@ use App\Models\CommissionLedger;
 use App\Models\PaymentMethod;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceHelper;
+use App\Models\ServiceInvoiceLine;
 use App\Models\ServiceTemplate;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -17,19 +19,19 @@ use Illuminate\Testing\TestResponse;
 uses(RefreshDatabase::class);
 
 /**
- * تاسك 182 — مثال العميل: فاتورة 1150، خامات 200، عمولة 300، ضريبة 150. الحدّ
- * 650: دفعةٌ جزئية تُبقي المحصَّل دونه تُرفض، وبلوغه يكتب العمولة الآن.
+ * تاسكا 191 + 192 — مثال العميل: فاتورة 100 (ضريبة 13.04)، عمولة 10، خامات 30.
+ * أقلّ دفعة = الخامات (30)، والعمولة تُكتب بنسبة المحصَّل مع كل دفعة وبتاريخها.
  */
-function floorInvoice(float $lineCommission = 300, float $helperCommission = 0): ServiceInvoice
+function floorInvoice(float $lineCommission = 10, float $helperCommission = 0, float $materials = 30): ServiceInvoice
 {
     $invoice = ServiceInvoice::create([
         'invoice_number' => 'SINV-FLR-'.fake()->unique()->numerify('#####'),
         'branch_id' => test()->branch->id,
         'user_id' => test()->employee->id,
-        'subtotal' => 1000,
+        'subtotal' => 86.96,
         'vat_pct' => 15,
-        'vat_amount' => 150,
-        'total_amount' => 1150,
+        'vat_amount' => 13.04,
+        'total_amount' => 100,
         'employee_commission' => $lineCommission,
         'status' => InvoiceStatusEnum::DUE->value,
     ]);
@@ -37,13 +39,13 @@ function floorInvoice(float $lineCommission = 300, float $helperCommission = 0):
     $invoice->lines()->create([
         'service_name' => 'لوحة',
         'qty' => 1,
-        'unit_price' => 1000,
+        'unit_price' => 86.96,
         'discount_pct' => 0,
-        'subtotal' => 1000,
-        'commission_pct' => 30,
+        'subtotal' => 86.96,
+        'commission_pct' => 10,
         'commission_amount' => $lineCommission,
-        'materials_cost' => 200,
-        'materials_total' => 200,
+        'materials_cost' => $materials,
+        'materials_total' => $materials,
         'is_tahazir' => false,
     ]);
 
@@ -53,9 +55,9 @@ function floorInvoice(float $lineCommission = 300, float $helperCommission = 0):
             'branch_service_id' => test()->service->id,
             'service_name' => 'لوحة',
             'share_type' => 'amount',
-            'share_value' => 100,
-            'share_net' => 100,
-            'commission_pct' => 50,
+            'share_value' => 20,
+            'share_net' => 20,
+            'commission_pct' => 10,
             'commission_amount' => $helperCommission,
             'is_tahazir' => false,
         ]);
@@ -70,6 +72,22 @@ function floorPay(ServiceInvoice $invoice, float $amount, ?string $paidAt = null
         route('invoices.payments.store', ['type' => 'service', 'id' => $invoice->id]),
         array_filter(['amount' => $amount, 'payment_method_id' => test()->cash->id, 'paid_at' => $paidAt]),
     );
+}
+
+function floorRefund(ServiceInvoice $invoice, float $amount): void
+{
+    test()->actingAs(test()->branchAdmin)->post(route('refunds.store'), [
+        'source_type' => 'service',
+        'invoice_id' => $invoice->id,
+        'payment_method_id' => test()->cash->id,
+        'amount' => $amount,
+        'reason' => 'اختبار',
+    ])->assertSessionHasNoErrors();
+}
+
+function ledgerTotal(?string $type = null): float
+{
+    return round((float) CommissionLedger::query()->when($type, fn ($q) => $q->where('invoice_line_type', $type))->sum('amount'), 2);
 }
 
 beforeEach(function () {
@@ -106,83 +124,137 @@ beforeEach(function () {
     $this->service = BranchService::where('service_template_id', $template->id)->firstOrFail();
 });
 
-it('refuses a partial payment below materials + commission + VAT, then earns the commission at the floor once', function () {
+it('earns the commission payment by payment, each dated by its payment, summing to exactly the full commission', function () {
     $invoice = floorInvoice();
-    expect($invoice->commissionFloor())->toBe(650.0)
-        ->and($invoice->minimumPayment())->toBe(650.0);
+    $first = now()->subMonth()->startOfDay()->addHours(9);
+    $second = now()->subDays(3)->startOfDay()->addHours(9);
 
-    floorPay($invoice, 300)->assertSessionHasErrors('amount');
-    expect($invoice->payments()->count())->toBe(0)
-        ->and($invoice->refresh()->status)->toBe(InvoiceStatusEnum::DUE);
+    floorPay($invoice, 40, $first->toDateTimeString())->assertSessionHasNoErrors();
+    expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::PARTIALLY_PAID)
+        ->and(ledgerTotal())->toBe(4.0)
+        ->and(CommissionLedger::sole()->earned_at->toDateTimeString())->toBe($first->toDateTimeString());
 
-    $depositAt = now()->subDays(3)->startOfDay()->addHours(9);
-    floorPay($invoice, 650, $depositAt->toDateTimeString())->assertSessionHasNoErrors();
+    floorPay($invoice, 30, $second->toDateTimeString())->assertSessionHasNoErrors();
+    expect(ledgerTotal())->toBe(7.0)
+        ->and(CommissionLedger::latest('id')->first()->earned_at->toDateTimeString())->toBe($second->toDateTimeString());
 
-    $invoice->refresh();
-    expect($invoice->status)->toBe(InvoiceStatusEnum::PARTIALLY_PAID)
-        ->and($invoice->commission_earned_at->toDateTimeString())->toBe($depositAt->toDateTimeString())
-        ->and($invoice->minimumPayment())->toBeNull()
-        ->and((float) CommissionLedger::sole()->amount)->toBe(300.0)
-        ->and(CommissionLedger::sole()->earned_at->toDateTimeString())->toBe($depositAt->toDateTimeString());
-
-    // أيّ مبلغ بعد بلوغ الحدّ، والدفعة المُكمِلة لا تكتب العمولة ثانيةً.
-    floorPay($invoice, 100)->assertSessionHasNoErrors();
-    floorPay($invoice, 400)->assertSessionHasNoErrors();
-
+    floorPay($invoice, 30)->assertSessionHasNoErrors();
     expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::PAID)
-        ->and(CommissionLedger::count())->toBe(1);
+        ->and(ledgerTotal())->toBe(10.0)
+        ->and(CommissionLedger::pluck('amount')->map(fn ($a) => (float) $a)->all())->toBe([4.0, 3.0, 3.0]);
+
+    // لا تكرار: إعادة المزامنة لا تكتب شيئاً.
+    app(MarkServiceInvoicePaidAction::class)->syncCommissionLedger($invoice->refresh(), now());
+    expect(CommissionLedger::count())->toBe(3);
 });
 
-it('always accepts a single full payment', function () {
-    $invoice = floorInvoice();
+it('lands on the exact commission with no rounding residue', function () {
+    $invoice = floorInvoice(lineCommission: 10.01);
 
-    floorPay($invoice, 1150)->assertSessionHasNoErrors();
-
-    expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::PAID)
-        ->and((float) CommissionLedger::sole()->amount)->toBe(300.0);
-});
-
-it('counts the helpers\' share in the floor and writes their row at the floor', function () {
-    $invoice = floorInvoice(lineCommission: 250, helperCommission: 50);
-
-    floorPay($invoice, 649.99)->assertSessionHasErrors('amount');
-    floorPay($invoice, 650)->assertSessionHasNoErrors();
-
-    expect(CommissionLedger::where('invoice_line_type', ServiceInvoiceHelper::class)->sole()->user_id)->toBe($this->helper->id)
-        ->and(round((float) CommissionLedger::sum('amount'), 2))->toBe(300.0);
-});
-
-it('reverses an early-earned commission to exactly zero when the partially paid invoice is returned', function () {
-    $invoice = floorInvoice();
-    floorPay($invoice, 650)->assertSessionHasNoErrors();
-
-    returnServiceInvoice($invoice->refresh())->assertSessionHasNoErrors();
-
-    // المرتجع يعكس نسبةً (650/1150) ثم يعكس ما بقي — لا أكثر، وإلا خصمه صرفُ العمولات من الموظف.
-    expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::RETURNED)
-        ->and(round((float) CommissionLedger::sum('amount'), 2))->toBe(0.0);
-});
-
-it('backfills commission for partially paid invoices that already reached the floor, dated by the crossing payment', function () {
-    $reached = floorInvoice();
-    $reached->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID]);
-    $crossing = now()->subMonth()->startOfDay()->addDays(9);
-    foreach ([[100, $crossing->subDays(8)], [600, $crossing]] as [$amount, $at]) {
-        $reached->payments()->create(['branch_id' => $this->branch->id, 'amount' => $amount, 'paid_at' => $at, 'recorded_by' => $this->accountant->id]);
+    foreach ([33.33, 33.33, 33.34] as $amount) {
+        floorPay($invoice, $amount)->assertSessionHasNoErrors();
     }
 
-    $below = floorInvoice();
-    $below->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID]);
-    $below->payments()->create(['branch_id' => $this->branch->id, 'amount' => 100, 'paid_at' => now(), 'recorded_by' => $this->accountant->id]);
+    expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::PAID)
+        ->and(ledgerTotal())->toBe(10.01);
+});
 
-    $this->artisan('commissions:backfill-partial', ['--dry-run' => true])->assertSuccessful();
-    expect(CommissionLedger::count())->toBe(0);
+it('refuses a partial payment below the materials cost alone, and accepts any amount after it', function () {
+    $invoice = floorInvoice();
+    expect($invoice->paymentFloor())->toBe(30.0)
+        ->and($invoice->minimumPayment())->toBe(30.0);
 
-    $this->artisan('commissions:backfill-partial')->assertSuccessful();
-    $this->artisan('commissions:backfill-partial')->assertSuccessful();
+    floorPay($invoice, 29.99)->assertSessionHasErrors(['amount' => 'أقلّ مبلغ مقبول للدفعة: 30.00 ر.س — يغطّي تكلفة الخامات.']);
+    expect($invoice->payments()->count())->toBe(0);
 
-    expect((float) CommissionLedger::sole()->amount)->toBe(300.0)
-        ->and(CommissionLedger::sole()->earned_at->toDateTimeString())->toBe($crossing->toDateTimeString())
-        ->and($reached->refresh()->commission_earned_at)->not->toBeNull()
-        ->and($below->refresh()->commission_earned_at)->toBeNull();
+    floorPay($invoice, 30)->assertSessionHasNoErrors();
+    expect($invoice->refresh()->minimumPayment())->toBeNull();
+
+    floorPay($invoice, 1)->assertSessionHasNoErrors();
+    expect(ledgerTotal())->toBe(3.1);
+});
+
+it('has no floor without materials, and always accepts a single full payment', function () {
+    $noMaterials = floorInvoice(materials: 0);
+    expect($noMaterials->minimumPayment())->toBeNull();
+    floorPay($noMaterials, 5)->assertSessionHasNoErrors();
+
+    $full = floorInvoice();
+    floorPay($full, 100)->assertSessionHasNoErrors();
+
+    expect($full->refresh()->status)->toBe(InvoiceStatusEnum::PAID)
+        ->and((float) CommissionLedger::where('invoice_line_id', $full->lines()->value('id'))->sole()->amount)->toBe(10.0);
+});
+
+it('scales the helpers\' commission by the same share', function () {
+    $invoice = floorInvoice(lineCommission: 8, helperCommission: 2);
+
+    floorPay($invoice, 40)->assertSessionHasNoErrors();
+
+    expect(ledgerTotal(ServiceInvoiceLine::class))->toBe(3.2)
+        ->and(ledgerTotal(ServiceInvoiceHelper::class))->toBe(0.8)
+        ->and(CommissionLedger::where('invoice_line_type', ServiceInvoiceHelper::class)->sole()->user_id)->toBe($this->helper->id);
+});
+
+it('never reverses commission already paid out, and earns again only once the share passes it', function () {
+    $invoice = floorInvoice();
+    floorPay($invoice, 40)->assertSessionHasNoErrors();
+    CommissionLedger::query()->update(['paid_at' => now()]);
+
+    // مرتجع 20 ⇒ نسبة المحصَّل 2، لكن الـ4 صُرفت — لا تُستردّ.
+    floorRefund($invoice, 20);
+    expect(ledgerTotal())->toBe(4.0);
+
+    // المحصَّل الصافي 50 ⇒ 5: يُضاف الفرق عمّا صُرف وحده.
+    floorPay($invoice, 30)->assertSessionHasNoErrors();
+    expect(ledgerTotal())->toBe(5.0);
+});
+
+it('brings the commission down with a partial refund, and to zero on a full return', function () {
+    $invoice = floorInvoice();
+    floorPay($invoice, 40)->assertSessionHasNoErrors();
+
+    floorRefund($invoice, 10);
+    expect(ledgerTotal())->toBe(3.0);
+
+    returnServiceInvoice($invoice->refresh())->assertSessionHasNoErrors();
+    expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::RETURNED)
+        ->and(ledgerTotal())->toBe(0.0);
+});
+
+it('rebases commission written in full on partially paid invoices, unpaid commission only', function () {
+    $lastPayment = now()->subDays(2)->startOfDay();
+
+    $make = function (bool $paidOut) use ($lastPayment) {
+        $invoice = floorInvoice();
+        $invoice->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID, 'commission_earned_at' => now()->subWeek()]);
+        $invoice->payments()->create(['branch_id' => $this->branch->id, 'amount' => 40, 'paid_at' => $lastPayment, 'recorded_by' => $this->accountant->id]);
+        CommissionLedger::create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'invoice_line_id' => $invoice->lines()->value('id'),
+            'invoice_line_type' => ServiceInvoiceLine::class,
+            'amount' => 10,
+            'is_tahazir' => false,
+            'source_type' => 'standard',
+            'earned_at' => now()->subWeek(),
+            'paid_at' => $paidOut ? now() : null,
+        ]);
+
+        return $invoice;
+    };
+    $unpaid = $make(false);
+    $paidOut = $make(true);
+
+    $this->artisan('commissions:rebase-partial', ['--dry-run' => true])->assertSuccessful();
+    expect(ledgerTotal())->toBe(20.0);
+
+    $this->artisan('commissions:rebase-partial')->assertSuccessful();
+    $this->artisan('commissions:rebase-partial')->assertSuccessful();
+
+    $sumFor = fn (ServiceInvoice $i) => round((float) $i->ledgerEntries()->sum('amount'), 2);
+    expect($sumFor($unpaid))->toBe(4.0)
+        ->and($sumFor($paidOut))->toBe(10.0)
+        ->and(CommissionLedger::count())->toBe(3)
+        ->and(CommissionLedger::latest('id')->first()->earned_at->toDateTimeString())->toBe($lastPayment->toDateTimeString());
 });

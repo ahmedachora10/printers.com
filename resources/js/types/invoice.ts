@@ -309,4 +309,6 @@ export interface InvoiceFilters {
     payment_method_id?: string;
     /** معرّف branch_services — تصفية بالخدمة تُقصي فواتير المنتجات */
     branch_service_id?: string;
+    /** تاسك 196 — '1': فواتير عليها طلب توصيل بانتظار الاعتماد */
+    pending_shipments?: string;
 }

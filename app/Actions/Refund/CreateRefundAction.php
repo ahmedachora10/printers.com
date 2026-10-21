@@ -5,13 +5,12 @@ namespace App\Actions\Refund;
 use App\Actions\Coupon\ReleaseCouponCapacity;
 use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\Loyalty\ReverseLoyaltyForRefundAction;
+use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Actions\ServiceInvoice\ConsumeServiceMaterialsAction;
 use App\Actions\StockMovement\RecordStockMovementAction;
-use App\Enums\CommissionSourceTypeEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\InvoiceTypeEnum;
 use App\Enums\StockMovementTypeEnum;
-use App\Models\CommissionLedger;
 use App\Models\ProductInvoice;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
@@ -25,8 +24,9 @@ use Illuminate\Validation\ValidationException;
  *  - product refunds may return stock to inventory (return_in movements), and
  *    service refunds may likewise return the materials their services drew out
  *    of it — كلاهما اختياري ومرة واحدة لكل فاتورة;
- *  - service refunds reverse the employee's *unpaid* commission proportionally
- *    by inserting negative offsetting rows in the immutable commission ledger;
+ *  - service refunds bring the employee's commission down to its share of what
+ *    is still collected (task 191) — *unpaid* commission only, by inserting
+ *    negative offsetting rows in the immutable commission ledger;
  *  - both types unwind the invoice's loyalty effect by the same refunded
  *    fraction (earned points clawed back, redeemed points returned, cumulative
  *    spend rolled back);
@@ -42,6 +42,8 @@ use Illuminate\Validation\ValidationException;
  */
 class CreateRefundAction
 {
+    use WritesServiceInvoiceLines;
+
     public function __construct(
         private readonly RecordStockMovementAction $recordStockMovement,
         private readonly ReverseLoyaltyForRefundAction $reverseLoyalty,
@@ -86,8 +88,6 @@ class CreateRefundAction
                 ->where('invoice_type', $type->modelClass())
                 ->where('invoice_id', $invoice->id)
                 ->sum('amount');
-
-            $invoiceTotal = (float) $invoice->total_amount;
 
             // ما حُصِّل فعلاً هو سقف ما يُردّ — لا إجماليُّ الفاتورة. الفاتورة
             // المسدَّدة عند البيع محصَّلها إجماليُّها، والمدفوعة جزئياً مجموعُ
@@ -158,8 +158,9 @@ class CreateRefundAction
                 }
             }
 
-            if ($type === InvoiceTypeEnum::SERVICE) {
-                $this->reverseCommission($invoice, $amount, $invoiceTotal);
+            // تاسك 191: صافي المحصَّل نزل، فتنزل العمولة إلى نسبته — من غير المصروف وحده.
+            if ($invoice instanceof ServiceInvoice) {
+                $this->syncCommissionLedger($invoice, now());
             }
 
             // النقاط والإنفاق التراكمي يُفكّان بعد كتابة صفّ المرتجع، لأن الحساب
@@ -245,50 +246,6 @@ class CreateRefundAction
                     'notes' => "إرجاع فاتورة {$invoice->invoice_number}",
                 ],
             );
-        }
-    }
-
-    /**
-     * Reverse the unpaid commission tied to the invoice's service lines,
-     * scaled by the refunded fraction of the invoice total. Each reversal is a
-     * new negative row — the ledger is never mutated. Paid commission is left
-     * untouched (clawing back settled payments is out of scope).
-     */
-    private function reverseCommission(ServiceInvoice $invoice, float $amount, float $invoiceTotal): void
-    {
-        if ($invoiceTotal <= 0) {
-            return;
-        }
-
-        $fraction = min(1.0, $amount / $invoiceTotal);
-
-        // صفوف صاحب الفاتورة ومساعديها معاً، مجمَّعةً لكل سطر. تاسك 182: عمولةٌ
-        // كُتبت عند دفعة جزئية قد يعيد الخصمُ تسعيرها (صفّ سالب ثم موجب جديد)، فالنسبة
-        // تُؤخذ من آخر كتابة موجبة، ولا يتجاوز العكسُ ما بقي قائماً من السطر.
-        foreach ($invoice->unpaidLedgerByLine() as $rows) {
-            $entry = $rows->where('amount', '>', 0)->last();
-
-            if ($entry === null) {
-                continue;
-            }
-
-            $reversal = min(round((float) $entry->amount * $fraction, 2), round((float) $rows->sum('amount'), 2));
-
-            if ($reversal <= 0) {
-                continue;
-            }
-
-            CommissionLedger::create([
-                'user_id' => $entry->user_id,
-                'branch_id' => $entry->branch_id,
-                'invoice_line_id' => $entry->invoice_line_id,
-                'invoice_line_type' => $entry->invoice_line_type,
-                'amount' => -$reversal,
-                'is_tahazir' => $entry->is_tahazir,
-                'tier_applied' => $entry->tier_applied,
-                'source_type' => CommissionSourceTypeEnum::STANDARD,
-                'earned_at' => now(),
-            ]);
         }
     }
 }

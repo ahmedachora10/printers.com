@@ -28,7 +28,7 @@ export function NotificationBell() {
     const { notifications: shared } = usePage<SharedData>().props;
 
     // Keep the bell fresh without a full navigation; throttled when tab is hidden.
-    usePoll(30000, { only: ['notifications'] });
+    usePoll(30000, { only: ['notifications', 'pendingCounts'] });
 
     const unreadCount = shared?.unreadCount ?? 0;
     const items = shared?.items ?? [];

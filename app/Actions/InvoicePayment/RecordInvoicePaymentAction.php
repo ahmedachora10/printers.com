@@ -22,7 +22,8 @@ use Illuminate\Validation\ValidationException;
  * لما تجمّع من تحصيل:
  *
  *  - مجموع الدفعات < الإجمالي  ← «مدفوعة جزئياً»، بشرط أن يبلغ حدَّ
- *    ServiceInvoice::commissionFloor() فتُكتب عمولة الموظف عندها (تاسك 182)
+ *    ServiceInvoice::paymentFloor() (الخامات، تاسك 192)، وتُكتب من عمولة الموظف
+ *    نسبةُ ما حُصِّل بتاريخ الدفعة (تاسك 191)
  *  - مجموع الدفعات = الإجمالي  ← «مدفوعة»، وتاريخ السداد لحظةُ آخر دفعة، ثم تُسلك
  *    مسارات الاعتماد المعتادة (عمولة الموظف في commission_ledger، ونقاط الولاء:
  *    خصمُ ما استبدله العميل واحتسابُ ما اكتسبه).
@@ -94,18 +95,16 @@ class RecordInvoicePaymentAction
                 ]);
             }
 
-            // تاسك 182: الدفعة الجزئية لا تُقبل ما لم يبلغ المحصَّل بعدها الخاماتِ
-            // والعمولاتِ والضريبة؛ وبلوغه يكتب العمولة الآن لا عند الاكتمال. الدفعة
-            // المُكمِلة مقبولةٌ دائماً، والتصحيح السالب لا يفكّ عمولةً كُتبت.
-            $earnCommission = $invoice instanceof ServiceInvoice
+            // تاسك 192: الدفعة الجزئية لا تُقبل ما لم يبلغ المحصَّل بعدها تكلفةَ الخامات.
+            // الدفعة المُكمِلة مقبولةٌ دائماً.
+            $partial = $invoice instanceof ServiceInvoice
                 && ! $owesAfterApproval
-                && $invoice->commission_earned_at === null
                 && $amount > 0
                 && round($collected + $amount, 2) < $total;
 
-            if ($earnCommission && $amount < ($min = $invoice->minimumPayment() ?? 0.0)) {
+            if ($partial && $amount < ($min = $invoice->minimumPayment() ?? 0.0)) {
                 throw ValidationException::withMessages([
-                    'amount' => 'أقلّ مبلغ مقبول للدفعة: '.number_format($min, 2).' ر.س — يغطّي الخاماتِ وعمولةَ الموظفين والضريبة.',
+                    'amount' => 'أقلّ مبلغ مقبول للدفعة: '.number_format($min, 2).' ر.س — يغطّي تكلفة الخامات.',
                 ]);
             }
 
@@ -136,12 +135,10 @@ class RecordInvoicePaymentAction
             } else {
                 $invoice->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID]);
 
-                if ($earnCommission) {
-                    $this->markServiceInvoicePaid->earnCommission($invoice, $paidAt);
-                }
-
+                // تاسك 191: نصيب هذه الدفعة من العمولة بتاريخها — والتصحيح السالب يعكسه.
                 // تاسك 160: المدفوعة جزئياً معتمدة — تدخل المحقَّق من أول دفعة.
                 if ($invoice instanceof ServiceInvoice) {
+                    $this->markServiceInvoicePaid->syncCommissionLedger($invoice, $paidAt);
                     $this->recalculateIncentive->refreshForInvoice($invoice);
                 }
             }

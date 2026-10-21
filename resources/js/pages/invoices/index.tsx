@@ -94,6 +94,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             date_to: '',
             time_from: '',
             time_to: '',
+            pending_shipments: '',
         }),
         [],
     );
@@ -111,6 +112,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         date_to: filters.date_to ?? '',
         time_from: filters.time_from ?? '',
         time_to: filters.time_to ?? '',
+        pending_shipments: filters.pending_shipments ?? '',
     };
     const f = useReportFilters(INVOICES_URL, applied, defaults);
 
@@ -306,6 +308,9 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     if (f.isActive('payment_method_id')) {
         const name = filterOptions.paymentMethods.find((m) => m.id.toString() === applied.payment_method_id)?.name ?? applied.payment_method_id;
         chips.push({ key: 'payment_method_id', label: `طريقة الدفع: ${name}`, onRemove: () => f.remove('payment_method_id') });
+    }
+    if (f.isActive('pending_shipments')) {
+        chips.push({ key: 'pending_shipments', label: 'طلبات توصيل بانتظار الاعتماد', onRemove: () => f.remove('pending_shipments') });
     }
 
     const columns = useMemo<ColumnDef<InvoiceListItem>[]>(

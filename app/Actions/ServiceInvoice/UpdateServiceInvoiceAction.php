@@ -113,11 +113,9 @@ class UpdateServiceInvoiceAction
             if ($invoice->status === InvoiceStatusEnum::PAID) {
                 $this->markPaid->realise($invoice);
             } elseif ($invoice->status === InvoiceStatusEnum::PARTIALLY_PAID) {
-                // تاسك 182: عمولةٌ كُتبت عند بلوغ الحدّ عُكست أعلاه، فتُكتب بأرقام
-                // التعديل وبتاريخ استحقاقها — وتبقى مكتوبةً وإن ارتفع الحدّ الجديد.
-                if ($invoice->commission_earned_at !== null) {
-                    $this->writeLedgerFromLines($invoice, (int) $invoice->user_id, $branchId);
-                }
+                // تاسك 191: العمولة المعكوسة أعلاه تُكتب بأرقام التعديل بنسبة المحصَّل،
+                // كلُّ دفعةٍ بتاريخها.
+                $this->syncCommissionLedger($invoice, now());
 
                 $this->recalculateIncentive->refreshForInvoice($invoice);
             }

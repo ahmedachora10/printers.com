@@ -71,7 +71,7 @@ class CreateServiceInvoiceAction
             // خامات المخزون تتبع القاعدة نفسها (تاسك 50): فاتورةٌ تُنشأ مدفوعة
             // تخصمها فوراً، والآجلة تنتظر اعتمادها.
             if ($status === InvoiceStatusEnum::PAID) {
-                $this->writeLedgerFromLines($invoice, $user->id, $branchId);
+                $this->syncCommissionLedger($invoice, $invoice->paid_at ?? now());
                 $this->consumeMaterials->consume($invoice, (int) $user->id);
             }
 

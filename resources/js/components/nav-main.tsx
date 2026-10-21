@@ -10,7 +10,7 @@ import {
     SidebarMenuSubItem,
     useSidebar,
 } from '@/components/ui/sidebar';
-import { type NavItem } from '@/types';
+import { type NavItem, type SharedData } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
 import { ChevronDown, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
@@ -34,6 +34,36 @@ function toPath(url: string): string {
 function isActivePath(itemUrl: string, currentPath: string): boolean {
     const itemPath = toPath(itemUrl);
     return currentPath === itemPath || currentPath.startsWith(itemPath + '/');
+}
+
+// تاسك 196: عدد المعلّق على البند، ووجهته ما دام عليه معلّق — الطابور نفسه
+// (مصفّىً إن لزم) لا الشاشة الافتراضية التي قد لا تُظهره.
+function usePending() {
+    const counts = usePage<SharedData>().props.pendingCounts ?? {};
+    const countOf = (item: NavItem) => (item.pending ? (counts[item.pending.key] ?? 0) : 0);
+    const hrefOf = (item: NavItem) => (countOf(item) > 0 ? (item.pending?.url ?? item.url) : item.url);
+
+    return { countOf, hrefOf };
+}
+
+function PendingBadge({ count }: { count: number }) {
+    if (count <= 0) return null;
+
+    return (
+        <span className="ms-auto flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-4 text-white tabular-nums">
+            {count > 99 ? '99+' : count}
+        </span>
+    );
+}
+
+function ItemLabel({ item, count }: { item: NavItem; count: number }) {
+    return (
+        <>
+            {item.icon && <item.icon />}
+            <span className="truncate">{item.title}</span>
+            <PendingBadge count={count} />
+        </>
+    );
 }
 
 export function NavMain({ groups = [] }: { groups: NavGroup[] }) {
@@ -70,6 +100,8 @@ function NavGroupDropdown({ group, currentPath }: { group: NavGroup; currentPath
     const Icon = group.icon;
     const label = group.label ?? '';
     const containsActive = group.items.some((item) => isActivePath(item.url, currentPath));
+    const { countOf, hrefOf } = usePending();
+    const groupCount = group.items.reduce((sum, item) => sum + countOf(item), 0);
 
     // Remember each dropdown's open/closed state across navigations (the sidebar
     // remounts on every page load). Fall back to auto-opening the group that
@@ -101,9 +133,8 @@ function NavGroupDropdown({ group, currentPath }: { group: NavGroup; currentPath
                         <DropdownMenuLabel>{label}</DropdownMenuLabel>
                         {group.items.map((item) => (
                             <DropdownMenuItem key={item.title} asChild>
-                                <Link href={item.url} prefetch>
-                                    {item.icon && <item.icon />}
-                                    <span>{item.title}</span>
+                                <Link href={hrefOf(item)} prefetch>
+                                    <ItemLabel item={item} count={countOf(item)} />
                                 </Link>
                             </DropdownMenuItem>
                         ))}
@@ -119,8 +150,10 @@ function NavGroupDropdown({ group, currentPath }: { group: NavGroup; currentPath
                 <CollapsibleTrigger asChild>
                     <SidebarMenuButton tooltip={label} isActive={containsActive && !open}>
                         {Icon && <Icon />}
-                        <span>{label}</span>
-                        <ChevronDown className="ms-auto transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
+                        <span className="flex-1 truncate">{label}</span>
+                        {/* مطويّةً تجمع عدد بنودها — وإلا ضاع العدّاد داخلها. */}
+                        <PendingBadge count={open ? 0 : groupCount} />
+                        <ChevronDown className="transition-transform duration-200 group-data-[state=open]/collapsible:rotate-180" />
                     </SidebarMenuButton>
                 </CollapsibleTrigger>
                 <CollapsibleContent>
@@ -128,9 +161,8 @@ function NavGroupDropdown({ group, currentPath }: { group: NavGroup; currentPath
                         {group.items.map((item) => (
                             <SidebarMenuSubItem key={item.title}>
                                 <SidebarMenuSubButton asChild isActive={isActivePath(item.url, currentPath)}>
-                                    <Link href={item.url} prefetch>
-                                        {item.icon && <item.icon />}
-                                        <span>{item.title}</span>
+                                    <Link href={hrefOf(item)} prefetch>
+                                        <ItemLabel item={item} count={countOf(item)} />
                                     </Link>
                                 </SidebarMenuSubButton>
                             </SidebarMenuSubItem>

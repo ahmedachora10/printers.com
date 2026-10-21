@@ -113,9 +113,10 @@ it('closes the invoice from the discount button when what was collected already 
         ->and($invoice->payments()->count())->toBe(2)
         // المال وصل مع آخر دفعة، لا لحظة الخصم.
         ->and($invoice->paid_at->toDateString())->toBe(now()->subDay()->toDateString())
-        // تاسك 182: العمولة كُتبت عند العربون وبتاريخه، وأعاد الخصم تسعيرها بالتاريخ نفسه.
+        // تاسك 191: كل دفعة كتبت نصيبها بتاريخها، والخصم لم يغيّر المجموع (المحصَّل = الإجمالي الجديد).
         ->and(round((float) CommissionLedger::sum('amount'), 2))->toBe(15.65)
-        ->and(CommissionLedger::pluck('earned_at')->map->toDateString()->unique()->all())->toBe([now()->subDays(2)->toDateString()]);
+        ->and(CommissionLedger::orderBy('id')->pluck('earned_at')->map->toDateString()->unique()->values()->all())
+        ->toBe([now()->subDays(2)->toDateString(), now()->subDay()->toDateString()]);
 });
 
 it('accepts a percentage-sized discount and a negative correction, staying open', function () {
@@ -130,8 +131,8 @@ it('accepts a percentage-sized discount and a negative correction, staying open'
         ->and((float) $invoice->manual_discount)->toBe(20.0)
         ->and((float) $invoice->total_amount)->toBe(180.0)
         ->and($invoice->remainingAmount())->toBe(80.0)
-        // تاسك 182: العمولة المكتوبة عند العربون تتبع كل خصمٍ وتصحيحه — صافيها على 180.
-        ->and(round((float) CommissionLedger::sum('amount'), 2))->toBe(15.65);
+        // تاسك 191: العمولة تتبع كل خصمٍ وتصحيحه — نسبة المحصَّل من 15.65: 100 ÷ 180.
+        ->and(round((float) CommissionLedger::sum('amount'), 2))->toBe(8.69);
 });
 
 it('refuses a discount that would drop the total below what was collected', function () {

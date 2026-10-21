@@ -100,19 +100,18 @@ describe('Invoice payments', function () {
         Notification::fake();
         $invoice = paymentTestInvoice();
 
-        // العربون يغطّي الحدّ (عمولة 10 + ضريبة 15): الفاتورة مدفوعة جزئياً،
-        // وعمولتها تُكتب الآن (تاسك 182).
+        // العربون: الفاتورة مدفوعة جزئياً، ونصيبه من العمولة يُكتب الآن (تاسك 191):
+        // 10 × 50 ÷ 115.
         postPayment($invoice, ['amount' => 50])->assertRedirect();
 
         $invoice->refresh();
         expect($invoice->status)->toBe(InvoiceStatusEnum::PARTIALLY_PAID)
             ->and($invoice->paid_at)->toBeNull()
-            ->and($invoice->commission_earned_at)->not->toBeNull()
             ->and($invoice->paidAmount())->toBe(50.0)
             ->and($invoice->remainingAmount())->toBe(65.0)
-            ->and(CommissionLedger::count())->toBe(1);
+            ->and((float) CommissionLedger::sole()->amount)->toBe(4.35);
 
-        // دفعة المتبقي: تُغلق الفاتورة ولا تكتب العمولة ثانيةً.
+        // دفعة المتبقي: تُغلق الفاتورة وتكتب باقي العمولة وحده.
         $this->travel(1)->days();
         postPayment($invoice, ['amount' => 65])->assertRedirect();
 
@@ -122,9 +121,8 @@ describe('Invoice payments', function () {
             ->and($invoice->remainingAmount())->toBe(0.0)
             ->and($invoice->payments()->count())->toBe(2);
 
-        // سطر واحد فقط في الـ ledger — عن السطر الوحيد في الفاتورة، لا مرتين.
-        expect(CommissionLedger::count())->toBe(1)
-            ->and((float) CommissionLedger::first()->amount)->toBe(10.0);
+        // صفّان للسطر الوحيد — نصيب كل دفعة — مجموعهما العمولة كاملةً، لا مرتين.
+        expect(CommissionLedger::pluck('amount')->map(fn ($a) => (float) $a)->all())->toBe([4.35, 5.65]);
 
         // تاريخ السداد لحظة آخر دفعة، لا لحظة إنشاء الفاتورة.
         $lastPayment = $invoice->payments()->latest('paid_at')->first();
@@ -143,8 +141,8 @@ describe('Invoice payments', function () {
         expect(CommissionLedger::sole()->earned_at->toDateTimeString())->toBe($collectedAt->toDateTimeString());
     });
 
-    // تاسك 182: عربون سبتمبر وإكمال أكتوبر ⇒ العمولة في سبتمبر، شهر الدفعة التي بلغت الحدّ.
-    it('dates the commission by the payment that reached the floor, not the final one', function () {
+    // تاسك 191: عربون سبتمبر وإكمال أكتوبر ⇒ نصيب كلٍّ منهما في شهره.
+    it('dates each payment share of the commission by that payment', function () {
         $invoice = paymentTestInvoice();
 
         $depositAt = now()->subMonth()->startOfDay()->addHours(10);
@@ -152,7 +150,8 @@ describe('Invoice payments', function () {
         postPayment($invoice, ['amount' => 65])->assertRedirect();
 
         expect($invoice->refresh()->status)->toBe(InvoiceStatusEnum::PAID)
-            ->and(CommissionLedger::sole()->earned_at->toDateTimeString())->toBe($depositAt->toDateTimeString());
+            ->and(CommissionLedger::orderBy('id')->pluck('earned_at')->map->toDateTimeString()->all())
+            ->toBe([$depositAt->toDateTimeString(), $invoice->paid_at->toDateTimeString()]);
     });
 
     it('refuses another payment once the invoice is settled, so nothing is written twice', function () {
