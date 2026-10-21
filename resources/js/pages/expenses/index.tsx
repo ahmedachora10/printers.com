@@ -146,17 +146,12 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                 cell: (item) => (
                     <div className="flex items-center gap-2 whitespace-nowrap">
                         {/* وسمٌ عارٍ لا Link: الوجهة ملفٌ من القرص الخاص لا صفحة Inertia.
-                            تاسك 197: عدّة مرفقات ⇒ المشبك بعدّاده يفتح قائمةً بها كلّها، كلٌّ يُعاين في تبويبه. */}
-                        {item.attachments.length === 1 && (
-                            <a href={item.attachments[0].url} target="_blank" rel="noopener noreferrer" title={item.attachments[0].name} className="text-primary inline-flex items-center">
-                                <Paperclip className="size-4" />
-                            </a>
-                        )}
-                        {item.attachments.length > 1 && (
+                            تاسك 197: المشبك يفتح قائمةً بالمرفقات كلّها، كلٌّ يُعاين في تبويبه. */}
+                        {item.attachments.length > 0 && (
                             <DropdownMenu dir="rtl">
                                 <DropdownMenuTrigger className="text-primary inline-flex items-center gap-0.5" aria-label="المرفقات">
                                     <Paperclip className="size-4" />
-                                    <span className="text-xs tabular-nums">{item.attachments.length}</span>
+                                    {item.attachments.length > 1 && <span className="text-xs tabular-nums">{item.attachments.length}</span>}
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="start" className="max-w-72">
                                     {item.attachments.map((a) => (
