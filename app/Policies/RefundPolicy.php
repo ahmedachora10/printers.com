@@ -37,6 +37,8 @@ class RefundPolicy
      * للموظف صاحبها زرّ «استرجاع الفاتورة» المستقل (ServiceInvoicePolicy::
      * returnInvoice) الذي لم يُمَس.
      *
+     * تاسك 199: المدفوعة جزئياً مثلها — الاسترجاع عليها بطلب الموظف وموافقة المحاسب.
+     *
      * تُستدعى بلا فاتورة من شاشة /refunds العامة، فيُسمح بالدخول ثم تُفحص كل
      * فاتورة على حدة عند الحفظ — لذلك $invoice اختيارية.
      */
@@ -51,6 +53,6 @@ class RefundPolicy
             return true;
         }
 
-        return $invoice->status !== InvoiceStatusEnum::PAID;
+        return ! in_array($invoice->status, [InvoiceStatusEnum::PAID, InvoiceStatusEnum::PARTIALLY_PAID], true);
     }
 }

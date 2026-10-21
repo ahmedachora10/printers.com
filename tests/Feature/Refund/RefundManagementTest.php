@@ -184,6 +184,36 @@ describe('Refunds', function () {
             ->assertInertia(fn ($page) => $page->where('invoice.canRefund', false));
     });
 
+    it('forbids the accountant from refunding a partially paid invoice (تاسك 199)', function () {
+        $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $accountant->addRole(Roles::ACCOUNTANT->value);
+
+        $invoice = refundableServiceInvoice($this->branch, $this->employee);
+        $invoice->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID, 'paid_at' => null]);
+        $invoice->payments()->create([
+            'branch_id' => $this->branch->id,
+            'amount' => 300,
+            'paid_at' => now(),
+            'recorded_by' => $this->admin->id,
+        ]);
+        $payload = [
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'payment_method_id' => $invoice->payment_method_id ?? paymentMethodId($invoice->branch_id),
+            'amount' => 50,
+            'reason' => 'ردّ جزء من العربون',
+        ];
+
+        $this->actingAs($accountant)
+            ->get(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
+            ->assertInertia(fn ($page) => $page->where('invoice.canRefund', false));
+        $this->actingAs($accountant)->post(route('refunds.store'), $payload)->assertForbidden();
+
+        // مدير الفرع يبقى له الزرّ.
+        $this->actingAs($this->admin)->post(route('refunds.store'), $payload)->assertRedirect();
+        expect(Refund::where('invoice_id', $invoice->id)->count())->toBe(1);
+    });
+
     it('still lets the branch admin refund an approved invoice', function () {
         [$invoice] = refundableProductInvoice($this->branch, $this->admin);
 
