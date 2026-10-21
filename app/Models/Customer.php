@@ -147,6 +147,12 @@ class Customer extends Model
         return $this->hasMany(LoyaltyTransaction::class);
     }
 
+    /** الأرقام العربية والفارسية ← لاتينية، وما سواها كما هو. */
+    public static function latinDigits(string $text): string
+    {
+        return str_replace(mb_str_split('٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹'), [...range(0, 9), ...range(0, 9)], $text);
+    }
+
     /**
      * الصيغة الموحّدة للجوال، بلا مسافات: السعودي 05XXXXXXXX، والدولي +رمز الدولة
      * (+923029216123). الأرقام العربية تصير لاتينية، ويُحذف كل ما ليس رقماً (مسافات،
@@ -155,7 +161,7 @@ class Customer extends Model
      */
     public static function normalizePhone(?string $phone): ?string
     {
-        $phone = preg_replace('/[^\d+]/', '', str_replace(mb_str_split('٠١٢٣٤٥٦٧٨٩۰۱۲۳۴۵۶۷۸۹'), [...range(0, 9), ...range(0, 9)], (string) $phone));
+        $phone = preg_replace('/[^\d+]/', '', self::latinDigits((string) $phone));
         $international = str_starts_with($phone, '+') || str_starts_with($phone, '00');
         $digits = preg_replace('/^00/', '', preg_replace('/\D/', '', $phone));
 

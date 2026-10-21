@@ -269,6 +269,55 @@ describe('Invoice list filters', function () {
                 ->where('items.data.0.invoiceNumber', $his->invoice_number));
     });
 
+    // ── البحث الموجَّه بشكل النصّ ───────────────────────────────
+
+    it('routes the search by the shape of the term', function () {
+        $target = filterInvoice($this->branch->id, $this->alice->id, ['invoice_number' => 'SINV-001-00777']);
+        filterInvoice($this->branch->id, $this->bob->id, ['invoice_number' => 'SINV-001-00123']);
+        ProductInvoice::create([
+            'invoice_number' => 'INV-001-00777',
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->bob->id,
+            'subtotal' => 100,
+            'vat_pct' => 15,
+            'vat_amount' => 13.04,
+            'total_amount' => 100,
+            'status' => InvoiceStatusEnum::PAID,
+            'paid_at' => now(),
+        ]);
+
+        $find = fn (string $term) => $this->actingAs($this->branchAdmin)
+            ->get(route('invoices.index', ['search' => $term]))
+            ->assertOk()
+            ->viewData('page')['props']['items']['data'];
+
+        // رقمٌ كامل بصيغته ← بادئته: SINV لا تلتقط INV والعكس.
+        expect(listedNumbers($find('SINV-001-00777')))->toBe(['SINV-001-00777'])
+            ->and(listedNumbers($find('inv-001-00777')))->toBe(['INV-001-00777'])
+            // أرقامٌ وحدها ← تسلسل الفاتورة في الجدولين، والأرقام العربية كاللاتينية.
+            ->and(listedNumbers($find('777')))->toBe(['INV-001-00777', 'SINV-001-00777'])
+            ->and(listedNumbers($find('٧٧٧')))->toBe(['INV-001-00777', 'SINV-001-00777'])
+            // حروفٌ ← اسم الموظف.
+            ->and(listedNumbers($find('أليس')))->toBe([$target->invoice_number]);
+    });
+
+    it('includes both edge days of the date range', function () {
+        // created_at ليس في fillable، فيُختم بعد الإنشاء.
+        $at = fn (string $time) => tap(filterInvoice($this->branch->id, $this->alice->id))
+            ->forceFill(['created_at' => $time])->saveQuietly();
+        $at('2026-09-30 23:59:59');
+        $at('2026-10-01 00:00:00');
+        $at('2026-10-05 23:59:59');
+        $at('2026-10-06 00:00:00');
+
+        $rows = $this->actingAs($this->branchAdmin)
+            ->get(route('invoices.index', ['date_from' => '2026-10-01', 'date_to' => '2026-10-05']))
+            ->viewData('page')['props']['items']['data'];
+
+        expect(collect($rows)->pluck('createdAt')->map(fn ($d) => substr($d, 0, 10))->sort()->values()->all())
+            ->toBe(['2026-10-01', '2026-10-05']);
+    });
+
     // ── تاسك 169: صفّ الإجمالي ──────────────────────────────────
 
     it('totals every filtered invoice, not just the visible page (task 169)', function () {
