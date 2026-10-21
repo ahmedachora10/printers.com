@@ -195,7 +195,16 @@ export interface Invoice {
     canApproveShipment: boolean;
     employeeCommission: number | null;
     /** المساعدون في فاتورة الخدمة — عمولة كلٍّ منهم على حصّته */
-    helpers: { name: string | null; serviceName: string; commission: number }[];
+    helpers: {
+        name: string | null;
+        serviceName: string;
+        /** حصّته: نسبةٌ من صافي الفاتورة أو مبلغٌ ثابت شاملاً الضريبة؛ shareNet أساس عمولته. */
+        shareType: 'amount' | 'percentage';
+        shareValue: number;
+        shareNet: number;
+        commissionPct: number;
+        commission: number;
+    }[];
     /** الموظف صاحب الفاتورة — مَن أنشأها، لا مَن يطبعها */
     userName: string | null;
     customerName: string | null;

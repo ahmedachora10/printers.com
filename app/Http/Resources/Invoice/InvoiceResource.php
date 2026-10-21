@@ -203,6 +203,11 @@ class InvoiceResource extends JsonResource
                 ? $this->resource->helpers->map(fn ($h) => [
                     'name' => $h->user?->name,
                     'serviceName' => $h->service_name,
+                    // تاسك 200: كيف احتُسبت حصّته وعمولته.
+                    'shareType' => $h->share_type,
+                    'shareValue' => (float) $h->share_value,
+                    'shareNet' => (float) $h->share_net,
+                    'commissionPct' => (float) $h->commission_pct,
                     'commission' => (float) $h->commission_amount,
                 ])->values()
                 : [],

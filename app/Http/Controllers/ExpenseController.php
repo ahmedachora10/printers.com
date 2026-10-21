@@ -14,6 +14,7 @@ use App\Http\Requests\Expense\UpdateExpenseRequest;
 use App\Http\Resources\Expense\ExpenseResource;
 use App\Models\BankAccount;
 use App\Models\Branch;
+use App\Models\DeliveryProvider;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
 use App\Models\ServiceInvoice;
@@ -71,6 +72,12 @@ class ExpenseController extends Controller
             'categories' => $categories,
             // تاسك 187: حسابات الفرع البنكية — لفلتر القائمة ولنافذة المصروف.
             'bankAccounts' => BankAccount::optionsFor($branchId),
+            // تاسك 198: سائقو الفروع النشطون — لتغيير سائق مصروف التسوية، ولا يعدّله إلا المعتمِد.
+            'deliveryProviders' => Gate::allows('approveAny', Expense::class)
+                ? DeliveryProvider::query()->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                    ->where('is_active', true)->orderBy('name')->get(['id', 'name', 'branch_id'])
+                    ->map(fn (DeliveryProvider $p) => ['id' => $p->id, 'name' => $p->name, 'branchId' => $p->branch_id])
+                : [],
             'branches' => auth()->user()->roleName?->isSuperAdmin()
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,

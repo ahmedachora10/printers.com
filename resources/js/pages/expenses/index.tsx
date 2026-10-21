@@ -2,11 +2,13 @@ import { accept, approve, approveAll, attachments, destroy, index, reject, unapp
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import ExpenseFormModal from '@/components/expenses/expense-form-modal';
 import { FilterBar } from '@/components/filter-bar';
+import { CancelSettlementDialog } from '@/components/shipping/settle-dialogs';
 import DateRangeBar from '@/components/reports/date-range-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { TableCell, TableRow } from '@/components/ui/table';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
@@ -35,6 +37,8 @@ interface Props {
     categories: Category[];
     /** تاسك 187 — حسابات الفرع البنكية: فلتر القائمة ومنتقي النافذة. */
     bankAccounts: BankAccountOption[];
+    /** تاسك 198 — سائقو الفروع لتغيير سائق مصروف التسوية؛ فارغة لمن لا يعدّلها. */
+    deliveryProviders: { id: number; name: string; branchId: number }[];
     /** تاسك 123 — خيارات فلتر مصدر المصروف، من ExpenseSourceEnum. */
     sources: { value: string; label: string }[];
     branches?: { id: number; name: string }[] | null;
@@ -75,11 +79,13 @@ function rangeLabel(from: string, to: string): string {
     return from ? `من ${shortDate(from)}` : `حتى ${shortDate(to)}`;
 }
 
-export default function ExpensesIndex({ items, periodTotal, pendingSummary, canApproveAll, attachmentsCount, categories, bankAccounts, sources, branches, filters, defaultDate }: Props) {
+export default function ExpensesIndex({ items, periodTotal, pendingSummary, canApproveAll, attachmentsCount, categories, bankAccounts, deliveryProviders, sources, branches, filters, defaultDate }: Props) {
     const [approvingAll, setApprovingAll] = useState(false);
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<Expense | null>(null);
     const [deleting, setDeleting] = useState<Expense | null>(null);
+    // تاسك 198: حذف مصروف التسوية = إلغاؤها بسببٍ مسجَّل، من نافذة كشف التوصيل نفسها.
+    const [cancellingSettlement, setCancellingSettlement] = useState<Expense | null>(null);
     // تاسك 157: رفض طلب الموظف بسببٍ يصله في الإشعار.
     const [rejecting, setRejecting] = useState<Expense | null>(null);
     const [rejectReason, setRejectReason] = useState('');
@@ -140,12 +146,31 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                 cell: (item) => (
                     <div className="flex items-center gap-2 whitespace-nowrap">
                         {/* وسمٌ عارٍ لا Link: الوجهة ملفٌ من القرص الخاص لا صفحة Inertia.
-                            تاسك 187: عدّة مرفقات تُعرض أيقونةً بعدّادها، وتُفتح كلّها من «عرض». */}
-                        {item.attachments.length > 0 && (
-                            <a href={item.attachments[0].url} target="_blank" rel="noopener noreferrer" title={item.attachments.map((a) => a.name).join('\n')} className="text-primary inline-flex items-center gap-0.5">
+                            تاسك 197: عدّة مرفقات ⇒ المشبك بعدّاده يفتح قائمةً بها كلّها، كلٌّ يُعاين في تبويبه. */}
+                        {item.attachments.length === 1 && (
+                            <a href={item.attachments[0].url} target="_blank" rel="noopener noreferrer" title={item.attachments[0].name} className="text-primary inline-flex items-center">
                                 <Paperclip className="size-4" />
-                                {item.attachments.length > 1 && <span className="text-xs tabular-nums">{item.attachments.length}</span>}
                             </a>
+                        )}
+                        {item.attachments.length > 1 && (
+                            <DropdownMenu dir="rtl">
+                                <DropdownMenuTrigger className="text-primary inline-flex items-center gap-0.5" aria-label="المرفقات">
+                                    <Paperclip className="size-4" />
+                                    <span className="text-xs tabular-nums">{item.attachments.length}</span>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="start" className="max-w-72">
+                                    {item.attachments.map((a) => (
+                                        <DropdownMenuItem key={a.id} asChild>
+                                            <a href={a.url} target="_blank" rel="noopener noreferrer">
+                                                <Paperclip className="size-4 shrink-0" />
+                                                <span className="truncate" dir="ltr">
+                                                    {a.name}
+                                                </span>
+                                            </a>
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
                         )}
                         {item.invoices.map((invoice) => (
                             <Link key={invoice.id} href={`/invoices/service/${invoice.id}`} className="text-primary hover:underline" dir="ltr">
@@ -235,8 +260,13 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                         <Button variant="outline" size="sm" title={item.canUpdate ? 'تعديل' : 'عرض'} onClick={() => openEdit(item)}>
                             {item.canUpdate ? <Pencil className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                         </Button>
-                        {item.canDelete && (
-                            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleting(item)}>
+                        {(item.canDelete || (item.deliveryProviderId !== null && item.canUpdate)) && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => (item.deliveryProviderId !== null ? setCancellingSettlement(item) : setDeleting(item))}
+                            >
                                 <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                         )}
@@ -529,6 +559,13 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                 </DialogContent>
             </Dialog>
 
+            {cancellingSettlement && (
+                <CancelSettlementDialog
+                    row={{ invoiceNumber: cancellingSettlement.invoices[0]?.invoiceNumber ?? '', settlement: { expenseId: cancellingSettlement.id } }}
+                    onClose={() => setCancellingSettlement(null)}
+                />
+            )}
+
             <ExpenseFormModal
                 key={editing?.id ?? 'create'}
                 open={formOpen}
@@ -536,6 +573,7 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                 expense={editing ?? undefined}
                 categories={categories}
                 bankAccounts={bankAccounts}
+                deliveryProviders={deliveryProviders}
                 branches={branches}
             />
         </AppLayout>

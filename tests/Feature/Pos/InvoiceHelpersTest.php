@@ -109,6 +109,23 @@ it('reads a percentage share off the invoice total', function () {
         ->and((float) ServiceInvoice::firstOrFail()->employee_commission)->toBe(3.91);
 });
 
+it('shows how each helper share and commission were computed on the invoice page (تاسك 200)', function () {
+    $this->actingAs($this->employee)
+        ->post(route('pos.service.store'), ($this->payload)([
+            ['user_id' => $this->arif->id, 'branch_service_id' => $this->helpService->id, 'share_type' => 'percentage', 'share_value' => 25],
+        ]))
+        ->assertSessionHasNoErrors();
+
+    $this->actingAs($this->branchAdmin)
+        ->get(route('invoices.show', ['type' => 'service', 'id' => ServiceInvoice::firstOrFail()->id]))
+        ->assertInertia(fn ($page) => $page
+            ->where('invoice.helpers.0.shareType', 'percentage')
+            ->where('invoice.helpers.0.shareValue', 25)
+            ->where('invoice.helpers.0.shareNet', 13.04)
+            ->where('invoice.helpers.0.commissionPct', 10)
+            ->where('invoice.helpers.0.commission', 1.3));
+});
+
 it('records a helper on a zero-commission service and still carves the share out', function () {
     $wire = helperService($this->branch); // «السلك» — لا نسبة لعارف عليه
 

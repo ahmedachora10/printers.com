@@ -896,15 +896,29 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                 <MetaRow label="عمولة الموظف" value={<span dir="ltr">{formatCurrency(invoice.employeeCommission)}</span>} />
                             )}
                             {invoice.helpers.map((helper, i) => (
-                                <MetaRow
-                                    key={i}
-                                    label={`مساعد — ${helper.serviceName}`}
-                                    value={
-                                        <span>
-                                            {helper.name ?? '—'} · <span dir="ltr">{formatCurrency(helper.commission)}</span>
-                                        </span>
-                                    }
-                                />
+                                <div key={i}>
+                                    <MetaRow
+                                        label={`مساعد — ${helper.serviceName}`}
+                                        value={
+                                            <span>
+                                                {helper.name ?? '—'} · <span dir="ltr">{formatCurrency(helper.commission)}</span>
+                                            </span>
+                                        }
+                                    />
+                                    {/* تاسك 200: من أين جاءت عمولته — حصّته (نسبة أم مبلغ ثابت) ونسبة عمولته عليها. */}
+                                    <p className="text-muted-foreground pb-1 text-xs">
+                                        الحصّة:{' '}
+                                        {helper.shareType === 'percentage' ? (
+                                            <span dir="ltr">{helper.shareValue}%</span>
+                                        ) : (
+                                            <>
+                                                مبلغ ثابت <span dir="ltr">{formatCurrency(helper.shareValue)}</span>
+                                            </>
+                                        )}{' '}
+                                        (صافي <span dir="ltr">{formatCurrency(helper.shareNet)}</span>) · العمولة{' '}
+                                        <span dir="ltr">{helper.commissionPct}%</span>
+                                    </p>
+                                </div>
                             ))}
                             <Separator className="my-3" />
                             <MetaRow label="الفرع" value={invoice.branch.name ?? '—'} />

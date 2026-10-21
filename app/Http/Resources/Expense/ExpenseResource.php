@@ -41,6 +41,8 @@ class ExpenseResource extends JsonResource
             'bankAccountId' => $this->bank_account_id,
             'bankAccountName' => $this->bankAccount?->label(),
             'supplierName' => $this->supplier_name,
+            // تاسك 198: غير null = مصروف تسوية توصيل — سائقه قابلٌ للتغيير وربطه ثابت.
+            'deliveryProviderId' => $this->delivery_provider_id,
             'receiptReference' => $this->receipt_reference,
             'comment' => $this->comment,
             // تاسك 112/187: المرفقات عبر مسارٍ مفوَّض لا رابطٍ عام، والفواتير المربوطة بحصصها.
@@ -100,7 +102,8 @@ class ExpenseResource extends JsonResource
         $accounts = BankAccount::withTrashed()->whereKey($values->pluck('bank_account_id')->filter()->unique())->get()->keyBy('id');
         $invoices = ServiceInvoice::whereKey($values->pluck('service_invoice_id')->filter()->unique())->pluck('invoice_number', 'id');
 
-        $readable = fn (array $fields) => collect($fields)->map(fn ($value, $field) => match (true) {
+        // تاسك 198: تغيير السائق يظهر في «المورّد» (اسمه) — معرّفه تكرارٌ بلا معنى للقارئ.
+        $readable = fn (array $fields) => collect($fields)->except('delivery_provider_id')->map(fn ($value, $field) => match (true) {
             $value === null => null,
             $field === 'expense_category_id' => $categories[$value] ?? $value,
             // قبل تاسك 187 كان الربط عموداً واحداً، فالسجلّ القديم يحمله.

@@ -38,6 +38,8 @@ interface Props {
     categories: Category[];
     /** تاسك 187: حسابات الشركة البنكية — تظهر تحت «تحويل بنكي». */
     bankAccounts: BankAccountOption[];
+    /** تاسك 198: سائقو الفروع — لتغيير سائق مصروف التسوية. */
+    deliveryProviders?: { id: number; name: string; branchId: number }[];
     branches?: Branch[] | null;
     /** تاسك 149: قيمٌ مسبقة لمصروفٍ جديد يُسجَّل من صفحة الفاتورة. */
     defaults?: { unit_price: string; invoice: LinkedInvoice };
@@ -85,11 +87,14 @@ function linkedOf(expense: Expense): LinkedInvoice[] {
     return expense.invoices.map((i) => ({ id: String(i.id), label: i.invoiceNumber, amount: String(i.amount) }));
 }
 
-export default function ExpenseFormModal({ open, onOpenChange, expense, categories, bankAccounts, branches, defaults, isRequest = false }: Props) {
+export default function ExpenseFormModal({ open, onOpenChange, expense, categories, bankAccounts, deliveryProviders = [], branches, defaults, isRequest = false }: Props) {
     const isEdit = !!expense;
     // تاسك 186: من لا يملك التعديل (المحاسب بعد الاعتماد، تسوية التوصيل…) يرى التفاصيل للقراءة فقط.
     const readOnly = isEdit && !expense.canUpdate;
     const isSuperAdmin = Array.isArray(branches);
+    // تاسك 198: تسوية التوصيل — السائق مكان المورّد، وربط الفاتورة ثابت كطلب الموظف.
+    const isSettlement = expense?.deliveryProviderId != null;
+    const lockedLinks = isRequest || isSettlement;
     // تاسك 135: التاريخ القديم لمدير الفرع ومدير النظام فقط (والتاريخ الحالي للمصروف يبقى).
     const { role } = usePage<SharedData>().props.auth;
     const canBackdate = role === 'super-admin' || role === 'branch-admin';
@@ -103,6 +108,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
         paid_from:           expense?.paidFrom ?? '',
         bank_account_id:     expense?.bankAccountId?.toString() ?? '',
         supplier_name:       expense?.supplierName ?? '',
+        delivery_provider_id: expense?.deliveryProviderId?.toString() ?? '',
         receipt_reference:   expense?.receiptReference ?? '',
         comment:             expense?.comment ?? '',
         date:                expense?.date ?? todayIso(),
@@ -122,6 +128,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                 paid_from:           expense.paidFrom,
                 bank_account_id:     expense.bankAccountId?.toString() ?? '',
                 supplier_name:       expense.supplierName ?? '',
+                delivery_provider_id: expense.deliveryProviderId?.toString() ?? '',
                 receipt_reference:   expense.receiptReference ?? '',
                 comment:             expense.comment ?? '',
                 date:                expense.date ?? todayIso(),
@@ -325,16 +332,37 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                     )}
 
                     <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-1">
-                            <Label htmlFor="exp-supplier">المورّد</Label>
-                            <Input
-                                id="exp-supplier"
-                                value={data.supplier_name}
-                                onChange={(e) => setData('supplier_name', e.target.value)}
-                                placeholder="اختياري"
-                            />
-                            <InputError message={errors.supplier_name} />
-                        </div>
+                        {isSettlement && !readOnly ? (
+                            <div className="space-y-1">
+                                <Label htmlFor="exp-provider">السائق</Label>
+                                <Select value={data.delivery_provider_id} onValueChange={(val) => setData('delivery_provider_id', val)}>
+                                    <SelectTrigger id="exp-provider">
+                                        <SelectValue placeholder={data.supplier_name || 'اختر السائق'} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {deliveryProviders
+                                            .filter((p) => p.branchId === expense!.branchId)
+                                            .map((p) => (
+                                                <SelectItem key={p.id} value={p.id.toString()}>
+                                                    {p.name}
+                                                </SelectItem>
+                                            ))}
+                                    </SelectContent>
+                                </Select>
+                                <InputError message={errors.delivery_provider_id} />
+                            </div>
+                        ) : (
+                            <div className="space-y-1">
+                                <Label htmlFor="exp-supplier">المورّد</Label>
+                                <Input
+                                    id="exp-supplier"
+                                    value={data.supplier_name}
+                                    onChange={(e) => setData('supplier_name', e.target.value)}
+                                    placeholder="اختياري"
+                                />
+                                <InputError message={errors.supplier_name} />
+                            </div>
+                        )}
 
                         <div className="space-y-1">
                             <Label htmlFor="exp-receipt">مرجع الإيصال</Label>
@@ -370,7 +398,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                                         onChange={(e) => setInvoiceAmount(index, e.target.value)}
                                     />
                                 )}
-                                {!isRequest && !readOnly && (
+                                {!lockedLinks && !readOnly && (
                                     <Button
                                         type="button"
                                         variant="ghost"
@@ -388,7 +416,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
                                 الموزَّع {money(distributed)} من {total} ر.س
                             </p>
                         )}
-                        {!isRequest && !readOnly && (
+                        {!lockedLinks && !readOnly && (
                             <AsyncCombobox
                                 fetcher={fetchInvoices}
                                 value=""

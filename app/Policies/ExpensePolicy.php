@@ -36,15 +36,19 @@ class ExpensePolicy
      */
     public function update(User $user, Expense $expense): bool
     {
-        // تاسك 111: مصروف تسوية التوصيل يُدار من كشف التوصيل وحده.
-        return $expense->delivery_provider_id === null
-            && $this->view($user, $expense)
+        // تاسك 198: مصروف تسوية التوصيل يعدّله مدير الفرع والسوبر أدمن وحدهما — المحاسب يعرض فقط.
+        if ($expense->delivery_provider_id !== null) {
+            return $this->approveAny($user) && $this->view($user, $expense);
+        }
+
+        return $this->view($user, $expense)
             && ($user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin() || ! $expense->isApproved());
     }
 
+    /** تسوية التوصيل لا تُحذف من هنا: تُلغى بسببٍ مسجَّل عبر shipping.settlements.destroy (تاسك 111). */
     public function delete(User $user, Expense $expense): bool
     {
-        return $this->update($user, $expense);
+        return $expense->delivery_provider_id === null && $this->update($user, $expense);
     }
 
     /** تاسك 113 — الاعتماد لمدير الفرع (فرعه) والسوبر أدمن. */
