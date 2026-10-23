@@ -2,6 +2,7 @@ import { DataTable, TablePagination, type ColumnDef } from '@/components/data-ta
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,7 +15,7 @@ import quotations from '@/routes/quotations';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type PaginatedQuotations, type QuotationListItem, type QuotationStatus } from '@/types/quotation';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Check, ClipboardList, FileOutput, Pencil, Plus, Printer, Search, Send, X } from 'lucide-react';
+import { Check, ClipboardList, FileOutput, MoreHorizontal, Pencil, Plus, Printer, Search, Send, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -89,7 +90,7 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                 header: 'رقم العرض',
                 mobilePrimary: true,
                 cell: (q) => (
-                    <div>
+                    <div className="whitespace-nowrap">
                         <span className="font-medium" dir="ltr">
                             {q.number}
                         </span>
@@ -125,7 +126,7 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                 key: 'totalAmount',
                 header: 'الإجمالي',
                 cell: (q) => (
-                    <span className="font-semibold tabular-nums" dir="ltr">
+                    <span className="font-semibold whitespace-nowrap tabular-nums" dir="ltr">
                         {formatCurrency(q.totalAmount)}
                     </span>
                 ),
@@ -135,7 +136,7 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                 header: 'الحالة',
                 cell: (q) => (
                     <div className="space-y-1">
-                        <Badge variant="outline" className={STATUS_COLORS[q.status]}>
+                        <Badge variant="outline" className={`whitespace-nowrap ${STATUS_COLORS[q.status]}`}>
                             {q.statusLabel}
                         </Badge>
                         {q.rejectionReason && <p className="text-muted-foreground max-w-xs text-xs">{q.rejectionReason}</p>}
@@ -154,65 +155,97 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
             {
                 key: 'createdAt',
                 header: 'التاريخ',
-                cell: (q) => <span className="text-muted-foreground text-sm">{q.createdAt ? formatDateTime(q.createdAt) : '—'}</span>,
+                cell: (q) => (
+                    <span className="text-muted-foreground text-sm whitespace-nowrap">{q.createdAt ? formatDateTime(q.createdAt) : '—'}</span>
+                ),
             },
             {
                 key: 'actions',
                 header: '',
                 cell: (q) => {
+                    const pos = posFor(q);
                     const canSend = q.can.changeStatus && q.status === 'new';
                     const canAccept = q.can.changeStatus && (q.status === 'new' || q.status === 'pending');
                     const canReject = q.can.changeStatus && ['new', 'pending', 'approved'].includes(q.status);
+                    // زرٌّ واحد ظاهر للخطوة التالية في دورة العرض، والباقي في القائمة.
+                    const primary = q.can.convert ? 'convert' : canSend ? 'send' : canAccept ? 'accept' : q.can.print ? 'print' : null;
+                    const printInMenu = q.can.print && primary !== 'print';
+                    const acceptInMenu = canAccept && primary !== 'accept';
+                    const hasMenu = printInMenu || q.can.update || acceptInMenu || canReject;
 
                     return (
-                        <div className="flex flex-wrap gap-1.5">
-                            {q.can.convert && (
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                            {primary === 'convert' && (
                                 <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700" asChild>
-                                    <Link href={posFor(q).quotation(q.id, { query: { convert: 1 } }).url}>
+                                    <Link href={pos.quotation(q.id, { query: { convert: 1 } }).url}>
                                         <FileOutput className="size-4" /> تحويل إلى فاتورة
                                     </Link>
                                 </Button>
                             )}
-                            {q.can.print && (
-                                <Button size="sm" variant="outline" asChild>
-                                    <Link href={posFor(q).quotation.print(q.id).url}>
-                                        <Printer className="size-4" /> طباعة
-                                    </Link>
-                                </Button>
-                            )}
-                            {q.can.update && (
-                                <Button size="sm" variant="outline" asChild>
-                                    <Link href={posFor(q).quotation(q.id).url}>
-                                        <Pencil className="size-4" /> تعديل
-                                    </Link>
-                                </Button>
-                            )}
-                            {canSend && (
-                                <Button size="sm" variant="outline" disabled={busy} onClick={() => post(quotations.send(q.id).url)}>
+                            {primary === 'send' && (
+                                <Button size="sm" disabled={busy} onClick={() => post(quotations.send(q.id).url)}>
                                     <Send className="size-4" /> أُرسل للعميل
                                 </Button>
                             )}
-                            {canAccept && (
+                            {primary === 'accept' && (
                                 <Button
                                     size="sm"
-                                    variant="outline"
-                                    className="text-emerald-700"
+                                    className="bg-emerald-600 text-white hover:bg-emerald-700"
                                     disabled={busy}
                                     onClick={() => post(quotations.accept(q.id).url)}
                                 >
                                     <Check className="size-4" /> وافق العميل
                                 </Button>
                             )}
-                            {canReject && (
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="text-destructive hover:text-destructive"
-                                    disabled={busy}
-                                    onClick={() => setRejecting(q)}
-                                >
-                                    <X className="size-4" /> رفض
+                            {primary === 'print' && (
+                                <Button size="sm" variant="outline" asChild>
+                                    <Link href={pos.quotation.print(q.id).url}>
+                                        <Printer className="size-4" /> طباعة
+                                    </Link>
                                 </Button>
+                            )}
+                            {hasMenu && (
+                                // modal={false}: حوار الرفض يُفتح من القائمة، والقائمة المودالية تترك الصفحة مقفلة بعده.
+                                <DropdownMenu dir="rtl" modal={false}>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button size="sm" variant="outline" className="px-2" aria-label="إجراءات أخرى">
+                                            <MoreHorizontal className="size-4" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="min-w-40">
+                                        {printInMenu && (
+                                            <DropdownMenuItem asChild>
+                                                <Link href={pos.quotation.print(q.id).url}>
+                                                    <Printer className="size-4" /> طباعة
+                                                </Link>
+                                            </DropdownMenuItem>
+                                        )}
+                                        {q.can.update && (
+                                            <DropdownMenuItem asChild>
+                                                <Link href={pos.quotation(q.id).url}>
+                                                    <Pencil className="size-4" /> تعديل
+                                                </Link>
+                                            </DropdownMenuItem>
+                                        )}
+                                        {acceptInMenu && (
+                                            <DropdownMenuItem disabled={busy} onSelect={() => post(quotations.accept(q.id).url)}>
+                                                <Check className="size-4" /> وافق العميل
+                                            </DropdownMenuItem>
+                                        )}
+                                        {canReject && (
+                                            <>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem
+                                                    className="text-destructive focus:text-destructive"
+                                                    disabled={busy}
+                                                    onSelect={() => setRejecting(q)}
+                                                >
+                                                    <X className="size-4" /> رفض
+                                                </DropdownMenuItem>
+                                            </>
+                                        )}
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
                             )}
                         </div>
                     );
