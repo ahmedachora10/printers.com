@@ -24,7 +24,6 @@ return new class extends Migration
             $table->json('data');
             $table->decimal('total_amount', 12, 2);
             $table->text('rejection_reason')->nullable();
-            $table->timestamp('decided_at')->nullable();
             // الفاتورة الناتجة عن التحويل — جدولها يُعرف من `type`.
             $table->unsignedBigInteger('invoice_id')->nullable();
             $table->string('invoice_number')->nullable();

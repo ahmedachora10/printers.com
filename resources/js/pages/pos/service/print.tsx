@@ -13,11 +13,11 @@ import { useEffect } from 'react';
 interface Props {
     invoice: PosInvoice;
     branch: PosBranch;
-    /** ورقة عرض سعر لا فاتورة — الرجوع إلى قائمة العروض. */
-    isQuotation?: boolean;
 }
 
-export default function ServiceInvoicePrint({ invoice, branch, isQuotation = false }: Props) {
+export default function ServiceInvoicePrint({ invoice, branch }: Props) {
+    // ورقة عرض سعر لا فاتورة — الرجوع إلى قائمة العروض.
+    const isQuotation = invoice.status === 'quotation';
     const doc = invoiceDocument(invoice);
 
     useEffect(() => {

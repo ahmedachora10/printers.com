@@ -630,7 +630,6 @@ class ServiceInvoiceController extends Controller
         return Inertia::render('pos/service/print', [
             ...$props,
             'invoice' => [...$props['invoice'], 'status' => 'quotation', 'statusLabel' => $quotation->status->label()],
-            'isQuotation' => true,
         ]);
     }
 

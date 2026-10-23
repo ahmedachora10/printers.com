@@ -33,7 +33,6 @@ class Quotation extends Model
         'data',
         'total_amount',
         'rejection_reason',
-        'decided_at',
         'invoice_id',
         'invoice_number',
     ];
@@ -43,7 +42,6 @@ class Quotation extends Model
         'status' => QuotationStatusEnum::class,
         'data' => 'array',
         'total_amount' => 'decimal:2',
-        'decided_at' => 'datetime',
     ];
 
     public function getActivitylogOptions(): LogOptions

@@ -51,7 +51,7 @@ class SaveQuotationAction
             $quotation->update([
                 ...$this->snapshot($quotation->type, $data, $quotation->user, $quotation->branch_id),
                 ...($quotation->status === QuotationStatusEnum::REJECTED
-                    ? ['status' => QuotationStatusEnum::NEW, 'rejection_reason' => null, 'decided_at' => null]
+                    ? ['status' => QuotationStatusEnum::NEW, 'rejection_reason' => null]
                     : []),
             ]);
 

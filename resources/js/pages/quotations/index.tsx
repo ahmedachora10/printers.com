@@ -36,19 +36,18 @@ interface Props {
     filters: { status: QuotationStatus | null; search: string };
     statusOptions: { value: QuotationStatus; label: string }[];
     canCreate: { service: boolean; product: boolean };
-    isSuperAdmin: boolean;
 }
 
 const posFor = (q: Pick<QuotationListItem, 'type'>) => (q.type === 'service' ? posService : posProduct);
 
-export default function QuotationsIndex({ quotations: items, filters, statusOptions, canCreate, isSuperAdmin }: Props) {
+export default function QuotationsIndex({ quotations: items, filters, statusOptions, canCreate }: Props) {
     const { props } = usePage<SharedData>();
     const [search, setSearch] = useState(filters.search);
     const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [rejecting, setRejecting] = useState<QuotationListItem | null>(null);
     const [reasonKind, setReasonKind] = useState('');
     const [reasonText, setReasonText] = useState('');
-    const [busyId, setBusyId] = useState<number | null>(null);
+    const [busy, setBusy] = useState(false);
 
     useEffect(() => {
         if (props.success) toast.success(props.success as string);
@@ -63,20 +62,20 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
         searchTimeout.current = setTimeout(() => filter({ search: value }), 400);
     };
 
-    const post = (id: number, url: string, data: Record<string, string | null> = {}, onSuccess?: () => void) => {
+    const post = (url: string, data: Record<string, string | null> = {}, onSuccess?: () => void) => {
         router.post(url, data, {
             preserveScroll: true,
-            onStart: () => setBusyId(id),
+            onStart: () => setBusy(true),
             onError: (e) => toast.error(Object.values(e)[0] ?? 'تعذّر تحديث عرض السعر.'),
             onSuccess,
-            onFinish: () => setBusyId(null),
+            onFinish: () => setBusy(false),
         });
     };
 
     function confirmReject() {
         if (!rejecting) return;
         const reason = reasonKind === 'أخرى' ? reasonText.trim() || 'أخرى' : [reasonKind, reasonText.trim()].filter(Boolean).join(' — ');
-        post(rejecting.id, quotations.reject(rejecting.id).url, { reason: reason || null }, () => {
+        post(quotations.reject(rejecting.id).url, { reason: reason || null }, () => {
             setRejecting(null);
             setReasonKind('');
             setReasonText('');
@@ -118,7 +117,7 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                 cell: (q) => (
                     <span className="text-sm">
                         {q.employeeName ?? '—'}
-                        {isSuperAdmin && q.branchName && <span className="text-muted-foreground block text-xs">{q.branchName}</span>}
+                        {q.branchName && <span className="text-muted-foreground block text-xs">{q.branchName}</span>}
                     </span>
                 ),
             },
@@ -161,7 +160,6 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                 key: 'actions',
                 header: '',
                 cell: (q) => {
-                    const busy = busyId === q.id;
                     const canSend = q.can.changeStatus && q.status === 'new';
                     const canAccept = q.can.changeStatus && (q.status === 'new' || q.status === 'pending');
                     const canReject = q.can.changeStatus && ['new', 'pending', 'approved'].includes(q.status);
@@ -190,7 +188,7 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                                 </Button>
                             )}
                             {canSend && (
-                                <Button size="sm" variant="outline" disabled={busy} onClick={() => post(q.id, quotations.send(q.id).url)}>
+                                <Button size="sm" variant="outline" disabled={busy} onClick={() => post(quotations.send(q.id).url)}>
                                     <Send className="size-4" /> أُرسل للعميل
                                 </Button>
                             )}
@@ -200,7 +198,7 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                                     variant="outline"
                                     className="text-emerald-700"
                                     disabled={busy}
-                                    onClick={() => post(q.id, quotations.accept(q.id).url)}
+                                    onClick={() => post(quotations.accept(q.id).url)}
                                 >
                                     <Check className="size-4" /> وافق العميل
                                 </Button>
@@ -221,7 +219,7 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                 },
             },
         ],
-        [busyId, isSuperAdmin],
+        [busy],
     );
 
     return (
@@ -331,7 +329,7 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                         <Button variant="outline" onClick={() => setRejecting(null)}>
                             تراجع
                         </Button>
-                        <Button variant="destructive" disabled={busyId !== null} onClick={confirmReject}>
+                        <Button variant="destructive" disabled={busy} onClick={confirmReject}>
                             <X className="size-4" /> تسجيل الرفض
                         </Button>
                     </DialogFooter>

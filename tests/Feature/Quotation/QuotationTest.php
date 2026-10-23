@@ -143,8 +143,7 @@ it('prints a quotation at once, without the branch tax number', function () {
         ->assertInertia(fn ($page) => $page->component('pos/service/print')
             ->where('invoice.invoiceNumber', $quotation->quotation_number)
             ->where('invoice.status', 'quotation')
-            ->where('branch.taxNumber', null)
-            ->where('isQuotation', true));
+            ->where('branch.taxNumber', null));
 });
 
 it('hides other employees quotations', function () {

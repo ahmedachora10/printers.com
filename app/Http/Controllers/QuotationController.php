@@ -56,7 +56,8 @@ class QuotationController extends Controller
                 'customerName' => $q->customer?->full_name,
                 'customerPhone' => $q->customer?->phone,
                 'employeeName' => $q->user?->name,
-                'branchName' => $q->branch?->name,
+                // اسم الفرع لمدير النظام وحده — غيره يرى فرعه فقط.
+                'branchName' => $user->roleName->isSuperAdmin() ? $q->branch?->name : null,
                 'totalAmount' => (float) $q->total_amount,
                 'rejectionReason' => $q->rejection_reason,
                 'invoiceId' => $q->invoice_id,
@@ -74,7 +75,6 @@ class QuotationController extends Controller
                 'service' => $user->can('create', [Quotation::class, InvoiceTypeEnum::SERVICE]),
                 'product' => $user->can('create', [Quotation::class, InvoiceTypeEnum::PRODUCT]),
             ],
-            'isSuperAdmin' => $user->roleName->isSuperAdmin(),
         ]);
     }
 
@@ -133,7 +133,6 @@ class QuotationController extends Controller
 
         $quotation->update([
             'status' => $to,
-            'decided_at' => in_array($to, [QuotationStatusEnum::APPROVED, QuotationStatusEnum::REJECTED], true) ? now() : null,
             'rejection_reason' => null,
             ...$extra,
         ]);

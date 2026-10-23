@@ -210,7 +210,6 @@ class ProductInvoiceController extends Controller
         return Inertia::render('pos/product/print', [
             ...$props,
             'invoice' => [...$props['invoice'], 'status' => 'quotation', 'statusLabel' => $quotation->status->label()],
-            'isQuotation' => true,
         ]);
     }
 
