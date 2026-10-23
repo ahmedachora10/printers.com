@@ -119,6 +119,9 @@ it('keeps quotations by type to the roles of that point of sale', function () {
 it('records the customer reply, with an optional rejection reason', function () {
     $quotation = createServiceQuotation();
 
+    // الموافقة تأتي ردّاً على عرضٍ أُرسل — لا قبل الإرسال.
+    $this->post(route('quotations.accept', $quotation))->assertSessionHasErrors('status');
+
     $this->post(route('quotations.send', $quotation))->assertSessionHasNoErrors();
     expect($quotation->fresh()->status)->toBe(QuotationStatusEnum::PENDING);
 
@@ -161,6 +164,7 @@ it('hides other employees quotations', function () {
 
 it('opens the point of sale prefilled from the quotation for conversion', function () {
     $quotation = createServiceQuotation();
+    $this->post(route('quotations.send', $quotation));
     $this->post(route('quotations.accept', $quotation));
 
     $this->get(route('pos.service.quotation', ['quotation' => $quotation, 'convert' => 1]))
@@ -178,6 +182,7 @@ it('converts an approved quotation into a due invoice exactly once', function ()
     // لم يوافق العميل بعد.
     $this->post(route('pos.service.store'), $payload)->assertForbidden();
 
+    $this->post(route('quotations.send', $quotation));
     $this->post(route('quotations.accept', $quotation));
     $this->post(route('pos.service.store'), $payload)->assertRedirect();
 
@@ -198,6 +203,7 @@ it('converts a product quotation through the product point of sale', function ()
     $this->actingAs($this->accountant)
         ->post(route('quotations.store', 'product'), ['lines' => [['product_id' => $this->product->id, 'qty' => 2, 'unit_price' => 10]]]);
     $quotation = Quotation::firstOrFail();
+    $this->post(route('quotations.send', $quotation));
     $this->post(route('quotations.accept', $quotation));
 
     $this->post(route('pos.product.store'), [

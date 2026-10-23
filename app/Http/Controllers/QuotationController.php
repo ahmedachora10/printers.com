@@ -103,10 +103,10 @@ class QuotationController extends Controller
         return $this->transition($quotation, QuotationStatusEnum::PENDING, [QuotationStatusEnum::NEW]);
     }
 
-    /** وافق العميل — صار قابلاً للتحويل إلى فاتورة. */
+    /** وافق العميل على عرضٍ أُرسل له — صار قابلاً للتحويل إلى فاتورة. */
     public function accept(Quotation $quotation): RedirectResponse
     {
-        return $this->transition($quotation, QuotationStatusEnum::APPROVED, [QuotationStatusEnum::NEW, QuotationStatusEnum::PENDING]);
+        return $this->transition($quotation, QuotationStatusEnum::APPROVED, [QuotationStatusEnum::PENDING]);
     }
 
     public function reject(RejectQuotationRequest $request, Quotation $quotation): RedirectResponse

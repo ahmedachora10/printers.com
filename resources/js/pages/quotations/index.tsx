@@ -165,13 +165,12 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                 cell: (q) => {
                     const pos = posFor(q);
                     const canSend = q.can.changeStatus && q.status === 'new';
-                    const canAccept = q.can.changeStatus && (q.status === 'new' || q.status === 'pending');
+                    const canAccept = q.can.changeStatus && q.status === 'pending';
                     const canReject = q.can.changeStatus && ['new', 'pending', 'approved'].includes(q.status);
                     // زرٌّ واحد ظاهر للخطوة التالية في دورة العرض، والباقي في القائمة.
                     const primary = q.can.convert ? 'convert' : canSend ? 'send' : canAccept ? 'accept' : q.can.print ? 'print' : null;
                     const printInMenu = q.can.print && primary !== 'print';
-                    const acceptInMenu = canAccept && primary !== 'accept';
-                    const hasMenu = printInMenu || q.can.update || acceptInMenu || canReject;
+                    const hasMenu = printInMenu || q.can.update || canReject;
 
                     return (
                         <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
@@ -225,11 +224,6 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                                                 <Link href={pos.quotation(q.id).url}>
                                                     <Pencil className="size-4" /> تعديل
                                                 </Link>
-                                            </DropdownMenuItem>
-                                        )}
-                                        {acceptInMenu && (
-                                            <DropdownMenuItem disabled={busy} onSelect={() => post(quotations.accept(q.id).url)}>
-                                                <Check className="size-4" /> وافق العميل
                                             </DropdownMenuItem>
                                         )}
                                         {canReject && (
