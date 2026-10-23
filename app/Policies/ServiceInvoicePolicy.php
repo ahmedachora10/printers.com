@@ -47,7 +47,7 @@ class ServiceInvoicePolicy
             || $user->roleName->isAccountant();
     }
 
-    /** تاسك 125 — صفحة «عروض الأسعار» نفسها: من يعتمد، ومراجع الحسابات يطّلع. */
+    /** تاسك 125 — طوابير المراجعة (طلبات الاسترجاع): من يعتمد، ومراجع الحسابات يطّلع. */
     public function viewReviewQueue(User $user): bool
     {
         return $this->review($user) || $user->roleName->isAuditor();

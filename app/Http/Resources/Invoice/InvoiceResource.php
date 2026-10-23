@@ -283,6 +283,8 @@ class InvoiceResource extends JsonResource
             'canEditPaymentRows' => $canChangePaymentMethod && $hasPaymentRows,
             'canRefund' => $canRefund,
             'canApprovePayment' => $canApprovePayment,
+            // تحويلٌ من عرض سعر — مرجعه يُعرض على صفحة الفاتورة.
+            'quotationNumber' => $this->resource->quotation?->quotation_number,
             'canEdit' => $canEdit,
             'canEditCustomer' => $canEditCustomer,
             'canEditPaymentMethod' => $canEditPaymentMethod,

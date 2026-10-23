@@ -1,7 +1,7 @@
 import InvoiceNotes from '@/components/invoices/invoice-notes';
 import { BranchIdentity, PrintToolbar, ThermalBranchHeader } from '@/components/invoices/print-header';
 import { ThermalTotals, printTotals } from '@/components/invoices/print-totals';
-import { QUOTATION_DISCLAIMER, formatLineSize, formatLineUnitPrice, invoiceDocument } from '@/lib/invoice';
+import { formatLineSize, formatLineUnitPrice, invoiceDocument } from '@/lib/invoice';
 import { formatCurrency, formatDateTime, formatDateTimeNumeric, formatQty } from '@/lib/utils';
 import { type Invoice } from '@/types/invoice';
 import { Head } from '@inertiajs/react';
@@ -25,7 +25,7 @@ function ThermalReceipt({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: strin
             <div className="text-center">
                 <ThermalBranchHeader branch={invoice.branch} />
                 <h2 className="mt-2 text-sm font-bold">{doc.title}</h2>
-                {doc.isQuotation && <p className="mt-1 text-[10px] font-semibold">{QUOTATION_DISCLAIMER}</p>}
+                {doc.disclaimer && <p className="mt-1 text-[10px] font-semibold">{doc.disclaimer}</p>}
             </div>
 
             <div className="my-3 border-t border-dashed border-black" />
@@ -163,7 +163,7 @@ function A4Invoice({ invoice, zatcaQr }: { invoice: Invoice; zatcaQr: string | n
 
             <div className="my-6 text-center">
                 <h2 className="text-lg font-bold">{doc.title}</h2>
-                {doc.isQuotation && <p className="mt-1 text-xs font-semibold">{QUOTATION_DISCLAIMER}</p>}
+                {doc.disclaimer && <p className="mt-1 text-xs font-semibold">{doc.disclaimer}</p>}
             </div>
 
             {/* Meta — تاسك 155: عمودان صريحان، فيبقى الجوال تحت العميل أيّاً كانت الخلايا الاختيارية. */}

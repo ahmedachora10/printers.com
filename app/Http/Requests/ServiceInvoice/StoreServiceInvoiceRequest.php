@@ -61,6 +61,8 @@ class StoreServiceInvoiceRequest extends FormRequest
             'print' => ['nullable', 'boolean'],
             // تاسك 118: أُرسلت من الشاشة السريعة — فالرجوع إليها لا إلى الشاشة الكاملة.
             'quick' => ['nullable', 'boolean'],
+            // تحويل عرض سعر معتمد إلى فاتورة — الصلاحية والحالة تُفحصان في المتحكّم والإجراء.
+            'quotation_id' => ['nullable', 'integer'],
             // موعد تسليم العمل للعميل — اختياري، ولا يُقبل في الماضي.
             'delivery_at' => ['nullable', 'date', 'after_or_equal:today'],
             // Invoice-level remark for the customer, printed under the lines.

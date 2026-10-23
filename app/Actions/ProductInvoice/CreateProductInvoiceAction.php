@@ -20,6 +20,7 @@ use App\Models\Customer;
 use App\Models\LoyaltyConfig;
 use App\Models\Product;
 use App\Models\ProductInvoice;
+use App\Models\Quotation;
 use App\Support\Quantity;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -62,6 +63,10 @@ class CreateProductInvoiceAction
             }
 
             $this->writeLines($invoice, $calc['lines']);
+
+            if (! empty($data['quotation_id'])) {
+                Quotation::markConverted((int) $data['quotation_id'], $invoice);
+            }
 
             foreach ($calc['lines'] as $line) {
                 if (! $line['product']) {
@@ -108,9 +113,10 @@ class CreateProductInvoiceAction
      *                                    reservation and its coupon stay valid for it
      * @param  array<int, float>  $heldQty  product_id => qty the edited invoice already
      *                                      took out of stock, available to it again
+     * @param  bool  $checkStock  false for a quotation: stock is checked when it becomes an invoice
      * @return array{attributes: array<string, mixed>, lines: list<array<string, mixed>>, coupon: ?Coupon}
      */
-    public function calculate(array $data, int $branchId, float $vatPct, ?ProductInvoice $invoice = null, array $heldQty = []): array
+    public function calculate(array $data, int $branchId, float $vatPct, ?ProductInvoice $invoice = null, array $heldQty = [], bool $checkStock = true): array
     {
         $customerId = $this->resolveCustomerId($data, $branchId);
 
@@ -178,7 +184,7 @@ class CreateProductInvoiceAction
 
             $stockAvailable = (float) $product->current_stock + ($heldQty[$product->id] ?? 0);
 
-            if ($qty > $stockAvailable) {
+            if ($checkStock && $qty > $stockAvailable) {
                 $available = Quantity::format($stockAvailable);
 
                 throw ValidationException::withMessages([

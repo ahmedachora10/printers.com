@@ -39,10 +39,12 @@ import { isMeasured, meterLabel, pricingTypeLabel, unitSuffix } from '@/lib/serv
 import { cn, formatCurrency, formatDateTimeNumeric, formatQty } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
 import service from '@/routes/pos/service';
+import quotations from '@/routes/quotations';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import {
     type EditServiceInvoice,
     type InvoiceHelper,
+    type PosQuotation,
     type LineAgentCommissionType,
     type PosAgent,
     type PosCustomer,
@@ -83,8 +85,10 @@ interface Props {
     canEditShippingFee: boolean;
     /** موظفو الفرع الذين يمكن إضافتهم مساعدين — عدا صاحب الفاتورة. */
     helperOptions: { id: number; name: string }[];
-    /** Present only when an existing invoice is re-opened to edit it. */
+    /** Present only when an existing invoice is re-opened to edit it — or, without `id`, seeded from a quotation. */
     invoice?: EditServiceInvoice;
+    /** عرض سعر: يُحرَّر هنا بلا دفع، أو يُحوَّل إلى فاتورة جديدة. */
+    quotation?: PosQuotation;
 }
 
 type InvoiceStatus = 'paid' | 'due';
@@ -288,6 +292,7 @@ export default function ServicePos({
     canEditShippingFee,
     helperOptions,
     invoice,
+    quotation,
 }: Props) {
     const { props } = usePage<SharedData>();
     // Employees may only raise DUE (معلق) invoices for an accountant to review;
@@ -346,7 +351,10 @@ export default function ServicePos({
 
         return null;
     };
-    const isEditing = !!invoice;
+    const isEditing = !!invoice?.id;
+    // تحرير عرض سعر: النموذج نفسه بلا حالةٍ ولا دفعٍ ولا نقاط.
+    const quoting = quotation?.mode === 'edit';
+    const converting = quotation?.mode === 'convert';
     const lineSeq = useRef(0);
     const [search, setSearch] = useState('');
     const [searchFocused, setSearchFocused] = useState(false);
@@ -449,7 +457,7 @@ export default function ServicePos({
     // Auto-fill the agent from the chosen customer's link and clear any pending
     // redemption when the customer changes — but not on the initial mount of an
     // edit, where both are already seeded from the invoice.
-    const skipCustomerEffect = useRef(isEditing);
+    const skipCustomerEffect = useRef(!!invoice);
     useEffect(() => {
         if (skipCustomerEffect.current) {
             skipCustomerEffect.current = false;
@@ -716,7 +724,7 @@ export default function ServicePos({
             customerEdit.tax_number.trim() !== (selectedCustomer.taxNumber ?? ''));
 
     function saveCustomer() {
-        if (!invoice || !selectedCustomer) return;
+        if (!invoice?.id || !selectedCustomer) return;
         const payload = {
             full_name: customerEdit.full_name.trim(),
             phone: customerEdit.phone.trim(),
@@ -961,13 +969,13 @@ export default function ServicePos({
             return;
         }
         // الموظف يحفظ فاتورته المعلّقة بلا طريقة دفع؛ من يعتمدها هو من يلزمه ذلك.
-        if (!isEmployee && !paymentMethodId) {
+        if (!quoting && !isEmployee && !paymentMethodId) {
             toast.error('اختر طريقة الدفع قبل حفظ الفاتورة');
             return;
         }
         // A bank-transfer method needs a receipt — unless editing an invoice that
         // already carries one and keeps the same method.
-        if (requiresReceipt && !receipt && !(isEditing && invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
+        if (!quoting && requiresReceipt && !receipt && !(isEditing && invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
             toast.error('يجب إرفاق إيصال التحويل لطريقة الدفع المحددة');
             return;
         }
@@ -1036,10 +1044,17 @@ export default function ServicePos({
             onFinish: () => setSubmitting(false),
         };
 
-        if (isEditing && invoice) {
+        if (quoting) {
+            const url = quotation!.id ? quotations.update(quotation!.id).url : quotations.store('service').url;
+            router.post(url, { ...payload, print, ...(quotation!.id ? { _method: 'put' } : {}) }, options);
+        } else if (isEditing && invoice?.id) {
             router.post(service.update(invoice.id).url, { ...payload, _method: 'put' }, options);
         } else {
-            router.post(service.store().url, { ...payload, status, print }, { ...options, onSuccess: () => resetForm() });
+            router.post(
+                service.store().url,
+                { ...payload, status, print, quotation_id: converting ? quotation!.id : null },
+                { ...options, onSuccess: () => !converting && resetForm() },
+            );
         }
     }
 
@@ -1048,10 +1063,15 @@ export default function ServicePos({
 
     const showResults = searchFocused && search.trim() !== '';
 
-    const breadcrumbs: BreadcrumbItem[] = isEditing
+    const breadcrumbs: BreadcrumbItem[] = quotation
+        ? [
+              { title: 'عروض الأسعار', href: quotations.index().url },
+              { title: quotation.number ?? 'عرض سعر خدمات جديد', href: service.quotation(quotation.id ?? undefined).url },
+          ]
+        : isEditing
         ? [
               { title: 'الفواتير', href: '/invoices' },
-              { title: `تعديل ${invoice!.invoiceNumber}`, href: service.edit(invoice!.id).url },
+              { title: `تعديل ${invoice!.invoiceNumber}`, href: service.edit(invoice!.id!).url },
           ]
         : [
               { title: 'نقطة البيع', href: service.create().url },
@@ -1061,7 +1081,16 @@ export default function ServicePos({
     // أزرار الحفظ مرّتين: أسفل العمود الجانبي وفوق البحث عن الخدمات (تاسك 142) —
     // مع سلة طويلة لا يمرّر الموظف للأسفل في كل فاتورة.
     const saveActions = (full: string) =>
-        isEditing ? (
+        quoting ? (
+            <>
+                <Button type="button" className={full} disabled={submitting || cart.length === 0 || hasPriceCapViolation} onClick={() => submit(false)}>
+                    <Save className="size-4" /> حفظ عرض السعر
+                </Button>
+                <Button type="button" variant="outline" className={full} disabled={submitting || cart.length === 0 || hasPriceCapViolation} onClick={() => submit(true)}>
+                    <Printer className="size-4" /> طباعة وحفظ
+                </Button>
+            </>
+        ) : isEditing ? (
             <>
                 <Button type="button" className={full} disabled={submitting || cart.length === 0 || hasPriceCapViolation} onClick={() => submit(false)}>
                     <Save className="size-4" /> تحديث الفاتورة
@@ -1089,8 +1118,45 @@ export default function ServicePos({
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={isEditing ? `تعديل فاتورة ${invoice!.invoiceNumber}` : 'نقطة البيع — فاتورة خدمة'} />
+            <Head
+                title={
+                    quoting
+                        ? quotation!.number
+                            ? `تعديل عرض السعر ${quotation!.number}`
+                            : 'عرض سعر خدمات'
+                        : isEditing
+                          ? `تعديل فاتورة ${invoice!.invoiceNumber}`
+                          : 'نقطة البيع — فاتورة خدمة'
+                }
+            />
             <Toaster position="top-center" richColors />
+
+            {quotation && (
+                <div className="px-4 pt-4">
+                    <div className="flex items-start gap-2 rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-sm text-sky-700 dark:text-sky-400">
+                        <Info className="mt-0.5 size-4 shrink-0" />
+                        <span>
+                            {converting ? (
+                                <>
+                                    تحويل عرض السعر <span className="font-semibold">{quotation.number}</span> إلى فاتورة — راجع البيانات ثم احفظ
+                                    الفاتورة كالمعتاد.
+                                </>
+                            ) : (
+                                <>
+                                    {quotation.number ? (
+                                        <>
+                                            تعديل عرض السعر <span className="font-semibold">{quotation.number}</span>.
+                                        </>
+                                    ) : (
+                                        'عرض سعر جديد.'
+                                    )}{' '}
+                                    لا يُحتسب في المبيعات ولا العمولات، ولا يُحصَّل عليه دفع.
+                                </>
+                            )}
+                        </span>
+                    </div>
+                </div>
+            )}
 
             {/* تاسك 70: مراجعٌ يصحّح فاتورة موظف قبل اعتمادها — يُقال له صراحةً
                 إنّ الفاتورة ليست له وإنّ التعديل مُسجّل. */}
@@ -1185,6 +1251,7 @@ export default function ServicePos({
                     </Card>
 
                     {/* Status */}
+                    {!quoting && (
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base">حالة الفاتورة</CardTitle>
@@ -1216,6 +1283,7 @@ export default function ServicePos({
                             )}
                         </CardContent>
                     </Card>
+                    )}
 
                     {/* Coupon */}
                     <Card>
@@ -1250,7 +1318,7 @@ export default function ServicePos({
                     </Card>
 
                     {/* Loyalty */}
-                    {loyaltyOn && selectedCustomer && (
+                    {!quoting && loyaltyOn && selectedCustomer && (
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardTitle className="flex items-center gap-2 text-base">
@@ -1414,6 +1482,7 @@ export default function ServicePos({
                             {/* تاسك 95: الملاحظة الداخلية — تعليمات تنفيذ أو تنبيه
                                 للمحاسب. الخادم يحذفها من حمولة الطباعة، فلا تصل
                                 العميل بفتح مصدر الصفحة. */}
+                            {!quoting && (
                             <div className="mt-4 space-y-1.5 border-t pt-4">
                                 <Label htmlFor="invoice-internal-notes" className="flex items-center gap-1.5 text-sm">
                                     <Lock className="size-3.5" aria-hidden />
@@ -1431,10 +1500,12 @@ export default function ServicePos({
                                 <p className="text-muted-foreground text-xs">يراها الموظفون والإدارة فقط، ولا تظهر في أي ورقة طباعة.</p>
                                 {errors.internal_notes && <p className="text-destructive text-xs">{errors.internal_notes}</p>}
                             </div>
+                            )}
                         </CardContent>
                     </Card>
 
                     {/* Payment method */}
+                    {!quoting && (
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base">
@@ -1477,6 +1548,7 @@ export default function ServicePos({
                             {errors.payment_method_id && <p className="text-destructive mt-2 text-xs">{errors.payment_method_id}</p>}
                         </CardContent>
                     </Card>
+                    )}
 
                     {/* موعد تسليم العمل — بجوار طريقة الدفع، يُعرض DD/MM/YYYY
                         ويُخزَّن YYYY-MM-DD HH:MM. لا يُقبل موعد قبل اليوم. */}
@@ -2186,7 +2258,7 @@ export default function ServicePos({
             <PosStickyTotalBar
                 total={total}
                 lineCount={cart.length}
-                saveLabel={isEditing ? 'تحديث الفاتورة' : 'حفظ الفاتورة'}
+                saveLabel={quoting ? 'حفظ عرض السعر' : isEditing ? 'تحديث الفاتورة' : 'حفظ الفاتورة'}
                 disabled={submitting || cart.length === 0 || hasPriceCapViolation}
                 onSave={() => submit(false)}
             />

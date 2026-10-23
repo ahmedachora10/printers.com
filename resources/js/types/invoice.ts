@@ -234,6 +234,8 @@ export interface Invoice {
     payments?: InvoicePayment[];
     canRefund: boolean;
     canApprovePayment: boolean;
+    /** رقم عرض السعر الذي حُوِّلت منه الفاتورة، إن وُجد */
+    quotationNumber: string | null;
     canEdit: boolean;
     /** المحاسب لا يعدّل الخدمات ولا الأسعار — يبقى له هذان على فاتورة الموظف */
     canEditCustomer: boolean;

@@ -15,6 +15,7 @@ use App\Notifications\ServiceInvoiceReviewedNotification;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Route;
 
 uses(RefreshDatabase::class);
 
@@ -74,18 +75,14 @@ describe('Service invoice review', function () {
         $this->actingAs($this->accountant);
     });
 
-    it('shows the due invoice review queue to an accountant', function () {
+    it('lists due invoices awaiting approval on the invoice list, not a separate queue', function () {
         makeDueInvoice();
 
-        $this->get(route('invoices.service.review'))
+        $this->get(route('invoices.index', ['type' => 'service', 'status' => 'due']))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->component('invoices/review')->has('invoices', 1));
-    });
+            ->assertInertia(fn ($page) => $page->component('invoices/index'));
 
-    it('forbids an employee from the review queue', function () {
-        $this->actingAs($this->employee);
-
-        $this->get(route('invoices.service.review'))->assertForbidden();
+        expect(Route::has('invoices.service.review'))->toBeFalse();
     });
 
     it('marks a due invoice as paid, stamps paid_at and writes the commission ledger', function () {
@@ -94,9 +91,9 @@ describe('Service invoice review', function () {
         // No commission is earned while the invoice is due.
         expect(CommissionLedger::count())->toBe(0);
 
-        $this->from(route('invoices.service.review'))
+        $this->from(route('invoices.index'))
             ->patch(route('invoices.service.pay', $invoice))
-            ->assertRedirect(route('invoices.service.review'))
+            ->assertRedirect(route('invoices.index'))
             ->assertSessionHas('success');
 
         $invoice->refresh();
@@ -140,7 +137,7 @@ describe('Service invoice review', function () {
         $invoice = makeDueInvoice();
 
         $this->patch(route('invoices.service.cancel', $invoice), ['reason' => 'طلب العميل الإلغاء'])
-            ->assertRedirect(route('invoices.service.review'))
+            ->assertRedirect(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
             ->assertSessionHas('success');
 
         $invoice->refresh();
@@ -305,7 +302,7 @@ describe('Service invoice review', function () {
             'full_name' => 'اسم جديد',
             'phone' => '0500000002',
         ])
-            ->assertRedirect(route('invoices.service.review'))
+            ->assertRedirect(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
             ->assertSessionHas('success');
 
         expect($customer->refresh())
@@ -389,7 +386,7 @@ describe('Service invoice review', function () {
             'full_name' => 'عميل جديد',
             'phone' => '0500000003',
         ])
-            ->assertRedirect(route('invoices.service.review'))
+            ->assertRedirect(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
             ->assertSessionHas('success');
 
         $customer = Customer::where('phone', '0500000003')->where('branch_id', $this->branch->id)->first();
@@ -412,7 +409,7 @@ describe('Service invoice review', function () {
         $this->patch(route('invoices.service.update-customer', $invoice), [
             'full_name' => 'اسم مختلف',
             'phone' => '0500000006',
-        ])->assertRedirect(route('invoices.service.review'));
+        ])->assertRedirect(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]));
 
         expect(Customer::where('phone', '0500000006')->where('branch_id', $this->branch->id)->count())->toBe(1)
             ->and($invoice->refresh()->customer_id)->toBe($existing->id);
@@ -424,11 +421,11 @@ describe('Service invoice review', function () {
 
         $invoice = makeDueInvoice(['payment_method_id' => $card->id]);
 
-        $this->from(route('invoices.service.review'))
+        $this->from(route('invoices.index'))
             ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $mada->id,
             ])
-            ->assertRedirect(route('invoices.service.review'))
+            ->assertRedirect(route('invoices.index'))
             ->assertSessionHas('success');
 
         expect($invoice->refresh()->payment_method_id)->toBe($mada->id);
@@ -504,7 +501,7 @@ describe('Service invoice review', function () {
     it('refuses to approve an invoice with no payment method', function () {
         $invoice = makeDueInvoice(['payment_method_id' => null]);
 
-        $this->from(route('invoices.service.review'))
+        $this->from(route('invoices.index'))
             ->patch(route('invoices.service.pay', $invoice))
             ->assertSessionHasErrors('payment_method_id');
 
@@ -521,7 +518,7 @@ describe('Service invoice review', function () {
 
         $invoice = makeDueInvoice(['payment_method_id' => $foreign->id]);
 
-        $this->from(route('invoices.service.review'))
+        $this->from(route('invoices.index'))
             ->patch(route('invoices.service.pay', $invoice))
             ->assertSessionHasErrors('payment_method_id');
 
@@ -535,78 +532,11 @@ describe('Service invoice review', function () {
             'payment_method_id' => $this->paymentMethod->id,
         ])->assertSessionHasNoErrors();
 
-        $this->from(route('invoices.service.review'))
+        $this->from(route('invoices.index'))
             ->patch(route('invoices.service.pay', $invoice))
-            ->assertRedirect(route('invoices.service.review'))
+            ->assertRedirect(route('invoices.index'))
             ->assertSessionHas('success');
 
         expect($invoice->refresh()->status->value)->toBe('paid');
-    });
-
-    // ── تاسك 60: مدى تاريخي وفرز وتصفّح لطابور عروض الأسعار ────────
-
-    it('keeps a quote outside the applied range out of the queue and the summary', function () {
-        $old = makeDueInvoice();
-        ServiceInvoice::query()->whereKey($old->id)->update(['created_at' => now()->subMonths(2)]);
-        makeDueInvoice(['subtotal' => 200, 'vat_amount' => 30, 'total_amount' => 230]);
-
-        $this->get(route('invoices.service.review', [
-            'from' => now()->subDays(3)->toDateString(),
-            'to' => now()->toDateString(),
-        ]))
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->has('invoices', 1)
-                ->where('summary.quotesCount', 1)
-                ->where('summary.quotesTotal', 230)
-                ->where('meta.total', 1));
-    });
-
-    it('paginates the queue and carries the rest onto the second page', function () {
-        // 13 عرضاً وحجم الصفحة 12 — الثالث عشر على الصفحة الثانية.
-        foreach (range(1, 13) as $i) {
-            makeDueInvoice();
-        }
-
-        $this->get(route('invoices.service.review'))
-            ->assertInertia(fn ($page) => $page
-                ->has('invoices', 12)
-                ->where('meta.total', 13)
-                ->where('meta.lastPage', 2));
-
-        $this->get(route('invoices.service.review', ['page' => 2]))
-            ->assertInertia(fn ($page) => $page->has('invoices', 1)->where('meta.currentPage', 2));
-    });
-
-    it('searches the queue by invoice number, customer and employee name', function () {
-        $target = makeDueInvoice(['invoice_number' => 'SINV-FIND-ME']);
-        makeDueInvoice(['invoice_number' => 'SINV-OTHER-1']);
-
-        $this->get(route('invoices.service.review', ['search' => 'FIND-ME']))
-            ->assertInertia(fn ($page) => $page
-                ->has('invoices', 1)
-                ->where('invoices.0.id', $target->id)
-                ->where('summary.quotesCount', 1));
-
-        // اسم الموظف يجد كل ما حرّره — كلا العرضين من نفس الموظف.
-        $this->get(route('invoices.service.review', ['search' => $this->employee->name]))
-            ->assertInertia(fn ($page) => $page->has('invoices', 2));
-    });
-
-    it('sorts the queue by total amount on request', function () {
-        makeDueInvoice(['subtotal' => 100, 'vat_amount' => 15, 'total_amount' => 115]);
-        makeDueInvoice(['subtotal' => 800, 'vat_amount' => 120, 'total_amount' => 920]);
-
-        $this->get(route('invoices.service.review', ['sort' => 'total_amount', 'dir' => 'asc']))
-            ->assertInertia(fn ($page) => $page
-                ->where('invoices.0.totalAmount', 115)
-                ->where('invoices.1.totalAmount', 920)
-                ->where('filters.sort', 'total_amount')
-                ->where('filters.dir', 'asc'));
-    });
-
-    it('rejects an unknown sort column on the queue', function () {
-        $this->get(route('invoices.service.review', ['sort' => 'total_amount; drop table users']))
-            ->assertSessionHasErrors('sort');
     });
 });

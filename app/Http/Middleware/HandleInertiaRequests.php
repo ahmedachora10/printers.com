@@ -4,11 +4,13 @@ namespace App\Http\Middleware;
 
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\PurchaseRequestStatusEnum;
+use App\Enums\QuotationStatusEnum;
 use App\Enums\ReturnRequestStatusEnum;
 use App\Enums\Roles;
 use App\Models\Expense;
 use App\Models\InvoiceReturnRequest;
 use App\Models\PurchaseRequest;
+use App\Models\Quotation;
 use App\Models\ServiceInvoice;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Inspiring;
@@ -146,6 +148,8 @@ class HandleInertiaRequests extends Middleware
             'returnRequests' => $inBranch(InvoiceReturnRequest::query()->where('status', ReturnRequestStatusEnum::PENDING))->count(),
             'shipmentRequests' => $inBranch(ServiceInvoice::query()->awaitingShipmentApproval())->count(),
             'expenseRequests' => $inBranch(Expense::query()->whereNotNull('requested_by')->whereNull('accepted_at'))->count(),
+            // عروضٌ أُرسلت للعميل ولم يردّ بعد — متابعةٌ لا قرار.
+            'quotationsPending' => $inBranch(Quotation::query()->where('status', QuotationStatusEnum::PENDING))->count(),
         ];
 
         // طلبات الشراء يقرّر فيها المدير وحده (PurchaseRequestPolicy::decide).
@@ -229,12 +233,22 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE, Roles::AUDITOR],
             ],
             [
-                'title' => 'عروض الاسعار',
-                'url' => route('invoices.service.review'),
-                'icon' => 'ClipboardList',
+                // ليست شاشة مستقلة: فلترٌ على قائمة الفواتير، والاعتماد والإلغاء
+                // من صفحة كل فاتورة.
+                'title' => 'فواتير بانتظار الاعتماد',
+                'url' => route('invoices.index', ['type' => 'service', 'status' => 'due']),
+                'icon' => 'ClipboardCheck',
                 'group' => 'sales',
                 'pending' => ['key' => 'reviewQueue'],
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
+            ],
+            [
+                'title' => 'عروض الأسعار',
+                'url' => route('quotations.index'),
+                'icon' => 'ClipboardList',
+                'group' => 'sales',
+                'pending' => ['key' => 'quotationsPending'],
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE, Roles::AUDITOR],
             ],
             [
                 // Read-only reference list — everyone who quotes or invoices

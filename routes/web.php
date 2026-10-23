@@ -58,13 +58,14 @@ use App\Http\Controllers\ProductController;
 use App\Http\Controllers\ProductInvoiceController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\PurchaseRequestController;
+use App\Http\Controllers\QuotationController;
 use App\Http\Controllers\RefundController;
 use App\Http\Controllers\SalesReportController;
 use App\Http\Controllers\ServiceInvoiceController;
-use App\Http\Controllers\ShipmentRequestController;
 use App\Http\Controllers\ServicePriceListController;
 use App\Http\Controllers\ServiceTemplateController;
 use App\Http\Controllers\SettlementFileController;
+use App\Http\Controllers\ShipmentRequestController;
 use App\Http\Controllers\ShippingController;
 use App\Http\Controllers\StockMovementController;
 use App\Http\Controllers\StockReconciliationController;
@@ -229,11 +230,6 @@ Route::middleware(['auth'])->group(function () {
         ->name('reports.commissions');
 
     Route::middleware('role:branch-admin|super-admin|accountant|auditor')->group(function () {
-        // Due service-invoice review queue — an accountant or branch admin settles
-        // or cancels invoices raised by employees; the auditor only reads it.
-        Route::get('invoices/service/review', [ServiceInvoiceController::class, 'review'])
-            ->name('invoices.service.review');
-
         Route::get('refunds', [RefundController::class, 'index'])->name('refunds.index');
         // تاسك 135 — طلبات استرجاع الموظفين (تبويب في «المرتجعات»).
         Route::get('refunds/requests', [InvoiceReturnRequestController::class, 'index'])->name('refunds.requests.index');
@@ -340,6 +336,33 @@ Route::middleware(['auth'])->group(function () {
             // في المتحكّم لا في المسار.
             Route::post('service/favorites/{branchService}', [FavoriteServiceController::class, 'toggle'])
                 ->name('service.favorites.toggle');
+        });
+    });
+
+    // عروض الأسعار — مستقلة عن الفواتير، لا تدخل مبيعاً ولا عمولة. الإدخال
+    // والطباعة على شاشتي نقطة البيع نفسها؛ الحارس الدقيق في QuotationPolicy.
+    Route::get('quotations', [QuotationController::class, 'index'])
+        ->middleware('role:super-admin|branch-admin|accountant|employee|auditor')
+        ->name('quotations.index');
+
+    Route::middleware('role:super-admin|branch-admin|accountant|employee')->group(function () {
+        Route::controller(QuotationController::class)->prefix('quotations')->name('quotations.')->group(function () {
+            Route::post('{type}', 'store')->whereIn('type', ['service', 'product'])->name('store');
+            Route::put('{quotation}', 'update')->whereNumber('quotation')->name('update');
+            Route::post('{quotation}/send', 'send')->name('send');
+            Route::post('{quotation}/accept', 'accept')->name('accept');
+            Route::post('{quotation}/reject', 'reject')->name('reject');
+        });
+
+        Route::prefix('pos')->name('pos.')->group(function () {
+            Route::get('service/quotation/{quotation?}', [ServiceInvoiceController::class, 'quotation'])
+                ->whereNumber('quotation')->name('service.quotation');
+            Route::get('service/quotation/{quotation}/print', [ServiceInvoiceController::class, 'quotationPrint'])
+                ->name('service.quotation.print');
+            Route::get('product/quotation/{quotation?}', [ProductInvoiceController::class, 'quotation'])
+                ->whereNumber('quotation')->name('product.quotation');
+            Route::get('product/quotation/{quotation}/print', [ProductInvoiceController::class, 'quotationPrint'])
+                ->name('product.quotation.print');
         });
     });
 

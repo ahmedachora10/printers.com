@@ -262,7 +262,7 @@ describe('Invoice View (M13)', function () {
         $this->get(route('invoices.print', ['type' => 'service', 'id' => $invoice->id]))
             ->assertOk()
             ->assertInertia(fn ($page) => $page->component('invoices/print')
-                // العنوان يُشتق في الواجهة من الحالة: غير مدفوعة ⇒ «عرض سعر»
+                // العنوان يُشتق في الواجهة من الحالة: غير مدفوعة ⇒ «لم يتم التعميد»
                 ->where('invoice.status', 'due')
                 ->where('invoice.branch.taxNumber', null)
                 ->where('zatcaQr', null));

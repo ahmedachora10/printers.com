@@ -1,9 +1,10 @@
 import InvoiceNotes from '@/components/invoices/invoice-notes';
 import { ThermalBranchHeader } from '@/components/invoices/print-header';
 import { ThermalTotals } from '@/components/invoices/print-totals';
-import { QUOTATION_DISCLAIMER, invoiceDocument } from '@/lib/invoice';
+import { invoiceDocument } from '@/lib/invoice';
 import { formatCurrency, formatDateTime, formatQty } from '@/lib/utils';
 import product from '@/routes/pos/product';
+import quotations from '@/routes/quotations';
 import { type PosBranch, type PosInvoice } from '@/types/pos';
 import { Head, Link } from '@inertiajs/react';
 import { Printer } from 'lucide-react';
@@ -12,9 +13,11 @@ import { useEffect } from 'react';
 interface Props {
     invoice: PosInvoice;
     branch: PosBranch;
+    /** ورقة عرض سعر لا فاتورة — الرجوع إلى قائمة العروض. */
+    isQuotation?: boolean;
 }
 
-export default function ProductInvoicePrint({ invoice, branch }: Props) {
+export default function ProductInvoicePrint({ invoice, branch, isQuotation = false }: Props) {
     const doc = invoiceDocument(invoice);
 
     useEffect(() => {
@@ -28,8 +31,8 @@ export default function ProductInvoicePrint({ invoice, branch }: Props) {
 
             {/* Toolbar — hidden when printing */}
             <div className="mb-4 flex items-center justify-between gap-2 print:hidden">
-                <Link href={product.create().url} className="rounded-md border px-3 py-1.5 text-sm">
-                    فاتورة جديدة
+                <Link href={isQuotation ? quotations.index().url : product.create().url} className="rounded-md border px-3 py-1.5 text-sm">
+                    {isQuotation ? 'عروض الأسعار' : 'فاتورة جديدة'}
                 </Link>
                 <button
                     type="button"
@@ -44,7 +47,7 @@ export default function ProductInvoicePrint({ invoice, branch }: Props) {
             <div className="text-center">
                 <ThermalBranchHeader branch={branch} />
                 <h2 className="mt-2 text-sm font-bold">{doc.title}</h2>
-                {doc.isQuotation && <p className="mt-1 text-[10px] font-semibold">{QUOTATION_DISCLAIMER}</p>}
+                {doc.disclaimer && <p className="mt-1 text-[10px] font-semibold">{doc.disclaimer}</p>}
             </div>
 
             <div className="my-3 border-t border-dashed border-black" />

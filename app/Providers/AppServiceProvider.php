@@ -28,6 +28,7 @@ use App\Models\ProductCategory;
 use App\Models\ProductInvoice;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseRequest;
+use App\Models\Quotation;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceTemplate;
@@ -59,6 +60,7 @@ use App\Policies\ProductInvoicePolicy;
 use App\Policies\ProductPolicy;
 use App\Policies\PurchaseOrderPolicy;
 use App\Policies\PurchaseRequestPolicy;
+use App\Policies\QuotationPolicy;
 use App\Policies\RefundPolicy;
 use App\Policies\ServiceInvoicePolicy;
 use App\Policies\ServiceTemplatePolicy;
@@ -171,6 +173,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(DeliveryProvider::class, ShippingPolicy::class);
         Gate::policy(DeliveryZone::class, ShippingPolicy::class);
         Gate::policy(User::class, UserPolicy::class);
+        Gate::policy(Quotation::class, QuotationPolicy::class);
     }
 
     protected function configureDefaults(): void

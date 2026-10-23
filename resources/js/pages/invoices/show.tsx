@@ -12,7 +12,7 @@ import { PendingShipments, ShipmentRequestDialog, type ShipmentRequestForm } fro
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import { CancelSettlementDialog, SettleDeliveryDialog, type SettleTarget } from '@/components/shipping/settle-dialogs';
 import ReturnRequestDialogs from '@/components/refunds/return-request-dialogs';
-import { Badge } from '@/components/ui/badge';
+import { Badge, badgeVariants } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -30,6 +30,7 @@ import { updatePaymentMethod as updateInvoicePaymentMethod } from '@/routes/invo
 import serviceInvoice from '@/routes/invoices/service';
 import posProduct from '@/routes/pos/product';
 import posService from '@/routes/pos/service';
+import quotations from '@/routes/quotations';
 import { type BankAccountOption } from '@/types/expense';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type Invoice, type InvoiceThread as InvoiceThreadData, type InvoicePayment, type PaymentMethodChange } from '@/types/invoice';
@@ -148,6 +149,11 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     const [materialsShortage, setMaterialsShortage] = useState<string | null>(null);
     const [approving, setApproving] = useState(false);
     const [returnOpen, setReturnOpen] = useState(false);
+    // إلغاء الآجلة — انتقل إلى هنا من طابور الاعتماد حين دُمج في قائمة الفواتير.
+    const [cancelOpen, setCancelOpen] = useState(false);
+    const [cancelReason, setCancelReason] = useState('');
+    const [cancelError, setCancelError] = useState<string | null>(null);
+    const [cancelling, setCancelling] = useState(false);
     const [returnReason, setReturnReason] = useState('');
     const [returning, setReturning] = useState(false);
     // تاسك 185: قرار طلب الاسترجاع من الفاتورة نفسها.
@@ -326,6 +332,28 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
         );
     }
 
+    function confirmCancel() {
+        if (cancelReason.trim().length < 3) {
+            setCancelError('يجب ذكر سبب الإلغاء.');
+            return;
+        }
+        setCancelling(true);
+        router.patch(
+            serviceInvoice.cancel(invoice.id).url,
+            { reason: cancelReason.trim() },
+            {
+                preserveScroll: true,
+                onError: (e) => setCancelError(e.reason ?? 'تعذّر إلغاء الفاتورة.'),
+                onSuccess: () => {
+                    setCancelOpen(false);
+                    setCancelReason('');
+                    setCancelError(null);
+                },
+                onFinish: () => setCancelling(false),
+            },
+        );
+    }
+
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'الفواتير', href: '/invoices' },
         { title: invoice.invoiceNumber, href: `/invoices/${invoice.type}/${invoice.id}` },
@@ -372,6 +400,14 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                             </Badge>
                             <Badge variant="secondary">{invoice.typeLabel}</Badge>
                             <Badge variant="outline">{invoiceDocumentTitle(invoice)}</Badge>
+                            {invoice.quotationNumber && (
+                                <Link
+                                    href={quotations.index({ query: { search: invoice.quotationNumber } }).url}
+                                    className={badgeVariants({ variant: 'outline' })}
+                                >
+                                    من عرض السعر {invoice.quotationNumber}
+                                </Link>
+                            )}
                             {invoice.returnRequest?.status === 'pending' && (
                                 <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">
                                     طلب استرجاع — {invoice.returnRequest.statusLabel}
@@ -408,6 +444,11 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                 onClick={() => setApproveOpen(true)}
                             >
                                 <CheckCircle2 className="size-4" /> اعتماد الفاتورة
+                            </Button>
+                        )}
+                        {invoice.canApprovePayment && (
+                            <Button variant="outline" className="text-destructive hover:text-destructive" onClick={() => setCancelOpen(true)}>
+                                <Ban className="size-4" /> إلغاء الفاتورة
                             </Button>
                         )}
                         {invoice.canRecordPayment && (
@@ -1262,6 +1303,41 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                             disabled={returning}
                         >
                             <Undo2 className="size-4" /> {invoice.refundableRemaining > 0 ? 'رفع الطلب' : 'تأكيد الاسترجاع'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Cancel a due invoice */}
+            <Dialog open={cancelOpen} onOpenChange={(open) => !open && !cancelling && setCancelOpen(false)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>إلغاء الفاتورة {invoice.invoiceNumber}</DialogTitle>
+                        <DialogDescription>تبقى الفاتورة ظاهرة بحالة «ملغاة» ويُبلَّغ صاحبها بالسبب.</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-1">
+                        <label htmlFor="invoice-cancel-reason" className="text-sm font-medium">
+                            سبب الإلغاء
+                        </label>
+                        <textarea
+                            id="invoice-cancel-reason"
+                            rows={3}
+                            value={cancelReason}
+                            onChange={(e) => {
+                                setCancelReason(e.target.value);
+                                setCancelError(null);
+                            }}
+                            disabled={cancelling}
+                            className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                        />
+                        {cancelError && <p className="text-destructive text-sm">{cancelError}</p>}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setCancelOpen(false)} disabled={cancelling}>
+                            تراجع
+                        </Button>
+                        <Button variant="destructive" onClick={confirmCancel} disabled={cancelling}>
+                            <Ban className="size-4" /> تأكيد الإلغاء
                         </Button>
                     </DialogFooter>
                 </DialogContent>
