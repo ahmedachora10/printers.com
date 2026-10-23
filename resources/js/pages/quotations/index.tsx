@@ -102,7 +102,7 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                 key: 'customer',
                 header: 'العميل',
                 cell: (q) => (
-                    <div className="text-sm">
+                    <div className="text-sm text-right">
                         {q.customerName ?? 'عميل عابر'}
                         {q.customerPhone && (
                             <span className="text-muted-foreground block text-xs" dir="ltr">
@@ -135,7 +135,7 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
                 key: 'status',
                 header: 'الحالة',
                 cell: (q) => (
-                    <div className="space-y-1">
+                    <div className="space-y-1 text-right">
                         <Badge variant="outline" className={`whitespace-nowrap ${STATUS_COLORS[q.status]}`}>
                             {q.statusLabel}
                         </Badge>
