@@ -51,9 +51,9 @@ export function newShipment(customer: PosCustomer | null): ShipmentDraft {
     );
 }
 
-export function savedShipment(saved: EditServiceInvoiceShipment): ShipmentDraft {
+export function savedShipment(saved: EditServiceInvoiceShipment, index = 0): ShipmentDraft {
     return {
-        key: `saved-${saved.id}`,
+        key: `saved-${saved.id ?? `q${index}`}`,
         id: saved.id,
         providerId: saved.providerId,
         zoneId: saved.zoneId,

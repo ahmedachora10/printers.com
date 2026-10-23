@@ -202,30 +202,11 @@ describe('Invoice payments', function () {
         expect(InvoicePayment::count())->toBe(0);
     });
 
-    it('drops the invoice out of the quotation review queue once a deposit is taken', function () {
-        $invoice = paymentTestInvoice();
-        $untouched = paymentTestInvoice();
-
-        $this->get(route('invoices.service.review'))
-            ->assertInertia(fn ($page) => $page->has('invoices', 2));
-
-        postPayment($invoice, ['amount' => 40])->assertRedirect();
-
-        // الفاتورة التي قُبض عليها عربون لم تعد عرض سعر، فتغادر الطابور ويُستكمل
-        // سدادها من صفحتها.
-        $this->get(route('invoices.service.review'))
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page
-                ->component('invoices/review')
-                ->has('invoices', 1)
-                ->where('invoices.0.id', $untouched->id));
-    });
-
     it('refuses to approve a partially paid invoice outright', function () {
         $invoice = paymentTestInvoice();
         postPayment($invoice, ['amount' => 50])->assertRedirect();
 
-        $this->from(route('invoices.service.review'))
+        $this->from(route('invoices.index'))
             ->patch(route('invoices.service.pay', $invoice))
             ->assertSessionHasErrors('status');
 

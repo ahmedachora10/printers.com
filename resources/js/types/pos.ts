@@ -206,8 +206,17 @@ export interface EditServiceInvoiceLine {
     agentCommissionValue: number | null;
 }
 
+/** عرض سعر مفتوح على شاشة نقطة البيع: يُحرَّر (edit)، أو يُحوَّل إلى فاتورة جديدة (convert). */
+export interface PosQuotation {
+    /** null لعرضٍ جديد لم يُحفظ بعد */
+    id: number | null;
+    number: string | null;
+    mode: 'edit' | 'convert';
+}
+
 export interface EditServiceInvoice {
-    id: number;
+    /** null حين تُبذر الشاشة من عرض سعر لا من فاتورة محفوظة */
+    id: number | null;
     invoiceNumber: string;
     /** موظف الفاتورة — تعرضه اللافتة حين يفتحها مراجعٌ لا صاحبُها (تاسك 70) */
     employeeName: string | null;
@@ -244,7 +253,8 @@ export interface InvoiceHelper {
 
 /** تاسك 170 — طلب توصيلٍ محفوظ؛ `id` يُعاد مع الحفظ فتبقى تسوية سائقه مربوطةً به. */
 export interface EditServiceInvoiceShipment {
-    id: number;
+    /** null لطلبٍ آتٍ من عرض سعر — يُنشأ مع الفاتورة */
+    id: number | null;
     providerId: number | null;
     zoneId: number | null;
     fee: number;
@@ -255,7 +265,8 @@ export interface EditServiceInvoiceShipment {
 
 /** فاتورة منتجات يعيد فتحها مدير الفرع أو مدير النظام للتعديل. */
 export interface EditProductInvoice {
-    id: number;
+    /** null حين تُبذر الشاشة من عرض سعر لا من فاتورة محفوظة */
+    id: number | null;
     invoiceNumber: string;
     customer: PosCustomer | null;
     agentId: number | null;

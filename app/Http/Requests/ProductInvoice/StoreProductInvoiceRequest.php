@@ -43,6 +43,8 @@ class StoreProductInvoiceRequest extends FormRequest
             ],
             'status' => ['required', Rule::in([InvoiceStatusEnum::PAID->value, InvoiceStatusEnum::DUE->value])],
             'print' => ['nullable', 'boolean'],
+            // تحويل عرض سعر معتمد إلى فاتورة — الصلاحية والحالة تُفحصان في المتحكّم والإجراء.
+            'quotation_id' => ['nullable', 'integer'],
             // Invoice-level remark for the customer, printed under the lines.
             'notes' => ['nullable', 'string', 'max:1000'],
             // تاسك 95: ملاحظة داخلية للموظفين والإدارة — لا تُطبع للعميل.

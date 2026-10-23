@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use App\Enums\InvoiceStatusEnum;
+use App\Enums\InvoiceTypeEnum;
 use App\Models\Concerns\HasInvoicePayments;
 use App\Models\Concerns\HasReceiptMedia;
 use App\Models\Concerns\HasVatBreakdown;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
@@ -107,6 +109,12 @@ class ProductInvoice extends Model implements HasMedia
     public function paymentMethod(): BelongsTo
     {
         return $this->belongsTo(PaymentMethod::class);
+    }
+
+    /** عرض السعر الذي حُوِّلت منه الفاتورة، إن وُجد. */
+    public function quotation(): HasOne
+    {
+        return $this->hasOne(Quotation::class, 'invoice_id')->where('type', InvoiceTypeEnum::PRODUCT);
     }
 
     /** @return HasMany<ProductInvoiceLine, $this> */

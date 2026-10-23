@@ -9,6 +9,8 @@ export interface InvoiceDocument {
     title: string;
     /** غير معتمدة بعد: مستند غير ملزم ولا يحمل أياً من مقوّمات الفاتورة الضريبية */
     isQuotation: boolean;
+    /** التنويه المطبوع تحت العنوان، إن وُجد */
+    disclaimer: string | null;
 }
 
 /** ما يقيسه سعر السطر: مترٌ مربع، أو مترٌ طولي، أو قطعة (null). */
@@ -87,11 +89,17 @@ export const INVOICE_STATUS_COLORS: Record<string, string> = {
 export function invoiceDocument(invoice: DocumentSource): InvoiceDocument {
     // المرتجع فاتورة اعتُمدت ثم أُرجعت — ليست عرض سعر ولا مستنداً ضريبياً سارياً.
     if (invoice.status === 'returned') {
-        return { title: 'فاتورة مرتجعة', isQuotation: false };
+        return { title: 'فاتورة مرتجعة', isQuotation: false, disclaimer: null };
     }
 
+    // عرض السعر المستقل (جدول quotations) — ليس فاتورةً بأي حال.
+    if (invoice.status === 'quotation') {
+        return { title: 'عرض سعر', isQuotation: true, disclaimer: QUOTATION_DISCLAIMER };
+    }
+
+    // فاتورةٌ لم يُقبض منها شيء: لم يعتمدها المحاسب بعد، فلا تحمل مقوّمات الضريبة.
     if (invoice.status !== 'paid' && invoice.status !== 'partially_paid') {
-        return { title: 'عرض سعر', isQuotation: true };
+        return { title: 'لم يتم التعميد', isQuotation: true, disclaimer: UNAPPROVED_DISCLAIMER };
     }
 
     return {
@@ -99,6 +107,7 @@ export function invoiceDocument(invoice: DocumentSource): InvoiceDocument {
         // بعد الربط يعود: customerTaxNumber ? 'فاتورة ضريبية' : 'فاتورة ضريبية مبسطة'.
         title: 'تعميد واتفاقية عمل',
         isQuotation: false,
+        disclaimer: null,
     };
 }
 
@@ -108,6 +117,9 @@ export function invoiceDocumentTitle(invoice: DocumentSource): string {
 
 /** التنويه المطبوع أسفل عرض السعر. */
 export const QUOTATION_DISCLAIMER = 'هذا العرض غير ملزم ولا يُعد فاتورة ضريبية';
+
+/** التنويه المطبوع على فاتورة لم يُقبض منها شيء بعد. */
+export const UNAPPROVED_DISCLAIMER = 'لا تُعد فاتورة ضريبية قبل السداد';
 
 export interface TotalsBreakdownInput {
     /** نسبة الضريبة المطبَّقة على هذه الفاتورة */

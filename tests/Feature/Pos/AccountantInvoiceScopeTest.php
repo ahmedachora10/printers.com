@@ -80,18 +80,6 @@ describe('Accountant scope on an employee invoice', function () {
             ->assertInertia(fn ($page) => $page->where('invoice.canEdit', true));
     });
 
-    it('drops the edit button from his review queue row', function () {
-        $this->actingAs($this->accountant)
-            ->get(route('invoices.service.review'))
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page->where('invoices.0.canEdit', false));
-
-        $this->actingAs($this->branchAdmin)
-            ->get(route('invoices.service.review'))
-            ->assertOk()
-            ->assertInertia(fn ($page) => $page->where('invoices.0.canEdit', true));
-    });
-
     it('drops it from his invoice-list row too', function () {
         $this->actingAs($this->accountant)
             ->get(route('invoices.index'))

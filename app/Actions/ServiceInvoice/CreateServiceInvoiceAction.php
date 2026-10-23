@@ -11,6 +11,7 @@ use App\Actions\ServiceInvoice\Concerns\SyncsServiceInvoiceShipments;
 use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\Branch;
+use App\Models\Quotation;
 use App\Models\ServiceInvoice;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
@@ -64,6 +65,10 @@ class CreateServiceInvoiceAction
             // فإمّا حُفظت الفاتورة وعنوانها معاً أو لم يُحفظ شيء.
             $this->syncShipments($invoice, $calc['shipments']);
             $this->logAuthoredMaterialsCost($invoice, $calc['lines']);
+
+            if (! empty($data['quotation_id'])) {
+                Quotation::markConverted((int) $data['quotation_id'], $invoice);
+            }
 
             // Commission is earned only once the invoice is approved (paid). A due
             // invoice — every employee-raised one — writes no ledger row yet; it is

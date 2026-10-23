@@ -60,7 +60,7 @@ describe('what the auditor may see', function () {
         $this->actingAs($this->auditor)->get(route($route))->assertOk();
     })->with([
         'invoices.index',
-        'invoices.service.review',
+        'quotations.index',
         'services.price-list',
         'refunds.index',
         'reports.sales',
@@ -74,12 +74,12 @@ describe('what the auditor may see', function () {
         'analytics.index',
     ]);
 
-    it('sees only its own branch in the invoice list and the review queue', function (string $route) {
-        $this->actingAs($this->auditor)->get(route($route))
+    it('sees only its own branch in the invoice list', function () {
+        $this->actingAs($this->auditor)->get(route('invoices.index'))
             ->assertOk()
             ->assertSee($this->ownInvoice->invoice_number)
             ->assertDontSee($this->otherInvoice->invoice_number);
-    })->with(['invoices.index', 'invoices.service.review']);
+    });
 
     it('opens an invoice of its branch but not of another', function () {
         $this->actingAs($this->auditor)
@@ -101,14 +101,15 @@ describe('what the auditor may see', function () {
         }
     });
 
-    it('lists exactly the fourteen sidebar items of the client list', function () {
+    it('lists exactly the sidebar items of the client list', function () {
         $groups = $this->actingAs($this->auditor)->get(route('reports.sales'))
             ->viewData('page')['props']['auth']['sidebarItems'];
 
         $titles = collect($groups)->flatMap(fn ($group) => collect($group['items'])->pluck('title'))->all();
 
         expect($titles)->toEqualCanonicalizing([
-            'الفواتير', 'عروض الاسعار', 'قائمة الأسعار', 'المرتجعات',
+            // عروض الأسعار فُصلت عن طابور الاعتماد، والطابور صار فلتراً على قائمة الفواتير.
+            'الفواتير', 'فواتير بانتظار الاعتماد', 'عروض الأسعار', 'قائمة الأسعار', 'المرتجعات',
             'تقرير المبيعات', 'تقرير العمولات', 'عمولات المناديب', 'تقرير المصروفات',
             'استهلاك الخامات', 'الحوافز والخصومات', 'كشف التوصيل', 'التقرير اليومي',
             'التحليلات المتقدمة',
@@ -123,6 +124,7 @@ describe('what the auditor may not do', function () {
         $this->actingAs($this->auditor)->get($url)->assertForbidden();
     })->with([
         'print' => fn () => route('invoices.print', ['type' => 'service', 'id' => $this->ownInvoice->id]),
+        'new quotation' => fn () => route('pos.service.quotation'),
         'legacy print' => fn () => route('pos.service.print', $this->ownInvoice->id),
         'delivery note' => fn () => route('invoices.service.delivery-note', [
             $this->ownInvoice->id,

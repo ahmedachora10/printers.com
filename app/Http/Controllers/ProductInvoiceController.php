@@ -15,9 +15,11 @@ use App\Models\Coupon;
 use App\Models\LoyaltyConfig;
 use App\Models\Product;
 use App\Models\ProductInvoice;
+use App\Models\Quotation;
 use App\Notifications\DueInvoiceNotification;
 use App\Support\BranchNotifiables;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
@@ -50,60 +52,107 @@ class ProductInvoiceController extends Controller
             ->all();
 
         $form = $this->posFormData($branchId, $listBranchAgents, $heldQty);
-        $stock = $form['products']->pluck('currentStock', 'id');
-        $loyalty = LoyaltyConfig::forBranch($branchId);
-        $coupon = $invoice->coupon_id ? Coupon::find($invoice->coupon_id) : null;
 
         return Inertia::render('pos/product/index', [
             ...$form,
             // الضريبة المسجَّلة على الفاتورة، لا نسبة الفرع الحالية.
             'vatPct' => (float) $invoice->vat_pct,
-            'invoice' => [
-                'id' => $invoice->id,
-                'invoiceNumber' => $invoice->invoice_number,
-                // حجز الفاتورة نفسها لا يُطرح من رصيد عميلها، وما خُصم عليها فعلاً
-                // يُضاف إليه: التعديل يردّه قبل أن يعيد الخصم.
-                'customer' => $invoice->customer?->toPosArray(
-                    $loyalty,
-                    (bool) $loyalty->is_active,
-                    $availablePoints->reserved((int) $invoice->customer_id, $invoice)
-                        - ($invoice->points_redeemed_at !== null ? (int) $invoice->points_redeemed : 0),
-                ),
-                'agentId' => $invoice->agent_id,
-                'coupon' => $coupon ? [
-                    'code' => $coupon->code,
-                    'type' => $coupon->discount_type->value,
-                    'value' => (float) $coupon->discount_value,
-                ] : null,
-                'pointsRedeemed' => (int) $invoice->points_redeemed,
-                'manualDiscount' => (float) $invoice->manual_discount,
-                'paymentMethodId' => $invoice->payment_method_id,
-                'hasReceipt' => $invoice->hasReceipt(),
-                'notes' => $invoice->notes,
-                'internalNotes' => $invoice->internal_notes,
-                'lines' => $invoice->lines->map(fn ($line) => [
-                    'key' => "l-{$line->id}",
-                    'productId' => $line->product_id,
-                    'name' => $line->product_name,
-                    'sku' => $line->sku ?? '',
-                    'unitPrice' => (float) $line->unit_price,
-                    'qty' => (float) $line->qty,
-                    'discountPct' => (float) $line->discount_pct,
-                    'maxStock' => $line->product_id ? ($stock[$line->product_id] ?? $heldQty[$line->product_id]) : null,
-                    'unitName' => null,
-                    'isManual' => false,
-                    'isSqm' => $line->width_cm !== null,
-                    'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
-                    'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
-                    'pieces' => (int) ($line->pieces ?? 1),
-                ])->values(),
-            ],
+            'invoice' => $this->formInvoice($invoice, $form, $heldQty, $availablePoints),
         ]);
+    }
+
+    /**
+     * عروض الأسعار على شاشة نقطة البيع نفسها: إنشاء عرضٍ جديد، أو تعديله، أو
+     * تحويله إلى فاتورة (`?convert=1`) تُحفظ من مسار الفاتورة العادي.
+     */
+    public function quotation(Request $request, ListBranchAgentsAction $listBranchAgents, ResolveAvailablePointsAction $availablePoints, ?Quotation $quotation = null): Response
+    {
+        if (! $quotation) {
+            Gate::authorize('create', [Quotation::class, InvoiceTypeEnum::PRODUCT]);
+
+            return Inertia::render('pos/product/index', [
+                ...$this->posFormData(Auth::user()->branchId, $listBranchAgents),
+                'quotation' => ['id' => null, 'number' => null, 'mode' => 'edit'],
+            ]);
+        }
+
+        abort_unless($quotation->type === InvoiceTypeEnum::PRODUCT, 404);
+        $convert = $request->boolean('convert');
+        Gate::authorize($convert ? 'convert' : 'update', $quotation);
+
+        $invoice = $quotation->load('customer')->toInvoice();
+        // التحويل فاتورةٌ في فرع من يحوّلها؛ التعديل في فرع العرض.
+        $form = $this->posFormData($convert ? Auth::user()->branchId : $quotation->branch_id, $listBranchAgents);
+
+        return Inertia::render('pos/product/index', [
+            ...$form,
+            'invoice' => [...$this->formInvoice($invoice, $form, [], $availablePoints), 'id' => null],
+            'quotation' => ['id' => $quotation->id, 'number' => $quotation->quotation_number, 'mode' => $convert ? 'convert' : 'edit'],
+        ]);
+    }
+
+    /**
+     * الفاتورة كما تبذرها شاشة نقطة البيع — من فاتورةٍ محفوظة أو من عرض سعر.
+     *
+     * @param  array<string, mixed>  $form
+     * @param  array<int, float>  $heldQty
+     * @return array<string, mixed>
+     */
+    private function formInvoice(ProductInvoice $invoice, array $form, array $heldQty, ResolveAvailablePointsAction $availablePoints): array
+    {
+        $stock = $form['products']->pluck('currentStock', 'id');
+        $loyalty = LoyaltyConfig::forBranch((int) $invoice->branch_id);
+        $coupon = $invoice->coupon_id ? Coupon::find($invoice->coupon_id) : null;
+
+        return [
+            'id' => $invoice->id,
+            'invoiceNumber' => $invoice->invoice_number,
+            // حجز الفاتورة نفسها لا يُطرح من رصيد عميلها، وما خُصم عليها فعلاً
+            // يُضاف إليه: التعديل يردّه قبل أن يعيد الخصم.
+            'customer' => $invoice->customer?->toPosArray(
+                $loyalty,
+                (bool) $loyalty->is_active,
+                $availablePoints->reserved((int) $invoice->customer_id, $invoice)
+                    - ($invoice->points_redeemed_at !== null ? (int) $invoice->points_redeemed : 0),
+            ),
+            'agentId' => $invoice->agent_id,
+            'coupon' => $coupon ? [
+                'code' => $coupon->code,
+                'type' => $coupon->discount_type->value,
+                'value' => (float) $coupon->discount_value,
+            ] : null,
+            'pointsRedeemed' => (int) $invoice->points_redeemed,
+            'manualDiscount' => (float) $invoice->manual_discount,
+            'paymentMethodId' => $invoice->payment_method_id,
+            'hasReceipt' => $invoice->hasReceipt(),
+            'notes' => $invoice->notes,
+            'internalNotes' => $invoice->internal_notes,
+            'lines' => $invoice->lines->map(fn ($line, $i) => [
+                'key' => 'l-'.($line->id ?? "q{$i}"),
+                'productId' => $line->product_id,
+                'name' => $line->product_name,
+                'sku' => $line->sku ?? '',
+                'unitPrice' => (float) $line->unit_price,
+                'qty' => (float) $line->qty,
+                'discountPct' => (float) $line->discount_pct,
+                'maxStock' => $line->product_id ? ($stock[$line->product_id] ?? $heldQty[$line->product_id] ?? null) : null,
+                'unitName' => null,
+                'isManual' => false,
+                'isSqm' => $line->width_cm !== null,
+                'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
+                'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
+                'pieces' => (int) ($line->pieces ?? 1),
+            ])->values(),
+        ];
     }
 
     public function store(StoreProductInvoiceRequest $request, CreateProductInvoiceAction $action): RedirectResponse
     {
         Gate::authorize('create', ProductInvoice::class);
+
+        if ($quotationId = $request->validated('quotation_id')) {
+            Gate::authorize('convert', Quotation::findOrFail($quotationId));
+        }
 
         $invoice = $action->handle($request->validated(), $request->file('receipt'));
 
@@ -117,6 +166,11 @@ class ProductInvoiceController extends Controller
         if ($request->boolean('print')) {
             return to_route('pos.product.print', $invoice)
                 ->with('success', "تم حفظ الفاتورة {$invoice->invoice_number} بنجاح");
+        }
+
+        if ($quotationId) {
+            return to_route('invoices.show', ['type' => InvoiceTypeEnum::PRODUCT->value, 'id' => $invoice->id])
+                ->with('success', "تم تحويل عرض السعر إلى الفاتورة {$invoice->invoice_number}");
         }
 
         return to_route('pos.product.create')
@@ -142,10 +196,32 @@ class ProductInvoiceController extends Controller
 
         $invoice->load(['lines', 'user:id,name', 'customer:id,full_name,phone,tax_number', 'paymentMethod:id,name', 'branch:id,name,phone,address,tax_number']);
 
-        // قبل الاعتماد الورقة عرض سعر لا فاتورة ضريبية — فلا تحمل الرقم الضريبي للفرع.
-        $isQuotation = $invoice->status !== InvoiceStatusEnum::PAID;
+        return Inertia::render('pos/product/print', $this->printProps($invoice));
+    }
+
+    /** ورقة عرض السعر — الورقة نفسها، بعنوان «عرض سعر» وبلا رقمٍ ضريبي. */
+    public function quotationPrint(Quotation $quotation): Response
+    {
+        abort_unless($quotation->type === InvoiceTypeEnum::PRODUCT, 404);
+        Gate::authorize('print', $quotation);
+
+        $props = $this->printProps($quotation->load('customer', 'user:id,name', 'branch')->toInvoice());
 
         return Inertia::render('pos/product/print', [
+            ...$props,
+            'invoice' => [...$props['invoice'], 'status' => 'quotation', 'statusLabel' => $quotation->status->label()],
+        ]);
+    }
+
+    /**
+     * @return array{invoice: array<string, mixed>, branch: array<string, mixed>}
+     */
+    private function printProps(ProductInvoice $invoice): array
+    {
+        // قبل الاعتماد الورقة ليست فاتورة ضريبية — فلا تحمل الرقم الضريبي للفرع.
+        $isQuotation = $invoice->status !== InvoiceStatusEnum::PAID;
+
+        return [
             'invoice' => [
                 'invoiceNumber' => $invoice->invoice_number,
                 'createdAt' => $invoice->created_at?->toIso8601String(),
@@ -183,7 +259,7 @@ class ProductInvoiceController extends Controller
                 'taxNumber' => $isQuotation ? null : $invoice->branch?->tax_number,
                 'logoUrl' => $invoice->branch?->logoUrl(),
             ],
-        ]);
+        ];
     }
 
     /**

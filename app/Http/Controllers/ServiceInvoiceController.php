@@ -20,7 +20,6 @@ use App\Enums\Roles;
 use App\Enums\ServicePricingTypeEnum;
 use App\Http\Requests\ServiceInvoice\CancelServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\ReturnServiceInvoiceRequest;
-use App\Http\Requests\ServiceInvoice\ReviewQueueFilterRequest;
 use App\Http\Requests\ServiceInvoice\StoreServiceInvoiceRequest;
 use App\Http\Requests\ServiceInvoice\UpdateInvoiceCustomerRequest;
 use App\Http\Requests\ServiceInvoice\UpdateServiceInvoiceRequest;
@@ -32,8 +31,8 @@ use App\Models\Coupon;
 use App\Models\Customer;
 use App\Models\DeliveryProvider;
 use App\Models\DeliveryZone;
-use App\Models\InvoiceMessage;
 use App\Models\LoyaltyConfig;
+use App\Models\Quotation;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\ServiceInvoiceShipment;
@@ -50,7 +49,6 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -137,10 +135,56 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('update', $invoice);
 
+        $invoice->load(['lines', 'helpers', 'shipments', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'customer.addresses', 'invoiceAgents:id,service_invoice_id,agent_id,discount_amount,rebate_amount,line_commission_amount']);
+
+        return Inertia::render('pos/service/index', [
+            ...$this->posFormData(Auth::user(), $listBranchAgents, $invoice),
+            'invoice' => $this->formInvoice($invoice, $availablePoints),
+        ]);
+    }
+
+    /**
+     * عروض الأسعار على شاشة نقطة البيع نفسها: إنشاء عرضٍ جديد، أو تعديله، أو
+     * تحويله إلى فاتورة (`?convert=1`) — والأخير يفتح فاتورةً جديدة معبّأة
+     * بالعرض تُحفظ من مسار الفاتورة العادي.
+     */
+    public function quotation(Request $request, ListBranchAgentsAction $listBranchAgents, ResolveAvailablePointsAction $availablePoints, ?Quotation $quotation = null): Response
+    {
+        $user = Auth::user();
+
+        if (! $quotation) {
+            Gate::authorize('create', [Quotation::class, InvoiceTypeEnum::SERVICE]);
+
+            return Inertia::render('pos/service/index', [
+                ...$this->posFormData($user, $listBranchAgents),
+                'quotation' => ['id' => null, 'number' => null, 'mode' => 'edit'],
+            ]);
+        }
+
+        abort_unless($quotation->type === InvoiceTypeEnum::SERVICE, 404);
+        $convert = $request->boolean('convert');
+        Gate::authorize($convert ? 'convert' : 'update', $quotation);
+
+        $invoice = $quotation->load('customer.addresses', 'user:id,name', 'branch')->toInvoice();
+
+        return Inertia::render('pos/service/index', [
+            // التحويل فاتورةٌ جديدة باسم من يحوّلها؛ التعديل يبقى على صاحب العرض.
+            ...$this->posFormData($user, $listBranchAgents, $convert ? null : $invoice),
+            'invoice' => [...$this->formInvoice($invoice, $availablePoints), 'id' => null],
+            'quotation' => ['id' => $quotation->id, 'number' => $quotation->quotation_number, 'mode' => $convert ? 'convert' : 'edit'],
+        ]);
+    }
+
+    /**
+     * الفاتورة كما تبذرها شاشة نقطة البيع — من فاتورةٍ محفوظة أو من عرض سعر
+     * (`Quotation::toInvoice()`).
+     *
+     * @return array<string, mixed>
+     */
+    private function formInvoice(ServiceInvoice $invoice, ResolveAvailablePointsAction $availablePoints): array
+    {
         $user = Auth::user();
         $branchId = (int) $invoice->branch_id;
-
-        $invoice->load(['lines', 'helpers', 'shipments', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'customer.addresses', 'invoiceAgents:id,service_invoice_id,agent_id,discount_amount,rebate_amount,line_commission_amount']);
 
         $loyalty = LoyaltyConfig::forBranch($branchId);
         $loyaltyActive = (bool) $loyalty->is_active;
@@ -152,102 +196,103 @@ class ServiceInvoiceController extends Controller
 
         $coupon = $invoice->coupon_id ? Coupon::find($invoice->coupon_id) : null;
 
-        return Inertia::render('pos/service/index', [
-            ...$this->posFormData($user, $listBranchAgents, $invoice),
-            'invoice' => [
-                'id' => $invoice->id,
-                'invoiceNumber' => $invoice->invoice_number,
-                // صاحب الفاتورة — تعرضه اللافتة حين يفتحها غيرُه (تاسك 70).
-                'employeeName' => $invoice->user?->name,
-                'isOwn' => $user->id === (int) $invoice->user_id,
-                'statusLabel' => $invoice->status->label(),
-                // حجز هذه الفاتورة نفسها لا يُطرح من رصيد عميلها هنا: نقاطها لها،
-                // فإعادة إرسال العدد نفسه لا تُرفض ولا يظهر الرصيد منقوصاً مرتين.
-                'customer' => $invoice->customer?->toPosArray(
-                    $loyalty,
-                    $loyaltyActive,
-                    $invoice->customer_id !== null ? $availablePoints->reserved((int) $invoice->customer_id, $invoice) : 0,
-                ),
-                // صفّ أنشأته عمولة بندٍ وحدها ليس مندوبَ فاتورة: لو عاد هنا لطُبّق
-                // وضعه (خصم) على الفاتورة كلها عند التعديل. مندوب البند محفوظ على بنده.
-                'agentIds' => $invoice->invoiceAgents
-                    ->reject(fn ($a) => (float) $a->discount_amount == 0 && (float) $a->rebate_amount == 0 && (float) $a->line_commission_amount > 0)
-                    ->pluck('agent_id')->values(),
-                'coupon' => $coupon ? [
-                    'code' => $coupon->code,
-                    'type' => $coupon->discount_type->value,
-                    'value' => (float) $coupon->discount_value,
-                ] : null,
-                'pointsRedeemed' => (int) $invoice->points_redeemed,
-                'manualDiscount' => (float) $invoice->manual_discount,
-                'paymentMethodId' => $invoice->payment_method_id,
-                'hasReceipt' => $invoice->hasReceipt(),
-                'notes' => $invoice->notes,
-                // تاسك 100: لا ملاحظة داخلية تُعاد — خانة التعديل تبدأ فارغة، وما
-                // يُكتب فيها رسالةٌ جديدة في المحادثة لا استبدالٌ لما سبق.
-                // «YYYY-MM-DD HH:MM» — الصيغة التي يقرأها منتقي الموعد في الواجهة.
-                'deliveryAt' => $invoice->delivery_at?->format('Y-m-d H:i'),
-                // تاسك 93 — التوصيل يعود إلى الشاشة كما حُفظ، فإعادة الحفظ لا
-                // تُسقط سائقاً ولا عنواناً. تاسك 170: بمعرّف كل طلب، فتبقى تسويته.
-                'shipments' => $invoice->shipments->map(fn ($shipment) => [
-                    'id' => $shipment->id,
-                    'providerId' => $shipment->provider_id,
-                    'zoneId' => $shipment->zone_id,
-                    'fee' => (float) $shipment->fee,
-                    'distanceKm' => $shipment->distance_km !== null ? (float) $shipment->distance_km : null,
-                    'customerAddressId' => $shipment->customer_address_id,
-                    'address' => $shipment->address,
-                ])->values(),
-                'helpers' => $invoice->helpers->map(fn ($helper) => [
-                    'userId' => $helper->user_id,
-                    'branchServiceId' => $helper->branch_service_id,
-                    'shareType' => $helper->share_type,
-                    'shareValue' => (float) $helper->share_value,
-                ])->values(),
-                'lines' => $invoice->lines->map(function ($line) use ($servicesById) {
-                    $service = $servicesById->get($line->branch_service_id);
+        return [
+            'id' => $invoice->id,
+            'invoiceNumber' => $invoice->invoice_number,
+            // صاحب الفاتورة — تعرضه اللافتة حين يفتحها غيرُه (تاسك 70).
+            'employeeName' => $invoice->user?->name,
+            'isOwn' => $user->id === (int) $invoice->user_id,
+            'statusLabel' => $invoice->status->label(),
+            // حجز هذه الفاتورة نفسها لا يُطرح من رصيد عميلها هنا: نقاطها لها،
+            // فإعادة إرسال العدد نفسه لا تُرفض ولا يظهر الرصيد منقوصاً مرتين.
+            'customer' => $invoice->customer?->toPosArray(
+                $loyalty,
+                $loyaltyActive,
+                $invoice->customer_id !== null ? $availablePoints->reserved((int) $invoice->customer_id, $invoice) : 0,
+            ),
+            // صفّ أنشأته عمولة بندٍ وحدها ليس مندوبَ فاتورة: لو عاد هنا لطُبّق
+            // وضعه (خصم) على الفاتورة كلها عند التعديل. مندوب البند محفوظ على بنده.
+            'agentIds' => $invoice->invoiceAgents
+                ->reject(fn ($a) => (float) $a->discount_amount == 0 && (float) $a->rebate_amount == 0 && (float) $a->line_commission_amount > 0)
+                ->pluck('agent_id')->values(),
+            'coupon' => $coupon ? [
+                'code' => $coupon->code,
+                'type' => $coupon->discount_type->value,
+                'value' => (float) $coupon->discount_value,
+            ] : null,
+            'pointsRedeemed' => (int) $invoice->points_redeemed,
+            'manualDiscount' => (float) $invoice->manual_discount,
+            'paymentMethodId' => $invoice->payment_method_id,
+            'hasReceipt' => $invoice->hasReceipt(),
+            'notes' => $invoice->notes,
+            // تاسك 100: لا ملاحظة داخلية تُعاد — خانة التعديل تبدأ فارغة، وما
+            // يُكتب فيها رسالةٌ جديدة في المحادثة لا استبدالٌ لما سبق.
+            // «YYYY-MM-DD HH:MM» — الصيغة التي يقرأها منتقي الموعد في الواجهة.
+            'deliveryAt' => $invoice->delivery_at?->format('Y-m-d H:i'),
+            // تاسك 93 — التوصيل يعود إلى الشاشة كما حُفظ، فإعادة الحفظ لا
+            // تُسقط سائقاً ولا عنواناً. تاسك 170: بمعرّف كل طلب، فتبقى تسويته.
+            'shipments' => $invoice->shipments->map(fn ($shipment) => [
+                'id' => $shipment->id,
+                'providerId' => $shipment->provider_id,
+                'zoneId' => $shipment->zone_id,
+                'fee' => (float) $shipment->fee,
+                'distanceKm' => $shipment->distance_km !== null ? (float) $shipment->distance_km : null,
+                'customerAddressId' => $shipment->customer_address_id,
+                'address' => $shipment->address,
+            ])->values(),
+            'helpers' => $invoice->helpers->map(fn ($helper) => [
+                'userId' => $helper->user_id,
+                'branchServiceId' => $helper->branch_service_id,
+                'shareType' => $helper->share_type,
+                'shareValue' => (float) $helper->share_value,
+            ])->values(),
+            'lines' => $invoice->lines->map(function ($line) use ($servicesById) {
+                $service = $servicesById->get($line->branch_service_id);
 
-                    return [
-                        'branchServiceId' => $line->branch_service_id,
-                        'name' => $line->service_name,
-                        'notes' => $line->notes,
-                        'qty' => $line->qty,
-                        // السطر المسعّر بمقاس — مربعاً كان أم طولياً (تاسك 80) —
-                        // يعود إلى نقطة البيع بسعر وحدة قياسه، والسطر القديم الذي
-                        // حُفظ بسعر القطعة يُقسم على قياسه أولاً فلا يتغيّر إجماليه
-                        // لمجرد إعادة حفظه.
-                        'unitPrice' => ServicePricingTypeEnum::tryFrom($service['pricingType'] ?? 'unit')?->isMeasured()
-                            ? $line->unitPricePerSqm()
-                            : (float) $line->unit_price,
-                        'discountPct' => (float) $line->discount_pct,
-                        'maxDiscountPct' => (float) ($service['maxDiscountPct'] ?? 0),
-                        'maxSellingPrice' => $service['maxSellingPrice'] ?? null,
-                        'minSellingPrice' => $service['minSellingPrice'] ?? null,
-                        'baseCommissionPct' => (float) ($service['baseCommissionPct'] ?? $line->commission_pct),
-                        'isTahazir' => (bool) ($service['isTahazir'] ?? false),
-                        'pricingType' => $service['pricingType'] ?? 'unit',
-                        'pricePerSqm' => (float) ($service['pricePerSqm'] ?? 0),
-                        'agentCommissionPerSqm' => (float) ($service['agentCommissionPerSqm'] ?? 0),
-                        'noteExamples' => $service['noteExamples'] ?? [],
-                        // الخامات تأتي من السطر المحفوظ لا من الخدمة: اللقطة هي
-                        // الحقيقة عند التعديل، فقد عُدّل المبلغ وقت الفوترة.
-                        'hasMaterials' => (float) $line->materials_cost > 0,
-                        'materialsCost' => (float) $line->materials_cost,
-                        'materialsCostIsOpen' => (bool) ($service['materialsCostIsOpen'] ?? false),
-                        'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
-                        'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
-                        'agentId' => $line->agent_id,
-                        'agentCommissionType' => $line->agent_commission_type?->value,
-                        'agentCommissionValue' => $line->agent_commission_value !== null ? (float) $line->agent_commission_value : null,
-                    ];
-                })->values(),
-            ],
-        ]);
+                return [
+                    'branchServiceId' => $line->branch_service_id,
+                    'name' => $line->service_name,
+                    'notes' => $line->notes,
+                    'qty' => $line->qty,
+                    // السطر المسعّر بمقاس — مربعاً كان أم طولياً (تاسك 80) —
+                    // يعود إلى نقطة البيع بسعر وحدة قياسه، والسطر القديم الذي
+                    // حُفظ بسعر القطعة يُقسم على قياسه أولاً فلا يتغيّر إجماليه
+                    // لمجرد إعادة حفظه.
+                    'unitPrice' => ServicePricingTypeEnum::tryFrom($service['pricingType'] ?? 'unit')?->isMeasured()
+                        ? $line->unitPricePerSqm()
+                        : (float) $line->unit_price,
+                    'discountPct' => (float) $line->discount_pct,
+                    'maxDiscountPct' => (float) ($service['maxDiscountPct'] ?? 0),
+                    'maxSellingPrice' => $service['maxSellingPrice'] ?? null,
+                    'minSellingPrice' => $service['minSellingPrice'] ?? null,
+                    'baseCommissionPct' => (float) ($service['baseCommissionPct'] ?? $line->commission_pct),
+                    'isTahazir' => (bool) ($service['isTahazir'] ?? false),
+                    'pricingType' => $service['pricingType'] ?? 'unit',
+                    'pricePerSqm' => (float) ($service['pricePerSqm'] ?? 0),
+                    'agentCommissionPerSqm' => (float) ($service['agentCommissionPerSqm'] ?? 0),
+                    'noteExamples' => $service['noteExamples'] ?? [],
+                    // الخامات تأتي من السطر المحفوظ لا من الخدمة: اللقطة هي
+                    // الحقيقة عند التعديل، فقد عُدّل المبلغ وقت الفوترة.
+                    'hasMaterials' => (float) $line->materials_cost > 0,
+                    'materialsCost' => (float) $line->materials_cost,
+                    'materialsCostIsOpen' => (bool) ($service['materialsCostIsOpen'] ?? false),
+                    'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
+                    'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
+                    'agentId' => $line->agent_id,
+                    'agentCommissionType' => $line->agent_commission_type?->value,
+                    'agentCommissionValue' => $line->agent_commission_value !== null ? (float) $line->agent_commission_value : null,
+                ];
+            })->values(),
+        ];
     }
 
     public function store(StoreServiceInvoiceRequest $request, CreateServiceInvoiceAction $action): RedirectResponse
     {
         Gate::authorize('create', ServiceInvoice::class);
+
+        if ($quotationId = $request->validated('quotation_id')) {
+            Gate::authorize('convert', Quotation::findOrFail($quotationId));
+        }
 
         $invoice = $action->handle($request->validated(), $request->file('receipt'));
 
@@ -269,6 +314,11 @@ class ServiceInvoiceController extends Controller
         if ($request->boolean('print')) {
             return to_route('pos.service.print', $invoice)
                 ->with('success', "تم حفظ الفاتورة {$invoice->invoice_number} بنجاح");
+        }
+
+        if ($quotationId) {
+            return to_route('invoices.show', ['type' => InvoiceTypeEnum::SERVICE->value, 'id' => $invoice->id])
+                ->with('success', "تم تحويل عرض السعر إلى الفاتورة {$invoice->invoice_number}");
         }
 
         return to_route('pos.service.create')
@@ -335,174 +385,6 @@ class ServiceInvoiceController extends Controller
 
         return back(fallback: route('invoices.index'))
             ->with('success', "تم تسليم عمل الفاتورة {$invoice->invoice_number}");
-    }
-
-    /**
-     * Review queue of due service invoices awaiting an accountant/branch-admin
-     * decision (settle or cancel). Super admins see every branch.
-     */
-    public function review(ReviewQueueFilterRequest $request): Response
-    {
-        Gate::authorize('viewReviewQueue', ServiceInvoice::class);
-
-        $user = Auth::user();
-        $isSuperAdmin = $user->roleName->isSuperAdmin();
-
-        // عروض الأسعار وحدها: الفاتورة التي قُبض عليها عربون لم تعد عرض سعر، فتغادر
-        // الطابور فور أول دفعة ويُستكمل سدادها من صفحتها.
-        $query = ServiceInvoice::query()
-            ->where('status', InvoiceStatusEnum::DUE)
-            ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $user->branchId))
-            // تاسك 60: مدى تاريخي على يوم التحرير + بحث + فرز + تصفّح. القائمة
-            // كانت تُجلب كاملةً بـget() فتكبر بلا حدّ مع الوقت.
-            ->when($request->date('from'), fn ($q, $from) => $q->where('service_invoices.created_at', '>=', $from->startOfDay()))
-            ->when($request->date('to'), fn ($q, $to) => $q->where('service_invoices.created_at', '<=', $to->endOfDay()))
-            ->when($request->string('search')->trim()->value(), fn ($q, $search) => $q->where(fn ($w) => $w
-                ->where('invoice_number', 'like', '%'.$search.'%')
-                ->orWhereHas('customer', fn ($c) => $c->where('full_name', 'like', '%'.$search.'%'))
-                ->orWhereHas('user', fn ($u) => $u->where('name', 'like', '%'.$search.'%'))));
-
-        // ملخّص **المدى كله** لا الصفحة المعروضة، من نسخة سابقة للتصفّح.
-        $summary = (clone $query)
-            ->selectRaw('COUNT(*) as quotes_count, COALESCE(SUM(total_amount), 0) as quotes_total')
-            ->first();
-
-        $paginator = $query
-            ->with(['lines', 'helpers', 'payments', 'customer:id,full_name,phone,tax_number', 'user:id,name', 'branch:id,name', 'paymentMethod:id,name', 'media'])
-            ->orderBy($request->sortColumn(), $request->sortDirection())
-            // فارز ثانوي ثابت: صفّان بنفس اللحظة كانا يتبادلان الترتيب بين صفحة
-            // وأخرى فيتكرّر أحدهما ويسقط الآخر.
-            ->orderByDesc('id')
-            ->paginate(12)
-            ->withQueryString();
-
-        $dueInvoices = $paginator->getCollection();
-
-        // The payment-method options a reviewer may switch to depend on the
-        // invoice's branch (super admins see several). Resolve each branch's
-        // enabled methods once, then reuse per invoice. Built from the **current
-        // page** only — that is all the page renders, and a super admin paging
-        // into another branch simply resolves that branch on the next request.
-        $methodsByBranch = $dueInvoices->pluck('branch_id')->unique()->mapWithKeys(function ($branchId) {
-            $branch = Branch::find($branchId);
-
-            return [$branchId => $branch
-                ? $branch->enabledPaymentMethods()
-                    ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'requiresAttachment' => (bool) $m->requires_attachment])
-                    ->values()
-                : collect()];
-        });
-
-        // تاسك 100: آخر رسالة في المحادثة الداخلية وعدد غير المقروء لكل فاتورة —
-        // استعلامان للصفحة كلّها لا لكل بطاقة.
-        $pageIds = $dueInvoices->pluck('id')->all();
-        $unread = InvoiceMessage::unreadCounts($user, $pageIds);
-        $lastMessages = InvoiceMessage::query()
-            ->whereIn('id', InvoiceMessage::query()
-                ->whereIn('service_invoice_id', $pageIds)
-                ->groupBy('service_invoice_id')
-                ->selectRaw('max(id)'))
-            ->with('author:id,name')
-            ->get()
-            ->keyBy('service_invoice_id');
-
-        $invoices = $dueInvoices
-            ->map(function (ServiceInvoice $invoice) use ($methodsByBranch, $unread, $lastMessages) {
-                $lastMessage = $lastMessages->get($invoice->id);
-
-                $options = collect($methodsByBranch[$invoice->branch_id] ?? []);
-
-                // Keep the current method selectable even if it was later disabled.
-                if ($invoice->paymentMethod && ! $options->contains('id', $invoice->payment_method_id)) {
-                    $options = $options->prepend([
-                        'id' => $invoice->payment_method_id,
-                        'name' => $invoice->paymentMethod->name,
-                        'requiresAttachment' => (bool) $invoice->paymentMethod->requires_attachment,
-                    ]);
-                }
-
-                return [
-                    'id' => $invoice->id,
-                    'invoiceNumber' => $invoice->invoice_number,
-                    'createdAt' => $invoice->created_at?->toIso8601String(),
-                    'employeeName' => $invoice->user?->name,
-                    'customerId' => $invoice->customer?->id,
-                    'customerName' => $invoice->customer?->full_name,
-                    'customerPhone' => $invoice->customer?->phone,
-                    'customerTaxNumber' => $invoice->customer?->tax_number,
-                    'branchName' => $invoice->branch?->name,
-                    'paymentMethod' => $invoice->paymentMethod?->name,
-                    'paymentMethodId' => $invoice->payment_method_id,
-                    'paymentMethodOptions' => $options->values(),
-                    'receiptUrl' => $invoice->receiptUrl(),
-                    'subtotal' => (float) $invoice->subtotal,
-                    'vatAmount' => (float) $invoice->vat_amount,
-                    'totalAmount' => (float) $invoice->total_amount,
-                    // سقف الدفعة الأولى (العربون). الطابور لا يحمل إلا فواتير آجلة
-                    // لم يُقبض منها شيء، فالمتبقي هو الإجمالي — ويُرسل صراحةً لأن
-                    // نافذة تسجيل الدفعة تحدّ به المبلغ.
-                    'remainingAmount' => $invoice->remainingAmount(),
-                    // تاسك 182: أقلّ عربون مقبول — الخامات والعمولات والضريبة.
-                    'minPayment' => $invoice->minimumPayment(),
-                    'discountBase' => $invoice->discountBase(),
-                    // زرّ تعديل الفاتورة في الطابور: لمدير الفرع لا للمحاسب —
-                    // الصلاحية هي الفيصل، فلا يُكرَّر الدور في الواجهة.
-                    'canEdit' => Gate::allows('update', $invoice),
-                    // تاسك 100: مقتطف آخر رسالة داخلية يُقرأ قبل الاعتماد، والخيط
-                    // كاملاً في شاشة الفاتورة. الطابور مقصور على المراجعين.
-                    'lastMessage' => $lastMessage ? [
-                        'authorName' => $lastMessage->user_id === null ? 'ملاحظة سابقة' : $lastMessage->author?->name,
-                        'excerpt' => $lastMessage->body !== null ? Str::limit($lastMessage->body, 160) : 'مرفق',
-                        'createdAt' => $lastMessage->created_at?->toIso8601String(),
-                    ] : null,
-                    'unreadMessages' => $unread[$invoice->id] ?? 0,
-                    'lines' => $invoice->lines->map(fn ($line) => [
-                        'name' => $line->service_name,
-                        'notes' => $line->notes,
-                        'qty' => $line->qty,
-                        'unitPrice' => (float) $line->unit_price,
-                        'unitPriceBasis' => $line->isPricedPerSqm() ? $line->unit_price_basis?->value : null,
-                        'widthCm' => $line->width_cm !== null ? (float) $line->width_cm : null,
-                        'heightCm' => $line->height_cm !== null ? (float) $line->height_cm : null,
-                        'discountPct' => (float) $line->discount_pct,
-                        'subtotal' => (float) $line->subtotal,
-                        // تاسك 94: أرقام السطر الداخلية — الطابور مقصورٌ على
-                        // المراجعين بالميدلوير، فلا حاجب إضافي هنا. ولا تُطبع.
-                        'materialsCost' => (float) $line->materials_cost,
-                        'materialsTotal' => (float) $line->materials_total,
-                        'commissionAmount' => $line->commission_amount !== null ? (float) $line->commission_amount : null,
-                        'tierApplied' => $line->tier_applied !== null ? (int) $line->tier_applied : null,
-                    ])->values(),
-                ];
-            });
-
-        return Inertia::render('invoices/review', [
-            // تبقى مصفوفةً مسطّحة (صفحة واحدة) وبيانات التصفّح بجانبها، فلا تتغيّر
-            // قراءة الصفحة لكل عرض.
-            'invoices' => $invoices->values(),
-            'meta' => [
-                'currentPage' => $paginator->currentPage(),
-                'lastPage' => $paginator->lastPage(),
-                'perPage' => $paginator->perPage(),
-                'total' => $paginator->total(),
-                // تاسك 78: مدى الصفحة من المُرقِّم نفسه، لا محسوباً في الواجهة.
-                'from' => $paginator->firstItem(),
-                'to' => $paginator->lastItem(),
-            ],
-            // شارة العدد تتبع المدى المطبَّق لا كل الطابور.
-            'summary' => [
-                'quotesCount' => (int) ($summary->quotes_count ?? 0),
-                'quotesTotal' => round((float) ($summary->quotes_total ?? 0), 2),
-            ],
-            'filters' => [
-                'from' => $request->input('from'),
-                'to' => $request->input('to'),
-                'search' => $request->input('search'),
-                'sort' => $request->sortColumn(),
-                'dir' => $request->sortDirection(),
-            ],
-            'isSuperAdmin' => $isSuperAdmin,
-        ]);
     }
 
     public function markPaid(Request $request, ServiceInvoice $invoice, MarkServiceInvoicePaidAction $action): RedirectResponse
@@ -618,16 +500,10 @@ class ServiceInvoiceController extends Controller
             ->with('success', "تم تحديث بيانات العميل للفاتورة {$invoice->invoice_number}");
     }
 
-    /**
-     * Where to land after a customer edit when the request carries no referer:
-     * back to the queue for whoever reviews invoices, or the invoice list for
-     * the employee who edited their own.
-     */
+    /** Where to land after a customer edit when the request carries no referer. */
     private function customerEditFallback(ServiceInvoice $invoice): string
     {
-        return Gate::allows('updateStatus', $invoice)
-            ? route('invoices.service.review')
-            : route('invoices.index');
+        return route('invoices.show', ['type' => 'service', 'id' => $invoice->id]);
     }
 
     public function cancel(CancelServiceInvoiceRequest $request, ServiceInvoice $invoice, CancelServiceInvoiceAction $action): RedirectResponse
@@ -642,7 +518,7 @@ class ServiceInvoiceController extends Controller
             new ServiceInvoiceReviewedNotification($invoice->invoice_number, $invoice->id, (float) $invoice->total_amount, InvoiceStatusEnum::CANCELLED, $reason),
         );
 
-        return to_route('invoices.service.review')
+        return back(fallback: route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
             ->with('success', "تم إلغاء الفاتورة {$invoice->invoice_number}");
     }
 
@@ -740,11 +616,33 @@ class ServiceInvoiceController extends Controller
             'shipments',
         ]);
 
-        // ما لم يُقبض منه شيء ورقتُه عرض سعر لا فاتورة ضريبية — فلا تحمل الرقم
+        return Inertia::render('pos/service/print', $this->printProps($invoice));
+    }
+
+    /** ورقة عرض السعر — الورقة نفسها، بعنوان «عرض سعر» وبلا رقمٍ ضريبي. */
+    public function quotationPrint(Quotation $quotation): Response
+    {
+        abort_unless($quotation->type === InvoiceTypeEnum::SERVICE, 404);
+        Gate::authorize('print', $quotation);
+
+        $props = $this->printProps($quotation->load('customer', 'user:id,name', 'branch')->toInvoice());
+
+        return Inertia::render('pos/service/print', [
+            ...$props,
+            'invoice' => [...$props['invoice'], 'status' => 'quotation', 'statusLabel' => $quotation->status->label()],
+        ]);
+    }
+
+    /**
+     * @return array{invoice: array<string, mixed>, branch: array<string, mixed>}
+     */
+    private function printProps(ServiceInvoice $invoice): array
+    {
+        // ما لم يُقبض منه شيء ورقتُه ليست فاتورة ضريبية — فلا تحمل الرقم
         // الضريبي للفرع. والعربون سداد، فالمدفوعة جزئياً فاتورة ضريبية.
         $isQuotation = ! $invoice->status->isTaxDocument();
 
-        return Inertia::render('pos/service/print', [
+        return [
             'invoice' => [
                 'invoiceNumber' => $invoice->invoice_number,
                 'createdAt' => $invoice->created_at?->toIso8601String(),
@@ -793,7 +691,7 @@ class ServiceInvoiceController extends Controller
                 'taxNumber' => $isQuotation ? null : $invoice->branch?->tax_number,
                 'logoUrl' => $invoice->branch?->logoUrl(),
             ],
-        ]);
+        ];
     }
 
     /**

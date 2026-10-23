@@ -14,10 +14,20 @@ import AppLayout from '@/layouts/app-layout';
 import { invoiceTotals } from '@/lib/invoice';
 import { formatCurrency, formatQty } from '@/lib/utils';
 import product from '@/routes/pos/product';
+import quotations from '@/routes/quotations';
 import { type BreadcrumbItem, type SharedData } from '@/types';
-import { type CartLine, type EditProductInvoice, type PosAgent, type PosCustomer, type PosLoyalty, type PosPaymentMethod, type PosProduct } from '@/types/pos';
+import {
+    type CartLine,
+    type EditProductInvoice,
+    type PosAgent,
+    type PosCustomer,
+    type PosLoyalty,
+    type PosPaymentMethod,
+    type PosProduct,
+    type PosQuotation,
+} from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { Award, Lock, Printer, Ruler, Save, Search, Tag, X } from 'lucide-react';
+import { Award, Info, Lock, Printer, Ruler, Save, Search, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -39,8 +49,10 @@ interface Props {
     paymentMethods: PosPaymentMethod[];
     vatPct: number;
     loyalty: PosLoyalty;
-    /** موجودة حين يعيد مدير الفرع أو مدير النظام فتح فاتورة قائمة للتعديل. */
+    /** موجودة حين يعيد مدير الفرع أو مدير النظام فتح فاتورة قائمة للتعديل — أو، بلا `id`، مبذورةً من عرض سعر. */
     invoice?: EditProductInvoice;
+    /** عرض سعر: يُحرَّر هنا بلا دفع، أو يُحوَّل إلى فاتورة جديدة. */
+    quotation?: PosQuotation;
 }
 
 type InvoiceStatus = 'paid' | 'due';
@@ -65,17 +77,28 @@ const pieceAreaSqm = (line: CartLine) => ((line.widthCm ?? 0) / 100) * ((line.he
 const derivedQty = (line: CartLine) => (line.isSqm ? round2(pieceAreaSqm(line) * line.pieces) : line.qty);
 
 
-export default function ProductPos({ products, agents, paymentMethods, vatPct, loyalty, invoice }: Props) {
-    const breadcrumbs: BreadcrumbItem[] = [
-        { title: 'نقطة البيع', href: product.create().url },
-        invoice
-            ? { title: `تعديل ${invoice.invoiceNumber}`, href: product.edit(invoice.id).url }
-            : { title: 'فاتورة منتجات', href: product.create().url },
-    ];
+export default function ProductPos({ products, agents, paymentMethods, vatPct, loyalty, invoice, quotation }: Props) {
+    const isEditing = !!invoice?.id;
+    // تحرير عرض سعر: النموذج نفسه بلا حالةٍ ولا دفعٍ ولا نقاط.
+    const quoting = quotation?.mode === 'edit';
+    const converting = quotation?.mode === 'convert';
+    const breadcrumbs: BreadcrumbItem[] = quotation
+        ? [
+              { title: 'عروض الأسعار', href: quotations.index().url },
+              { title: quotation.number ?? 'عرض سعر منتجات جديد', href: product.quotation(quotation.id ?? undefined).url },
+          ]
+        : [
+              { title: 'نقطة البيع', href: product.create().url },
+              isEditing
+                  ? { title: `تعديل ${invoice!.invoiceNumber}`, href: product.edit(invoice!.id!).url }
+                  : { title: 'فاتورة منتجات', href: product.create().url },
+          ];
     const { props } = usePage<SharedData>();
     const [search, setSearch] = useState('');
     const [searchFocused, setSearchFocused] = useState(false);
-    const [cart, setCart] = useState<CartLine[]>(invoice?.lines ?? []);
+    // عرض السعر لا يخصم من المخزون، فلا سقف لكمياته — المخزون يُفحص عند التحويل.
+    const stockCap = (p: PosProduct) => (quoting ? null : p.currentStock);
+    const [cart, setCart] = useState<CartLine[]>(() => (invoice?.lines ?? []).map((l) => (quoting ? { ...l, maxStock: null } : l)));
     // The chosen customer is held in full (fetched on demand) rather than looked up
     // from a preloaded list, so 10k+ customers never ship to the browser.
     const [selectedCustomer, setSelectedCustomer] = useState<PosCustomer | null>(invoice?.customer ?? null);
@@ -194,7 +217,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
     );
 
     function addProduct(p: PosProduct) {
-        if (p.currentStock <= 0) {
+        if (!quoting && p.currentStock <= 0) {
             toast.error(`لا يوجد مخزون متاح من "${p.name}"`);
             return;
         }
@@ -227,7 +250,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                     // سطر المتر المربع يبدأ بكمية صفر: لا مساحة قبل إدخال المقاس.
                     qty: p.isSqm ? 0 : 1,
                     discountPct: 0,
-                    maxStock: p.currentStock,
+                    maxStock: stockCap(p),
                     unitName: p.unitName,
                     isManual: false,
                     isSqm: p.isSqm,
@@ -275,7 +298,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
             name: p.name,
             sku: p.sku,
             unitPrice: p.sellingPrice,
-            maxStock: p.currentStock,
+            maxStock: stockCap(p),
             unitName: p.unitName,
             isSqm: p.isSqm,
             // منتج بالمتر المربع: الكمية تنتظر المقاس؛ ومنتج بالقطعة يعود لكميته.
@@ -386,22 +409,30 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
             toast.error('أدخل العرض والطول لكل منتج مسعّر بالمتر المربع');
             return;
         }
-        if (!paymentMethodId) {
+        if (!quoting && !paymentMethodId) {
             toast.error('اختر طريقة الدفع قبل حفظ الفاتورة');
             return;
         }
         // الفاتورة المعدَّلة التي تحمل إيصالاً بالطريقة نفسها لا تطلبه مرة ثانية.
-        if (requiresReceipt && !receipt && !(invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
+        if (!quoting && requiresReceipt && !receipt && !(invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
             toast.error('يجب إرفاق إيصال التحويل لطريقة الدفع المحددة');
             return;
         }
         setSubmitting(true);
         setErrors({});
+        const url = quoting
+            ? quotation!.id
+                ? quotations.update(quotation!.id).url
+                : quotations.store('product').url
+            : isEditing
+              ? product.update(invoice!.id!).url
+              : product.store().url;
         router.post(
-            invoice ? product.update(invoice.id).url : product.store().url,
+            url,
             {
                 // التعديل لا يغيّر الحالة، ويُرسَل PUT مموّهاً لأن الإيصال ملف.
-                ...(invoice ? { _method: 'put' } : { status }),
+                ...(isEditing || (quoting && quotation!.id) ? { _method: 'put' } : quoting ? {} : { status }),
+                quotation_id: converting ? quotation!.id : null,
                 customer_id: customerId === 'none' ? null : Number(customerId),
                 agent_id: agentId === 'none' ? null : Number(agentId),
                 walkin_name: customerId === 'none' ? walkinName.trim() || null : null,
@@ -440,8 +471,36 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
-            <Head title={invoice ? `تعديل الفاتورة ${invoice.invoiceNumber}` : 'نقطة البيع — فاتورة منتجات'} />
+            <Head
+                title={
+                    quoting
+                        ? quotation!.number
+                            ? `تعديل عرض السعر ${quotation!.number}`
+                            : 'عرض سعر منتجات'
+                        : isEditing
+                          ? `تعديل الفاتورة ${invoice!.invoiceNumber}`
+                          : 'نقطة البيع — فاتورة منتجات'
+                }
+            />
             <Toaster position="top-center" richColors />
+
+            {quotation && (
+                <div className="px-4 pt-4">
+                    <div className="flex items-start gap-2 rounded-md border border-sky-500/40 bg-sky-500/10 p-3 text-sm text-sky-700 dark:text-sky-400">
+                        <Info className="mt-0.5 size-4 shrink-0" />
+                        <span>
+                            {converting ? (
+                                <>
+                                    تحويل عرض السعر <span className="font-semibold">{quotation.number}</span> إلى فاتورة — راجع البيانات ثم احفظ
+                                    الفاتورة كالمعتاد.
+                                </>
+                            ) : (
+                                'عرض سعر — لا يُحتسب في المبيعات ولا يخصم من المخزون، ولا يُحصَّل عليه دفع.'
+                            )}
+                        </span>
+                    </div>
+                </div>
+            )}
 
             {/* pb-24 below lg clears the fixed total bar at the bottom. */}
             <div className="grid gap-4 p-4 pb-24 lg:grid-cols-3 lg:pb-4">
@@ -485,7 +544,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                     </Card>
 
                     {/* Status — fixed while editing an existing invoice. */}
-                    {!invoice && (
+                    {!isEditing && !quoting && (
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base">حالة الفاتورة</CardTitle>
@@ -536,7 +595,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                     </Card>
 
                     {/* Loyalty */}
-                    {loyaltyOn && selectedCustomer && (
+                    {!quoting && loyaltyOn && selectedCustomer && (
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardTitle className="flex items-center gap-2 text-base">
@@ -659,6 +718,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                             {errors.notes && <p className="text-destructive text-xs">{errors.notes}</p>}
 
                             {/* تاسك 95: ملاحظة داخلية — يحذفها الخادم من حمولة الطباعة. */}
+                            {!quoting && (
                             <div className="mt-4 space-y-1.5 border-t pt-4">
                                 <Label htmlFor="invoice-internal-notes" className="flex items-center gap-1.5 text-sm">
                                     <Lock className="size-3.5" aria-hidden />
@@ -676,10 +736,12 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                 <p className="text-muted-foreground text-xs">يراها الموظفون والإدارة فقط، ولا تظهر في أي ورقة طباعة.</p>
                                 {errors.internal_notes && <p className="text-destructive text-xs">{errors.internal_notes}</p>}
                             </div>
+                            )}
                         </CardContent>
                     </Card>
 
                     {/* Payment method */}
+                    {!quoting && (
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base">
@@ -715,11 +777,12 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                             {errors.payment_method_id && <p className="text-destructive mt-2 text-xs">{errors.payment_method_id}</p>}
                         </CardContent>
                     </Card>
+                    )}
 
                     {/* Actions */}
                     <div className="space-y-2">
                         <Button type="button" className="w-full" disabled={submitting || cart.length === 0} onClick={() => submit(false)}>
-                            <Save className="size-4" /> حفظ الفاتورة
+                            <Save className="size-4" /> {quoting ? 'حفظ عرض السعر' : 'حفظ الفاتورة'}
                         </Button>
                         <Button
                             type="button"
@@ -759,7 +822,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                             type="button"
                                             onMouseDown={(e) => e.preventDefault()}
                                             onClick={() => addProduct(p)}
-                                            disabled={p.currentStock <= 0}
+                                            disabled={!quoting && p.currentStock <= 0}
                                             className="hover:bg-accent flex w-full items-center justify-between gap-2 p-3 text-right text-sm transition disabled:opacity-50"
                                         >
                                             <div className="min-w-0">
@@ -801,7 +864,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                         </SelectTrigger>
                                         <SelectContent>
                                             {products.map((p) => (
-                                                <SelectItem key={p.id} value={String(p.id)} disabled={p.currentStock <= 0}>
+                                                <SelectItem key={p.id} value={String(p.id)} disabled={!quoting && p.currentStock <= 0}>
                                                     {p.name} — {formatCurrency(p.sellingPrice)}
                                                     {p.isSqm && ' / م²'} (متوفر: {formatQty(p.currentStock)})
                                                 </SelectItem>
@@ -810,14 +873,14 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                     </Select>
                                 )}
                                 renderLineMeta={(line) => (line.isSqm ? `${line.sku} • بالمتر المربع` : line.sku)}
-                                isPriceEditable={(line) => !!invoice || line.isManual}
+                                isPriceEditable={(line) => isEditing || line.isManual}
                                 getMaxDiscount={() => 100}
                                 getLineTotal={lineTotal}
                                 onTotalChange={setLineTotal}
                                 // سعر سطر المنتج من بطاقة المنتج لا من الكاشير، فلا يُحرَّر
                                 // إجماليه أيضاً — تحريره تحريرٌ للسعر بطريقٍ آخر. ويبقى
                                 // السطر اليدوي، وله كميةٌ يُقسم عليها.
-                                isTotalEditable={(line) => (!!invoice || line.isManual) && line.qty > 0}
+                                isTotalEditable={(line) => (isEditing || line.isManual) && line.qty > 0}
                                 // كمية سطر المتر المربع مشتقّة من المقاس، فلا مِعداد لها.
                                 renderQtyControl={(line) =>
                                     line.isSqm ? (
@@ -913,7 +976,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
             <PosStickyTotalBar
                 total={total}
                 lineCount={cart.length}
-                saveLabel="حفظ الفاتورة"
+                saveLabel={quoting ? 'حفظ عرض السعر' : 'حفظ الفاتورة'}
                 disabled={submitting || cart.length === 0}
                 onSave={() => submit(false)}
             />
