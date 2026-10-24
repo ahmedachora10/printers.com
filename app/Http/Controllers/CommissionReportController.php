@@ -597,7 +597,6 @@ class CommissionReportController extends Controller
 
         return DB::query()
             ->fromSub($payments->unionAll($settledAtTill), 'c')
-            ->whereNotNull('c.collected_at')
             ->when($scope['branchId'], fn ($q) => $q->where('c.branch_id', $scope['branchId']))
             ->when($scope['userId'], fn ($q) => $q->where('c.user_id', $scope['userId']))
             ->when($scope['from'], fn ($q) => $q->where('c.collected_at', '>=', $scope['from']))
@@ -665,7 +664,6 @@ class CommissionReportController extends Controller
             ->whereIn('service_invoices.status', InvoiceStatusEnum::approved())
             // DB::table() bypasses the model's soft-delete scope.
             ->whereNull('service_invoices.deleted_at')
-            ->whereRaw(self::APPROVED_AT.' is not null')
             ->when($scope['branchId'], fn ($q) => $q->where('service_invoices.branch_id', $scope['branchId']))
             ->when($scope['userId'], fn ($q) => $q->where('service_invoices.user_id', $scope['userId']))
             ->when($scope['from'], fn ($q) => $q->whereRaw(self::APPROVED_AT.' >= ?', [$scope['from']]))

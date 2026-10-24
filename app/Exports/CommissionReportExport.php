@@ -34,7 +34,7 @@ class CommissionReportExport implements FromCollection, ShouldAutoSize, WithHead
             $line['tierApplied'] !== null ? (string) $line['tierApplied'] : '—',
             $line['sourceLabel'],
             number_format((float) $line['invoiceTotal'], 2),
-            number_format((float) ($line['invoiceCollected'] ?? 0), 2),
+            number_format((float) $line['invoiceCollected'], 2),
             number_format((float) $line['amount'], 2),
             number_format((float) $line['lineCommission'], 2),
             number_format((float) ($line['materials'] ?? 0), 2),
