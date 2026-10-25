@@ -5,9 +5,10 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { type SharedData } from '@/types';
 import { type DeliveryLogRow } from '@/types/delivery-log';
 import { type BankAccountOption } from '@/types/expense';
-import { useForm } from '@inertiajs/react';
+import { useForm, usePage } from '@inertiajs/react';
 
 /** تاسك 111 — تسوية أجر السائق لطلب توصيل وإلغاؤها؛ من كشف التوصيل ومن الفاتورة (تاسك 190). */
 export type SettleTarget = Pick<DeliveryLogRow, 'id' | 'invoiceNumber' | 'shippingFee' | 'providerName' | 'settlement'>;
@@ -36,6 +37,9 @@ export function SettleDeliveryDialog({
         expense_category_id: '',
     });
 
+    // المحاسب يسلّم أجر الطلب كما هو — والخادم يفرضه أيضاً.
+    const amountLocked = usePage<SharedData>().props.auth.role === 'accountant';
+
     function submit(e: React.FormEvent) {
         e.preventDefault();
         post(`/shipping/deliveries/${row.id}/settle`, { preserveScroll: true, onSuccess: onClose });
@@ -53,7 +57,16 @@ export function SettleDeliveryDialog({
                     <p className="text-muted-foreground text-sm">السائق: {row.providerName ?? '—'}</p>
                     <div className="space-y-1">
                         <Label htmlFor="settle-amount">المبلغ (ر.س)</Label>
-                        <Input id="settle-amount" type="number" min="0.01" step="0.01" dir="ltr" value={data.amount} onChange={(e) => setData('amount', e.target.value)} />
+                        <Input
+                            id="settle-amount"
+                            type="number"
+                            min="0.01"
+                            step="0.01"
+                            dir="ltr"
+                            readOnly={amountLocked}
+                            value={data.amount}
+                            onChange={(e) => setData('amount', e.target.value)}
+                        />
                         <InputError message={errors.amount} />
                     </div>
                     <div className="space-y-1">

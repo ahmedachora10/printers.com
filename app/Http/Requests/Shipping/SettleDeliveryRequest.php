@@ -14,6 +14,22 @@ class SettleDeliveryRequest extends FormRequest
         return true;
     }
 
+    /** المحاسب لا يعدّل المبلغ — يُسلَّم أجر الطلب كما هو، والمجاني يسوّيه المدير. */
+    protected function prepareForValidation(): void
+    {
+        if ($this->user()->roleName->isAccountant()) {
+            $this->merge(['amount' => $this->route('shipment')->fee]);
+        }
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return $this->user()->roleName->isAccountant()
+            ? ['amount.gt' => 'لا يحدّد المحاسب مبلغ توصيلٍ مجاني — يسوّيه مدير الفرع']
+            : [];
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
