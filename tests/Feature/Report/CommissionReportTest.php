@@ -3,6 +3,8 @@
 use App\Enums\Roles;
 use App\Models\Branch;
 use App\Models\CommissionLedger;
+use App\Models\InvoicePayment;
+use App\Models\Refund;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\User;
@@ -500,6 +502,125 @@ describe('Employee Commission Report', function () {
                 ->where('summary.1.earned', 0)
                 // Same figure as the daily table's total.
                 ->where('totals.revenue', 460));
+    });
+
+    it('puts a deposit invoice in الإجمالي on its first payment and each payment in المحصّل on its own day', function () {
+        $invoice = ServiceInvoice::create([
+            'invoice_number' => 'SINV-TST-DEP',
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->employee->id,
+            'subtotal' => 869.57,
+            'vat_pct' => 15,
+            'vat_amount' => 130.43,
+            'total_amount' => 1000,
+            'employee_commission' => 0,
+            'status' => 'partially_paid',
+        ]);
+        $pay = fn (float $amount, $at) => InvoicePayment::create([
+            'invoice_id' => $invoice->id,
+            'invoice_type' => ServiceInvoice::class,
+            'branch_id' => $this->branch->id,
+            'amount' => $amount,
+            'paid_at' => $at,
+            'recorded_by' => $this->branchAdmin->id,
+        ]);
+        $pay(300, today()->subDay()->setTime(10, 0));
+        $pay(200, today()->setTime(10, 0));
+        $range = ['from' => today()->subDay()->toDateString(), 'to' => today()->toDateString()];
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions', $range))
+            ->assertInertia(fn ($page) => $page
+                ->where('byDay.0.revenue', 1000)
+                ->where('byDay.0.invoiceCount', 1)
+                ->where('byDay.0.collected', 300)
+                // ضريبة الدفعة بنسبتها: 300 × 130.43 ÷ 1000.
+                ->where('byDay.0.vat', 39.13)
+                ->where('byDay.1.revenue', 0)
+                ->where('byDay.1.invoiceCount', 0)
+                ->where('byDay.1.collected', 200)
+                ->where('byDay.1.vat', 26.09)
+                ->where('summary.0.revenue', 1000)
+                ->where('summary.0.collected', 500)
+                ->where('totals.revenue', 1000)
+                ->where('totals.collected', 500));
+
+        // Today alone: the invoice was approved yesterday, but today's payment still lists the employee.
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->has('summary', 1)
+                ->where('summary.0.revenue', 0)
+                ->where('summary.0.collected', 200));
+
+        // The last instalment closes the invoice — it is not counted a second time.
+        $pay(500, now());
+        $invoice->update(['status' => 'paid', 'paid_at' => now()]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions', $range))
+            ->assertInertia(fn ($page) => $page
+                ->where('byDay.0.revenue', 1000)
+                ->where('byDay.1.revenue', 0)
+                ->where('byDay.1.collected', 700)
+                ->where('totals.revenue', 1000)
+                ->where('totals.collected', 1000)
+                ->where('totals.invoiceCount', 1));
+    });
+
+    it('takes refunds off الإجمالي on their day and leaves a fully returned invoice out', function () {
+        $invoice = fn (string $status, float $total) => ServiceInvoice::create([
+            'invoice_number' => 'SINV-TST-'.fake()->unique()->numberBetween(1, 999999),
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->employee->id,
+            'subtotal' => $total,
+            'vat_pct' => 0,
+            'vat_amount' => 0,
+            'total_amount' => $total,
+            'employee_commission' => 0,
+            'status' => $status,
+            'paid_at' => now(),
+        ]);
+        $refund = fn (ServiceInvoice $i, float $amount) => Refund::create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'source_type' => 'service',
+            'invoice_id' => $i->id,
+            'invoice_type' => ServiceInvoice::class,
+            'amount' => $amount,
+            'reason' => 'اختبار',
+        ]);
+        $refund($invoice('paid', 500), 100);
+        $refund($invoice('returned', 300), 300);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->where('byDay.0.revenue', 400)
+                ->where('summary.0.revenue', 400)
+                ->where('totals.revenue', 400)
+                // «المحصّل» is what came in — refunds are not taken off it.
+                ->where('totals.collected', 500));
+    });
+
+    it('shows what was collected on each detail line\'s invoice', function () {
+        ledgerLine($this->employee, $this->branch, ['amount' => 10]);
+        $partial = ledgerLine($this->employee, $this->branch, ['amount' => 5]);
+        $invoice = ServiceInvoiceLine::find($partial->invoice_line_id)->invoice;
+        $invoice->update(['status' => 'partially_paid']);
+        InvoicePayment::create([
+            'invoice_id' => $invoice->id,
+            'invoice_type' => ServiceInvoice::class,
+            'branch_id' => $this->branch->id,
+            'amount' => 50,
+            'paid_at' => now(),
+            'recorded_by' => $this->branchAdmin->id,
+        ]);
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->where('lines', fn ($lines) => collect($lines)->pluck('invoiceCollected')->sort()->values()->all() === [50, 115]));
     });
 
     it('carries the invoice id and total on each detail line (task 175)', function () {

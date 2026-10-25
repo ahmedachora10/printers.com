@@ -46,6 +46,7 @@ const dayColumns: ColumnDef<CommissionReportDayRow>[] = [
     { key: 'invoiceCount', header: 'عدد الفواتير', cell: (row) => row.invoiceCount },
     { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
     { key: 'revenue', header: 'الإجمالي', className: 'font-semibold', cell: (row) => formatCurrency(row.revenue) },
+    { key: 'collected', header: 'المحصّل', className: 'text-blue-600', cell: (row) => formatCurrency(row.collected) },
     { key: 'vat', header: 'الضريبة', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.vat) },
     { key: 'earned', header: 'عمولات الموظفين', cell: (row) => formatCurrency(row.earned) },
     { key: 'lineCommission', header: 'عمولات خارجية', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
@@ -66,6 +67,7 @@ const summaryColumns: ColumnDef<CommissionReportSummaryRow>[] = [
     { key: 'userName', header: 'الموظف', className: 'font-medium', cell: (row) => row.userName },
     { key: 'lineCount', header: 'عدد البنود', cell: (row) => row.lineCount },
     { key: 'revenue', header: 'الإجمالي', className: 'font-semibold', cell: (row) => formatCurrency(row.revenue) },
+    { key: 'collected', header: 'المحصّل', className: 'text-blue-600', cell: (row) => formatCurrency(row.collected) },
     { key: 'earned', header: 'عمولات الموظفين', cell: (row) => formatCurrency(row.earned) },
     { key: 'lineCommission', header: 'عمولات خارجية', className: 'text-sky-600', cell: (row) => formatCurrency(row.lineCommission) },
     { key: 'materials', header: 'تكلفة الخامات', className: 'text-muted-foreground', cell: (row) => formatCurrency(row.materials) },
@@ -110,6 +112,7 @@ const detailColumns: ColumnDef<CommissionReportLine>[] = [
     { key: 'sourceLabel', header: 'المصدر', className: 'text-sm text-muted-foreground', cell: (line) => line.sourceLabel },
     { key: 'tierApplied', header: 'الشريحة', cell: (line) => line.tierApplied ?? '—' },
     { key: 'invoiceTotal', header: 'إجمالي الفاتورة', className: 'text-muted-foreground', cell: (line) => formatCurrency(line.invoiceTotal) },
+    { key: 'invoiceCollected', header: 'المحصّل', className: 'text-blue-600', cell: (line) => formatCurrency(line.invoiceCollected) },
     { key: 'amount', header: 'عمولة الموظف', className: 'font-semibold', cell: (line) => formatCurrency(line.amount) },
     {
         key: 'lineCommission',
@@ -290,6 +293,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                                     <TableCell className="font-bold">{totals.invoiceCount}</TableCell>
                                     <TableCell className="font-bold">{totals.lineCount}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.revenue)}</TableCell>
+                                    <TableCell className="font-bold text-blue-600">{formatCurrency(totals.collected)}</TableCell>
                                     <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.vat)}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.earned)}</TableCell>
                                     <TableCell className="font-bold text-sky-600">{formatCurrency(totals.lineCommission)}</TableCell>
@@ -324,6 +328,7 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                                     <TableCell className="font-bold">الإجمالي</TableCell>
                                     <TableCell className="font-bold">{totals.lineCount}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.revenue)}</TableCell>
+                                    <TableCell className="font-bold text-blue-600">{formatCurrency(totals.collected)}</TableCell>
                                     <TableCell className="font-bold">{formatCurrency(totals.earned)}</TableCell>
                                     <TableCell className="font-bold text-sky-600">{formatCurrency(totals.lineCommission)}</TableCell>
                                     <TableCell className="text-muted-foreground font-bold">{formatCurrency(totals.materials)}</TableCell>

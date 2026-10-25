@@ -2,8 +2,10 @@ export interface CommissionReportSummaryRow {
     userId: number;
     userName: string;
     lineCount: number;
-    /** تاسك 174: إجمالي الفواتير المعتمدة التي أنشأها الموظف — شاملاً الضريبة. */
+    /** تاسك 174: إجمالي الفواتير المعتمدة التي أنشأها الموظف — شاملاً الضريبة، ناقصاً المرتجعات. */
     revenue: number;
+    /** دفعات تلك الفواتير بيوم قبضها. */
+    collected: number;
     earned: number;
     paid: number;
     pending: number;
@@ -24,9 +26,11 @@ export interface CommissionReportDayRow {
     tahazir: number;
     lineCommission: number;
     materials: number;
-    /** تاسك 133: فواتير معتمدة بـpaid_at في اليوم — شاملة الضريبة. */
+    /** تاسك 133: فواتير معتمدة في يوم أول دفعة — شاملة الضريبة، ناقصاً مرتجعات اليوم. */
     invoiceCount: number;
     revenue: number;
+    /** ما حُصِّل في اليوم، وضريبته في `vat`. */
+    collected: number;
     vat: number;
     /** revenue − materials − lineCommission (عمولة الموظف لا تُطرح). */
     afterMaterials: number;
@@ -40,6 +44,8 @@ export interface CommissionReportLine {
     invoiceNumber: string;
     /** تاسك 175: إجمالي الفاتورة — يتكرّر على كل بنودها، فلا يُجمع. */
     invoiceTotal: number;
+    /** ما حُصِّل على الفاتورة حتى الآن — يتكرّر مثل `invoiceTotal`، فلا يُجمع. */
+    invoiceCollected: number;
     invoiceStatus: 'paid' | 'due' | 'cancelled' | 'returned';
     serviceName: string;
     amount: number;
@@ -64,6 +70,7 @@ export interface CommissionReportTotals {
     materials: number;
     lineCount: number;
     revenue: number;
+    collected: number;
     vat: number;
     invoiceCount: number;
     afterMaterials: number;
