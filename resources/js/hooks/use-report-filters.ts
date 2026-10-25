@@ -55,7 +55,9 @@ export function useReportFilters(url: string, applied: FilterValues, defaults: F
         return params;
     };
 
-    const navigate = (values: FilterValues) => router.get(url, buildQuery(values), { only, preserveState: true, preserveScroll: true, replace: true });
+    // `only: undefined` would override Inertia's `[]` default and crash isPartial() on `.length`.
+    const navigate = (values: FilterValues) =>
+        router.get(url, buildQuery(values), { only: only ?? [], preserveState: true, preserveScroll: true, replace: true });
 
     const onOpenChange = (next: boolean) => {
         if (next) setDraft(applied);
