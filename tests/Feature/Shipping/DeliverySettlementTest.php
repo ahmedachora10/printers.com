@@ -35,7 +35,7 @@ describe('Delivery settlement', function () {
         $this->driver = DeliveryProvider::factory()->create(['branch_id' => $this->branch->id, 'name' => 'أبو محمد']);
         $this->category = ExpenseCategory::factory()->create(['name' => 'توصيل']);
 
-        // طلبٌ «مجاني» مسدَّد — تاسك 193: لا تسوية قبل سداد الفاتورة.
+        // طلبٌ مسدَّد بأجر 25 — تاسك 193: لا تسوية قبل سداد الفاتورة.
         $this->invoice = ServiceInvoice::create([
             'invoice_number' => 'SINV-018-00025',
             'branch_id' => $this->branch->id,
@@ -49,7 +49,7 @@ describe('Delivery settlement', function () {
             'status' => InvoiceStatusEnum::PAID,
             'paid_at' => now(),
         ]);
-        $this->shipment = $this->invoice->shipments()->create(['provider_id' => $this->driver->id, 'fee' => 0]);
+        $this->shipment = $this->invoice->shipments()->create(['provider_id' => $this->driver->id, 'fee' => 25]);
 
         // تاسك 187: التحويل من حساب الفرع البنكي.
         $this->bankAccount = BankAccount::create(['branch_id' => $this->branch->id, 'name' => 'الحساب الرئيسي']);
@@ -185,8 +185,6 @@ describe('Delivery settlement', function () {
 
     // تاسك 152 — «تسليم مبلغ التوصيل» عند المحاسب، على فرعه فقط.
     it('lets the branch accountant settle and cancel a delivery', function () {
-        $this->shipment->update(['fee' => 25]);
-
         $this->actingAs($this->accountant)
             ->post(route('shipping.deliveries.settle', $this->shipment), [
                 'amount' => 25,
@@ -209,7 +207,6 @@ describe('Delivery settlement', function () {
 
     // المحاسب لا يعدّل مبلغ التوصيل — يُسلَّم أجر الطلب، والمجاني يسوّيه المدير.
     it('locks the accountant to the shipment fee', function () {
-        $this->shipment->update(['fee' => 25]);
         $payload = ['amount' => 999, 'paid_from' => 'cash_drawer', 'expense_category_id' => $this->category->id];
 
         $this->actingAs($this->accountant)
@@ -220,6 +217,8 @@ describe('Delivery settlement', function () {
     });
 
     it('leaves a free delivery to the branch admin', function () {
+        $this->shipment->update(['fee' => 0]);
+
         $this->actingAs($this->accountant)
             ->post(route('shipping.deliveries.settle', $this->shipment), [
                 'amount' => 25,
@@ -238,8 +237,7 @@ describe('Delivery settlement', function () {
         $employee = User::factory()->create(['branch_id' => $this->branch->id]);
         $employee->addRole(Roles::EMPLOYEE->value);
 
-        $this->shipment->update(['fee' => 25]);
-        $payload = ['amount' => 25, 'paid_from' => 'cash_drawer', 'expense_category_id' => $this->category->id];
+        $payload = ['amount' => 25,'paid_from' => 'cash_drawer', 'expense_category_id' => $this->category->id];
 
         $this->actingAs($foreignAccountant)->post(route('shipping.deliveries.settle', $this->shipment), $payload)->assertForbidden();
         $this->actingAs($employee)->post(route('shipping.deliveries.settle', $this->shipment), $payload)->assertForbidden();
@@ -249,7 +247,6 @@ describe('Delivery settlement', function () {
 
     it('settles from the invoice page and shows the settlement there (task 190)', function () {
         $invoiceUrl = route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]);
-        $this->shipment->update(['fee' => 25]);
 
         $this->actingAs($this->accountant)
             ->get($invoiceUrl)
