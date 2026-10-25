@@ -185,6 +185,8 @@ describe('Delivery settlement', function () {
 
     // تاسك 152 — «تسليم مبلغ التوصيل» عند المحاسب، على فرعه فقط.
     it('lets the branch accountant settle and cancel a delivery', function () {
+        $this->shipment->update(['fee' => 25]);
+
         $this->actingAs($this->accountant)
             ->post(route('shipping.deliveries.settle', $this->shipment), [
                 'amount' => 25,
@@ -205,6 +207,30 @@ describe('Delivery settlement', function () {
         $this->assertSoftDeleted($expense);
     });
 
+    // المحاسب لا يعدّل مبلغ التوصيل — يُسلَّم أجر الطلب، والمجاني يسوّيه المدير.
+    it('locks the accountant to the shipment fee', function () {
+        $this->shipment->update(['fee' => 25]);
+        $payload = ['amount' => 999, 'paid_from' => 'cash_drawer', 'expense_category_id' => $this->category->id];
+
+        $this->actingAs($this->accountant)
+            ->post(route('shipping.deliveries.settle', $this->shipment), $payload)
+            ->assertSessionHasNoErrors();
+
+        expect((float) Expense::firstOrFail()->total)->toBe(25.0);
+    });
+
+    it('leaves a free delivery to the branch admin', function () {
+        $this->actingAs($this->accountant)
+            ->post(route('shipping.deliveries.settle', $this->shipment), [
+                'amount' => 25,
+                'paid_from' => 'cash_drawer',
+                'expense_category_id' => $this->category->id,
+            ])
+            ->assertSessionHasErrors('amount');
+
+        expect(Expense::count())->toBe(0);
+    });
+
     it('forbids a foreign-branch accountant and an employee', function () {
         $foreignAccountant = User::factory()->create(['branch_id' => Branch::factory()->create()->id]);
         $foreignAccountant->addRole(Roles::ACCOUNTANT->value);
@@ -212,6 +238,7 @@ describe('Delivery settlement', function () {
         $employee = User::factory()->create(['branch_id' => $this->branch->id]);
         $employee->addRole(Roles::EMPLOYEE->value);
 
+        $this->shipment->update(['fee' => 25]);
         $payload = ['amount' => 25, 'paid_from' => 'cash_drawer', 'expense_category_id' => $this->category->id];
 
         $this->actingAs($foreignAccountant)->post(route('shipping.deliveries.settle', $this->shipment), $payload)->assertForbidden();
@@ -222,6 +249,7 @@ describe('Delivery settlement', function () {
 
     it('settles from the invoice page and shows the settlement there (task 190)', function () {
         $invoiceUrl = route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]);
+        $this->shipment->update(['fee' => 25]);
 
         $this->actingAs($this->accountant)
             ->get($invoiceUrl)
