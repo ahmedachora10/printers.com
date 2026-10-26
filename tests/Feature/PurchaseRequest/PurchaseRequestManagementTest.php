@@ -114,6 +114,21 @@ describe('Internal purchase requests', function () {
         $this->patch(route('purchase-requests.approve', $request))->assertForbidden();
     });
 
+    it('lists pending requests first, then the newest', function () use ($submit) {
+        $this->actingAs($this->employee);
+        $this->travel(-2)->days();
+        $oldPending = $submit();
+        $this->travelBack();
+        $newRejected = $submit();
+        $newRejected->update(['status' => PurchaseRequestStatusEnum::REJECTED]);
+
+        $this->actingAs($this->admin)
+            ->get(route('purchase-requests.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('items.data.0.id', $oldPending->id)
+                ->where('items.data.1.id', $newRejected->id));
+    });
+
     // ── تاسك 103: فلاتر القائمة ───────────────────────────────────
 
     it('filters by requester, branch, status and date for a super-admin', function () use ($submit) {

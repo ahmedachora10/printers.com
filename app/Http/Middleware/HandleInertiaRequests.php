@@ -341,7 +341,8 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('purchase-requests.index'),
                 'icon' => 'ShoppingBasket',
                 'group' => 'inventory',
-                'pending' => ['key' => 'purchaseRequests', 'url' => route('purchase-requests.index', ['status' => 'pending'])],
+                // بلا فلتر حالة: الطلب المعتمَد يبقى ظاهراً بحالته الجديدة.
+                'pending' => ['key' => 'purchaseRequests'],
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
             ],
             [
@@ -365,7 +366,8 @@ class HandleInertiaRequests extends Middleware
                 'icon' => 'Receipt',
                 'group' => 'finance',
                 // range=all: الشاشة تفتح على اليوم، والطلب قد يكون من أمس.
-                'pending' => ['key' => 'expenseRequests', 'url' => route('expenses.index', ['approval' => 'requested', 'range' => 'all'])],
+                // بلا فلتر اعتماد: المصروف المعتمَد يبقى ظاهراً بحالته الجديدة.
+                'pending' => ['key' => 'expenseRequests', 'url' => route('expenses.index', ['range' => 'all'])],
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT],
             ],
             [

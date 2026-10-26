@@ -62,6 +62,8 @@ class PurchaseRequestController extends Controller
                 'lines',
                 fn ($lines) => $lines->where('item_name', 'like', '%'.$request->input('search').'%')
             ))
+            // بانتظار الاعتماد أولاً، ثم الأحدث.
+            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', [PurchaseRequestStatusEnum::PENDING->value])
             ->latest()
             ->paginate(12)
             ->withQueryString();
