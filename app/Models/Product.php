@@ -2,18 +2,35 @@
 
 namespace App\Models;
 
+use App\Actions\Product\SellProductAsServiceAction;
 use Database\Factories\ProductFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
     /** @use HasFactory<ProductFactory> */
     use HasFactory, SoftDeletes;
+
+    /**
+     * خدمة الفرع المربوطة تتبع المنتج عند كل حفظ — من نافذة التعديل وزر الحالة
+     * والاستيراد معاً — وتُعطَّل بحذفه.
+     */
+    protected static function booted(): void
+    {
+        // لا عند كل حركة مخزون: recalculateStock() يحفظ المنتج أيضاً.
+        static::saved(function (Product $product): void {
+            if ($product->wasChanged(['name', 'is_sqm', 'selling_price', 'cost_price', 'is_active', 'deleted_at'])) {
+                app(SellProductAsServiceAction::class)->sync($product);
+            }
+        });
+        static::deleted(fn (Product $product) => app(SellProductAsServiceAction::class)->sync($product));
+    }
 
     protected $fillable = [
         'branch_id',
@@ -59,6 +76,16 @@ class Product extends Model
     public function unit(): BelongsTo
     {
         return $this->belongsTo(ProductUnit::class, 'unit_id');
+    }
+
+    /**
+     * خدمة الفرع التي يُباع بها المنتج من شاشة الموظف — واحدةٌ أو لا شيء.
+     *
+     * @return HasOne<BranchService, $this>
+     */
+    public function branchService(): HasOne
+    {
+        return $this->hasOne(BranchService::class);
     }
 
     /** @return HasMany<StockMovement, $this> */

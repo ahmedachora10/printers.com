@@ -5,7 +5,6 @@ namespace App\Actions\ServiceInvoice;
 use App\Models\BranchService;
 use App\Models\BranchServiceMaterial;
 use App\Models\Product;
-use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Support\MaterialsRequirement;
 
@@ -23,15 +22,17 @@ use App\Support\MaterialsRequirement;
 class ResolveMaterialsRequirementAction
 {
     /**
-     * احتياج فاتورة قائمة — يُستدعى قبل الاعتماد وعند بناء حوار التأكيد.
+     * احتياج أسطر فاتورة قائمة — يُستدعى قبل الصرف بما سيصرفه بعينه
+     * (`ConsumeServiceMaterialsAction::pendingLines`)، فسطرٌ صُرف مع العربون لا
+     * يُحسب ثانيةً عند الاعتماد.
+     *
+     * @param  iterable<ServiceInvoiceLine>  $lines
      */
-    public function forInvoice(ServiceInvoice $invoice): MaterialsRequirement
+    public function forInvoiceLines(iterable $lines): MaterialsRequirement
     {
-        $invoice->loadMissing('lines.branchService.materials.product.unit');
-
         $demand = [];
 
-        foreach ($invoice->lines as $line) {
+        foreach ($lines as $line) {
             /** @var ServiceInvoiceLine $line */
             $billableQty = $line->billableQty();
 

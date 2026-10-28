@@ -50,25 +50,7 @@ class MarkServiceInvoicePaidAction
             ]);
         }
 
-        // كفايةُ المخزون تُفحص قبل فتح المعاملة: العجز ليس منعاً بل وقفةٌ يقرّها
-        // المعتمِد صراحةً، فالشغل قد سُلِّم للعميل فعلاً ورفضُ اعتماده يعلّق
-        // الفاتورة في قائمة المراجعة بلا مخرج. أما المرور صامتاً فيُخفي أن
-        // الرصيد صار سالباً.
-        $requirement = $this->resolveRequirement->forInvoice($invoice);
-
-        if (! $confirmedShortage && $requirement->hasShortage()) {
-            throw ValidationException::withMessages([
-                'materials_shortage' => $requirement->message(),
-            ]);
-        }
-
-        if ($requirement->hasShortage()) {
-            activity('inventory')
-                ->performedOn($invoice)
-                ->causedBy(auth()->user())
-                ->withProperties(['shortages' => $requirement->shortages()->all()])
-                ->log("اعتماد الفاتورة {$invoice->invoice_number} رغم عجز الخامات");
-        }
+        $this->assertStock($invoice, $confirmedShortage);
 
         return DB::transaction(function () use ($invoice, $paidAt) {
             $invoice->update([
@@ -109,5 +91,42 @@ class MarkServiceInvoicePaidAction
 
         // تاسك 160: الفاتورة المعتمدة تدخل محقَّق حوافز صاحبها.
         $this->recalculateIncentive->refreshForInvoice($invoice);
+    }
+
+    /**
+     * المنتج المبيع كخدمة يخرج من المخزون مع أول دفعة — العميل أخذه — لا عند
+     * اكتمال السداد كخامات الخدمات. داخل معاملة الدفعة.
+     */
+    public function drawProductLines(ServiceInvoice $invoice, bool $confirmedShortage = false): void
+    {
+        $this->assertStock($invoice, $confirmedShortage, productLinesOnly: true);
+
+        $this->consumeMaterials->consume($invoice, (int) (auth()->id() ?? $invoice->user_id), productLinesOnly: true);
+    }
+
+    /**
+     * كفايةُ المخزون لما سيُصرف الآن: العجز ليس منعاً بل وقفةٌ يقرّها المعتمِد
+     * صراحةً، فالشغل قد سُلِّم للعميل فعلاً ورفضُ اعتماده يعلّق الفاتورة في قائمة
+     * المراجعة بلا مخرج. أما المرور صامتاً فيُخفي أن الرصيد صار سالباً.
+     */
+    private function assertStock(ServiceInvoice $invoice, bool $confirmedShortage, bool $productLinesOnly = false): void
+    {
+        $requirement = $this->resolveRequirement->forInvoiceLines(
+            $this->consumeMaterials->pendingLines($invoice, $productLinesOnly),
+        );
+
+        if (! $confirmedShortage && $requirement->hasShortage()) {
+            throw ValidationException::withMessages([
+                'materials_shortage' => $requirement->message(),
+            ]);
+        }
+
+        if ($requirement->hasShortage()) {
+            activity('inventory')
+                ->performedOn($invoice)
+                ->causedBy(auth()->user())
+                ->withProperties(['shortages' => $requirement->shortages()->all()])
+                ->log("اعتماد الفاتورة {$invoice->invoice_number} رغم عجز الخامات");
+        }
     }
 }

@@ -671,8 +671,8 @@ export default function ServicePos({
                     name: s.name,
                     notes: '',
                     noteExamples: s.noteExamples ?? [],
-                    // سطر المتر يبدأ بسعر متر الخدمة — قابلاً للتعديل؛ وغيره بصفر.
-                    unitPrice: isMeasured(s.pricingType) ? s.pricePerSqm : 0,
+                    // سطر المتر يبدأ بسعر متر الخدمة، والمنتج بسعر بيعه — قابلاً للتعديل؛ وغيرهما بصفر.
+                    unitPrice: isMeasured(s.pricingType) || s.productId ? s.pricePerSqm : 0,
                     qty: 1,
                     discountPct: 0,
                     maxDiscountPct: s.maxDiscountPct,
@@ -838,7 +838,7 @@ export default function ServicePos({
             tierPriced: true,
             agentCommissionPerSqm: s.agentCommissionPerSqm,
             // سعر سطر المتر هو سعر متر الخدمة؛ والمقاس يُفرَّغ ليُدخَل من جديد.
-            ...(isMeasured(s.pricingType) ? { unitPrice: s.pricePerSqm, widthCm: null, heightCm: null } : { widthCm: null, heightCm: null }),
+            ...(isMeasured(s.pricingType) || s.productId ? { unitPrice: s.pricePerSqm, widthCm: null, heightCm: null } : { widthCm: null, heightCm: null }),
             // A per_sqm commission type no longer applies on a unit service.
             ...(!isMeasured(s.pricingType) && line.agentCommissionType === 'per_sqm'
                 ? { agentCommissionType: 'percentage' as LineAgentCommissionType, agentCommissionValue: 0 }

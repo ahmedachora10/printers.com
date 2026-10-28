@@ -20,6 +20,7 @@ class AttachBranchServiceAction
             $serviceTemplate = ServiceTemplate::findOrFail($data['service_template_id']);
 
             $serviceTemplate->branches()->attach($data['branch_id'], [
+                'product_id' => $data['product_id'] ?? null,
                 'base_commission_pct' => $data['base_commission_pct'],
                 'max_discount_pct' => $data['max_discount_pct'],
                 // فارغ = سعر مفتوح من تلك الجهة؛ لا يُحوَّل إلى صفر وإلا صار
@@ -46,7 +47,7 @@ class AttachBranchServiceAction
             // تاسك 85: خدمةٌ جديدة تولد ومعها عمولة كل موظف في الفرع بقيمة
             // عمولته الأساسية — وإلا وُلدت بصفٍّ غائب أي بصفر بالمئة للجميع،
             // وهي شكوى العميل نفسها.
-            $this->seedCommissions->handle($branchService);
+            $this->seedCommissions->handle($branchService, $data['seed_commission_pct'] ?? null);
 
             return $branchService;
         });

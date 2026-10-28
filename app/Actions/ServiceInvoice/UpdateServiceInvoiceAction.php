@@ -113,6 +113,9 @@ class UpdateServiceInvoiceAction
                 // كلُّ دفعةٍ بتاريخها.
                 $this->syncCommissionLedger($invoice, now());
 
+                // سطر المنتج صُرف مع العربون وأُرجع أعلاه — يُصرف بأسطر التعديل.
+                $this->consumeMaterials->consume($invoice, (int) auth()->id(), productLinesOnly: true);
+
                 $this->recalculateIncentive->refreshForInvoice($invoice);
             }
 

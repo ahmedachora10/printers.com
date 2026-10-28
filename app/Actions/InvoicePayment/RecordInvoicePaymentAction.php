@@ -6,6 +6,7 @@ use App\Actions\Agent\SyncAgentCommissionAction;
 use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
+use App\Actions\ServiceInvoice\ConsumeServiceMaterialsAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\InvoicePayment;
@@ -45,6 +46,7 @@ class RecordInvoicePaymentAction
         private readonly RecalculateIncentivePlanAction $recalculateIncentive,
         private readonly ApplyInvoiceDiscountAction $applyDiscount,
         private readonly SyncAgentCommissionAction $syncAgentCommission,
+        private readonly ConsumeServiceMaterialsAction $consumeMaterials,
     ) {}
 
     /**
@@ -142,6 +144,14 @@ class RecordInvoicePaymentAction
                 // تاسك 191: نصيب هذه الدفعة من العمولة بتاريخها — والتصحيح السالب يعكسه.
                 // تاسك 201: الدفعة الجزئية تدخل المحقَّق بقدرها في شهرها.
                 if ($invoice instanceof ServiceInvoice) {
+                    // المنتج المبيع كخدمة يخرج مع أول دفعة، ويعود إن صحّحت دفعةٌ
+                    // سالبة المحصَّلَ إلى صفر — ثم تصرفه الدفعة الحقيقية التالية.
+                    if (round($collected + $amount, 2) > 0) {
+                        $this->markServiceInvoicePaid->drawProductLines($invoice, $confirmedShortage);
+                    } else {
+                        $this->consumeMaterials->restore($invoice, (int) $actor->id);
+                    }
+
                     $this->markServiceInvoicePaid->syncCommissionLedger($invoice, $paidAt);
                     $this->recalculateIncentive->refreshForInvoice($invoice);
                 } else {

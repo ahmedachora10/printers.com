@@ -30,6 +30,8 @@ class ProductResource extends JsonResource
             'currentStock' => (float) $this->current_stock,
             'barcode' => $this->barcode,
             'isActive' => $this->is_active,
+            // يُباع أيضاً من شاشة الموظف كخدمة (SellProductAsServiceAction).
+            'soldAsService' => $this->whenLoaded('branchService', fn () => $this->branchService !== null, false),
             'valuation' => round((float) $this->current_stock * (float) $this->cost_price, 2),
         ];
     }

@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Actions\Product\CreateProductAction;
 use App\Actions\Product\DeleteProductAction;
+use App\Actions\Product\SellProductAsServiceAction;
 use App\Actions\Product\UpdateProductAction;
 use App\Exports\ImportTemplateExport;
 use App\Exports\ProductsExport;
 use App\Http\Controllers\Concerns\RunsExcelImports;
+use App\Http\Requests\Product\SellProductAsServiceRequest;
 use App\Http\Requests\Product\StoreProductRequest;
 use App\Http\Requests\Product\UpdateProductRequest;
 use App\Http\Resources\Product\ProductResource;
@@ -42,7 +44,7 @@ class ProductController extends Controller
 
         $items = Product::query()
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->with(['category', 'unit'])
+            ->with(['category', 'unit', 'branchService'])
             ->filteredBy($request->only(self::LIST_FILTERS))
             ->orderBy('name')
             ->paginate(12);
@@ -111,6 +113,16 @@ class ProductController extends Controller
         $action->handle($product);
 
         return back(fallback: route('inventory.products.index'))->with('success', 'تم حذف المنتج بنجاح');
+    }
+
+    /** «بيع كخدمة»: المنتج يظهر في شاشة الموظف بسعره ونسبة العمولة المُدخلة. */
+    public function sellAsService(SellProductAsServiceRequest $request, Product $product, SellProductAsServiceAction $action): RedirectResponse
+    {
+        Gate::authorize('update', $product);
+
+        $action->handle($product, (float) $request->validated('commission_pct'));
+
+        return back(fallback: route('inventory.products.index'))->with('success', 'أصبح المنتج متاحاً في شاشة بيع الخدمات');
     }
 
     public function toggleStatus(Product $product, UpdateProductAction $action): RedirectResponse

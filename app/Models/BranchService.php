@@ -15,6 +15,7 @@ class BranchService extends Pivot
     protected $fillable = [
         'branch_id',
         'service_template_id',
+        'product_id',
         'base_commission_pct',
         'max_discount_pct',
         'max_selling_price',
@@ -90,6 +91,17 @@ class BranchService extends Pivot
     public function serviceTemplate(): BelongsTo
     {
         return $this->belongsTo(ServiceTemplate::class);
+    }
+
+    /**
+     * المنتج المبيع كخدمة — سعر هذه الخدمة وتكلفتها وحالتها تُقرأ منه
+     * (SellProductAsServiceAction). null لخدمةٍ عادية.
+     *
+     * @return BelongsTo<Product, $this>
+     */
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
     }
 
     // ملاحظة لكل علاقة hasMany هنا: هذا الموديل Pivot، و`AsPivot::getForeignKey()`

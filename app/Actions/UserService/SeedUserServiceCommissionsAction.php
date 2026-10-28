@@ -22,19 +22,22 @@ use Illuminate\Support\Facades\DB;
 class SeedUserServiceCommissionsAction
 {
     /**
+     * @param  float|null  $pct  نسبةٌ واحدة للجميع بدل عمولة كلٍّ منهم الأساسية —
+     *                           منتجٌ يُباع كخدمة يُفعَّل بنسبته (SellProductAsServiceAction).
      * @return int عدد الصفوف المكتوبة
      */
-    public function handle(BranchService $branchService): int
+    public function handle(BranchService $branchService, ?float $pct = null): int
     {
-        return DB::transaction(function () use ($branchService): int {
+        return DB::transaction(function () use ($branchService, $pct): int {
             $employees = User::query()
                 ->where('branch_id', $branchService->branch_id)
                 ->where('is_active', true)
-                // عمولةٌ أساسية صفر لا تُكتب: الصفّ الصفري كغيابه، ولا داعي
-                // لصفوفٍ بلا أثر تُثقل الشاشة.
-                ->where('base_commission_pct', '>', 0)
                 ->whereHas('roles', fn ($q) => $q->where('name', Roles::EMPLOYEE->value))
-                ->pluck('base_commission_pct', 'id');
+                ->pluck('base_commission_pct', 'id')
+                ->when($pct !== null, fn ($rates) => $rates->map(fn () => $pct))
+                // عمولةٌ صفر لا تُكتب: الصفّ الصفري كغيابه، ولا داعي لصفوفٍ بلا
+                // أثر تُثقل الشاشة.
+                ->filter(fn ($rate) => (float) $rate > 0);
 
             if ($employees->isEmpty()) {
                 return 0;

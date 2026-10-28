@@ -18,6 +18,8 @@ export interface Product {
     currentStock: number;
     barcode: string | null;
     isActive: boolean;
+    /** يُباع أيضاً من شاشة الموظف كخدمة */
+    soldAsService: boolean;
     valuation: number;
 }
 

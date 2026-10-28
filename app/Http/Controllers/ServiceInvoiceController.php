@@ -805,6 +805,7 @@ class ServiceInvoiceController extends Controller
                 'pricePerSqm' => (float) $service->price_per_sqm,
                 // تاسك 241: شرائح السعر حسب الكمية.
                 'priceTiers' => $service->price_tiers ?? [],
+                'productId' => $service->product_id,
                 'agentCommissionPerSqm' => (float) $service->agent_commission_per_sqm,
                 // تاسك 153: عمولة كل مندوب المحدَّدة لهذه الخدمة — تُعبَّأ وتُقفل على الموظف.
                 'agentTerms' => $service->agentCommissions->mapWithKeys(fn (AgentService $t) => [

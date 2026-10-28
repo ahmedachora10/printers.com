@@ -739,6 +739,8 @@ Route::middleware(['auth'])->group(function () {
 
             Route::patch('products/{product}/toggle-status', [ProductController::class, 'toggleStatus'])
                 ->name('products.toggle-status');
+            Route::post('products/{product}/sell-as-service', [ProductController::class, 'sellAsService'])
+                ->name('products.sell-as-service');
             Route::resource('products', ProductController::class)
                 ->only(['index', 'store', 'update', 'destroy']);
 

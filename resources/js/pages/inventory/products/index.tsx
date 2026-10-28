@@ -5,6 +5,8 @@ import { DataTable, TablePagination, type ColumnDef } from '@/components/data-ta
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
     Dialog,
     DialogContent,
@@ -17,8 +19,8 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type PaginatedProduct, type Product } from '@/types/product';
 import { type ProductUnit } from '@/types/product-unit';
-import { Link, router } from '@inertiajs/react';
-import { AlertTriangle, ArrowLeftRight, Download, History, Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import { Link, router, useForm } from '@inertiajs/react';
+import { AlertTriangle, ArrowLeftRight, Download, History, Pencil, Plus, Store, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import productRoutes from '@/actions/App/Http/Controllers/ProductController';
 import inventory from '@/routes/inventory';
@@ -62,6 +64,19 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
     const [deleting, setDeleting] = useState<Product | null>(null);
     const [adjusting, setAdjusting] = useState<Product | null>(null);
     const [importOpen, setImportOpen] = useState(false);
+    const [sellingAsService, setSellingAsService] = useState<Product | null>(null);
+    const sellForm = useForm({ commission_pct: '' });
+
+    function handleSellAsService() {
+        if (!sellingAsService) return;
+        sellForm.post(productRoutes.sellAsService.url(sellingAsService.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                setSellingAsService(null);
+                sellForm.reset();
+            },
+        });
+    }
 
     function openCreate() {
         setEditing(null);
@@ -107,6 +122,11 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                         {item.isSqm && (
                             <span className="rounded-full border px-1.5 py-0.5 text-[10px] leading-4 font-medium text-sky-700 dark:text-sky-400">
                                 م²
+                            </span>
+                        )}
+                        {item.soldAsService && (
+                            <span className="rounded-full border px-1.5 py-0.5 text-[10px] leading-4 font-medium text-emerald-700 dark:text-emerald-400">
+                                يُباع كخدمة
                             </span>
                         )}
                     </span>
@@ -181,6 +201,11 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                 headerClassName: 'w-24',
                 cell: (item) => (
                     <div className="flex items-center gap-2">
+                        {!item.soldAsService && (
+                            <Button variant="outline" size="sm" title="بيع كخدمة" onClick={() => setSellingAsService(item)}>
+                                <Store className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
                         <Button
                             variant="outline"
                             size="sm"
@@ -361,6 +386,40 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                         </Button>
                         <Button variant="destructive" onClick={handleDelete}>
                             حذف
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!sellingAsService} onOpenChange={(open) => !open && setSellingAsService(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>بيع "{sellingAsService?.name}" كخدمة</DialogTitle>
+                        <DialogDescription>
+                            يظهر المنتج في شاشة بيع الخدمات بسعر بيعه، ويُسحب من مخزونه مع أول دفعة. العمولة من الربح بعد طرح سعر التكلفة.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="grid gap-2">
+                        <Label htmlFor="commission_pct">نسبة عمولة الموظفين %</Label>
+                        <Input
+                            id="commission_pct"
+                            type="number"
+                            min={0}
+                            max={100}
+                            step="0.01"
+                            value={sellForm.data.commission_pct}
+                            onChange={(e) => sellForm.setData('commission_pct', e.target.value)}
+                        />
+                        {sellForm.errors.commission_pct && (
+                            <p className="text-sm text-destructive">{sellForm.errors.commission_pct}</p>
+                        )}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setSellingAsService(null)}>
+                            إلغاء
+                        </Button>
+                        <Button onClick={handleSellAsService} disabled={sellForm.processing}>
+                            تفعيل
                         </Button>
                     </DialogFooter>
                 </DialogContent>

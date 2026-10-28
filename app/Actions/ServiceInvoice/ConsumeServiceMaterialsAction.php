@@ -9,12 +9,15 @@ use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\StockMovement;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 
 /**
  * تاسك 50 (وشقّ المخزون من تاسك 54): يخصم خامات الخدمة من المخزون ويعيدها.
  *
  * الخصم يقع عند **اعتماد** الفاتورة لا عند إنشائها آجلة — نفس لحظة العمولة
  * ونقاط الولاء، فالفاتورة التي لم تُعتمد بعد لم تُنفَّذ ولم تُستهلك خاماتها.
+ * إلا سطر المنتج المبيع كخدمة (`branch_services.product_id`): يخرج مع أول دفعة،
+ * فالعميل أخذ المنتج (MarkServiceInvoicePaidAction::drawProductLines).
  * والإرجاع يكتب حركة `return_in` مقابلة لكل حركة صرف — بلا حذف أي حركة، فسجلّ
  * المخزون جدول إدراج فقط.
  *
@@ -41,18 +44,9 @@ class ConsumeServiceMaterialsAction
      * work already delivered would strand it in the review queue, and a negative
      * balance is exactly the signal that the register needs a count.
      */
-    public function consume(ServiceInvoice $invoice, int $actorId): void
+    public function consume(ServiceInvoice $invoice, int $actorId, bool $productLinesOnly = false): void
     {
-        // Never twice for the same invoice: approval is already gated on status,
-        // this only guards a re-entrant call path. صافي الحركات لا وجودُها: تعديل
-        // فاتورة معتمدة يُرجع خاماتها ثم يصرفها من جديد (UpdateServiceInvoiceAction).
-        if ($this->netDrawn($invoice)->isNotEmpty()) {
-            return;
-        }
-
-        $invoice->loadMissing('lines.branchService.materials.product');
-
-        foreach ($invoice->lines as $line) {
+        foreach ($this->pendingLines($invoice, $productLinesOnly) as $line) {
             /** @var ServiceInvoiceLine $line */
             $materials = $line->branchService?->materials ?? collect();
             $billableQty = $line->billableQty();
@@ -84,6 +78,35 @@ class ConsumeServiceMaterialsAction
                 );
             }
         }
+    }
+
+    /**
+     * Lines whose materials are still to be drawn. Never twice for the same
+     * line: صافي الحركات لا وجودُها — تعديل فاتورة معتمدة يُرجع خاماتها ثم يصرفها
+     * من جديد (UpdateServiceInvoiceAction). وسطر المنتج المبيع كخدمة يُصرف مع أول
+     * دفعة ($productLinesOnly)، فلا يعيده الاعتمادُ الكامل بعدها.
+     *
+     * @return SupportCollection<int, ServiceInvoiceLine>
+     */
+    public function pendingLines(ServiceInvoice $invoice, bool $productLinesOnly = false): SupportCollection
+    {
+        $drawn = $this->netDrawn($invoice)->pluck('service_invoice_line_id');
+
+        // حركات ما قبل عمود السطر لا تقول أيَّ سطر صُرف — الفاتورة كلها مصروفة.
+        if ($drawn->contains(null)) {
+            return collect();
+        }
+
+        // load لا loadMissing: التعديل يحذف الأسطر ويكتبها من جديد تحت العلاقة المحمّلة.
+        $invoice->load('lines.branchService.materials.product.unit');
+
+        return $invoice->lines
+            ->reject(fn (ServiceInvoiceLine $line) => $drawn->contains($line->id))
+            ->when($productLinesOnly, fn ($lines) => $lines->filter(
+                fn (ServiceInvoiceLine $line) => $line->branchService?->product_id !== null,
+            ))
+            ->values()
+            ->toBase();
     }
 
     /**
