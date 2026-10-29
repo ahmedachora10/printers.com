@@ -8,6 +8,7 @@ use App\Models\BranchService;
 use App\Models\EmployeeDeduction;
 use App\Models\IncentivePlan;
 use App\Actions\Incentive\RecalculateIncentivePlanAction;
+use App\Actions\InvoicePayment\RecordInvoicePaymentAction;
 use App\Actions\Refund\CreateRefundAction;
 use App\Actions\ServiceInvoice\MarkServiceInvoicePaidAction;
 use App\Models\ServiceInvoice;
@@ -140,6 +141,46 @@ describe('Incentives', function () {
         refundIncentiveInvoice($invoice, 115, $this->branchAdmin);
         expect((float) $ownerPlan->fresh()->achieved_amount)->toBe(828.0)
             ->and((float) $helperPlan->fresh()->achieved_amount)->toBe(207.0);
+    });
+
+    // تاسك 201 — مثال العميل: 1000 على دفعتين، كلٌّ بقدرها في شهرها.
+    it('counts each partial payment in the month it was collected', function () {
+        $this->travelTo('2026-10-29 12:00:00');
+        $october = monthPlan($this->employee, ['period_year' => 2026, 'period_month' => 10, 'target_amount' => 10000]);
+        $november = monthPlan($this->employee, ['period_year' => 2026, 'period_month' => 11, 'target_amount' => 10000]);
+
+        $invoice = salesInvoice($this->branch->id, $this->employee->id, 1000, 2026, 10);
+        $invoice->update(['status' => 'due', 'paid_at' => null]);
+        $pay = fn (string $at) => app(RecordInvoicePaymentAction::class)->handle(
+            $invoice->fresh(), ['amount' => 500, 'paid_at' => $at, 'payment_method_id' => paymentMethodId($this->branch->id)], $this->branchAdmin,
+        );
+
+        $pay('2026-10-29 10:00:00');
+        expect((float) $october->fresh()->achieved_amount)->toBe(500.0)
+            ->and((float) $november->fresh()->achieved_amount)->toBe(0.0);
+
+        $pay('2026-11-05 10:00:00');
+        expect($invoice->fresh()->status->value)->toBe('paid')
+            ->and((float) $october->fresh()->achieved_amount)->toBe(500.0)
+            ->and((float) $november->fresh()->achieved_amount)->toBe(500.0);
+    });
+
+    // تاسك 203 — مثال العميل: فاتورة سبتمبر تُلغى في أكتوبر فتُخصم من أكتوبر وحده.
+    it('deducts a later return from the month it was recorded, leaving the closed month intact', function () {
+        $this->travelTo('2026-10-10 12:00:00');
+        $september = monthPlan($this->employee, ['period_year' => 2026, 'period_month' => 9, 'achieved_amount' => 1000, 'status' => IncentivePlanStatusEnum::Achieved]);
+        $october = monthPlan($this->employee, ['period_year' => 2026, 'period_month' => 10, 'target_amount' => 10000]);
+        $invoice = salesInvoice($this->branch->id, $this->employee->id, 1000, 2026, 9);
+
+        refundIncentiveInvoice($invoice, 1000, $this->branchAdmin);
+        expect((float) $september->fresh()->achieved_amount)->toBe(1000.0)
+            ->and((float) $october->fresh()->achieved_amount)->toBe(-1000.0);
+
+        salesInvoice($this->branch->id, $this->employee->id, 600, 2026, 10);
+        expect(app(RecalculateIncentivePlanAction::class)->achievedSales($october))->toBe(-400.0);
+
+        salesInvoice($this->branch->id, $this->employee->id, 500, 2026, 10);
+        expect(app(RecalculateIncentivePlanAction::class)->achievedSales($october))->toBe(100.0);
     });
 
     it('leaves a paid plan untouched by a refund and alerts the branch admin', function () {

@@ -156,6 +156,15 @@ it('caps the helper shares at the net after materials', function () {
     expect(ServiceInvoice::count())->toBe(0);
 });
 
+// تاسك 205 — المساعد بلا خدمة مختارة (الواجهة ترسل 0) يُنبَّه بالعربية لا باسم الحقل.
+it('asks in Arabic for the helper service when none was picked', function () {
+    $this->actingAs($this->employee)
+        ->post(route('pos.service.store'), ($this->payload)([
+            ['user_id' => $this->arif->id, 'branch_service_id' => 0, 'share_type' => 'amount', 'share_value' => 20],
+        ]))
+        ->assertSessionHasErrors(['helpers.0.branch_service_id' => 'اختر الخدمة التي ساعد فيها المساعد.']);
+});
+
 it('lists only the branch employees other than the owner as helpers', function () {
     $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
     $accountant->addRole(Roles::ACCOUNTANT->value);
