@@ -166,6 +166,11 @@ function MessageItem({ message, canModerate }: { message: InvoiceMessage; canMod
                         </span>
                     )}
                     <StatusBadge message={message} />
+                    {message.privateTo && (
+                        <Badge variant="outline" className="gap-1 border-amber-300 text-amber-800 dark:border-amber-800 dark:text-amber-200">
+                            <Lock className="size-3" /> خاصة لـ {message.privateTo}
+                        </Badge>
+                    )}
                 </div>
                 {!editing && (
                     <div className="flex items-center gap-1">
@@ -251,12 +256,16 @@ function MessageItem({ message, canModerate }: { message: InvoiceMessage; canMod
 /**
  * خانة الإرسال. «@» يفتح قائمة من يُشار إليه، والاختيار يُدرج «@الاسم» في النص
  * ويضيف رمزه إلى `mentions` — الخادم لا يحلّل النص.
+ *
+ * تاسك 208: «#» (أو زرّ «خاصة») يفتح القائمة نفسها لاختيار من تُرسل إليه الرسالة
+ * خاصةً — لا يراها غيره وغير مرسلها. بلا اختيار تبقى للجميع.
  */
 function Composer({ invoiceId, mentionables }: { invoiceId: number; mentionables: Mentionable[] }) {
     const [body, setBody] = useState('');
     const [mentions, setMentions] = useState<Mentionable[]>([]);
     const [files, setFiles] = useState<File[]>([]);
-    const [mentionOpen, setMentionOpen] = useState(false);
+    const [privateTo, setPrivateTo] = useState<Mentionable | null>(null);
+    const [picker, setPicker] = useState<'mention' | 'private' | null>(null);
     const [sending, setSending] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -270,7 +279,7 @@ function Composer({ invoiceId, mentionables }: { invoiceId: number; mentionables
         const inserted = `${before}@${option.label} `;
         setBody(inserted + body.slice(caret));
         setMentions((prev) => (prev.some((m) => m.token === option.token) ? prev : [...prev, option]));
-        setMentionOpen(false);
+        setPicker(null);
         requestAnimationFrame(() => {
             el?.focus();
             el?.setSelectionRange(inserted.length, inserted.length);
@@ -285,6 +294,7 @@ function Composer({ invoiceId, mentionables }: { invoiceId: number; mentionables
                 body,
                 // إشارةٌ حُذف اسمها من النص قبل الإرسال لا تُنبّه أحداً.
                 mentions: mentions.filter((m) => body.includes(`@${m.label}`)).map((m) => m.token),
+                private_to: privateTo?.token ?? null,
                 attachments: files,
             },
             {
@@ -293,6 +303,7 @@ function Composer({ invoiceId, mentionables }: { invoiceId: number; mentionables
                 onSuccess: () => {
                     setBody('');
                     setMentions([]);
+                    setPrivateTo(null);
                     setFiles([]);
                     setError(null);
                 },
@@ -306,7 +317,7 @@ function Composer({ invoiceId, mentionables }: { invoiceId: number; mentionables
 
     return (
         <div className="space-y-2">
-            <Popover open={mentionOpen} onOpenChange={setMentionOpen}>
+            <Popover open={picker !== null} onOpenChange={(open) => !open && setPicker(null)}>
                 <PopoverAnchor asChild>
                     <textarea
                         ref={textareaRef}
@@ -314,11 +325,14 @@ function Composer({ invoiceId, mentionables }: { invoiceId: number; mentionables
                         maxLength={2000}
                         value={body}
                         disabled={sending}
-                        placeholder="اكتب رسالة للموظف أو المحاسب أو مدير الفرع — «@» للإشارة إلى أحد"
+                        placeholder="اكتب رسالة للموظف أو المحاسب أو مدير الفرع — «@» للإشارة إلى أحد، «#» لرسالة خاصة"
                         className={textareaClass}
                         onChange={(e) => {
-                            setBody(e.target.value);
-                            if ((e.nativeEvent as InputEvent).data === '@') setMentionOpen(true);
+                            const typed = (e.nativeEvent as InputEvent).data;
+                            // «#» يختار المستلم ولا يبقى في النص.
+                            setBody(typed === '#' ? e.target.value.replace(/#$/, '') : e.target.value);
+                            if (typed === '@') setPicker('mention');
+                            if (typed === '#') setPicker('private');
                         }}
                     />
                 </PopoverAnchor>
@@ -329,8 +343,19 @@ function Composer({ invoiceId, mentionables }: { invoiceId: number; mentionables
                             <CommandEmpty>لا توجد نتائج</CommandEmpty>
                             <CommandGroup>
                                 {mentionables.map((option) => (
-                                    <CommandItem key={option.token} value={option.label} onSelect={() => insertMention(option)}>
-                                        <AtSign className="size-3.5" />
+                                    <CommandItem
+                                        key={option.token}
+                                        value={option.label}
+                                        onSelect={() => {
+                                            if (picker === 'private') {
+                                                setPrivateTo(option);
+                                                setPicker(null);
+                                            } else {
+                                                insertMention(option);
+                                            }
+                                        }}
+                                    >
+                                        {picker === 'private' ? <Lock className="size-3.5" /> : <AtSign className="size-3.5" />}
                                         {option.label}
                                     </CommandItem>
                                 ))}
@@ -354,12 +379,24 @@ function Composer({ invoiceId, mentionables }: { invoiceId: number; mentionables
                 </div>
             )}
 
+            {privateTo && (
+                <Badge variant="outline" className="gap-1 border-amber-300 font-normal text-amber-800 dark:border-amber-800 dark:text-amber-200">
+                    <Lock className="size-3" /> خاصة لـ {privateTo.label} — لا يراها غيره
+                    <button type="button" onClick={() => setPrivateTo(null)} aria-label="إلغاء الخصوصية">
+                        <X className="size-3" />
+                    </button>
+                </Badge>
+            )}
+
             {error && <p className="text-destructive text-xs">{error}</p>}
 
             <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-1">
-                    <Button type="button" variant="ghost" size="sm" onClick={() => setMentionOpen(true)} disabled={sending}>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setPicker('mention')} disabled={sending}>
                         <AtSign className="size-4" /> إشارة
+                    </Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setPicker('private')} disabled={sending}>
+                        <Lock className="size-4" /> خاصة
                     </Button>
                     <Button type="button" variant="ghost" size="sm" onClick={() => fileRef.current?.click()} disabled={sending || files.length >= 3}>
                         <Paperclip className="size-4" /> إرفاق

@@ -705,7 +705,8 @@ class InvoiceController extends Controller
             ->when($request->input('messages') === 'any', fn ($q) => $type === InvoiceTypeEnum::SERVICE
                 ? $q->whereExists(fn ($sub) => $sub->from('invoice_messages')
                     ->whereColumn('invoice_messages.service_invoice_id', "{$table}.id")
-                    ->whereNull('invoice_messages.deleted_at'))
+                    ->whereNull('invoice_messages.deleted_at')
+                    ->where(InvoiceMessage::visibleTo(Auth::user())))
                 : $q->whereRaw('1 = 0'))
             // مدى على العمود نفسه لا whereDate: DATE(created_at) يُعطّل فهرس (branch_id, created_at).
             ->when($request->filled('date_from'), fn ($q) => $q->where("{$table}.created_at", '>=', $request->input('date_from').' 00:00:00'))

@@ -83,6 +83,8 @@ export interface InvoiceMessage {
     authorRole: string | null;
     /** null للمحذوفة — تبقى في الخيط بلا نصّها */
     body: string | null;
+    /** تاسك 208 — اسم من أُرسلت إليه الرسالة الخاصة، null = للجميع */
+    privateTo: string | null;
     createdAt: string | null;
     /** جديدة على هذا الناظر منذ آخر زيارة */
     isNew: boolean;

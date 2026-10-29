@@ -29,6 +29,7 @@ class InvoiceMessageController extends Controller
             $request->validated('body'),
             $request->validated('mentions', []),
             $request->file('attachments', []),
+            $request->validated('private_to'),
         );
 
         return back();
@@ -38,6 +39,7 @@ class InvoiceMessageController extends Controller
     public function update(Request $request, InvoiceMessage $message): RedirectResponse
     {
         Gate::authorize('moderateMessages', $message->invoice);
+        abort_unless($message->isVisibleTo($request->user()), 404);
 
         $body = trim($request->validate(
             ['body' => ['required', 'string', 'max:2000']],
@@ -61,6 +63,7 @@ class InvoiceMessageController extends Controller
     public function destroy(Request $request, InvoiceMessage $message): RedirectResponse
     {
         Gate::authorize('moderateMessages', $message->invoice);
+        abort_unless($message->isVisibleTo($request->user()), 404);
 
         DB::transaction(function () use ($request, $message) {
             activity('invoices')
@@ -78,6 +81,7 @@ class InvoiceMessageController extends Controller
     public function toggleActioned(Request $request, InvoiceMessage $message): RedirectResponse
     {
         Gate::authorize('actionMessage', [$message->invoice, $message]);
+        abort_unless($message->isVisibleTo($request->user()), 404);
 
         $message->update($message->actioned_at === null
             ? ['actioned_at' => now(), 'actioned_by' => $request->user()->id]
@@ -102,6 +106,7 @@ class InvoiceMessageController extends Controller
     public function attachment(Request $request, InvoiceMessage $message, Media $media): Response
     {
         Gate::authorize('viewMessages', $message->invoice);
+        abort_unless($message->isVisibleTo($request->user()), 404);
 
         abort_unless($media->model_type === $message->getMorphClass() && (int) $media->model_id === $message->id, 404);
 

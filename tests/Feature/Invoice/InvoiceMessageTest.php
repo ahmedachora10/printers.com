@@ -250,4 +250,43 @@ describe('Invoice internal thread', function () {
 
         expect($created->messages()->pluck('body')->all())->toBe(['داخلية', 'إضافة بعد التعديل']);
     });
+    // تاسك 208 — الرسالة الخاصة لمرسلها ومن أُرسلت إليه وحدهما، ولو كان الناظر مدير الفرع.
+    it('shows a private message to its sender and recipient only', function () {
+        Notification::fake();
+
+        ($this->post)($this->owner, ['body' => 'عامة'])->assertRedirect();
+        ($this->post)($this->accountant, ['body' => 'خاصة للمدير', 'private_to' => 'role:branch-admin'])->assertRedirect();
+        $private = InvoiceMessage::latest('id')->first();
+
+        Notification::assertSentTo($this->branchAdmin, InvoiceMessagePostedNotification::class);
+        Notification::assertNotSentTo($this->owner, InvoiceMessagePostedNotification::class);
+
+        $bodies = fn (User $user) => ($this->show)($user)->assertInertia(fn ($page) => $page
+            ->loadDeferredProps('thread', fn ($page) => $page->has('thread.messages', $user->is($this->owner) ? 1 : 2)));
+        $bodies($this->accountant);
+        $bodies($this->branchAdmin);
+        $bodies($this->owner);
+
+        ($this->show)($this->accountant)->assertInertia(fn ($page) => $page
+            ->loadDeferredProps('thread', fn ($page) => $page->where('thread.messages.1.privateTo', 'مدير الفرع')));
+
+        // لا يُعدّ غير مقروء عند من لا يراها، ولا يُفرز به، ولا يُدار من خارجها.
+        $this->actingAs($this->owner)->get(route('invoices.index'))
+            ->assertInertia(fn ($page) => $page->where('items.data.0.unreadMessages', 0));
+        InvoiceMessage::whereKeyNot($private->id)->delete();
+        $this->actingAs($this->owner)->get(route('invoices.index', ['messages' => 'any']))
+            ->assertInertia(fn ($page) => $page->has('items.data', 0));
+        $this->actingAs($this->owner)->patch(route('invoices.messages.toggle-actioned', $private))->assertNotFound();
+    });
+
+    it('lets a private message go to one employee, out of the invoice owner sight', function () {
+        ($this->post)($this->branchAdmin, ['body' => 'لك وحدك', 'private_to' => "user:{$this->otherEmployee->id}"])->assertRedirect();
+
+        // المستلم يدخل الخيط مشاركاً فيراها؛ صاحب الفاتورة يرى الخيط بلا هذه الرسالة.
+        ($this->show)($this->otherEmployee)->assertInertia(fn ($page) => $page
+            ->loadDeferredProps('thread', fn ($page) => $page->has('thread.messages', 1)
+                ->where('thread.messages.0.body', 'لك وحدك')));
+        ($this->show)($this->owner)->assertInertia(fn ($page) => $page
+            ->loadDeferredProps('thread', fn ($page) => $page->has('thread.messages', 0)));
+    });
 });

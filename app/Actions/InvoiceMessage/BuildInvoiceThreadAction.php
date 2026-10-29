@@ -28,8 +28,10 @@ class BuildInvoiceThreadAction
             ->value('last_read_message_id');
 
         // المحذوفة تبقى في الخيط «حُذفت بواسطة…» بلا نصّها.
+        // تاسك 208: الخاصة لا تبلغ إلا مرسلها ومن أُرسلت إليه — ولا تُقرأ عن غيرهما.
         $messages = $invoice->messages()
             ->withTrashed()
+            ->where(InvoiceMessage::visibleTo($viewer))
             ->with(['author:id,name', 'author.roles:id,name', 'actionedBy:id,name', 'media'])
             ->orderBy('id')
             ->get();
@@ -39,6 +41,9 @@ class BuildInvoiceThreadAction
         $pointers = DB::table('invoice_thread_participants')
             ->where('service_invoice_id', $invoice->id)
             ->pluck('last_read_message_id', 'user_id');
+        // تاسك 208: «مقروءة» على الخاصة من قارئٍ يراها وحده — موضع غيره تجاوزها دون أن يراها.
+        $readerTokens = User::with('roles')->findMany($pointers->keys())
+            ->mapWithKeys(fn (User $u) => [$u->id => ["user:{$u->id}", "role:{$u->roleName?->value}"]]);
 
         $deletedBy = Activity::query()
             ->where('subject_type', (new InvoiceMessage)->getMorphClass())
@@ -48,6 +53,8 @@ class BuildInvoiceThreadAction
             ->get()
             ->mapWithKeys(fn (Activity $a) => [$a->subject_id => $a->causer?->name]);
 
+        $mentionables = InvoiceMessage::mentionables($invoice);
+        $labels = $mentionables->pluck('label', 'token');
         $gate = Gate::forUser($viewer);
         $canPost = $gate->allows('postMessage', $invoice);
         $canModerate = $gate->allows('moderateMessages', $invoice);
@@ -59,9 +66,11 @@ class BuildInvoiceThreadAction
                 'authorName' => $m->user_id === null ? 'ملاحظة سابقة' : ($m->author?->name ?? '—'),
                 'authorRole' => $m->author?->roleName?->label(),
                 'body' => $m->trashed() ? null : $m->body,
+                'privateTo' => $m->private_to === null ? null : ($labels[$m->private_to] ?? '—'),
                 'createdAt' => $m->created_at?->toIso8601String(),
                 'isNew' => $m->user_id !== null && $m->user_id !== $viewer->id && $m->id > $lastRead,
-                'isRead' => $pointers->except([$m->user_id])->contains(fn ($pointer) => (int) $pointer >= $m->id),
+                'isRead' => $pointers->except([$m->user_id])->contains(fn ($pointer, $userId) => (int) $pointer >= $m->id
+                    && ($m->private_to === null || in_array($m->private_to, $readerTokens[$userId] ?? [], true))),
                 'actionedAt' => $m->actioned_at?->toIso8601String(),
                 'actionedByName' => $m->actionedBy?->name,
                 'editedAt' => $m->edited_at?->toIso8601String(),
@@ -80,7 +89,7 @@ class BuildInvoiceThreadAction
             'canPost' => $canPost,
             'canModerate' => $canModerate,
             'mentionables' => $canPost
-                ? InvoiceMessage::mentionables($invoice)->reject(fn ($m) => $m['token'] === "user:{$viewer->id}")->values()
+                ? $mentionables->reject(fn ($m) => $m['token'] === "user:{$viewer->id}")->values()
                 : [],
         ];
     }
