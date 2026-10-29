@@ -2,6 +2,7 @@
 
 use App\Enums\Roles;
 use App\Models\Branch;
+use App\Models\BranchService;
 use App\Models\CommissionLedger;
 use App\Models\IncentivePlan;
 use App\Models\InvoicePayment;
@@ -10,6 +11,7 @@ use App\Models\Product;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
+use App\Models\ServiceTemplate;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -195,6 +197,33 @@ describe('Dashboard', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('kpis.todaySales', null)
                 ->where('kpis.monthSales', 230));
+    });
+
+    // تاسكات 202 و204 — الدفعة الجزئية بقدرها، وحصة المساعد له لا لصاحب الفاتورة.
+    it('counts partial payments and splits the helper share on the employee month tile', function () {
+        $helper = User::factory()->create(['branch_id' => $this->branch->id]);
+        $helper->addRole(Roles::EMPLOYEE->value);
+
+        $invoice = dashServiceInvoice($this->branch, $this->employee, [
+            'subtotal' => 869.57, 'vat_amount' => 130.43, 'total_amount' => 1000,
+            'status' => 'partially_paid', 'paid_at' => null,
+        ]);
+        InvoicePayment::create([
+            'invoice_type' => ServiceInvoice::class, 'invoice_id' => $invoice->id, 'branch_id' => $this->branch->id,
+            'amount' => 500, 'paid_at' => now(), 'recorded_by' => $this->branchAdmin->id,
+        ]);
+        // 260.87 صافية = 300 شاملة الضريبة = 30% من الفاتورة.
+        $invoice->helpers()->create([
+            'user_id' => $helper->id, 'branch_service_id' => BranchService::query()->insertGetId(['branch_id' => $this->branch->id, 'service_template_id' => ServiceTemplate::factory()->create()->id, 'base_commission_pct' => 0, 'max_discount_pct' => 0, 'is_tahazir' => false, 'is_active' => true]), 'service_name' => 'x',
+            'share_type' => 'percentage', 'share_value' => 30, 'share_net' => 260.87,
+        ]);
+
+        $this->actingAs($this->employee)->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page->where('kpis.monthSales', 350));
+        $this->actingAs($helper)->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page->where('kpis.monthSales', 150));
+        $this->actingAs($this->branchAdmin)->get(route('dashboard'))
+            ->assertInertia(fn ($page) => $page->where('kpis.monthSales', 500));
     });
 
     // ── LISTS ──────────────────────────────────────────────────────

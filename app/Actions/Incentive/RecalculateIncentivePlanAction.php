@@ -2,18 +2,19 @@
 
 namespace App\Actions\Incentive;
 
+use App\Actions\Report\CollectionEvents;
 use App\Enums\IncentivePlanStatusEnum;
-use App\Enums\InvoiceStatusEnum;
 use App\Models\IncentivePlan;
 use App\Models\ServiceInvoice;
 use App\Notifications\IncentiveShortfallNotification;
 use App\Support\BranchNotifiables;
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
 class RecalculateIncentivePlanAction
 {
+    public function __construct(private readonly CollectionEvents $events) {}
+
     /**
      * Refresh a plan's achieved sales and derive its status. A paid plan is
      * frozen — its payout is already recorded and must not be re-evaluated.
@@ -24,7 +25,11 @@ class RecalculateIncentivePlanAction
             return $plan;
         }
 
-        $achieved = $this->achievedSales($plan);
+        // تاسك 203: شهرٌ انتهى لا تُعاد مبيعاته — أثر أي مرتجع لاحق في شهر تسجيله.
+        // الخطة الجديدة لشهرٍ مضى تُحتسب مرة عند إنشائها.
+        $achieved = $plan->periodEnded() && ! $plan->wasRecentlyCreated
+            ? (float) $plan->achieved_amount
+            : $this->achievedSales($plan);
 
         $plan->achieved_amount = $achieved;
         $plan->status = $this->deriveStatus($plan, $achieved);
@@ -34,81 +39,50 @@ class RecalculateIncentivePlanAction
     }
 
     /**
-     * تاسك 160 — المحقَّق = مبيعات الموظف **المعتمدة** صافيةً من المرتجعات.
+     * المحقَّق = مبيعات الموظف في شهر الخطة بأحداث التحصيل (CollectionEvents):
      *
-     * - المعتمدة: مدفوعة أو مدفوعة جزئياً (InvoiceStatusEnum::approved)؛ الآجلة لا
-     *   تُحتسب حتى يعتمدها المحاسب، والمرتجعة كلياً خارجة بحالتها.
-     * - الشهر: شهر الاعتماد = أول دفعة قُبضت وإلا paid_at — نفس اشتقاق التقرير
-     *   اليومي، فلا تقفز فاتورة العربون إلى شهر آخر حين يكتمل سدادها.
-     * - المرتجع الجزئي يُطرح في شهر اعتماد الفاتورة لا شهر المرتجع.
-     * - المساعدون: حصة كل مساعد (share_net مُعاداً إليها الضريبة) تُحسب له وتُطرح
-     *   من صاحب الفاتورة، والمرتجع الجزئي يُوزَّع عليهما بالنسبة نفسها.
+     * - تاسك 201: كل دفعة تُحسب بقدرها في شهر قبضها، لا الفاتورة كاملةً عند
+     *   أول دفعة. المسدَّدة عند البيع بإجماليها يوم سدادها.
+     * - تاسك 203: المرتجع (جزئياً أو كلياً) حدثٌ سالب في شهر تسجيله، فلا يُمسّ
+     *   شهرٌ مقفل، ولا يُطرح إلا ما سبق احتسابه. قد يصير المحقَّق سالباً، ويبقى
+     *   في شهره بلا ترحيل.
+     * - المساعدون: حصة كل مساعد من كل حدث تُحسب له وتُطرح من صاحب الفاتورة.
      */
     public function achievedSales(IncentivePlan $plan): float
     {
         $start = CarbonImmutable::create($plan->period_year, $plan->period_month, 1)->startOfMonth();
-        $end = $start->endOfMonth();
 
-        $firstPayment = DB::table('invoice_payments')
-            ->where('invoice_type', ServiceInvoice::class)
-            ->groupBy('invoice_id')
-            ->select('invoice_id', DB::raw('MIN(paid_at) as first_paid_at'));
-
-        $refunds = DB::table('refunds')
-            ->where('invoice_type', ServiceInvoice::class)
-            ->whereNull('deleted_at')
-            ->groupBy('invoice_id')
-            ->select('invoice_id', DB::raw('SUM(amount) as refunded'));
-
-        // ‎1.0 و100.0: SQLite يقسم الأعداد الصحيحة قسمةً صحيحة.
-        $kept = 'COALESCE((service_invoices.total_amount - COALESCE(r.refunded, 0)) * 1.0 / NULLIF(service_invoices.total_amount, 0), 0)';
-        $withVat = 'ROUND(%s * (1 + service_invoices.vat_pct / 100.0), 2)';
-
-        $approvedInMonth = fn () => ServiceInvoice::query()
-            ->leftJoinSub($firstPayment, 'fp', 'fp.invoice_id', '=', 'service_invoices.id')
-            ->leftJoinSub($refunds, 'r', 'r.invoice_id', '=', 'service_invoices.id')
-            ->where('service_invoices.branch_id', $plan->branch_id)
-            ->whereIn('service_invoices.status', InvoiceStatusEnum::approved())
-            ->whereBetween(DB::raw('COALESCE(fp.first_paid_at, service_invoices.paid_at)'), [$start, $end]);
-
-        $shared = DB::table('service_invoice_helpers')
-            ->groupBy('service_invoice_id')
-            ->select('service_invoice_id', DB::raw('SUM(share_net) as shared_net'));
-        $ownShare = sprintf($withVat, 'COALESCE(h.shared_net, 0)');
-        $helperShare = sprintf($withVat, 'service_invoice_helpers.share_net');
-
-        $own = $approvedInMonth()
-            ->leftJoinSub($shared, 'h', 'h.service_invoice_id', '=', 'service_invoices.id')
-            ->where('service_invoices.user_id', $plan->user_id)
-            ->sum(DB::raw("(service_invoices.total_amount - {$ownShare}) * {$kept}"));
-
-        $helped = $approvedInMonth()
-            ->join('service_invoice_helpers', 'service_invoice_helpers.service_invoice_id', '=', 'service_invoices.id')
-            ->where('service_invoice_helpers.user_id', $plan->user_id)
-            ->sum(DB::raw("{$helperShare} * {$kept}"));
-
-        return round((float) $own + (float) $helped, 2);
+        return round((float) $this->events->perEmployee('service_invoices', [
+            'branchIds' => [$plan->branch_id],
+            'from' => $start,
+            'to' => $start->endOfMonth(),
+        ])->where('events.user_id', $plan->user_id)->sum('events.realized'), 2);
     }
 
     /**
-     * يُستدعى بعد اعتماد الفاتورة أو استرجاعها: يحدّث خطط صاحبها ومساعديها لشهر
-     * اعتمادها. الخطة المصروفة لا تُعاد — إن نزل محقَّقها تحت الهدف يُنبَّه مدير
-     * الفرع فقط، ولا يُسجَّل حسمٌ تلقائي على الموظف.
+     * يُستدعى بعد كل دفعة أو اعتماد أو مرتجع: يحدّث خطط صاحب الفاتورة ومساعديها
+     * لكل شهرٍ فيه حدث تحصيل للفاتورة. الخطة المصروفة لا تُعاد — إن نزل
+     * محقَّقها تحت الهدف يُنبَّه مدير الفرع فقط، ولا يُسجَّل حسمٌ تلقائي.
      */
     public function refreshForInvoice(ServiceInvoice $invoice): void
     {
-        $approvedAt = $invoice->payments()->min('paid_at') ?? $invoice->paid_at;
+        $periods = $invoice->payments()->pluck('paid_at')
+            ->push($invoice->paid_at)
+            ->merge($invoice->refunds()->pluck('created_at'))
+            ->filter()
+            ->map(fn ($at) => CarbonImmutable::parse($at))
+            ->unique(fn (CarbonImmutable $at) => $at->format('Y-n'));
 
-        if ($approvedAt === null) {
+        if ($periods->isEmpty()) {
             return;
         }
 
-        $approvedAt = CarbonImmutable::parse($approvedAt);
         $plans = IncentivePlan::query()
             ->whereIn('user_id', $invoice->helpers()->pluck('user_id')->push($invoice->user_id))
             ->where('branch_id', $invoice->branch_id)
-            ->where('period_year', $approvedAt->year)
-            ->where('period_month', $approvedAt->month)
+            ->where(fn ($q) => $periods->each(fn (CarbonImmutable $at) => $q->orWhere(fn ($p) => $p
+                ->where('period_year', $at->year)
+                ->where('period_month', $at->month))))
             ->get();
 
         foreach ($plans as $plan) {

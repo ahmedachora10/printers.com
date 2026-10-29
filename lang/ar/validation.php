@@ -160,6 +160,18 @@ return [
         'attribute-name' => [
             'rule-name' => 'custom-message',
         ],
+        // تاسك 205 — المساعدون في فاتورة الخدمة (إنشاءً وتعديلاً).
+        'helpers.*.user_id' => [
+            'required' => 'اختر الموظف المساعد.',
+            'exists' => 'اختر الموظف المساعد.',
+        ],
+        'helpers.*.branch_service_id' => [
+            'required' => 'اختر الخدمة التي ساعد فيها المساعد.',
+            'exists' => 'اختر الخدمة التي ساعد فيها المساعد.',
+        ],
+        'helpers.*.share_value' => [
+            'gt' => 'حصة المساعد يجب أن تكون أكبر من صفر.',
+        ],
     ],
 
     'attributes' => [

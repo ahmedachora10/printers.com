@@ -176,7 +176,7 @@ class CreateRefundAction
                 $invoice->update(['status' => InvoiceStatusEnum::RETURNED]);
             }
 
-            // تاسك 160: المرتجع يُطرح من محقَّق الحوافز في شهر اعتماد الفاتورة.
+            // تاسك 203: المرتجع يُطرح من محقَّق الحوافز في شهر تسجيله.
             if ($invoice instanceof ServiceInvoice) {
                 $this->recalculateIncentive->refreshForInvoice($invoice);
             }

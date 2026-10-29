@@ -165,7 +165,6 @@ class StoreServiceInvoiceRequest extends FormRequest
             'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
             'status.in' => 'لا يمكنك إصدار فاتورة مدفوعة. يتم حفظ الفاتورة كمعلقة ليراجعها المحاسب.',
             'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',
-            'helpers.*.share_value.gt' => 'حصة المساعد يجب أن تكون أكبر من صفر.',
             'internal_notes.max' => 'الملاحظات الداخلية يجب ألا تتجاوز 1000 حرف.',
             'delivery_at.date' => 'موعد التسليم غير صالح.',
             'delivery_at.after_or_equal' => 'موعد التسليم يجب ألا يكون قبل اليوم.',

@@ -2,11 +2,14 @@
 
 use App\Enums\Roles;
 use App\Models\Branch;
+use App\Models\BranchService;
 use App\Models\CommissionLedger;
 use App\Models\InvoicePayment;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceHelper;
 use App\Models\ServiceInvoiceLine;
+use App\Models\ServiceTemplate;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -148,6 +151,39 @@ describe('Employee Commission Report', function () {
                 ->where('totals.lineCount', 2)
                 ->where('lines', fn ($lines) => collect($lines)->pluck('invoiceStatus')->sort()->values()->all() === ['cancelled', 'paid'])
             );
+    });
+
+    // تاسك 206 — حصة المساعد إيرادٌ له لا سالبٌ مستقل، والفاتورة تُعدّ له ومرة واحدة للشركة.
+    it('credits a helper with their share of the revenue and the invoice', function () {
+        $helper = User::factory()->create(['branch_id' => $this->branch->id]);
+        $helper->addRole(Roles::EMPLOYEE->value);
+
+        $owner = ledgerLine($this->employee, $this->branch);
+        $invoice = ServiceInvoiceLine::findOrFail($owner->invoice_line_id)->invoice;
+        // 50 صافية = 57.50 شاملة الضريبة = نصف الفاتورة (115).
+        $share = $invoice->helpers()->create([
+            'user_id' => $helper->id, 'branch_service_id' => BranchService::query()->insertGetId(['branch_id' => $this->branch->id, 'service_template_id' => ServiceTemplate::factory()->create()->id, 'base_commission_pct' => 0, 'max_discount_pct' => 0, 'is_tahazir' => false, 'is_active' => true]), 'service_name' => 'تصميم',
+            'share_type' => 'amount', 'share_value' => 57.5, 'share_net' => 50,
+        ]);
+        CommissionLedger::factory()->create([
+            'user_id' => $helper->id, 'branch_id' => $this->branch->id, 'amount' => 13.04,
+            'invoice_line_id' => $share->id, 'invoice_line_type' => ServiceInvoiceHelper::class,
+        ]);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.commissions', ['employee' => $helper->id]))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.revenue', 57.5)
+                ->where('totals.invoiceCount', 1)
+                ->where('totals.netRevenue', 44.46));
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page
+                ->where('totals.revenue', 115)
+                ->where('totals.invoiceCount', 1)
+                ->where('summary', fn ($rows) => collect($rows)->pluck('revenue', 'userId')->all()
+                    == [$this->employee->id => 57.5, $helper->id => 57.5]));
     });
 
     // ── RETURNED INVOICES (تاسك 10) ────────────────────────────────

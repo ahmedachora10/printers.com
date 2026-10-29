@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\Report\CollectionEvents;
 use App\Actions\Report\ResolveReportScope;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\Roles;
@@ -21,6 +22,8 @@ use Inertia\Response;
 
 class DashboardController extends Controller
 {
+    public function __construct(private readonly CollectionEvents $events) {}
+
     private const TABLES = ['product_invoices', 'service_invoices'];
 
     /** Days shown in the revenue trend and the rolling chart window. */
@@ -61,9 +64,9 @@ class DashboardController extends Controller
         return Inertia::render('dashboard', [
             'kpis' => [
                 'todaySales' => $isAdmin || $isAccountant
-                    ? $this->paidSalesBetween($branchIds, $userId, $today->copy()->startOfDay(), $today->copy()->endOfDay())
+                    ? $this->salesBetween($branchIds, $userId, $today->copy()->startOfDay(), $today->copy()->endOfDay())
                     : null,
-                'monthSales' => $this->paidSalesBetween($branchIds, $userId, $monthStart, Carbon::now()),
+                'monthSales' => $this->salesBetween($branchIds, $userId, $monthStart, Carbon::now()),
                 'outstandingDue' => $isAdmin || $isAccountant ? $this->outstandingDue($branchIds, $userId) : null,
                 'pendingCommissions' => $isAdmin || $isEmployee ? $this->pendingCommissions($branchIds, $userId) : null,
                 // Inventory is a manager concern; hidden for accountants/employees.
@@ -102,30 +105,40 @@ class DashboardController extends Controller
     private function scoped(string $table, array $branchIds, ?int $userId): Builder
     {
         return DB::table($table)
-            ->whereNull($table . '.deleted_at')
-            ->when($branchIds, fn($q) => $q->whereIn($table . '.branch_id', $branchIds))
-            ->when($userId, fn($q) => $q->where($table . '.user_id', $userId));
+            ->whereNull($table.'.deleted_at')
+            ->when($branchIds, fn ($q) => $q->whereIn($table.'.branch_id', $branchIds))
+            ->when($userId, fn ($q) => $q->where($table.'.user_id', $userId));
     }
 
-    /** Realized revenue (paid invoices) across both tables within a window. */
-    private function paidSalesBetween(array $branchIds, ?int $userId, Carbon $from, Carbon $to): float
+    /**
+     * تاسك 202 — أحداث التحصيل (CollectionEvents) لجدول فواتير في نافذة: كل
+     * دفعة بقدرها يوم قبضها، والمرتجع سالباً يوم تسجيله. للموظف نصيبه منها
+     * بعد توزيع حصص المساعدين (تاسك 204).
+     */
+    private function salesEvents(string $table, array $branchIds, ?int $userId, Carbon $from, ?Carbon $to = null): Builder
+    {
+        $scope = ['branchIds' => $branchIds, 'from' => $from, 'to' => $to];
+
+        return $this->events->perEmployee($table, $scope)
+            ->when($userId, fn ($q) => $q->where('events.user_id', $userId));
+    }
+
+    /** Collected sales across both tables within a window, net of refunds. */
+    private function salesBetween(array $branchIds, ?int $userId, Carbon $from, Carbon $to): float
     {
         $total = 0.0;
 
         foreach (self::TABLES as $table) {
-            $total += (float) $this->scoped($table, $branchIds, $userId)
-                ->where('status', InvoiceStatusEnum::PAID->value)
-                ->whereBetween('paid_at', [$from, $to])
-                ->sum('total_amount');
+            $total += (float) $this->salesEvents($table, $branchIds, $userId, $from, $to)->sum('events.realized');
         }
 
-        return $total;
+        return round($total, 2);
     }
 
     /**
-     * Daily paid revenue for the last TREND_DAYS days, one point per day with
-     * product and service series. Missing days are filled with zero so the line
-     * is continuous.
+     * Daily collected sales for the last TREND_DAYS days, one point per day
+     * with product and service series. Missing days are filled with zero so
+     * the line is continuous.
      *
      * @return array<int, array{date: string, product: float, service: float}>
      */
@@ -140,19 +153,17 @@ class DashboardController extends Controller
         foreach (self::TABLES as $table) {
             $series = $table === 'product_invoices' ? 'product' : 'service';
 
-            $rows = $this->scoped($table, $branchIds, $userId)
-                ->where('status', InvoiceStatusEnum::PAID->value)
-                ->where('paid_at', '>=', $windowStart)
-                ->groupBy(DB::raw('DATE(paid_at)'))
+            $rows = $this->salesEvents($table, $branchIds, $userId, $windowStart)
+                ->groupBy(DB::raw('DATE(events.realized_at)'))
                 ->get([
-                    DB::raw('DATE(paid_at) as day'),
-                    DB::raw('COALESCE(SUM(total_amount), 0) as total'),
+                    DB::raw('DATE(events.realized_at) as day'),
+                    DB::raw('COALESCE(SUM(events.realized), 0) as total'),
                 ]);
 
             foreach ($rows as $row) {
                 $key = (string) $row->day;
                 if (isset($days[$key])) {
-                    $days[$key][$series] = (float) $row->total;
+                    $days[$key][$series] = round((float) $row->total, 2);
                 }
             }
         }
@@ -184,12 +195,12 @@ class DashboardController extends Controller
             // أ. دفعةٌ مسجَّلة (عربون أو قسط): طريقتها هي طريقتها، وإلا فطريقة الرأس.
             $payments = $this->scoped($table, $branchIds, $userId)
                 ->join('invoice_payments as p', function ($join) use ($table, $morphClass) {
-                    $join->on('p.invoice_id', '=', $table . '.id')
+                    $join->on('p.invoice_id', '=', $table.'.id')
                         ->where('p.invoice_type', '=', $morphClass);
                 })
-                ->where($table . '.status', InvoiceStatusEnum::PAID->value)
+                ->where($table.'.status', InvoiceStatusEnum::PAID->value)
                 ->where('p.paid_at', '>=', $windowStart)
-                ->leftJoin('payment_methods', 'payment_methods.id', '=', DB::raw('COALESCE(p.payment_method_id, ' . $table . '.payment_method_id)'))
+                ->leftJoin('payment_methods', 'payment_methods.id', '=', DB::raw('COALESCE(p.payment_method_id, '.$table.'.payment_method_id)'))
                 ->groupBy('payment_methods.name')
                 ->get([
                     'payment_methods.name as name',
@@ -199,16 +210,16 @@ class DashboardController extends Controller
             // ب. فاتورةٌ بلا دفعات — سُدّدت دفعةً واحدة على الصندوق: حدثٌ واحد
             //    بكامل مبلغها وطريقة رأسها، كما كان الرسم يعدّها.
             $direct = $this->scoped($table, $branchIds, $userId)
-                ->where($table . '.status', InvoiceStatusEnum::PAID->value)
-                ->where($table . '.paid_at', '>=', $windowStart)
-                ->whereNotExists(fn($q) => $q->from('invoice_payments as p')
+                ->where($table.'.status', InvoiceStatusEnum::PAID->value)
+                ->where($table.'.paid_at', '>=', $windowStart)
+                ->whereNotExists(fn ($q) => $q->from('invoice_payments as p')
                     ->where('p.invoice_type', $morphClass)
-                    ->whereColumn('p.invoice_id', $table . '.id'))
-                ->leftJoin('payment_methods', 'payment_methods.id', '=', $table . '.payment_method_id')
+                    ->whereColumn('p.invoice_id', $table.'.id'))
+                ->leftJoin('payment_methods', 'payment_methods.id', '=', $table.'.payment_method_id')
                 ->groupBy('payment_methods.name')
                 ->get([
                     'payment_methods.name as name',
-                    DB::raw('COALESCE(SUM(' . $table . '.total_amount), 0) as total'),
+                    DB::raw('COALESCE(SUM('.$table.'.total_amount), 0) as total'),
                 ]);
 
             foreach ($payments->concat($direct) as $row) {
@@ -221,7 +232,7 @@ class DashboardController extends Controller
         foreach ($methods as $name => $total) {
             $out[] = ['name' => $name, 'total' => round($total, 2)];
         }
-        usort($out, fn($a, $b) => $b['total'] <=> $a['total']);
+        usort($out, fn ($a, $b) => $b['total'] <=> $a['total']);
 
         return $out;
     }
@@ -245,8 +256,8 @@ class DashboardController extends Controller
     {
         return (float) DB::table('commission_ledger')
             ->whereNull('paid_at')
-            ->when($branchIds, fn($q) => $q->whereIn('branch_id', $branchIds))
-            ->when($userId, fn($q) => $q->where('user_id', $userId))
+            ->when($branchIds, fn ($q) => $q->whereIn('branch_id', $branchIds))
+            ->when($userId, fn ($q) => $q->where('user_id', $userId))
             ->sum('amount');
     }
 
@@ -254,7 +265,7 @@ class DashboardController extends Controller
     private function lowStockCount(array $branchIds): int
     {
         return Product::query()
-            ->when($branchIds, fn($q) => $q->whereIn('branch_id', $branchIds))
+            ->when($branchIds, fn ($q) => $q->whereIn('branch_id', $branchIds))
             ->whereColumn('current_stock', '<=', 'min_stock_level')
             ->where('is_active', true)
             ->count();
@@ -273,7 +284,7 @@ class DashboardController extends Controller
             ->where('period_year', Carbon::now()->year)
             ->first();
 
-        if (!$plan) {
+        if (! $plan) {
             return null;
         }
 
@@ -331,15 +342,15 @@ class DashboardController extends Controller
             $type = $table === 'product_invoices' ? 'product' : 'service';
 
             $records = $this->scoped($table, $branchIds, $userId)
-                ->leftJoin('customers', 'customers.id', '=', $table . '.customer_id')
-                ->orderByDesc($table . '.created_at')
+                ->leftJoin('customers', 'customers.id', '=', $table.'.customer_id')
+                ->orderByDesc($table.'.created_at')
                 ->limit(5)
                 ->get([
-                    $table . '.id as id',
-                    $table . '.invoice_number as invoice_number',
-                    $table . '.total_amount as total_amount',
-                    $table . '.status as status',
-                    $table . '.created_at as created_at',
+                    $table.'.id as id',
+                    $table.'.invoice_number as invoice_number',
+                    $table.'.total_amount as total_amount',
+                    $table.'.status as status',
+                    $table.'.created_at as created_at',
                     'customers.full_name as customer_name',
                 ]);
 
@@ -371,8 +382,8 @@ class DashboardController extends Controller
             ->whereNull('service_invoices.deleted_at')
             ->where('service_invoices.status', InvoiceStatusEnum::PAID->value)
             ->where('service_invoices.paid_at', '>=', $windowStart)
-            ->when($branchIds, fn($q) => $q->whereIn('service_invoices.branch_id', $branchIds))
-            ->when($userId, fn($q) => $q->where('service_invoices.user_id', $userId))
+            ->when($branchIds, fn ($q) => $q->whereIn('service_invoices.branch_id', $branchIds))
+            ->when($userId, fn ($q) => $q->where('service_invoices.user_id', $userId))
             ->groupBy('service_invoice_lines.service_name')
             ->orderByDesc(DB::raw('SUM(service_invoice_lines.subtotal)'))
             ->limit(5)
@@ -381,7 +392,7 @@ class DashboardController extends Controller
                 DB::raw('COUNT(*) as line_count'),
                 DB::raw('COALESCE(SUM(service_invoice_lines.subtotal), 0) as total'),
             ])
-            ->map(fn($row) => [
+            ->map(fn ($row) => [
                 'name' => $row->name,
                 'count' => (int) $row->line_count,
                 'total' => (float) $row->total,

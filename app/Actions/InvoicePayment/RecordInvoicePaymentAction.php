@@ -125,8 +125,12 @@ class RecordInvoicePaymentAction
                 $payment->addMedia($receipt)->toMediaCollection(InvoicePayment::RECEIPT_COLLECTION);
             }
 
-            // معتمدةٌ أصلاً: الدفعة تحصيلٌ فحسب.
+            // معتمدةٌ أصلاً: الدفعة تحصيلٌ فحسب — لكنها مبيعاتٌ في شهرها (تاسك 201).
             if ($owesAfterApproval) {
+                if ($invoice instanceof ServiceInvoice) {
+                    $this->recalculateIncentive->refreshForInvoice($invoice);
+                }
+
                 return $payment;
             }
 
@@ -136,7 +140,7 @@ class RecordInvoicePaymentAction
                 $invoice->update(['status' => InvoiceStatusEnum::PARTIALLY_PAID]);
 
                 // تاسك 191: نصيب هذه الدفعة من العمولة بتاريخها — والتصحيح السالب يعكسه.
-                // تاسك 160: المدفوعة جزئياً معتمدة — تدخل المحقَّق من أول دفعة.
+                // تاسك 201: الدفعة الجزئية تدخل المحقَّق بقدرها في شهرها.
                 if ($invoice instanceof ServiceInvoice) {
                     $this->markServiceInvoicePaid->syncCommissionLedger($invoice, $paidAt);
                     $this->recalculateIncentive->refreshForInvoice($invoice);

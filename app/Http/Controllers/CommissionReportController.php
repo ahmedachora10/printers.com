@@ -185,8 +185,8 @@ class CommissionReportController extends Controller
     private function summaryRows(array $scope): Collection
     {
         $lineCommissions = $this->lineCommissionByEmployee($scope)->keyBy('userId');
-        $revenue = $this->sumByEmployee($this->approvedInvoiceQuery(DB::table('service_invoices'), $scope), 'service_invoices.user_id', 'service_invoices.total_amount');
-        $refunds = $this->sumByEmployee($this->refundsQuery($scope), 'service_invoices.user_id', 'r.amount');
+        $revenue = $this->sumByEmployee($this->revenueQuery($scope), 'sp.user_id', 'service_invoices.total_amount * sp.factor');
+        $refunds = $this->sumByEmployee($this->refundsQuery($scope), 'sp.user_id', 'r.amount * sp.factor');
         $collected = $this->sumByEmployee($this->collectedQuery($scope), 'c.user_id', 'c.amount');
 
         // Columns read off the employee's own approved invoices, not the ledger.
@@ -485,12 +485,13 @@ class CommissionReportController extends Controller
      */
     private function revenueByDay(array $scope): array
     {
-        return $this->approvedInvoiceQuery(DB::table('service_invoices'), $scope)
+        return $this->revenueQuery($scope)
             ->groupBy(DB::raw('DATE('.self::APPROVED_AT.')'))
             ->get([
                 DB::raw('DATE('.self::APPROVED_AT.') as day'),
-                DB::raw('COUNT(*) as invoice_count'),
-                DB::raw('COALESCE(SUM(service_invoices.total_amount), 0) as total'),
+                // صفّ لكل مشارك — فالفاتورة تُعدّ مرة واحدة.
+                DB::raw('COUNT(DISTINCT service_invoices.id) as invoice_count'),
+                DB::raw('COALESCE(SUM(service_invoices.total_amount * sp.factor), 0) as total'),
             ])
             ->mapWithKeys(fn ($row) => [(string) $row->day => [
                 'count' => (int) $row->invoice_count,
@@ -529,7 +530,7 @@ class CommissionReportController extends Controller
     {
         return $this->refundsQuery($scope)
             ->groupBy(DB::raw('DATE(r.created_at)'))
-            ->get([DB::raw('DATE(r.created_at) as day'), DB::raw('COALESCE(SUM(r.amount), 0) as amount')])
+            ->get([DB::raw('DATE(r.created_at) as day'), DB::raw('COALESCE(SUM(r.amount * sp.factor), 0) as amount')])
             ->mapWithKeys(fn ($row) => [(string) $row->day => (float) $row->amount])
             ->all();
     }
@@ -569,30 +570,32 @@ class CommissionReportController extends Controller
     {
         $payments = DB::table('invoice_payments as p')
             ->join('service_invoices as i', 'i.id', '=', 'p.invoice_id')
+            ->joinSub(ServiceInvoiceHelper::salesShares(), 'sp', 'sp.invoice_id', '=', 'i.id')
             ->where('p.invoice_type', ServiceInvoice::class)
             ->whereIn('i.status', InvoiceStatusEnum::approved())
             ->whereNull('i.deleted_at')
             ->select([
-                'i.user_id',
+                'sp.user_id',
                 'i.branch_id',
                 DB::raw('p.paid_at as collected_at'),
-                DB::raw('p.amount as amount'),
+                DB::raw('p.amount * sp.factor as amount'),
                 // تاسك 139: ضريبة الدفعة بنسبة فاتورتها. الضرب في 1.0 يمنع قسمة SQLite الصحيحة.
-                DB::raw('p.amount * i.vat_amount * 1.0 / NULLIF(i.total_amount, 0) as vat'),
+                DB::raw('p.amount * sp.factor * i.vat_amount * 1.0 / NULLIF(i.total_amount, 0) as vat'),
             ]);
 
         $settledAtTill = DB::table('service_invoices as i')
+            ->joinSub(ServiceInvoiceHelper::salesShares(), 'sp', 'sp.invoice_id', '=', 'i.id')
             ->where('i.status', InvoiceStatusEnum::PAID->value)
             ->whereNull('i.deleted_at')
             ->whereNotExists(fn ($q) => $q->from('invoice_payments as p')
                 ->where('p.invoice_type', ServiceInvoice::class)
                 ->whereColumn('p.invoice_id', 'i.id'))
             ->select([
-                'i.user_id',
+                'sp.user_id',
                 'i.branch_id',
                 DB::raw('i.paid_at as collected_at'),
-                DB::raw('i.total_amount as amount'),
-                DB::raw('i.vat_amount as vat'),
+                DB::raw('i.total_amount * sp.factor as amount'),
+                DB::raw('i.vat_amount * sp.factor as vat'),
             ]);
 
         return DB::query()
@@ -614,14 +617,32 @@ class CommissionReportController extends Controller
     {
         return DB::table('refunds as r')
             ->join('service_invoices', 'service_invoices.id', '=', 'r.invoice_id')
+            ->joinSub(ServiceInvoiceHelper::salesShares(), 'sp', 'sp.invoice_id', '=', 'service_invoices.id')
             ->where('r.invoice_type', ServiceInvoice::class)
             ->whereNull('r.deleted_at')
             ->whereNull('service_invoices.deleted_at')
             ->whereIn('service_invoices.status', InvoiceStatusEnum::approved())
             ->when($scope['branchId'], fn ($q) => $q->where('service_invoices.branch_id', $scope['branchId']))
-            ->when($scope['userId'], fn ($q) => $q->where('service_invoices.user_id', $scope['userId']))
+            ->when($scope['userId'], fn ($q) => $q->where('sp.user_id', $scope['userId']))
             ->when($scope['from'], fn ($q) => $q->where('r.created_at', '>=', $scope['from']))
             ->when($scope['to'], fn ($q) => $q->where('r.created_at', '<=', $scope['to']));
+    }
+
+    /**
+     * تاسك 206 — الفواتير المعتمدة مع صفّ لكل مشارك فيها (sp): المساعد يُنسب
+     * إليه من «الإجمالي» نصيبه وتُعدّ له الفاتورة، ويُطرح نصيبه من صاحبها.
+     * الخامات والعمولات الخارجية تبقى على صاحب الفاتورة.
+     *
+     * @param  array<string, mixed>  $scope
+     */
+    private function revenueQuery(array $scope): Builder
+    {
+        return $this->approvedInvoiceQuery(
+            DB::table('service_invoices')
+                ->joinSub(ServiceInvoiceHelper::salesShares(), 'sp', 'sp.invoice_id', '=', 'service_invoices.id'),
+            $scope,
+            'sp.user_id',
+        );
     }
 
     /**
@@ -652,7 +673,7 @@ class CommissionReportController extends Controller
      *
      * @param  array<string, mixed>  $scope
      */
-    private function approvedInvoiceQuery(Builder $query, array $scope): Builder
+    private function approvedInvoiceQuery(Builder $query, array $scope, string $userColumn = 'service_invoices.user_id'): Builder
     {
         $firstPayment = DB::table('invoice_payments')
             ->where('invoice_type', ServiceInvoice::class)
@@ -665,7 +686,7 @@ class CommissionReportController extends Controller
             // DB::table() bypasses the model's soft-delete scope.
             ->whereNull('service_invoices.deleted_at')
             ->when($scope['branchId'], fn ($q) => $q->where('service_invoices.branch_id', $scope['branchId']))
-            ->when($scope['userId'], fn ($q) => $q->where('service_invoices.user_id', $scope['userId']))
+            ->when($scope['userId'], fn ($q) => $q->where($userColumn, $scope['userId']))
             ->when($scope['from'], fn ($q) => $q->whereRaw(self::APPROVED_AT.' >= ?', [$scope['from']]))
             ->when($scope['to'], fn ($q) => $q->whereRaw(self::APPROVED_AT.' <= ?', [$scope['to']]));
     }
