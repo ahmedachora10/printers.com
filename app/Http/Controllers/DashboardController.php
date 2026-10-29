@@ -119,9 +119,8 @@ class DashboardController extends Controller
     {
         $scope = ['branchIds' => $branchIds, 'from' => $from, 'to' => $to];
 
-        return $userId
-            ? $this->events->perEmployee($table, $scope)->where('events.user_id', $userId)
-            : $this->events->handle($table, $scope);
+        return $this->events->perEmployee($table, $scope)
+            ->when($userId, fn ($q) => $q->where('events.user_id', $userId));
     }
 
     /** Collected sales across both tables within a window, net of refunds. */
