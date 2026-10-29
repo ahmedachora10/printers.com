@@ -52,7 +52,7 @@ class InvoiceController extends Controller
         $branchId = $isSuperAdmin ? null : $user->branchId;
         $filters = $request->only([
             'search', 'type', 'status', 'date_from', 'date_to', 'time_from', 'time_to', 'branch_id', 'delivery',
-            'user_id', 'payment_method_id', 'branch_service_id', 'pending_shipments',
+            'user_id', 'payment_method_id', 'branch_service_id', 'pending_shipments', 'messages',
         ]);
         $request->session()->put(self::LIST_FILTERS_SESSION_KEY, $filters);
 
@@ -700,6 +700,12 @@ class InvoiceController extends Controller
             // تاسك 196: وجهة عدّاد «طلبات التوصيل» في القائمة الجانبية.
             ->when($request->boolean('pending_shipments'), fn ($q) => $type === InvoiceTypeEnum::SERVICE
                 ? $q->whereIn("{$table}.id", ServiceInvoice::query()->awaitingShipmentApproval()->select('id'))
+                : $q->whereRaw('1 = 0'))
+            // تاسك 207: الفواتير التي عليها ملاحظات داخلية — المحادثة للخدمات وحدها.
+            ->when($request->input('messages') === 'any', fn ($q) => $type === InvoiceTypeEnum::SERVICE
+                ? $q->whereExists(fn ($sub) => $sub->from('invoice_messages')
+                    ->whereColumn('invoice_messages.service_invoice_id', "{$table}.id")
+                    ->whereNull('invoice_messages.deleted_at'))
                 : $q->whereRaw('1 = 0'))
             // مدى على العمود نفسه لا whereDate: DATE(created_at) يُعطّل فهرس (branch_id, created_at).
             ->when($request->filled('date_from'), fn ($q) => $q->where("{$table}.created_at", '>=', $request->input('date_from').' 00:00:00'))

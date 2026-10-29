@@ -322,4 +322,6 @@ export interface InvoiceFilters {
     branch_service_id?: string;
     /** تاسك 196 — '1': فواتير عليها طلب توصيل بانتظار الاعتماد */
     pending_shipments?: string;
+    /** تاسك 207 — 'any': فواتير عليها ملاحظات داخلية */
+    messages?: string;
 }
