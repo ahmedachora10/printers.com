@@ -38,7 +38,6 @@ class InvoiceMessageController extends Controller
 
         $messages = InvoiceMessage::query()
             ->with(['author:id,name', 'invoice:id,invoice_number'])
-            ->withCount('media')
             ->where(InvoiceMessage::visibleTo($user))
             ->whereHas('invoice', fn ($q) => $q
                 ->when(! $user->roleName->isSuperAdmin(), fn ($q) => $q->where('branch_id', $user->branchId))
@@ -55,12 +54,8 @@ class InvoiceMessageController extends Controller
             ->filter(fn ($token) => str_starts_with((string) $token, 'user:'))
             ->map(fn ($token) => (int) substr($token, 5)))
             ->pluck('name', 'id');
-        $privateLabel = fn (?string $token) => match (true) {
-            $token === null => null,
-            $token === 'role:accountant' => 'المحاسب',
-            $token === 'role:branch-admin' => 'مدير الفرع',
-            default => $names[(int) substr($token, 5)] ?? '—',
-        };
+        $privateLabel = fn (?string $token) => $token === null ? null
+            : (InvoiceMessage::ROLE_LABELS[$token] ?? $names[(int) substr($token, 5)] ?? '—');
 
         return Inertia::render('invoices/messages', [
             'messages' => $this->pagedProp($messages, fn (InvoiceMessage $m) => [
@@ -70,7 +65,6 @@ class InvoiceMessageController extends Controller
                 'authorName' => $m->user_id === null ? 'ملاحظة سابقة' : ($m->author?->name ?? '—'),
                 'body' => $m->body,
                 'privateTo' => $privateLabel($m->private_to),
-                'attachmentsCount' => $m->media_count,
                 'createdAt' => $m->created_at?->toIso8601String(),
             ]),
         ]);

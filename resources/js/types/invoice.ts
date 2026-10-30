@@ -108,7 +108,6 @@ export interface InvoiceMessageRow {
     body: string | null;
     /** اسم من أُرسلت إليه الخاصة، null = للجميع */
     privateTo: string | null;
-    attachmentsCount: number;
     createdAt: string | null;
 }
 

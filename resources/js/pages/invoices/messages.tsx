@@ -5,7 +5,7 @@ import { formatDateTimeNumeric } from '@/lib/utils';
 import { type BreadcrumbItem, type Paginated } from '@/types';
 import { type InvoiceMessageRow } from '@/types/invoice';
 import { Head, Link, router } from '@inertiajs/react';
-import { Lock, Paperclip } from 'lucide-react';
+import { Lock } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'الفواتير', href: '/invoices' },
@@ -34,11 +34,6 @@ const columns: ColumnDef<InvoiceMessageRow>[] = [
                     </Badge>
                 )}
                 {row.body && <p className="line-clamp-3 text-sm whitespace-pre-wrap">{row.body}</p>}
-                {row.attachmentsCount > 0 && (
-                    <span className="text-muted-foreground inline-flex items-center gap-1 text-xs">
-                        <Paperclip className="size-3" /> {row.attachmentsCount} مرفق
-                    </span>
-                )}
             </div>
         ),
     },

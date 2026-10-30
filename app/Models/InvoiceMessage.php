@@ -29,6 +29,9 @@ class InvoiceMessage extends Model implements HasMedia
 
     public const LOG_DELETED = 'deleted invoice message';
 
+    /** الدوران اللذان يُشار إليهما أو تُرسل إليهما الخاصة، برموزهما. */
+    public const ROLE_LABELS = ['role:accountant' => 'المحاسب', 'role:branch-admin' => 'مدير الفرع'];
+
     protected $fillable = [
         'service_invoice_id',
         'user_id',
@@ -158,9 +161,9 @@ class InvoiceMessage extends Model implements HasMedia
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return collect([
-            ['token' => 'role:accountant', 'label' => 'المحاسب'],
-            ['token' => 'role:branch-admin', 'label' => 'مدير الفرع'],
-        ])->concat($users->map(fn (User $user) => ['token' => "user:{$user->id}", 'label' => $user->name]));
+        return collect(self::ROLE_LABELS)
+            ->map(fn (string $label, string $token) => ['token' => $token, 'label' => $label])
+            ->values()
+            ->concat($users->map(fn (User $user) => ['token' => "user:{$user->id}", 'label' => $user->name]));
     }
 }
