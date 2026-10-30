@@ -217,8 +217,9 @@ export interface Invoice {
         shareType: 'amount' | 'percentage';
         shareValue: number;
         shareNet: number;
-        commissionPct: number;
-        commission: number;
+        /** null لغير المساعد نفسه والمديرَين */
+        commissionPct: number | null;
+        commission: number | null;
     }[];
     /** الموظف صاحب الفاتورة — مَن أنشأها، لا مَن يطبعها */
     userName: string | null;

@@ -29,9 +29,13 @@ class InvoiceLineResource extends JsonResource
      */
     private bool $showsInternalCosts = false;
 
-    public function showingInternalCosts(bool $shows): static
+    /** ملاحظات 30/10: عمولة السطر لصاحب الفاتورة وللمديرَين وحدهم، لا للمحاسب. */
+    private bool $showsCommission = false;
+
+    public function showingInternalCosts(bool $shows, bool $commission = false): static
     {
         $this->showsInternalCosts = $shows;
+        $this->showsCommission = $commission;
 
         return $this;
     }
@@ -66,7 +70,7 @@ class InvoiceLineResource extends JsonResource
             'subtotal' => (float) $this->subtotal,
             // عمولة الموظف عن السطر — كانت تخرج للجميع، وهي رقمٌ داخلي كتكلفة
             // الخامة فحُجبت معها (تاسك 94).
-            'commissionAmount' => $this->showsInternalCosts && $this->commission_amount !== null
+            'commissionAmount' => $this->showsCommission && $this->commission_amount !== null
                 ? (float) $this->commission_amount
                 : null,
             // تكلفة الخامات: مكتوبة على السطر منذ تاسك 7 ولم تخرج من هنا قط،

@@ -11,6 +11,7 @@ use App\Models\InvoicePayment;
 use App\Models\ProductInvoice;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -196,7 +197,7 @@ class InvoiceResource extends JsonResource
                 : [],
             'canRequestShipment' => $user !== null && $isServiceInvoice && $user->can('requestShipment', $this->resource),
             'canApproveShipment' => $user !== null && $isServiceInvoice && $user->can('approveShipment', $this->resource),
-            'employeeCommission' => $this->resource instanceof ServiceInvoice
+            'employeeCommission' => $this->resource instanceof ServiceInvoice && $this->seesCommissionOf($user, (int) $this->user_id)
                 ? (float) $this->resource->employee_commission
                 : null,
             'helpers' => $isServiceInvoice && $this->resource->relationLoaded('helpers')
@@ -207,8 +208,8 @@ class InvoiceResource extends JsonResource
                     'shareType' => $h->share_type,
                     'shareValue' => (float) $h->share_value,
                     'shareNet' => (float) $h->share_net,
-                    'commissionPct' => (float) $h->commission_pct,
-                    'commission' => (float) $h->commission_amount,
+                    'commissionPct' => $this->seesCommissionOf($user, (int) $h->user_id) ? (float) $h->commission_pct : null,
+                    'commission' => $this->seesCommissionOf($user, (int) $h->user_id) ? (float) $h->commission_amount : null,
                 ])->values()
                 : [],
             // الموظف صاحب الفاتورة — مَن أنشأها لا مَن يطبعها، فيبقى الاسم واحداً
@@ -238,7 +239,7 @@ class InvoiceResource extends JsonResource
             // الشريحة) تُحجب عمّن لا يملكها — قرارٌ واحد يُتخذ هنا ويُمرَّر
             // لكل سطر، فلا يقرأ كل سطر الفاتورة الأم من جديد.
             'lines' => $this->whenLoaded('lines', fn () => $this->lines->map(
-                fn ($line) => (new InvoiceLineResource($line))->showingInternalCosts($this->showsInternalCostsTo($request)),
+                fn ($line) => (new InvoiceLineResource($line))->showingInternalCosts($this->showsInternalCostsTo($request), $this->seesCommissionOf($user, (int) $this->user_id)),
             )->values()),
             // تاسك 112: تُحمَّل في InvoiceController::show() لمن يدير المصروفات
             // وحده، ولا تصل الطباعة.
@@ -325,6 +326,18 @@ class InvoiceResource extends JsonResource
      *
      * ولا تُطبع لأحد إطلاقاً: InvoiceController::print() يحذفها من الحمولة.
      */
+    /**
+     * ملاحظات 30/10/2026 — عمولة موظفٍ (نسبتها ومبلغها) لا يراها إلا هو، ومدير
+     * الفرع والسوبر أدمن. المحاسب ومراجع الحسابات وصاحب الفاتورة يرون حصّة
+     * المساعد دون عمولته.
+     */
+    private function seesCommissionOf(?User $user, int $earnerId): bool
+    {
+        // ولا تُطبع لأحد، كالتكلفة الداخلية.
+        return ! $this->hidesInternalCosts && $user !== null
+            && ($user->roleName?->isSuperAdmin() || $user->roleName?->isBranchAdmin() || $user->id === $earnerId);
+    }
+
     private function showsInternalCostsTo(Request $request): bool
     {
         $user = $request->user();

@@ -124,6 +124,25 @@ it('shows how each helper share and commission were computed on the invoice page
             ->where('invoice.helpers.0.shareNet', 13.04)
             ->where('invoice.helpers.0.commissionPct', 10)
             ->where('invoice.helpers.0.commission', 1.3));
+
+    // ملاحظات 30/10/2026: المحاسب يرى الحصّة وحدها، وصاحب الفاتورة عمولته دون عمولة
+    // مساعده، والمساعد عمولته.
+    $accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+    $accountant->addRole(Roles::ACCOUNTANT->value);
+    $show = fn (User $user) => $this->actingAs($user)
+        ->get(route('invoices.show', ['type' => 'service', 'id' => ServiceInvoice::firstOrFail()->id]));
+
+    $show($accountant)->assertInertia(fn ($page) => $page
+        ->where('invoice.helpers.0.shareNet', 13.04)
+        ->where('invoice.helpers.0.commission', null)
+        ->where('invoice.helpers.0.commissionPct', null)
+        ->where('invoice.employeeCommission', null));
+    $show($this->employee)->assertInertia(fn ($page) => $page
+        ->where('invoice.helpers.0.commission', null)
+        ->whereNot('invoice.employeeCommission', null));
+    $show($this->arif)->assertInertia(fn ($page) => $page
+        ->where('invoice.helpers.0.commission', 1.3)
+        ->where('invoice.employeeCommission', null));
 });
 
 it('records a helper on a zero-commission service and still carves the share out', function () {

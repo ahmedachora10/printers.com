@@ -102,10 +102,15 @@ class InvoiceMessage extends Model implements HasMedia
     /**
      * تاسك 208 — شرط الرؤية الواحد لكل قراءة للرسائل: العامة لكل من يرى الخيط،
      * والخاصة (private_to) لمرسلها ولمن أُرسلت إليه وحدهما — شخصاً بعينه، أو
-     * كل من يحمل الدور في فرع الفاتورة. لا استثناء لمديرٍ ولا لسوبر أدمن.
+     * كل من يحمل الدور في فرع الفاتورة. ومدير الفرع والسوبر أدمن يريان كل الرسائل
+     * (قرار 30/10/2026) — الفرع نفسه تحرسه صلاحية الفاتورة.
      */
     public static function visibleTo(User $user): Closure
     {
+        if ($user->roleName?->isSuperAdmin() || $user->roleName?->isBranchAdmin()) {
+            return fn ($q) => $q;
+        }
+
         $tokens = array_filter(["user:{$user->id}", $user->roleName ? "role:{$user->roleName->value}" : null]);
 
         return fn ($q) => $q->whereNull('invoice_messages.private_to')

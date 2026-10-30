@@ -288,6 +288,11 @@ describe('Invoice internal thread', function () {
                 ->where('thread.messages.0.body', 'لك وحدك')));
         ($this->show)($this->owner)->assertInertia(fn ($page) => $page
             ->loadDeferredProps('thread', fn ($page) => $page->has('thread.messages', 0)));
+
+        // قرار 30/10: مدير الفرع يرى كل الرسائل، والخاصة بين غيره كذلك.
+        ($this->post)($this->accountant, ['body' => 'بين المحاسب والموظف', 'private_to' => "user:{$this->otherEmployee->id}"]);
+        ($this->show)($this->branchAdmin)->assertInertia(fn ($page) => $page
+            ->loadDeferredProps('thread', fn ($page) => $page->has('thread.messages', 2)));
     });
 
     // تاسك 209 — قائمة الملاحظات وحدها، بقاعدة الرؤية نفسها.
