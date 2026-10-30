@@ -243,6 +243,14 @@ class HandleInertiaRequests extends Middleware
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::AUDITOR],
             ],
             [
+                // تاسك 209 — الملاحظات الداخلية وحدها، من كل الفواتير.
+                'title' => 'الملاحظات الداخلية',
+                'url' => route('invoices.messages.index'),
+                'icon' => 'MessageSquare',
+                'group' => 'sales',
+                'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
+            ],
+            [
                 'title' => 'عروض الأسعار',
                 'url' => route('quotations.index'),
                 'icon' => 'ClipboardList',

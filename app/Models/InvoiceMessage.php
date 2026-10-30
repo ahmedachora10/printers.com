@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Closure;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
@@ -28,10 +29,14 @@ class InvoiceMessage extends Model implements HasMedia
 
     public const LOG_DELETED = 'deleted invoice message';
 
+    /** الدوران اللذان يُشار إليهما أو تُرسل إليهما الخاصة، برموزهما. */
+    public const ROLE_LABELS = ['role:accountant' => 'المحاسب', 'role:branch-admin' => 'مدير الفرع'];
+
     protected $fillable = [
         'service_invoice_id',
         'user_id',
         'body',
+        'private_to',
         'actioned_at',
         'actioned_by',
         'edited_at',
@@ -88,12 +93,37 @@ class InvoiceMessage extends Model implements HasMedia
             ->whereIn('invoice_messages.service_invoice_id', $invoiceIds)
             ->whereNotNull('invoice_messages.user_id')
             ->where('invoice_messages.user_id', '!=', $user->id)
+            ->where(self::visibleTo($user))
             ->whereRaw('invoice_messages.id > coalesce(p.last_read_message_id, 0)')
             ->groupBy('invoice_messages.service_invoice_id')
             ->selectRaw('invoice_messages.service_invoice_id, count(*) as unread')
             ->pluck('unread', 'service_invoice_id')
             ->map(fn ($count) => (int) $count)
             ->all();
+    }
+
+    /**
+     * تاسك 208 — شرط الرؤية الواحد لكل قراءة للرسائل: العامة لكل من يرى الخيط،
+     * والخاصة (private_to) لمرسلها ولمن أُرسلت إليه وحدهما — شخصاً بعينه، أو
+     * كل من يحمل الدور في فرع الفاتورة. ومدير الفرع والسوبر أدمن يريان كل الرسائل
+     * (قرار 30/10/2026) — الفرع نفسه تحرسه صلاحية الفاتورة.
+     */
+    public static function visibleTo(User $user): Closure
+    {
+        if ($user->roleName?->isSuperAdmin() || $user->roleName?->isBranchAdmin()) {
+            return fn ($q) => $q;
+        }
+
+        $tokens = array_filter(["user:{$user->id}", $user->roleName ? "role:{$user->roleName->value}" : null]);
+
+        return fn ($q) => $q->whereNull('invoice_messages.private_to')
+            ->orWhere('invoice_messages.user_id', $user->id)
+            ->orWhereIn('invoice_messages.private_to', $tokens);
+    }
+
+    public function isVisibleTo(User $user): bool
+    {
+        return static::withTrashed()->whereKey($this->id)->where(self::visibleTo($user))->exists();
     }
 
     /** يقدّم موضع قراءة المستخدم إلى $messageId (ويجعله مشاركاً إن لم يكن). */
@@ -131,9 +161,9 @@ class InvoiceMessage extends Model implements HasMedia
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        return collect([
-            ['token' => 'role:accountant', 'label' => 'المحاسب'],
-            ['token' => 'role:branch-admin', 'label' => 'مدير الفرع'],
-        ])->concat($users->map(fn (User $user) => ['token' => "user:{$user->id}", 'label' => $user->name]));
+        return collect(self::ROLE_LABELS)
+            ->map(fn (string $label, string $token) => ['token' => $token, 'label' => $label])
+            ->values()
+            ->concat($users->map(fn (User $user) => ['token' => "user:{$user->id}", 'label' => $user->name]));
     }
 }

@@ -5,6 +5,7 @@ use App\Enums\Roles;
 use App\Models\Branch;
 use App\Models\BranchService;
 use App\Models\Customer;
+use App\Models\InvoiceMessage;
 use App\Models\InvoicePayment;
 use App\Models\PaymentMethod;
 use App\Models\ProductInvoice;
@@ -166,6 +167,21 @@ describe('Invoice list filters', function () {
             ->get(route('invoices.index', ['branch_service_id' => $this->printing->id]))
             ->assertInertia(fn ($page) => $page->has('items.data', 1)
                 ->where('items.data.0.invoiceNumber', $service->invoice_number));
+    });
+
+    // تاسك 207 — الرسالة المحذوفة لا تُبقي الفاتورة في الفرز.
+    it('keeps only the invoices that carry internal notes', function () {
+        $noted = filterInvoice($this->branch->id, $this->alice->id);
+        InvoiceMessage::create(['service_invoice_id' => $noted->id, 'user_id' => $this->alice->id, 'body' => 'ملاحظة']);
+        $deleted = filterInvoice($this->branch->id, $this->alice->id);
+        InvoiceMessage::create(['service_invoice_id' => $deleted->id, 'user_id' => $this->alice->id, 'body' => 'x'])->delete();
+        filterInvoice($this->branch->id, $this->alice->id);
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('invoices.index', ['messages' => 'any']))
+            ->assertInertia(fn ($page) => $page->has('items.data', 1)
+                ->where('items.data.0.invoiceNumber', $noted->invoice_number)
+                ->where('filters.messages', 'any'));
     });
 
     // ── التراكب ──────────────────────────────────────────────────

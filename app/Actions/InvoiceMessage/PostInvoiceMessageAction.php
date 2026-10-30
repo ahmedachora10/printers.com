@@ -18,22 +18,27 @@ use Illuminate\Support\Facades\Notification;
  *
  * الإشارات لا تُخزَّن: «@الاسم» في النص للعرض، والرموز تُستهلك هنا — تُدخل
  * الموظفَ المُشار إليه مشاركاً في الخيط وتنبّه أصحابها.
+ *
+ * تاسك 208: الرسالة الخاصة ($privateTo) تذهب لمن أُرسلت إليه وحده — هو وحده
+ * يُنبَّه ويُدخل مشاركاً، والإشارات فيها لا أثر لها: لن يراها المُشار إليه.
  */
 class PostInvoiceMessageAction
 {
     /**
      * @param  list<string>  $mentions  رموز `role:accountant` / `role:branch-admin` / `user:{id}`، مُتحقَّقٌ منها
      * @param  list<UploadedFile>  $attachments
+     * @param  string|null  $privateTo  رمزٌ واحد من الصيغة نفسها، مُتحقَّقٌ منه
      */
-    public function handle(ServiceInvoice $invoice, User $author, ?string $body, array $mentions = [], array $attachments = []): InvoiceMessage
+    public function handle(ServiceInvoice $invoice, User $author, ?string $body, array $mentions = [], array $attachments = [], ?string $privateTo = null): InvoiceMessage
     {
         $body = filled($body) ? trim($body) : null;
+        $mentions = $privateTo !== null ? [$privateTo] : $mentions;
 
-        return DB::transaction(function () use ($invoice, $author, $body, $mentions, $attachments) {
-            // المؤلفون قبل هذه الرسالة — يُنبَّهون بردٍّ في خيطٍ شاركوا فيه.
-            $priorAuthorIds = $invoice->messages()->whereNotNull('user_id')->distinct()->pluck('user_id');
+        return DB::transaction(function () use ($invoice, $author, $body, $mentions, $attachments, $privateTo) {
+            // المؤلفون قبل هذه الرسالة وصاحب الفاتورة يُنبَّهون بردٍّ عام — لا بخاص.
+            $watcherIds = $privateTo !== null ? collect() : $invoice->messages()->whereNotNull('user_id')->distinct()->pluck('user_id')->push($invoice->user_id);
 
-            $message = $invoice->messages()->create(['user_id' => $author->id, 'body' => $body]);
+            $message = $invoice->messages()->create(['user_id' => $author->id, 'body' => $body, 'private_to' => $privateTo]);
 
             foreach ($attachments as $file) {
                 $message->addMedia($file)->toMediaCollection(InvoiceMessage::ATTACHMENTS);
@@ -61,7 +66,7 @@ class PostInvoiceMessageAction
             ])->all());
 
             $recipients = User::query()
-                ->whereIn('id', $priorAuthorIds->concat($mentionedIds)->push($invoice->user_id)->filter())
+                ->whereIn('id', $watcherIds->concat($mentionedIds)->filter())
                 ->get()
                 ->concat($mentionedRoles === [] ? [] : BranchNotifiables::forBranch((int) $invoice->branch_id, $mentionedRoles))
                 ->unique('id')

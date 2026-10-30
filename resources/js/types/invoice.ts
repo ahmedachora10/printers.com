@@ -83,6 +83,8 @@ export interface InvoiceMessage {
     authorRole: string | null;
     /** null للمحذوفة — تبقى في الخيط بلا نصّها */
     body: string | null;
+    /** تاسك 208 — اسم من أُرسلت إليه الرسالة الخاصة، null = للجميع */
+    privateTo: string | null;
     createdAt: string | null;
     /** جديدة على هذا الناظر منذ آخر زيارة */
     isNew: boolean;
@@ -95,6 +97,18 @@ export interface InvoiceMessage {
     deletedByName: string | null;
     attachments: { id: number; name: string; url: string; isImage: boolean }[];
     canMarkActioned: boolean;
+}
+
+/** تاسك 209 — صفٌّ في قائمة الملاحظات وحدها. */
+export interface InvoiceMessageRow {
+    id: number;
+    invoiceId: number;
+    invoiceNumber: string | null;
+    authorName: string;
+    body: string | null;
+    /** اسم من أُرسلت إليه الخاصة، null = للجميع */
+    privateTo: string | null;
+    createdAt: string | null;
 }
 
 export interface InvoiceThread {
@@ -202,8 +216,9 @@ export interface Invoice {
         shareType: 'amount' | 'percentage';
         shareValue: number;
         shareNet: number;
-        commissionPct: number;
-        commission: number;
+        /** null لغير المساعد نفسه والمديرَين */
+        commissionPct: number | null;
+        commission: number | null;
     }[];
     /** الموظف صاحب الفاتورة — مَن أنشأها، لا مَن يطبعها */
     userName: string | null;
@@ -322,4 +337,6 @@ export interface InvoiceFilters {
     branch_service_id?: string;
     /** تاسك 196 — '1': فواتير عليها طلب توصيل بانتظار الاعتماد */
     pending_shipments?: string;
+    /** تاسك 207 — 'any': فواتير عليها ملاحظات داخلية */
+    messages?: string;
 }

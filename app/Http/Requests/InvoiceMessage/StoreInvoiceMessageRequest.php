@@ -21,11 +21,15 @@ class StoreInvoiceMessageRequest extends FormRequest
         /** @var ServiceInvoice $invoice */
         $invoice = $this->route('invoice');
 
+        $tokens = InvoiceMessage::mentionables($invoice)->pluck('token')->all();
+
         return [
             'body' => ['nullable', 'string', 'max:2000', 'required_without:attachments'],
             'mentions' => ['array'],
             // لا يُشار إلا إلى دورَي المراجعة ومستخدمي فرع الفاتورة.
-            'mentions.*' => ['string', Rule::in(InvoiceMessage::mentionables($invoice)->pluck('token')->all())],
+            'mentions.*' => ['string', Rule::in($tokens)],
+            // تاسك 208: الرسالة الخاصة تُرسل لواحدٍ من القائمة نفسها.
+            'private_to' => ['nullable', 'string', Rule::in($tokens)],
             'attachments' => ['array', 'max:3'],
             'attachments.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120'],
         ];
@@ -38,6 +42,7 @@ class StoreInvoiceMessageRequest extends FormRequest
             'body.required_without' => 'اكتب الرسالة أو أرفق ملفاً.',
             'body.max' => 'الرسالة يجب ألا تتجاوز 2000 حرف.',
             'mentions.*.in' => 'لا يمكن الإشارة إلى هذا المستخدم في هذه الفاتورة.',
+            'private_to.in' => 'لا يمكن إرسال رسالة خاصة لهذا المستخدم في هذه الفاتورة.',
             'attachments.max' => 'ثلاثة مرفقات على الأكثر في الرسالة الواحدة.',
             'attachments.*.mimes' => 'المرفق يجب أن يكون صورة (JPG أو PNG أو WEBP) أو ملف PDF.',
             'attachments.*.max' => 'حجم المرفق يجب ألا يتجاوز 5 ميجابايت.',

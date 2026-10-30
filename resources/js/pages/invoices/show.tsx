@@ -942,7 +942,13 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                         label={`مساعد — ${helper.serviceName}`}
                                         value={
                                             <span>
-                                                {helper.name ?? '—'} · <span dir="ltr">{formatCurrency(helper.commission)}</span>
+                                                {helper.name ?? '—'}
+                                                {helper.commission !== null && (
+                                                    <>
+                                                        {' '}
+                                                        · <span dir="ltr">{formatCurrency(helper.commission)}</span>
+                                                    </>
+                                                )}
                                             </span>
                                         }
                                     />
@@ -956,8 +962,13 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                                 مبلغ ثابت <span dir="ltr">{formatCurrency(helper.shareValue)}</span>
                                             </>
                                         )}{' '}
-                                        (صافي <span dir="ltr">{formatCurrency(helper.shareNet)}</span>) · العمولة{' '}
-                                        <span dir="ltr">{helper.commissionPct}%</span>
+                                        (صافي <span dir="ltr">{formatCurrency(helper.shareNet)}</span>)
+                                        {helper.commissionPct !== null && (
+                                            <>
+                                                {' '}
+                                                · العمولة <span dir="ltr">{helper.commissionPct}%</span>
+                                            </>
+                                        )}
                                     </p>
                                 </div>
                             ))}

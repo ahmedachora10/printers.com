@@ -51,7 +51,10 @@ const DELIVERY_OPTIONS = [
 ];
 
 /** Modal-only filters — the search box and the date range apply on their own. */
-const MODAL_KEYS = ['type', 'branch_id', 'status', 'delivery', 'user_id', 'payment_method_id', 'branch_service_id', 'time_from', 'time_to'];
+const MODAL_KEYS = ['type', 'branch_id', 'status', 'delivery', 'user_id', 'payment_method_id', 'branch_service_id', 'messages', 'time_from', 'time_to'];
+
+/** تاسك 207 — فرز الفواتير التي عليها ملاحظات داخلية. */
+const MESSAGES_OPTIONS = [{ value: 'any', label: 'عليها ملاحظات' }];
 
 interface NamedOption {
     id: number;
@@ -97,6 +100,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
             time_from: '',
             time_to: '',
             pending_shipments: '',
+            messages: 'all',
         }),
         [],
     );
@@ -115,6 +119,7 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
         time_from: filters.time_from ?? '',
         time_to: filters.time_to ?? '',
         pending_shipments: filters.pending_shipments ?? '',
+        messages: filters.messages ?? 'all',
     };
     const f = useReportFilters(INVOICES_URL, applied, defaults, FILTERED_PROPS);
 
@@ -310,6 +315,9 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     if (f.isActive('payment_method_id')) {
         const name = filterOptions.paymentMethods.find((m) => m.id.toString() === applied.payment_method_id)?.name ?? applied.payment_method_id;
         chips.push({ key: 'payment_method_id', label: `طريقة الدفع: ${name}`, onRemove: () => f.remove('payment_method_id') });
+    }
+    if (f.isActive('messages')) {
+        chips.push({ key: 'messages', label: 'عليها ملاحظات', onRemove: () => f.remove('messages') });
     }
     if (f.isActive('pending_shipments')) {
         chips.push({ key: 'pending_shipments', label: 'طلبات توصيل بانتظار الاعتماد', onRemove: () => f.remove('pending_shipments') });
@@ -721,6 +729,13 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
                             onChange={(v) => f.setField('delivery', v)}
                             allLabel="كل المواعيد"
                             options={DELIVERY_OPTIONS}
+                        />
+                        <FilterSelect
+                            label="الملاحظات"
+                            value={f.draft.messages}
+                            onChange={(v) => f.setField('messages', v)}
+                            allLabel="كل الفواتير"
+                            options={MESSAGES_OPTIONS}
                         />
                         {/* تاسك 114: الساعات نفسها من كل يوم في المدى، بوقت إنشاء الفاتورة. */}
                         <FilterField label="من الساعة" htmlFor="filter-time-from">

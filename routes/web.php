@@ -504,6 +504,8 @@ Route::middleware(['auth'])->group(function () {
 
             // تاسك 100 — المحادثة الداخلية على فاتورة الخدمات. الصلاحيات في
             // ServiceInvoicePolicy (viewMessages / postMessage / moderateMessages).
+            // تاسك 209 — الملاحظات وحدها، من كل الفواتير، في قائمة واحدة.
+            Route::get('messages', [InvoiceMessageController::class, 'index'])->name('messages.index');
             Route::post('service/{invoice}/messages', [InvoiceMessageController::class, 'store'])
                 ->whereNumber('invoice')->name('messages.store');
             Route::patch('service/{invoice}/messages/close', [InvoiceMessageController::class, 'toggleClosed'])

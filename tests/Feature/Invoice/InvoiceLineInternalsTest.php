@@ -75,14 +75,19 @@ describe('Internal line costs on the invoice viewer', function () {
         $this->invoice = invoiceWithMaterials($this->branch->id, $this->owner->id, $this->method->id);
     });
 
-    it('shows the accountant the materials cost, the line commission and the tier', function () {
+    // ملاحظات 30/10/2026: العمولة لصاحبها وللمديرَين — المحاسب يرى الخامات والشريحة دونها.
+    it('shows the accountant the materials cost and the tier, but not the line commission', function () {
         $this->actingAs($this->accountant)
             ->get(route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]))
             ->assertInertia(fn ($page) => $page
                 ->where('invoice.lines.0.materialsCost', 12)
                 ->where('invoice.lines.0.materialsTotal', 36)
-                ->where('invoice.lines.0.commissionAmount', 24)
+                ->where('invoice.lines.0.commissionAmount', null)
                 ->where('invoice.lines.0.tierApplied', 2));
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]))
+            ->assertInertia(fn ($page) => $page->where('invoice.lines.0.commissionAmount', 24));
     });
 
     it('shows the owning employee the cost that is deducted from their own commission base', function () {

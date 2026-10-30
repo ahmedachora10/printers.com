@@ -3,7 +3,7 @@ import { NavUser } from '@/components/nav-user';
 import { Sidebar, SidebarContent, SidebarFooter, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from '@/components/ui/sidebar';
 import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/react';
-import { ArrowLeftRight, Award, Bell, Bike, BookOpen, Boxes, CalendarDays, ChartPie, ClipboardCheck, ClipboardList, CreditCard, FileText, FolderKanban, GitBranch, Handshake, History, LayoutGrid, LucideIcon, Package, Receipt, Scale, ServerIcon, Settings, ShoppingBasket, ShoppingCart, Tags, Ticket, TrendingUp, Trophy, Truck, Undo2, User, Users, Wallet, Zap } from 'lucide-react';
+import { ArrowLeftRight, Award, Bell, Bike, BookOpen, Boxes, CalendarDays, ChartPie, ClipboardCheck, ClipboardList, CreditCard, FileText, FolderKanban, GitBranch, Handshake, History, LayoutGrid, LucideIcon, MessageSquare, Package, Receipt, Scale, ServerIcon, Settings, ShoppingBasket, ShoppingCart, Tags, Ticket, TrendingUp, Trophy, Truck, Undo2, User, Users, Wallet, Zap } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import AppLogo from './app-logo';
 
@@ -35,6 +35,7 @@ export function AppSidebar() {
         Bell,
         Truck,
         ClipboardList,
+        MessageSquare,
         ClipboardCheck,
         ShoppingBasket,
         Trophy,
