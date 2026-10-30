@@ -73,6 +73,8 @@ class CommissionReportController extends Controller
                 ? []
                 : Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'isSuperAdmin' => $scope['isSuper'],
+            // تاسك 211: الموظف يرى «المحصّل» مكان بطاقة «إجمالي الإيرادات».
+            'isEmployee' => $scope['forcedUserId'],
         ]);
     }
 

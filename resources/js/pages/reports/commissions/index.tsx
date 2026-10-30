@@ -39,6 +39,7 @@ interface Props {
     employees: { id: number; name: string }[];
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
+    isEmployee: boolean;
 }
 
 const dayColumns: ColumnDef<CommissionReportDayRow>[] = [
@@ -134,7 +135,7 @@ const detailColumns: ColumnDef<CommissionReportLine>[] = [
     { key: 'earnedAt', header: 'تاريخ الاستحقاق', className: 'text-sm', cell: (line) => (line.earnedAt ? formatDate(line.earnedAt) : '—') },
 ];
 
-export default function CommissionReportIndex({ summary, byDay, lines, totals, filters, defaultDate, employees, branches, isSuperAdmin }: Props) {
+export default function CommissionReportIndex({ summary, byDay, lines, totals, filters, defaultDate, employees, branches, isSuperAdmin, isEmployee }: Props) {
     const canPickEmployee = employees.length > 0;
     const canPickBranch = isSuperAdmin && branches.length > 0;
 
@@ -234,12 +235,22 @@ export default function CommissionReportIndex({ summary, byDay, lines, totals, f
                 {/* Seven cards: four tracks at xl, all seven only on very wide
                     screens — narrower tracks let the currency figures overflow. */}
                 <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-7">
-                    <SummaryCard
-                        icon={<Coins className="size-4" />}
-                        label="إجمالي الإيرادات"
-                        hint="الإجمالي − تكلفة الخامات − عمولات الموظفين − العمولات الخارجية"
-                        value={formatCurrency(totals.netRevenue)}
-                    />
+                    {/* تاسك 211: الموظف يرى ما حصّله، لا الإيراد الإداري. */}
+                    {isEmployee ? (
+                        <SummaryCard
+                            icon={<Coins className="size-4" />}
+                            label="المحصّل"
+                            value={formatCurrency(totals.collected)}
+                            valueClass="text-blue-600"
+                        />
+                    ) : (
+                        <SummaryCard
+                            icon={<Coins className="size-4" />}
+                            label="إجمالي الإيرادات"
+                            hint="الإجمالي − تكلفة الخامات − عمولات الموظفين − العمولات الخارجية"
+                            value={formatCurrency(totals.netRevenue)}
+                        />
+                    )}
                     <SummaryCard
                         icon={<Receipt className="size-4" />}
                         label="إجمالي الضريبة"

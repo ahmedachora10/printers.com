@@ -95,7 +95,13 @@ describe('Employee Commission Report', function () {
         $this->actingAs($this->employee)
             ->get(route('reports.commissions'))
             ->assertOk()
-            ->assertInertia(fn ($page) => $page->where('isSuperAdmin', false));
+            ->assertInertia(fn ($page) => $page->where('isSuperAdmin', false)->where('isEmployee', true));
+    });
+
+    it('flags only an employee for the المحصّل card (task 211)', function () {
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.commissions'))
+            ->assertInertia(fn ($page) => $page->where('isEmployee', false));
     });
 
     it('forbids an agent from viewing the report', function () {
