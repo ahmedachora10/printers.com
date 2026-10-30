@@ -289,4 +289,28 @@ describe('Invoice internal thread', function () {
         ($this->show)($this->owner)->assertInertia(fn ($page) => $page
             ->loadDeferredProps('thread', fn ($page) => $page->has('thread.messages', 0)));
     });
+
+    // تاسك 209 — قائمة الملاحظات وحدها، بقاعدة الرؤية نفسها.
+    it('lists the notes on their own, newest first, as each viewer may see them', function () {
+        $colleague = threadInvoice($this->branch->id, $this->otherEmployee->id);
+        ($this->post)($this->owner, ['body' => 'على فاتورتي']);
+        $this->actingAs($this->otherEmployee)->post(route('invoices.messages.store', $colleague), ['body' => 'على فاتورة زميل']);
+        ($this->post)($this->accountant, ['body' => 'سرّ', 'private_to' => 'role:branch-admin']);
+        $foreign = threadInvoice($this->elsewhere->id, $this->foreignAccountant->id);
+        InvoiceMessage::create(['service_invoice_id' => $foreign->id, 'user_id' => $this->foreignAccountant->id, 'body' => 'فرع آخر']);
+
+        $this->actingAs($this->branchAdmin)->get(route('invoices.messages.index'))
+            ->assertInertia(fn ($page) => $page->component('invoices/messages')
+                ->has('messages.data', 3)
+                ->where('messages.data.0.body', 'سرّ')
+                ->where('messages.data.0.privateTo', 'مدير الفرع')
+                ->where('messages.data.0.invoiceNumber', $this->invoice->invoice_number));
+
+        // الموظف يرى خيوط فواتيره وحدها، وبلا الخاصة التي ليست له.
+        $this->actingAs($this->owner)->get(route('invoices.messages.index'))
+            ->assertInertia(fn ($page) => $page->has('messages.data', 1)
+                ->where('messages.data.0.body', 'على فاتورتي'));
+
+        $this->actingAs(threadStaff(Roles::AUDITOR, $this->branch->id))->get(route('invoices.messages.index'))->assertForbidden();
+    });
 });

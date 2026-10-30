@@ -99,6 +99,19 @@ export interface InvoiceMessage {
     canMarkActioned: boolean;
 }
 
+/** تاسك 209 — صفٌّ في قائمة الملاحظات وحدها. */
+export interface InvoiceMessageRow {
+    id: number;
+    invoiceId: number;
+    invoiceNumber: string | null;
+    authorName: string;
+    body: string | null;
+    /** اسم من أُرسلت إليه الخاصة، null = للجميع */
+    privateTo: string | null;
+    attachmentsCount: number;
+    createdAt: string | null;
+}
+
 export interface InvoiceThread {
     messages: InvoiceMessage[];
     closedAt: string | null;
