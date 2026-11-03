@@ -15,8 +15,6 @@ export interface CommissionSummary {
     totalPaid: number;
     pending: number;
     totalSalaries: number;
-    totalIncentives: number;
-    totalDeductions: number;
     totalNet: number;
 }
 

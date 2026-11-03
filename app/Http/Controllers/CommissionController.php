@@ -27,10 +27,8 @@ class CommissionController extends Controller
     {
         Gate::authorize('viewAny', CommissionPayment::class);
 
-        $isSuper = $request->user()->roleName->isSuperAdmin();
-
         // تاسك 215: السوبر أدمن يختار فرعاً أو أكثر (?branch=3,7، فارغة = الكل)؛ غيره مثبَّتٌ على فرعه.
-        $branchIds = $scope->handle($request)['branchIds'];
+        ['isSuper' => $isSuper, 'branchIds' => $branchIds] = $scope->handle($request);
         $inBranches = fn ($q) => $q->when($branchIds, fn ($q) => $q->whereIn('branch_id', $branchIds));
 
         // Salary is monthly, so the ledger is summed over one month (task 134).
@@ -135,8 +133,6 @@ class CommissionController extends Controller
                 'totalPaid' => (float) $employees->sum('totalPaid'),
                 'pending' => (float) $employees->sum('pending'),
                 'totalSalaries' => round((float) $employees->sum('salary'), 2),
-                'totalIncentives' => round((float) $employees->sum('incentives'), 2),
-                'totalDeductions' => round((float) $employees->sum('deductions'), 2),
                 'totalNet' => round((float) $employees->sum('netTotal'), 2),
             ],
             'payments' => CommissionPaymentResource::collection($payments),
