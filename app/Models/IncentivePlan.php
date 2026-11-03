@@ -131,15 +131,9 @@ class IncentivePlan extends Model
      */
     public function reachedTier(): ?array
     {
-        $reached = null;
+        $n = array_key_last($this->reachedTiers());
 
-        foreach ($this->tiers as $i => $tier) {
-            if ((float) $this->achieved_amount >= (float) $tier['threshold']) {
-                $reached = ['number' => $i + 1, 'threshold' => (float) $tier['threshold'], 'value' => (float) $tier['value']];
-            }
-        }
-
-        return $reached;
+        return $n === null ? null : ['number' => $n, 'threshold' => (float) $this->tiers[$n - 1]['threshold'], 'value' => (float) $this->tiers[$n - 1]['value']];
     }
 
     public function isTargetMet(): bool
@@ -155,21 +149,16 @@ class IncentivePlan extends Model
      */
     public function reachedTiers(): array
     {
-        $reached = [];
-
-        foreach ($this->tiers as $i => $tier) {
-            if ((float) $this->achieved_amount >= (float) $tier['threshold']) {
-                $reached[$i + 1] = $tier;
-            }
-        }
-
-        return $reached;
+        return array_filter(
+            array_combine(range(1, count($this->tiers)), $this->tiers),
+            fn (array $tier) => (float) $this->achieved_amount >= (float) $tier['threshold'],
+        );
     }
 
     /** @return list<int> أرقام الشرائح المصروفة. */
     public function paidTierNumbers(): array
     {
-        return $this->bonusPayments->pluck('tier_number')->map(fn ($n) => (int) $n)->all();
+        return $this->bonusPayments->pluck('tier_number')->all();
     }
 
     /**
