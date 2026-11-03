@@ -29,13 +29,13 @@ class IncentivePlanPolicy
 
     public function update(User $user, IncentivePlan $plan): bool
     {
-        // A paid plan is settled and immutable.
-        return $plan->status !== IncentivePlanStatusEnum::Paid && $this->withinScope($user, $plan);
+        // A paid plan is settled and immutable. تاسك 214: وكذا متى صُرفت منها شريحة.
+        return $plan->status !== IncentivePlanStatusEnum::Paid && $plan->bonusPayments()->doesntExist() && $this->withinScope($user, $plan);
     }
 
     public function delete(User $user, IncentivePlan $plan): bool
     {
-        return $plan->status !== IncentivePlanStatusEnum::Paid && $this->withinScope($user, $plan);
+        return $this->update($user, $plan);
     }
 
     public function pay(User $user, IncentivePlan $plan): bool

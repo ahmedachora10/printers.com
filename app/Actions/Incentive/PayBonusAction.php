@@ -12,10 +12,16 @@ class PayBonusAction
 {
     public function __construct(private RecalculateIncentivePlanAction $recalculate) {}
 
-    /** @param array<string, mixed> $data */
-    public function handle(IncentivePlan $plan, array $data): BonusPayment
+    /**
+     * تاسك 214: يصرف شريحةً بعينها متى بلغها المحقَّق — قبل نهاية الشهر وبعد
+     * الانتقال إلى أعلى منها — بمكافأتها كاملةً. والخطة تُجمَّد (Paid) حين لا
+     * يبقى ما يُصرف.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function handle(IncentivePlan $plan, int $tierNumber, array $data): BonusPayment
     {
-        return DB::transaction(function () use ($plan, $data) {
+        return DB::transaction(function () use ($plan, $tierNumber, $data) {
             $plan = IncentivePlan::query()->lockForUpdate()->findOrFail($plan->id);
 
             if ($plan->status === IncentivePlanStatusEnum::Paid) {
@@ -24,32 +30,34 @@ class PayBonusAction
                 ]);
             }
 
-            // تاسك 105: الصرف يجمّد الخطة، فصرفُ خطةٍ ذات شرائح منتصف الشهر كان
-            // سيُضيع على الموظف ما فوق شريحته الحالية. ذات الشريحة الواحدة على حالها.
-            if ($plan->isMultiTier() && ! $plan->periodEnded()) {
-                throw ValidationException::withMessages([
-                    'incentive_plan_id' => 'خطة ذات شرائح تُصرف بعد نهاية الشهر.',
-                ]);
-            }
-
             // Settle on the latest sales figures before paying out.
             $this->recalculate->handle($plan);
 
-            if (! $plan->isTargetMet()) {
+            $tier = $plan->reachedTiers()[$tierNumber] ?? null;
+            if ($tier === null) {
                 throw ValidationException::withMessages([
-                    'incentive_plan_id' => 'لم يتم تحقيق هدف هذه الخطة بعد.',
+                    'incentive_plan_id' => $plan->isMultiTier() ? 'لم تُبلغ هذه الشريحة بعد.' : 'لم يتم تحقيق هدف هذه الخطة بعد.',
+                ]);
+            }
+
+            if (in_array($tierNumber, $plan->paidTierNumbers(), true)) {
+                throw ValidationException::withMessages([
+                    'incentive_plan_id' => 'تم صرف مكافأة هذه الشريحة مسبقاً.',
                 ]);
             }
 
             $payment = BonusPayment::create([
                 'incentive_plan_id' => $plan->id,
+                'tier_number' => $tierNumber,
                 'paid_by' => auth()->id(),
-                'amount' => $plan->bonusAmount(),
+                'amount' => $plan->tierBonus($tier),
                 'paid_at' => now(),
                 'notes' => $data['notes'] ?? null,
             ]);
 
-            $plan->update(['status' => IncentivePlanStatusEnum::Paid]);
+            if ($plan->load('bonusPayments')->isFullyPaid()) {
+                $plan->update(['status' => IncentivePlanStatusEnum::Paid]);
+            }
 
             return $payment;
         });

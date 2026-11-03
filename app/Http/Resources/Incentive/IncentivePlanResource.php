@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\Incentive;
 
+use App\Enums\IncentivePlanStatusEnum;
 use App\Models\IncentivePlan;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -16,7 +17,10 @@ class IncentivePlanResource extends JsonResource
     {
         $target = (float) $this->target_amount;
         $achieved = (float) $this->achieved_amount;
-        $payment = $this->whenLoaded('bonusPayments', fn () => $this->bonusPayments->first());
+        // تاسك 214: صفٌّ لكل شريحة مصروفة؛ الأحدث أولاً من المتحكّم.
+        $payments = $this->relationLoaded('bonusPayments') ? $this->bonusPayments : collect();
+        $payment = $payments->first();
+        $reachedTiers = $this->reachedTiers();
         $reached = $this->reachedTier();
         // الشرائح مرتّبة، فالتالية هي التي بعد المبلوغة.
         $nextNumber = ($reached['number'] ?? 0) + 1;
@@ -42,17 +46,23 @@ class IncentivePlanResource extends JsonResource
             'statusLabel' => $this->status->label(),
             'isTargetMet' => $reached !== null,
             // تاسك 105: الشرائح بمكافأة كلٍّ منها، والمبلوغة، والتالية وما بقي إليها.
-            'tiers' => array_map(fn (array $tier) => [
-                'threshold' => (float) $tier['threshold'],
-                'value' => (float) $tier['value'],
-                'bonus' => $this->tierBonus($tier),
-            ], $this->tiers),
+            'tiers' => array_map(function (array $tier, int $i) use ($payments, $reachedTiers) {
+                $paid = $payments->firstWhere('tier_number', $i + 1);
+
+                return [
+                    'threshold' => (float) $tier['threshold'],
+                    'value' => (float) $tier['value'],
+                    'bonus' => $this->tierBonus($tier),
+                    'reached' => isset($reachedTiers[$i + 1]),
+                    'paidAt' => $paid?->paid_at?->format('d/m/Y H:i'),
+                    'paidBy' => $paid?->paidBy?->name,
+                    'canPay' => isset($reachedTiers[$i + 1]) && $paid === null && $this->status !== IncentivePlanStatusEnum::Paid,
+                ];
+            }, $this->tiers, array_keys($this->tiers)),
             'reachedTier' => $reached['number'] ?? null,
             'nextTier' => $next ? ['number' => $nextNumber, 'threshold' => (float) $next['threshold'], 'remaining' => round((float) $next['threshold'] - $achieved, 2)] : null,
-            // ذات الشرائح لا تُصرف قبل نهاية الشهر (PayBonusAction).
-            'canPayNow' => $reached !== null && (! $this->isMultiTier() || $this->periodEnded()),
             'notes' => $this->notes,
-            'paidAmount' => $payment ? (float) $payment->amount : null,
+            'paidAmount' => $payment ? round((float) $payments->sum('amount'), 2) : null,
             'paidAt' => $payment?->paid_at?->format('d/m/Y H:i'),
             'paidBy' => $payment?->paidBy?->name,
         ];

@@ -15,6 +15,8 @@ class PayBonusRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // تاسك 214: الشريحة المصروفة؛ بلا رقم = الأولى (خطة الشريحة الواحدة).
+            'tier' => ['nullable', 'integer', 'min:1'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
     }

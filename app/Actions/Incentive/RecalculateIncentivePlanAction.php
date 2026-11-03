@@ -86,13 +86,12 @@ class RecalculateIncentivePlanAction
             ->get();
 
         foreach ($plans as $plan) {
-            if ($plan->status !== IncentivePlanStatusEnum::Paid) {
-                $this->handle($plan);
+            // تاسك 214: شريحةٌ صُرفت لا تُستردّ؛ نزول المحقَّق تحت عتبتها يُنبَّه إليه فقط.
+            $achieved = $plan->status === IncentivePlanStatusEnum::Paid
+                ? $this->achievedSales($plan)
+                : (float) $this->handle($plan)->achieved_amount;
 
-                continue;
-            }
-
-            if ($this->achievedSales($plan) < (float) $plan->target_amount) {
+            if ($achieved < $plan->paidThreshold()) {
                 Notification::send(
                     BranchNotifiables::forBranch((int) $plan->branch_id, ['branch-admin']),
                     new IncentiveShortfallNotification($plan, $invoice),
@@ -103,6 +102,11 @@ class RecalculateIncentivePlanAction
 
     private function deriveStatus(IncentivePlan $plan, float $achieved): IncentivePlanStatusEnum
     {
+        // تاسك 214: شهرٌ انتهى وصُرفت كل شرائحه المبلوغة — لا يبقى ما يُصرف.
+        if ($plan->isFullyPaid()) {
+            return IncentivePlanStatusEnum::Paid;
+        }
+
         // target_amount هو أدنى شريحة (تاسك 105) — بلوغه يكفي لـ«محقَّقة».
         if ($achieved >= (float) $plan->target_amount) {
             return IncentivePlanStatusEnum::Achieved;

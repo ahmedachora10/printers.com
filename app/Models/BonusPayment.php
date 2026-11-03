@@ -17,6 +17,7 @@ class BonusPayment extends Model
 
     protected $fillable = [
         'incentive_plan_id',
+        'tier_number',
         'paid_by',
         'amount',
         'paid_at',
@@ -24,6 +25,7 @@ class BonusPayment extends Model
     ];
 
     protected $casts = [
+        'tier_number' => 'integer',
         'amount' => 'decimal:2',
         'paid_at' => 'datetime',
     ];
