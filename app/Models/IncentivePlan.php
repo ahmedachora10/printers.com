@@ -148,6 +148,50 @@ class IncentivePlan extends Model
     }
 
     /**
+     * تاسك 214: كل شريحة بلغها المحقَّق **الآن** مفتاحُها رقمها من 1 — تُصرف كلٌّ
+     * منها مستقلّةً. مرتجعٌ أنزل المحقَّق تحت عتبةٍ يُسقطها ما لم تُصرف.
+     *
+     * @return array<int, array{threshold: string, value: string}>
+     */
+    public function reachedTiers(): array
+    {
+        $reached = [];
+
+        foreach ($this->tiers as $i => $tier) {
+            if ((float) $this->achieved_amount >= (float) $tier['threshold']) {
+                $reached[$i + 1] = $tier;
+            }
+        }
+
+        return $reached;
+    }
+
+    /** @return list<int> أرقام الشرائح المصروفة. */
+    public function paidTierNumbers(): array
+    {
+        return $this->bonusPayments->pluck('tier_number')->map(fn ($n) => (int) $n)->all();
+    }
+
+    /**
+     * لا شيء بعدُ يُصرف: صُرفت كل الشرائح، أو انتهى الشهر وصُرفت كل ما بُلغ.
+     */
+    public function isFullyPaid(): bool
+    {
+        $paid = $this->paidTierNumbers();
+        $due = $this->periodEnded() ? array_keys($this->reachedTiers()) : range(1, count($this->tiers));
+
+        return $paid !== [] && array_diff($due, $paid) === [];
+    }
+
+    /** عتبة أعلى شريحة مصروفة — نزول المحقَّق تحتها عجزٌ يُنبَّه إليه. */
+    public function paidThreshold(): float
+    {
+        return (float) collect($this->paidTierNumbers())
+            ->map(fn (int $n) => (float) ($this->tiers[$n - 1]['threshold'] ?? 0))
+            ->max();
+    }
+
+    /**
      * مكافأة شريحةٍ بعينها: قيمةٌ ثابتة لـ`fixed`، أو نسبةٌ **من عتبة الشريحة**
      * لـ`percentage`.
      *
@@ -169,11 +213,16 @@ class IncentivePlan extends Model
     }
 
     /**
-     * المكافأة المستحقة الآن: مكافأة أعلى شريحة مبلوغة وحدها (لا تُجمع
-     * الشرائح). وقبل بلوغ أدناها تُعرض مكافأة الأدنى — ما سيناله عند بلوغها.
+     * المكافأة المستحقة الآن. تاسك 214: كل شريحة مبلوغة تُصرف مكافأتها كاملةً،
+     * فالمستحق مجموعها (6,000 ⇒ 60 و10,000 ⇒ 200 = 260). وقبل بلوغ أدناها تُعرض
+     * مكافأة الأدنى — ما سيناله عند بلوغها.
      */
     public function bonusAmount(): float
     {
-        return $this->tierBonus($this->reachedTier() ?? $this->tiers[0]);
+        $reached = $this->reachedTiers();
+
+        return $reached === []
+            ? $this->tierBonus($this->tiers[0])
+            : round(array_sum(array_map(fn (array $tier) => $this->tierBonus($tier), $reached)), 2);
     }
 }

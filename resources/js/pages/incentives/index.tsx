@@ -1,26 +1,19 @@
-import { destroy, index, recalculate } from '@/actions/App/Http/Controllers/IncentiveController';
 import { destroy as destroyDeduction } from '@/actions/App/Http/Controllers/EmployeeDeductionController';
+import { destroy, index, recalculate } from '@/actions/App/Http/Controllers/IncentiveController';
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import DeductionFormModal from '@/components/incentives/deduction-form-modal';
 import PayBonusModal from '@/components/incentives/pay-bonus-modal';
 import PlanFormModal from '@/components/incentives/plan-form-modal';
 import TierProgress from '@/components/incentives/tier-progress';
-import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
-import { TableCell, TableRow } from '@/components/ui/table';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
 import DateRangeBar from '@/components/reports/date-range-bar';
 import { FilterSelect } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
-import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { TableCell, TableRow } from '@/components/ui/table';
+import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
@@ -80,7 +73,7 @@ export default function IncentivesIndex({
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<IncentivePlan | null>(null);
     const [deleting, setDeleting] = useState<IncentivePlan | null>(null);
-    const [paying, setPaying] = useState<IncentivePlan | null>(null);
+    const [paying, setPaying] = useState<{ plan: IncentivePlan; tier: number } | null>(null);
     const [deductionOpen, setDeductionOpen] = useState(false);
     // تاسك 126: نفس النافذة للتسجيل والتعديل — القيد المفتوح أو null.
     const [editingDeduction, setEditingDeduction] = useState<EmployeeDeduction | null>(null);
@@ -119,13 +112,15 @@ export default function IncentivesIndex({
     const columns = useMemo<ColumnDef<IncentivePlan>[]>(
         () => [
             { key: 'employee', header: 'الموظف', cell: (p) => <span className="font-medium">{p.userName ?? '—'}</span> },
-            ...(isSuperAdmin
-                ? [{ key: 'branch', header: 'الفرع', cell: (p: IncentivePlan) => p.branchName ?? '—' }]
-                : []),
+            ...(isSuperAdmin ? [{ key: 'branch', header: 'الفرع', cell: (p: IncentivePlan) => p.branchName ?? '—' }] : []),
             {
                 key: 'period',
                 header: 'الفترة',
-                cell: (p) => <span className="tabular-nums" dir="ltr">{p.periodLabel}</span>,
+                cell: (p) => (
+                    <span className="tabular-nums" dir="ltr">
+                        {p.periodLabel}
+                    </span>
+                ),
             },
             {
                 key: 'target',
@@ -135,8 +130,14 @@ export default function IncentivesIndex({
                     p.tiers.length > 1 ? (
                         <div className="space-y-0.5 text-xs tabular-nums">
                             {p.tiers.map((t, i) => (
-                                <div key={t.threshold} className={p.reachedTier === i + 1 ? 'font-semibold' : 'text-muted-foreground'}>
+                                <div key={t.threshold} className={t.reached ? 'font-semibold' : 'text-muted-foreground'}>
                                     {formatCurrency(t.threshold)} ← {formatCurrency(t.bonus)}
+                                    {/* تاسك 214: كل شريحة بحالة صرفها. */}
+                                    {t.paidAt && (
+                                        <span className="mr-1 font-normal text-green-600" title={`${t.paidAt} — ${t.paidBy ?? ''}`}>
+                                            ✓ تم الصرف
+                                        </span>
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -180,17 +181,16 @@ export default function IncentivesIndex({
                 headerClassName: 'w-32',
                 cell: (p) => (
                     <div className="flex items-center justify-end gap-2">
-                        {p.status === 'achieved' && (
-                            <Button
-                                size="sm"
-                                onClick={() => setPaying(p)}
-                                disabled={!p.canPayNow}
-                                title={p.canPayNow ? undefined : 'خطة ذات شرائح تُصرف بعد نهاية الشهر'}
-                            >
-                                <Wallet className="h-3.5 w-3.5" /> صرف
-                            </Button>
+                        {/* تاسك 214: زرّ مستقل لكل شريحة مبلوغة لم تُصرف. */}
+                        {p.tiers.map(
+                            (t, i) =>
+                                t.canPay && (
+                                    <Button key={t.threshold} size="sm" onClick={() => setPaying({ plan: p, tier: i + 1 })}>
+                                        <Wallet className="h-3.5 w-3.5" /> صرف{p.tiers.length > 1 && ` ش${i + 1}`}
+                                    </Button>
+                                ),
                         )}
-                        {p.status !== 'paid' && (
+                        {p.status !== 'paid' && !p.tiers.some((t) => t.paidAt) && (
                             <>
                                 <Button variant="outline" size="sm" onClick={() => openEdit(p)}>
                                     <Pencil className="h-3.5 w-3.5" />
@@ -217,7 +217,7 @@ export default function IncentivesIndex({
             {
                 key: 'deductedAt',
                 header: 'التاريخ',
-                cell: (d) => <span className="tabular-nums whitespace-nowrap">{d.deductedAt}</span>,
+                cell: (d) => <span className="whitespace-nowrap tabular-nums">{d.deductedAt}</span>,
             },
             {
                 key: 'userName',
@@ -236,9 +236,7 @@ export default function IncentivesIndex({
             {
                 key: 'amount',
                 header: 'القيمة',
-                cell: (d) => (
-                    <span className="font-semibold tabular-nums text-destructive">{formatCurrency(d.amount)}</span>
-                ),
+                cell: (d) => <span className="text-destructive font-semibold tabular-nums">{formatCurrency(d.amount)}</span>,
             },
             {
                 key: 'reason',
@@ -370,9 +368,7 @@ export default function IncentivesIndex({
                     totalItems={plans.meta.total as number}
                     from={plans.meta.from as number}
                     to={plans.meta.to as number}
-                    onPageChange={(page) =>
-                        router.reload({ data: { page } })
-                    }
+                    onPageChange={(page) => router.reload({ data: { page } })}
                 />
 
                 {/*
@@ -384,8 +380,8 @@ export default function IncentivesIndex({
                     <div>
                         <h2 className="text-xl font-bold">الخصومات</h2>
                         <p className="text-muted-foreground text-sm">
-                            حسمٌ تطبّقه الإدارة بسببه وقيمته. يُعدَّل بعد تسجيله — قيمةً وسبباً وتاريخاً، وكلُّ
-                            تعديلٍ مكتوبٌ في سجلّه — ويُحذف إن سُجّل خطأً.
+                            حسمٌ تطبّقه الإدارة بسببه وقيمته. يُعدَّل بعد تسجيله — قيمةً وسبباً وتاريخاً، وكلُّ تعديلٍ مكتوبٌ في سجلّه — ويُحذف إن
+                            سُجّل خطأً.
                         </p>
                     </div>
                     <Button
@@ -454,8 +450,8 @@ export default function IncentivesIndex({
                         <DialogTitle>تأكيد حذف الحسم</DialogTitle>
                         <DialogDescription>
                             هل أنت متأكد من حذف حسم «{deletingDeduction?.userName}» بمبلغ{' '}
-                            {deletingDeduction ? formatCurrency(deletingDeduction.amount) : ''} بتاريخ{' '}
-                            {deletingDeduction?.deductedAt}؟ لن يظهر بعدها في الكشوف ولا في الإجمالي.
+                            {deletingDeduction ? formatCurrency(deletingDeduction.amount) : ''} بتاريخ {deletingDeduction?.deductedAt}؟ لن يظهر بعدها
+                            في الكشوف ولا في الإجمالي.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>
@@ -479,10 +475,11 @@ export default function IncentivesIndex({
             />
 
             <PayBonusModal
-                key={paying?.id ?? 'none'}
+                key={paying ? `${paying.plan.id}-${paying.tier}` : 'none'}
                 open={!!paying}
                 onOpenChange={(open) => !open && setPaying(null)}
-                plan={paying}
+                plan={paying?.plan ?? null}
+                tier={paying?.tier ?? 1}
             />
 
             <DeductionFormModal

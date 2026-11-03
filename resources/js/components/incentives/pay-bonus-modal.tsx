@@ -1,12 +1,6 @@
 import { pay } from '@/actions/App/Http/Controllers/IncentiveController';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/lib/utils';
 import { type IncentivePlan } from '@/types/incentive';
@@ -18,10 +12,13 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     plan: IncentivePlan | null;
+    /** تاسك 214: رقم الشريحة المصروفة (من 1). */
+    tier: number;
 }
 
-export default function PayBonusModal({ open, onOpenChange, plan }: Props) {
-    const { data, setData, post, processing, errors, reset } = useForm({ notes: '' });
+export default function PayBonusModal({ open, onOpenChange, plan, tier }: Props) {
+    const { data, setData, post, processing, errors, reset } = useForm({ notes: '', tier });
+    const paidTier = plan?.tiers[tier - 1];
 
     useEffect(() => {
         reset();
@@ -47,22 +44,20 @@ export default function PayBonusModal({ open, onOpenChange, plan }: Props) {
                 </DialogHeader>
 
                 <form id="pay-bonus-form" onSubmit={handleSubmit} className="space-y-4 py-2">
-                    <div className="space-y-2 rounded-lg border bg-muted/40 px-4 py-3 text-sm">
+                    <div className="bg-muted/40 space-y-2 rounded-lg border px-4 py-3 text-sm">
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">الفترة</span>
-                            <span className="tabular-nums" dir="ltr">{plan?.periodLabel}</span>
+                            <span className="tabular-nums" dir="ltr">
+                                {plan?.periodLabel}
+                            </span>
                         </div>
                         {/* الهدف بجانب المحقّق: النسبة تُقاس على الهدف (تاسك 73)، فيرى الصارف من أين جاء الرقم. */}
-                        {/* ذات الشرائح: عتبة الشريحة المبلوغة هي ما تُقاس عليه النسبة (تاسك 105). */}
+                        {/* ذات الشرائح: عتبة الشريحة المصروفة هي ما تُقاس عليه النسبة (تاسك 105). */}
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">
-                                {plan && plan.tiers.length > 1 && plan.reachedTier
-                                    ? `الشريحة المبلوغة (${plan.reachedTier} من ${plan.tiers.length})`
-                                    : 'الهدف'}
+                                {plan && plan.tiers.length > 1 ? `الشريحة ${tier} من ${plan.tiers.length}` : 'الهدف'}
                             </span>
-                            <span className="tabular-nums">
-                                {formatCurrency(plan?.reachedTier ? plan.tiers[plan.reachedTier - 1].threshold : (plan?.targetAmount ?? 0))}
-                            </span>
+                            <span className="tabular-nums">{formatCurrency(paidTier?.threshold ?? 0)}</span>
                         </div>
                         <div className="flex justify-between">
                             <span className="text-muted-foreground">المبيعات المحققة</span>
@@ -70,7 +65,7 @@ export default function PayBonusModal({ open, onOpenChange, plan }: Props) {
                         </div>
                         <div className="flex justify-between border-t pt-2 font-semibold">
                             <span>قيمة المكافأة</span>
-                            <span className="tabular-nums">{formatCurrency(plan?.bonusAmount ?? 0)}</span>
+                            <span className="tabular-nums">{formatCurrency(paidTier?.bonus ?? 0)}</span>
                         </div>
                     </div>
 
@@ -82,7 +77,7 @@ export default function PayBonusModal({ open, onOpenChange, plan }: Props) {
                             value={data.notes}
                             onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setData('notes', e.target.value)}
                             placeholder="اختياري"
-                            className="flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[64px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                         />
                         <InputError message={errors.notes} />
                         <InputError message={(errors as Record<string, string>).incentive_plan_id} />

@@ -13,6 +13,12 @@ export interface IncentiveTier {
     value: number;
     /** مكافأة هذه الشريحة بالريال. */
     bonus: number;
+    /** تاسك 214: بلغها المحقَّق الآن. */
+    reached: boolean;
+    paidAt: string | null;
+    paidBy: string | null;
+    /** مبلوغة ولم تُصرف — زرّ «صرف» مستقل لها. */
+    canPay: boolean;
 }
 
 export interface IncentivePlan {
@@ -39,8 +45,6 @@ export interface IncentivePlan {
     /** رقم أعلى شريحة مبلوغة (من 1)، أو null. */
     reachedTier: number | null;
     nextTier: { number: number; threshold: number; remaining: number } | null;
-    /** ذات الشرائح لا تُصرف قبل نهاية الشهر. */
-    canPayNow: boolean;
     notes: string | null;
     paidAmount: number | null;
     paidAt: string | null;

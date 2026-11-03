@@ -147,7 +147,7 @@ class IncentiveController extends Controller
     {
         Gate::authorize('pay', $incentivePlan);
 
-        $payment = $action->handle($incentivePlan, $request->validated());
+        $payment = $action->handle($incentivePlan, (int) ($request->validated('tier') ?? 1), $request->validated());
 
         $incentivePlan->user?->notify(new BonusPaidNotification($payment));
 
