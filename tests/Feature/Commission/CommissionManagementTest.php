@@ -1,9 +1,12 @@
 <?php
 
+use App\Enums\IncentiveBonusTypeEnum;
 use App\Enums\Roles;
 use App\Models\Branch;
 use App\Models\CommissionLedger;
 use App\Models\CommissionPayment;
+use App\Models\EmployeeDeduction;
+use App\Models\IncentivePlan;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -55,7 +58,7 @@ describe('Commission System', function () {
 
     // ── AGGREGATION ────────────────────────────────────────────────
 
-    it('aggregates earned, paid, pending and tahazir per employee', function () {
+    it('aggregates earned, paid and pending per employee', function () {
         CommissionLedger::factory()->create([
             'user_id' => $this->employee->id,
             'branch_id' => $this->branch->id,
@@ -76,7 +79,6 @@ describe('Commission System', function () {
                 ->where('summary.totalEarned', 140)
                 ->where('summary.totalPaid', 100)
                 ->where('summary.pending', 40)
-                ->where('employees.0.tahazirEarned', 40)
                 ->where('employees.0.pending', 40));
     });
 
@@ -99,13 +101,13 @@ describe('Commission System', function () {
                 ->has('employees', 2)
                 ->where('summary.totalEarned', 200)
                 ->where('summary.totalSalaries', 5500)
-                ->where('summary.totalSalariesPlusCommissions', 5700)
+                ->where('summary.totalNet', 5700)
                 ->where('filters.month', now()->format('Y-m')));
 
         $rows = collect($this->get(route('commissions.index'))->viewData('page')['props']['employees'])->keyBy('userId');
         expect($rows[$noCommission->id]['totalEarned'])->toEqual(0)
-            ->and($rows[$noCommission->id]['salaryPlusCommission'])->toEqual(2500)
-            ->and($rows[$this->employee->id]['salaryPlusCommission'])->toEqual(3200);
+            ->and($rows[$noCommission->id]['netTotal'])->toEqual(2500)
+            ->and($rows[$this->employee->id]['netTotal'])->toEqual(3200);
     });
 
     it('sums only the selected month of commission', function () {
@@ -126,12 +128,12 @@ describe('Commission System', function () {
         $this->get(route('commissions.index'))
             ->assertInertia(fn ($page) => $page
                 ->where('summary.totalEarned', 40)
-                ->where('summary.totalSalariesPlusCommissions', 3040));
+                ->where('summary.totalNet', 3040));
 
         $this->get(route('commissions.index', ['month' => now()->startOfMonth()->subDays(3)->format('Y-m')]))
             ->assertInertia(fn ($page) => $page
                 ->where('summary.totalEarned', 100)
-                ->where('employees.0.salaryPlusCommission', 3100));
+                ->where('employees.0.netTotal', 3100));
     });
 
     it('leaves out salaried staff of other branches and inactive users', function () {
@@ -144,6 +146,89 @@ describe('Commission System', function () {
             ->assertInertia(fn ($page) => $page
                 ->has('employees', 0)
                 ->where('summary.totalSalaries', 0));
+    });
+
+    // ── INCENTIVES & DEDUCTIONS (task 216) ─────────────────────────
+
+    it('adds the month earned incentive and subtracts its deductions in the final total', function () {
+        $this->employee->update(['salary' => 1000]);
+        CommissionLedger::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'amount' => 500,
+        ]);
+        IncentivePlan::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+            'target_amount' => 1000,
+            'bonus_type' => IncentiveBonusTypeEnum::Fixed,
+            'bonus_value' => 100,
+            'achieved_amount' => 1500,
+        ]);
+        $deduction = fn (array $attrs = []) => EmployeeDeduction::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'amount' => 50,
+            ...$attrs,
+        ]);
+        $deduction();
+        $deduction()->delete();
+        $deduction(['deducted_at' => now()->startOfMonth()->subDays(2)]);
+
+        $this->get(route('commissions.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('employees', 1)
+                ->where('employees.0.incentives', 100)
+                ->where('employees.0.deductions', 50)
+                ->where('employees.0.netTotal', 1550)
+                ->where('summary.totalNet', 1550));
+    });
+
+    it('counts no incentive for a plan below its target, and lists an unsalaried employee with only a deduction', function () {
+        IncentivePlan::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'period_month' => now()->month,
+            'period_year' => now()->year,
+            'target_amount' => 1000,
+            'bonus_type' => IncentiveBonusTypeEnum::Fixed,
+            'bonus_value' => 100,
+            'achieved_amount' => 400,
+        ]);
+        EmployeeDeduction::factory()->create([
+            'user_id' => $this->employee->id,
+            'branch_id' => $this->branch->id,
+            'amount' => 30,
+        ]);
+
+        $this->get(route('commissions.index'))
+            ->assertInertia(fn ($page) => $page
+                ->has('employees', 1)
+                ->where('employees.0.incentives', 0)
+                ->where('employees.0.netTotal', -30));
+    });
+
+    // ── MULTI-BRANCH (task 215) ────────────────────────────────────
+
+    it('scopes the super admin to several chosen branches', function () {
+        $second = Branch::factory()->create();
+        $third = Branch::factory()->create();
+        foreach ([[$this->branch, 10], [$second, 20], [$third, 40]] as [$branch, $amount]) {
+            $user = User::factory()->create(['branch_id' => $branch->id]);
+            CommissionLedger::factory()->create(['user_id' => $user->id, 'branch_id' => $branch->id, 'amount' => $amount]);
+        }
+
+        $this->get(route('commissions.index', ['branch' => "{$this->branch->id},{$second->id}"]))
+            ->assertInertia(fn ($page) => $page
+                ->has('employees', 2)
+                ->where('summary.totalEarned', 30)
+                ->where('filters.branch', "{$this->branch->id},{$second->id}"));
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('commissions.index', ['branch' => (string) $third->id]))
+            ->assertInertia(fn ($page) => $page->where('summary.totalEarned', 10));
     });
 
     // ── PAY FLOW ───────────────────────────────────────────────────

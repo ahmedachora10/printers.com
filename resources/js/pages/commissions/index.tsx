@@ -1,23 +1,18 @@
 import { AmountSortSelect, sortByAmount, type AmountSort } from '@/components/commissions/amount-sort-select';
 import CommissionPayModal from '@/components/commissions/commission-pay-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
-import { DateRangeFields, FilterSelect, type FilterOption } from '@/components/reports/filter-fields';
+import { DateRangeFields, FilterMultiSelect, FilterSelect, type FilterOption } from '@/components/reports/filter-fields';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import AppLayout from '@/layouts/app-layout';
 import { formatCurrency, formatDate } from '@/lib/utils';
 import commissions from '@/routes/commissions';
 import { type BreadcrumbItem } from '@/types';
-import {
-    type CommissionEmployeeRow,
-    type CommissionPayment,
-    type CommissionSummary,
-    type PaginatedCommissionPayment,
-} from '@/types/commission';
+import { type CommissionEmployeeRow, type CommissionPayment, type CommissionSummary, type PaginatedCommissionPayment } from '@/types/commission';
 import { router } from '@inertiajs/react';
-import { Banknote, Coins, TrendingUp, Wallet, WalletCards } from 'lucide-react';
+import { Banknote, ChevronDown, Coins, TrendingUp, Wallet, WalletCards } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'العمولات', href: '/commissions' }];
@@ -36,6 +31,7 @@ export default function CommissionsIndex({ employees, summary, payments, branche
     const [paying, setPaying] = useState<CommissionEmployeeRow | null>(null);
     const [payOpen, setPayOpen] = useState(false);
     const [sort, setSort] = useState<AmountSort>('name');
+    const branchCount = filters.branch ? filters.branch.split(',').length : 0;
     const sortedEmployees = useMemo(() => sortByAmount(employees, sort, (e) => e.totalEarned), [employees, sort]);
 
     function openPay(employee: CommissionEmployeeRow) {
@@ -78,11 +74,21 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                 cell: (item) => formatCurrency(item.totalEarned),
             },
             {
-                key: 'tahazirEarned',
-                header: 'عمولات - تحضير',
-                cell: (item) => (
-                    <span className="text-muted-foreground">{formatCurrency(item.tahazirEarned)}</span>
-                ),
+                key: 'incentives',
+                header: 'الحوافز',
+                cell: (item) => <span className="text-green-600">{formatCurrency(item.incentives)}</span>,
+            },
+            {
+                key: 'deductions',
+                header: 'الحسومات',
+                cell: (item) =>
+                    item.deductions > 0 ? (
+                        <span className="text-red-600" dir="ltr">
+                            -{formatCurrency(item.deductions)}
+                        </span>
+                    ) : (
+                        <span className="text-muted-foreground">—</span>
+                    ),
             },
             {
                 key: 'totalPaid',
@@ -100,9 +106,9 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                     ),
             },
             {
-                key: 'salaryPlusCommission',
-                header: 'إجمالي الراتب مع العمولة',
-                cell: (item) => <span className="font-semibold">{formatCurrency(item.salaryPlusCommission)}</span>,
+                key: 'netTotal',
+                header: 'إجمالي الراتب + العمولة + الحوافز − الحسومات',
+                cell: (item) => <span className="font-semibold">{formatCurrency(item.netTotal)}</span>,
             },
             {
                 key: 'actions',
@@ -129,9 +135,8 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                 key: 'period',
                 header: 'الفترة',
                 cell: (item) => (
-                    <span className="text-sm text-muted-foreground" dir="ltr">
-                        {item.periodStart ? formatDate(item.periodStart) : '—'} →{' '}
-                        {item.periodEnd ? formatDate(item.periodEnd) : '—'}
+                    <span className="text-muted-foreground text-sm" dir="ltr">
+                        {item.periodStart ? formatDate(item.periodStart) : '—'} → {item.periodEnd ? formatDate(item.periodEnd) : '—'}
                     </span>
                 ),
             },
@@ -169,19 +174,25 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                             onChange={(e) => e.target.value && applyFilters({ month: e.target.value })}
                         />
                         {isSuperAdmin && branches.length > 0 && (
-                            <Select value={filters.branch ?? 'all'} onValueChange={(val) => applyFilters({ branch: val })}>
-                                <SelectTrigger className="w-48">
-                                    <SelectValue placeholder="كل الفروع" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">كل الفروع</SelectItem>
-                                    {branches.map((b) => (
-                                        <SelectItem key={b.id} value={b.id.toString()}>
-                                            {b.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                            // تاسك 215: أكثر من فرع — ?branch=3,7، والفارغة = كل الفروع.
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button variant="outline" className="w-48 justify-between font-normal">
+                                        {branchCount > 0 ? `${branchCount} فروع محددة` : 'كل الفروع'}
+                                        <ChevronDown className="size-4 opacity-50" />
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent align="end" className="w-72">
+                                    <FilterMultiSelect
+                                        label="الفروع"
+                                        value={filters.branch ?? ''}
+                                        onChange={(branch) => applyFilters({ branch })}
+                                        allLabel="كل الفروع"
+                                        searchPlaceholder="ابحث عن فرع..."
+                                        options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                                    />
+                                </PopoverContent>
+                            </Popover>
                         )}
                     </div>
                 </div>
@@ -189,7 +200,7 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                 <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                            <CardTitle className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
                                 <TrendingUp className="size-4" /> إجمالي العمولات
                             </CardTitle>
                         </CardHeader>
@@ -199,7 +210,7 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                            <CardTitle className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
                                 <Banknote className="size-4" /> المصروف
                             </CardTitle>
                         </CardHeader>
@@ -209,7 +220,7 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                            <CardTitle className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
                                 <Wallet className="size-4" /> المستحق
                             </CardTitle>
                         </CardHeader>
@@ -219,7 +230,7 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                            <CardTitle className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
                                 <Coins className="size-4" /> إجمالي الرواتب
                             </CardTitle>
                         </CardHeader>
@@ -229,12 +240,12 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                     </Card>
                     <Card>
                         <CardHeader className="pb-2">
-                            <CardTitle className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                                <WalletCards className="size-4" /> إجمالي الرواتب + العمولات
+                            <CardTitle className="text-muted-foreground flex items-center gap-2 text-sm font-medium">
+                                <WalletCards className="size-4" /> الرواتب + العمولات + الحوافز − الحسومات
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <p className="text-2xl font-bold">{formatCurrency(summary.totalSalariesPlusCommissions)}</p>
+                            <p className="text-2xl font-bold">{formatCurrency(summary.totalNet)}</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -245,11 +256,7 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                         <AmountSortSelect value={sort} onChange={setSort} />
                     </CardHeader>
                     <CardContent>
-                        <DataTable
-                            columns={employeeColumns}
-                            data={sortedEmployees}
-                            keyExtractor={(item) => item.userId}
-                        />
+                        <DataTable columns={employeeColumns} data={sortedEmployees} keyExtractor={(item) => item.userId} />
                     </CardContent>
                 </Card>
 
@@ -296,13 +303,7 @@ export default function CommissionsIndex({ employees, summary, payments, branche
                 </Card>
             </div>
 
-            <CommissionPayModal
-                key={paying?.userId ?? 'none'}
-                open={payOpen}
-                onOpenChange={setPayOpen}
-                employee={paying}
-                month={filters.month}
-            />
+            <CommissionPayModal key={paying?.userId ?? 'none'} open={payOpen} onOpenChange={setPayOpen} employee={paying} month={filters.month} />
         </AppLayout>
     );
 }

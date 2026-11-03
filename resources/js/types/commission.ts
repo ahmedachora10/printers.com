@@ -5,8 +5,9 @@ export interface CommissionEmployeeRow {
     totalEarned: number;
     totalPaid: number;
     pending: number;
-    tahazirEarned: number;
-    salaryPlusCommission: number;
+    incentives: number;
+    deductions: number;
+    netTotal: number;
 }
 
 export interface CommissionSummary {
@@ -14,7 +15,9 @@ export interface CommissionSummary {
     totalPaid: number;
     pending: number;
     totalSalaries: number;
-    totalSalariesPlusCommissions: number;
+    totalIncentives: number;
+    totalDeductions: number;
+    totalNet: number;
 }
 
 export interface CommissionPayment {
