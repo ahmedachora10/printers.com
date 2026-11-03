@@ -3,6 +3,7 @@
 namespace App\Http\Requests\InvoiceReturnRequest;
 
 use App\Actions\ServiceInvoice\ReturnServiceInvoiceAction;
+use App\Models\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -29,6 +30,11 @@ class ApproveInvoiceReturnRequestRequest extends FormRequest
                 : ['nullable'],
             // مبلغٌ أقلّ مما حُصِّل = مرتجع جزئي؛ الفارغ = الاسترجاع الكامل.
             'amount' => $refundable > 0 ? ['nullable', 'numeric', 'gt:0', "max:{$refundable}"] : ['prohibited'],
+            // تاسك 213: إيصال التحويل متى اشترطته طريقة الردّ.
+            'receipt' => [
+                PaymentMethod::requiresReceipt($this->input('payment_method_id')) ? 'required' : 'nullable',
+                'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120',
+            ],
         ];
     }
 

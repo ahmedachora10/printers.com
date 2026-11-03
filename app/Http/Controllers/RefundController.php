@@ -22,6 +22,7 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 class RefundController extends Controller
 {
@@ -32,7 +33,7 @@ class RefundController extends Controller
         $branchId = Auth::user()->roleName->isSuperAdmin() ? null : Auth::user()->branchId;
 
         $refunds = Refund::query()
-            ->with(['invoice', 'user:id,name', 'paymentMethod:id,name'])
+            ->with(['invoice', 'user:id,name', 'paymentMethod:id,name', 'media'])
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->when($request->filled('source_type'), fn ($q) => $q->where('source_type', $request->input('source_type')))
             ->when($request->filled('date_from'), fn ($q) => $q->whereDate('created_at', '>=', $request->input('date_from')))
@@ -67,6 +68,17 @@ class RefundController extends Controller
         );
 
         return back(fallback: route('refunds.index'))->with('success', 'تم تسجيل المرتجع بنجاح');
+    }
+
+    /** تاسك 213: إيصال تحويل المرتجع — من القرص الخاص، لمن يرى المرتجع. */
+    public function receipt(Refund $refund, Request $request): SymfonyResponse
+    {
+        Gate::authorize('view', $refund);
+
+        $media = $refund->getFirstMedia(Refund::RECEIPT_COLLECTION);
+        abort_if($media === null, 404);
+
+        return $media->toInlineResponse($request);
     }
 
     /**
@@ -167,7 +179,7 @@ class RefundController extends Controller
                     'stockReversed' => $stockReversed,
                     // تاسك 131: طرق فرع الفاتورة لاختيار طريقة ردّ المبلغ.
                     'paymentMethods' => $invoice->branch?->enabledPaymentMethods()
-                        ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name]) ?? [],
+                        ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'requiresAttachment' => (bool) $m->requires_attachment]) ?? [],
                 ],
             ]);
         }

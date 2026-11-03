@@ -233,6 +233,7 @@ Route::middleware(['auth'])->group(function () {
         Route::get('refunds', [RefundController::class, 'index'])->name('refunds.index');
         // تاسك 135 — طلبات استرجاع الموظفين (تبويب في «المرتجعات»).
         Route::get('refunds/requests', [InvoiceReturnRequestController::class, 'index'])->name('refunds.requests.index');
+        Route::get('refunds/{refund}/receipt', [RefundController::class, 'receipt'])->whereNumber('refund')->name('refunds.receipt');
 
         // تاسك 93 — كشف توصيلات اليوم: متابعةٌ تشغيلية قراءةً فقط.
         // تاسك 127: والمحاسب منها، والسياسة (`viewDeliveries`) هي الحارس الفعلي.

@@ -1,6 +1,6 @@
+import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import RefundTabs from '@/components/refunds/refund-tabs';
 import ReturnRequestDialogs from '@/components/refunds/return-request-dialogs';
-import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -28,7 +28,7 @@ const STATUS_COLORS: Record<ReturnRequestStatus, string> = {
 interface Props {
     items: PaginatedReturnRequest;
     /** طرق الردّ لكل فرعٍ في الصفحة، بمفتاح رقم الفرع */
-    paymentMethods: Record<number, { id: number; name: string }[]>;
+    paymentMethods: Record<number, { id: number; name: string; requiresAttachment: boolean }[]>;
     statuses: { value: ReturnRequestStatus; label: string }[];
     filters: { status: string };
 }
@@ -52,7 +52,7 @@ export default function ReturnRequestsIndex({ items, paymentMethods, statuses, f
                 key: 'amount',
                 header: 'المبلغ المُردّ',
                 cell: (item) => (
-                    <span className="font-semibold tabular-nums text-destructive" dir="ltr">
+                    <span className="text-destructive font-semibold tabular-nums" dir="ltr">
                         {formatCurrency(item.amount)}
                     </span>
                 ),
@@ -62,7 +62,7 @@ export default function ReturnRequestsIndex({ items, paymentMethods, statuses, f
                 key: 'reason',
                 header: 'السبب',
                 cell: (item) => (
-                    <span className="block max-w-xs truncate text-sm text-muted-foreground" title={item.reason ?? ''}>
+                    <span className="text-muted-foreground block max-w-xs truncate text-sm" title={item.reason ?? ''}>
                         {item.reason ?? '—'}
                     </span>
                 ),
@@ -75,7 +75,7 @@ export default function ReturnRequestsIndex({ items, paymentMethods, statuses, f
                         <Badge variant="outline" className={STATUS_COLORS[item.status]}>
                             {item.statusLabel}
                         </Badge>
-                        {item.rejectionReason && <p className="max-w-xs text-xs text-muted-foreground">{item.rejectionReason}</p>}
+                        {item.rejectionReason && <p className="text-muted-foreground max-w-xs text-xs">{item.rejectionReason}</p>}
                     </div>
                 ),
             },
@@ -86,14 +86,14 @@ export default function ReturnRequestsIndex({ items, paymentMethods, statuses, f
                 cell: (item) => (
                     <span className="text-sm">
                         {item.deciderName ?? '—'}
-                        {item.decidedAt && <span className="block text-xs text-muted-foreground">{formatDateTime(item.decidedAt)}</span>}
+                        {item.decidedAt && <span className="text-muted-foreground block text-xs">{formatDateTime(item.decidedAt)}</span>}
                     </span>
                 ),
             },
             {
                 key: 'createdAt',
                 header: 'تاريخ الطلب',
-                cell: (item) => <span className="text-sm text-muted-foreground">{item.createdAt ? formatDateTime(item.createdAt) : '—'}</span>,
+                cell: (item) => <span className="text-muted-foreground text-sm">{item.createdAt ? formatDateTime(item.createdAt) : '—'}</span>,
             },
             {
                 key: 'actions',
@@ -104,7 +104,12 @@ export default function ReturnRequestsIndex({ items, paymentMethods, statuses, f
                             <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700" onClick={() => setApproving(item)}>
                                 <Check className="size-4" /> اعتماد
                             </Button>
-                            <Button size="sm" variant="outline" className="text-destructive hover:text-destructive" onClick={() => setRejecting(item)}>
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => setRejecting(item)}
+                            >
                                 <X className="size-4" /> رفض
                             </Button>
                         </div>

@@ -1,7 +1,7 @@
-import RefundFormModal from '@/components/refunds/refund-form-modal';
-import RefundTabs from '@/components/refunds/refund-tabs';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
+import RefundFormModal from '@/components/refunds/refund-form-modal';
+import RefundTabs from '@/components/refunds/refund-tabs';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,7 +11,7 @@ import refunds from '@/routes/refunds';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type PaginatedRefund, type RefundFilters, type RefundListItem } from '@/types/refund';
 import { Link, router, usePage } from '@inertiajs/react';
-import { Plus, Printer } from 'lucide-react';
+import { Paperclip, Plus, Printer } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'المرتجعات', href: '/refunds' }];
@@ -38,9 +38,7 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
     const [dateTo, setDateTo] = useState(filters.date_to ?? '');
 
     function buildParams(fv: Record<string, string>, from: string, to: string) {
-        return Object.fromEntries(
-            Object.entries({ ...fv, date_from: from, date_to: to }).filter(([, v]) => v !== ''),
-        );
+        return Object.fromEntries(Object.entries({ ...fv, date_from: from, date_to: to }).filter(([, v]) => v !== ''));
     }
 
     const reload = (fv: Record<string, string>, from: string, to: string) => {
@@ -77,7 +75,7 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
                     item.invoiceId && item.invoiceNumber ? (
                         <Link
                             href={`/invoices/${item.sourceType}/${item.invoiceId}`}
-                            className="font-medium text-foreground hover:underline"
+                            className="text-foreground font-medium hover:underline"
                             dir="ltr"
                         >
                             {item.invoiceNumber}
@@ -99,7 +97,7 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
                 key: 'amount',
                 header: 'المبلغ',
                 cell: (item) => (
-                    <span className="font-semibold tabular-nums text-destructive" dir="ltr">
+                    <span className="text-destructive font-semibold tabular-nums" dir="ltr">
                         {formatCurrency(item.amount)}
                     </span>
                 ),
@@ -107,13 +105,23 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
             {
                 key: 'paymentMethodName',
                 header: 'طريقة الردّ',
-                cell: (item) => <span className="text-sm">{item.paymentMethodName ?? '—'}</span>,
+                cell: (item) => (
+                    <span className="flex items-center gap-1.5 text-sm">
+                        {item.paymentMethodName ?? '—'}
+                        {/* تاسك 213: إيصال تحويل الردّ */}
+                        {item.receiptUrl && (
+                            <a href={item.receiptUrl} target="_blank" rel="noopener noreferrer" title="إيصال التحويل" className="text-primary">
+                                <Paperclip className="size-4" />
+                            </a>
+                        )}
+                    </span>
+                ),
             },
             {
                 key: 'reason',
                 header: 'السبب',
                 cell: (item) => (
-                    <span className="block max-w-xs truncate text-sm text-muted-foreground" title={item.reason}>
+                    <span className="text-muted-foreground block max-w-xs truncate text-sm" title={item.reason}>
                         {item.reason}
                     </span>
                 ),
@@ -138,7 +146,11 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
             {
                 key: 'createdAt',
                 header: 'التاريخ',
-                cell: (item) => <span className="text-sm text-muted-foreground" dir="ltr">{item.createdAt ?? '—'}</span>,
+                cell: (item) => (
+                    <span className="text-muted-foreground text-sm" dir="ltr">
+                        {item.createdAt ?? '—'}
+                    </span>
+                ),
             },
             // تاسك 150: إشعار المرتجع — والمراجع لا يطبع (من لا يُنشئ لا يطبع).
             ...(canCreate

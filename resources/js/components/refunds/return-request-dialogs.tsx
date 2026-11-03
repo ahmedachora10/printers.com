@@ -1,3 +1,5 @@
+import { ReceiptField } from '@/components/invoices/receipt-field';
+import { type PaymentMethodOption } from '@/components/invoices/record-payment-modal';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -23,10 +25,11 @@ export default function ReturnRequestDialogs({
     approving: ReturnRequestItem | null;
     rejecting: ReturnRequestItem | null;
     /** طرق الردّ في فرع الطلب المعتمَد */
-    paymentMethods: { id: number; name: string }[];
+    paymentMethods: PaymentMethodOption[];
     onClose: () => void;
 }) {
     const [methodId, setMethodId] = useState('');
+    const [receipt, setReceipt] = useState<File | null>(null);
     // null = لم يُعدَّل بعد ⇒ كامل المبلغ القابل للردّ.
     const [amount, setAmount] = useState<string | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
@@ -34,12 +37,13 @@ export default function ReturnRequestDialogs({
 
     function close() {
         setMethodId('');
+        setReceipt(null);
         setAmount(null);
         setRejectionReason('');
         onClose();
     }
 
-    function submit(url: string, data: Record<string, string | null>, success: string) {
+    function submit(url: string, data: Record<string, string | File | null>, success: string) {
         setProcessing(true);
         router.post(url, data, {
             preserveScroll: true,
@@ -58,6 +62,8 @@ export default function ReturnRequestDialogs({
     const amountValue = Number(amountText);
     const amountValid = !needsMethod || (amountValue > 0 && amountValue <= refundable);
     const isPartial = needsMethod && amountValid && amountValue < refundable;
+    // تاسك 213: الردّ بطريقةٍ تشترط مرفقاً (تحويل) ⇒ إيصال التحويل إلزامي.
+    const needsReceipt = needsMethod && paymentMethods.find((m) => String(m.id) === methodId)?.requiresAttachment === true;
 
     return (
         <>
@@ -90,7 +96,7 @@ export default function ReturnRequestDialogs({
                                 disabled={processing}
                                 aria-invalid={!amountValid}
                             />
-                            {!amountValid && <p className="text-xs text-destructive">أدخل مبلغاً أكبر من صفر ولا يتجاوز ما حُصِّل.</p>}
+                            {!amountValid && <p className="text-destructive text-xs">أدخل مبلغاً أكبر من صفر ولا يتجاوز ما حُصِّل.</p>}
                         </div>
                     )}
                     {needsMethod && (
@@ -112,18 +118,23 @@ export default function ReturnRequestDialogs({
                             </Select>
                         </div>
                     )}
+                    {needsReceipt && <ReceiptField id="approve-receipt" onChange={setReceipt} disabled={processing} />}
                     <DialogFooter>
                         <Button variant="outline" onClick={close} disabled={processing}>
                             تراجع
                         </Button>
                         <Button
                             className="bg-emerald-600 text-white hover:bg-emerald-700"
-                            disabled={processing || (needsMethod && !methodId) || !amountValid}
+                            disabled={processing || (needsMethod && !methodId) || (needsReceipt && !receipt) || !amountValid}
                             onClick={() =>
                                 approving &&
                                 submit(
                                     refunds.requests.approve(approving.id).url,
-                                    { payment_method_id: methodId || null, amount: isPartial ? amountText : null },
+                                    {
+                                        payment_method_id: methodId || null,
+                                        amount: isPartial ? amountText : null,
+                                        receipt: needsReceipt ? receipt : null,
+                                    },
                                     isPartial ? 'تم اعتماد الطلب وتسجيل مرتجع جزئي.' : 'تم اعتماد الطلب واسترجاع الفاتورة.',
                                 )
                             }
@@ -162,7 +173,11 @@ export default function ReturnRequestDialogs({
                             disabled={processing || !rejectionReason.trim()}
                             onClick={() =>
                                 rejecting &&
-                                submit(refunds.requests.reject(rejecting.id).url, { rejection_reason: rejectionReason.trim() }, 'تم رفض طلب الاسترجاع.')
+                                submit(
+                                    refunds.requests.reject(rejecting.id).url,
+                                    { rejection_reason: rejectionReason.trim() },
+                                    'تم رفض طلب الاسترجاع.',
+                                )
                             }
                         >
                             <X className="size-4" /> رفض الطلب
