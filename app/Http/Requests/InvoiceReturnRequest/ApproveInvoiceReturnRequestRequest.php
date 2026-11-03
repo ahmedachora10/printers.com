@@ -45,9 +45,6 @@ class ApproveInvoiceReturnRequestRequest extends FormRequest
             'payment_method_id.in' => 'طريقة الردّ غير متاحة لفرع الفاتورة.',
             'amount.gt' => 'مبلغ الردّ يجب أن يكون أكبر من صفر.',
             'amount.max' => 'مبلغ الردّ يتجاوز ما حُصِّل من الفاتورة.',
-            'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الردّ المحددة.',
-            'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
-            'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
         ];
     }
 }

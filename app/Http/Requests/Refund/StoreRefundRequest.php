@@ -44,9 +44,6 @@ class StoreRefundRequest extends FormRequest
             'amount.min' => 'مبلغ المرتجع يجب أن يكون أكبر من صفر.',
             'payment_method_id.required' => 'طريقة ردّ المبلغ مطلوبة.',
             'payment_method_id.in' => 'طريقة الردّ غير متاحة لفرع الفاتورة.',
-            'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الردّ المحددة.',
-            'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
-            'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
         ];
     }
 

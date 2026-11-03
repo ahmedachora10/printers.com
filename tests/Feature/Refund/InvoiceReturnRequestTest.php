@@ -287,7 +287,7 @@ describe('إيصال تحويل المرتجع (تاسك 213)', function () {
     it('requires the receipt when approving by a transfer method, and keeps the request pending without it', function () {
         $this->actingAs($this->accountant)
             ->post(route('refunds.requests.approve', $this->request), ['payment_method_id' => $this->transfer->id])
-            ->assertSessionHasErrors('receipt');
+            ->assertSessionHasErrors(['receipt' => 'يجب إرفاق إيصال التحويل للطريقة المحددة.']);
 
         expect($this->request->refresh()->status->value)->toBe('pending')
             ->and(Refund::count())->toBe(0);
