@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Refund;
 
 use App\Enums\InvoiceTypeEnum;
+use App\Models\PaymentMethod;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -28,6 +29,11 @@ class StoreRefundRequest extends FormRequest
             'refund_shipping' => ['nullable', 'boolean'],
             // تاسك 131: بأيّ طريقة رُدّ المبلغ — منها يُطرح في تقرير المبيعات.
             'payment_method_id' => ['required', 'integer', Rule::in($this->enabledPaymentMethodIds())],
+            // تاسك 213: إيصال التحويل متى اشترطته طريقة الردّ.
+            'receipt' => [
+                PaymentMethod::requiresReceipt($this->input('payment_method_id')) ? 'required' : 'nullable',
+                'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120',
+            ],
         ];
     }
 
@@ -38,6 +44,9 @@ class StoreRefundRequest extends FormRequest
             'amount.min' => 'مبلغ المرتجع يجب أن يكون أكبر من صفر.',
             'payment_method_id.required' => 'طريقة ردّ المبلغ مطلوبة.',
             'payment_method_id.in' => 'طريقة الردّ غير متاحة لفرع الفاتورة.',
+            'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الردّ المحددة.',
+            'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
+            'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
         ];
     }
 

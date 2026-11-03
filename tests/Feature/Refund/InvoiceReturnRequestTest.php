@@ -5,12 +5,15 @@ use App\Enums\Roles;
 use App\Models\Branch;
 use App\Models\CommissionLedger;
 use App\Models\InvoiceReturnRequest;
+use App\Models\PaymentMethod;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceLine;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 
 uses(RefreshDatabase::class);
 
@@ -252,5 +255,100 @@ describe('طلبات الاسترجاع (تاسك 135)', function () {
 
         expect($this->invoice->refresh()->status)->toBe(InvoiceStatusEnum::RETURNED)
             ->and(InvoiceReturnRequest::count())->toBe(0);
+    });
+});
+
+describe('إيصال تحويل المرتجع (تاسك 213)', function () {
+    beforeEach(function () {
+        $this->withoutVite();
+        $this->seed(RolesAndPermissionsSeeder::class);
+        Storage::fake('local');
+
+        $this->admin = User::factory()->create();
+        $this->admin->addRole(Roles::BRANCH_ADMIN->value);
+        $this->branch = Branch::factory()->create(['owner_id' => $this->admin->id]);
+
+        $this->employee = User::factory()->create(['branch_id' => $this->branch->id]);
+        $this->employee->addRole(Roles::EMPLOYEE->value);
+
+        $this->accountant = User::factory()->create(['branch_id' => $this->branch->id]);
+        $this->accountant->addRole(Roles::ACCOUNTANT->value);
+
+        $this->invoice = paidInvoiceForReturnRequest($this->branch, $this->employee);
+        $this->cash = PaymentMethod::factory()->create(['is_active' => true, 'requires_attachment' => false, 'branch_id' => null]);
+        $this->transfer = PaymentMethod::factory()->create(['is_active' => true, 'requires_attachment' => true, 'branch_id' => null]);
+
+        $this->actingAs($this->employee)
+            ->post(route('pos.service.return', $this->invoice), ['reason' => 'العميل غيّر رأيه'])
+            ->assertSessionHasNoErrors();
+        $this->request = InvoiceReturnRequest::sole();
+    });
+
+    it('requires the receipt when approving by a transfer method, and keeps the request pending without it', function () {
+        $this->actingAs($this->accountant)
+            ->post(route('refunds.requests.approve', $this->request), ['payment_method_id' => $this->transfer->id])
+            ->assertSessionHasErrors('receipt');
+
+        expect($this->request->refresh()->status->value)->toBe('pending')
+            ->and(Refund::count())->toBe(0);
+    });
+
+    it('attaches the receipt to the refund of a full and of a partial approval', function (?float $amount) {
+        $this->actingAs($this->accountant)
+            ->post(route('refunds.requests.approve', $this->request), array_filter([
+                'payment_method_id' => $this->transfer->id,
+                'amount' => $amount,
+                'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $refund = Refund::sole();
+        expect($refund->getFirstMedia(Refund::RECEIPT_COLLECTION))->not->toBeNull()
+            ->and($this->request->refresh()->refund_id)->toBe($refund->id);
+
+        $this->get(route('refunds.receipt', $refund))->assertOk();
+        $this->get(route('refunds.index'))
+            ->assertInertia(fn ($page) => $page->where('items.data.0.receiptUrl', route('refunds.receipt', $refund)));
+    })->with([
+        'full' => [null],
+        'partial' => [500.0],
+    ]);
+
+    it('approves by cash without a receipt', function () {
+        $this->actingAs($this->accountant)
+            ->post(route('refunds.requests.approve', $this->request), ['payment_method_id' => $this->cash->id])
+            ->assertSessionHasNoErrors();
+
+        expect(Refund::sole()->receiptUrl())->toBeNull();
+    });
+
+    it('requires and stores the receipt on a refund created by the branch admin', function () {
+        $data = [
+            'source_type' => 'service',
+            'invoice_id' => $this->invoice->id,
+            'amount' => 100,
+            'reason' => 'خطأ في الطباعة',
+            'payment_method_id' => $this->transfer->id,
+        ];
+
+        $this->actingAs($this->admin)->post(route('refunds.store'), $data)->assertSessionHasErrors('receipt');
+        expect(Refund::count())->toBe(0);
+
+        $this->post(route('refunds.store'), [...$data, 'receipt' => UploadedFile::fake()->image('transfer.png')])
+            ->assertSessionHasNoErrors();
+
+        expect(Refund::sole()->getFirstMedia(Refund::RECEIPT_COLLECTION))->not->toBeNull();
+    });
+
+    it('keeps the receipt from another branch', function () {
+        $this->actingAs($this->accountant)->post(route('refunds.requests.approve', $this->request), [
+            'payment_method_id' => $this->transfer->id,
+            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+        ]);
+
+        $outsider = User::factory()->create(['branch_id' => Branch::factory()->create()->id]);
+        $outsider->addRole(Roles::ACCOUNTANT->value);
+
+        $this->actingAs($outsider)->get(route('refunds.receipt', Refund::sole()))->assertForbidden();
     });
 });

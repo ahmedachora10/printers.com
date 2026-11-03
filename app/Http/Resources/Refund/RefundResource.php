@@ -29,6 +29,7 @@ class RefundResource extends JsonResource
             'reason' => $this->reason,
             'stockReversed' => (bool) $this->stock_reversed,
             'paymentMethodName' => $this->paymentMethod?->name,
+            'receiptUrl' => $this->receiptUrl(),
             'userName' => $this->user?->name,
             'createdAt' => $this->created_at?->format('d/m/Y H:i'),
         ];

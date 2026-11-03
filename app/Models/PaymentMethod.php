@@ -71,6 +71,12 @@ class PaymentMethod extends Model
         return false;
     }
 
+    /** هل تشترط الطريقة المختارة إيصالاً مرفقاً (تحويل بنكي…)؟ */
+    public static function requiresReceipt(mixed $id): bool
+    {
+        return $id !== null && (bool) self::find($id)?->requires_attachment;
+    }
+
     public static function transferMethod(): ?PaymentMethod
     {
         return self::firstWhere('name', 'تحويل بنكي');

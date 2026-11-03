@@ -1,17 +1,12 @@
-import { store } from '@/routes/refunds';
+import { ReceiptField } from '@/components/invoices/receipt-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatCurrency } from '@/lib/utils';
+import { store } from '@/routes/refunds';
 import { type InvoiceLookupResult } from '@/types/refund';
 import { useForm } from '@inertiajs/react';
 import { Search } from 'lucide-react';
@@ -38,6 +33,7 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
         reason: '',
         reverse_stock: false as boolean,
         payment_method_id: '' as string,
+        receipt: null as File | null,
     });
 
     // When opened for a specific invoice, resolve it immediately.
@@ -95,6 +91,9 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
         });
     }
 
+    // تاسك 213: طريقة ردٍّ تشترط مرفقاً (تحويل) ⇒ إيصال التحويل إلزامي.
+    const methodNeedsReceipt = invoice?.paymentMethods.find((m) => String(m.id) === data.payment_method_id)?.requiresAttachment === true;
+
     // فاتورة المنتجات تعيد بضاعتها، وفاتورة الخدمة تعيد خاماتها — والاثنتان مرة واحدة.
     const canReverseStock = !!invoice && (invoice.hasProducts || invoice.hasMaterials) && !invoice.stockReversed;
 
@@ -134,7 +133,7 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
 
                     {invoice && (
                         <form id="refund-form" onSubmit={handleSubmit} className="space-y-4">
-                            <div className="space-y-1.5 rounded-lg border bg-muted/40 p-3 text-sm">
+                            <div className="bg-muted/40 space-y-1.5 rounded-lg border p-3 text-sm">
                                 <div className="flex items-center justify-between">
                                     <span className="text-muted-foreground">النوع</span>
                                     <span className="font-medium">{invoice.typeLabel}</span>
@@ -145,20 +144,26 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
                                 </div>
                                 <div className="flex items-center justify-between">
                                     <span className="text-muted-foreground">إجمالي الفاتورة</span>
-                                    <span className="font-medium" dir="ltr">{formatCurrency(invoice.totalAmount)}</span>
+                                    <span className="font-medium" dir="ltr">
+                                        {formatCurrency(invoice.totalAmount)}
+                                    </span>
                                 </div>
                                 {/* الفاتورة المسدَّدة عند البيع محصَّلها إجماليُّها، فلا يُكرَّر السطر
                                     إلا حين يفترقان — أي إذا كان عليها عربون ودفعات. */}
                                 {invoice.collectedAmount !== invoice.totalAmount && (
                                     <div className="flex items-center justify-between">
                                         <span className="text-muted-foreground">المحصَّل من العميل</span>
-                                        <span className="font-medium" dir="ltr">{formatCurrency(invoice.collectedAmount)}</span>
+                                        <span className="font-medium" dir="ltr">
+                                            {formatCurrency(invoice.collectedAmount)}
+                                        </span>
                                     </div>
                                 )}
                                 {invoice.alreadyRefunded > 0 && (
                                     <div className="flex items-center justify-between">
                                         <span className="text-muted-foreground">سبق إرجاعه</span>
-                                        <span className="font-medium" dir="ltr">{formatCurrency(invoice.alreadyRefunded)}</span>
+                                        <span className="font-medium" dir="ltr">
+                                            {formatCurrency(invoice.alreadyRefunded)}
+                                        </span>
                                     </div>
                                 )}
                                 <div className="flex items-center justify-between">
@@ -202,6 +207,15 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
                                 <InputError message={errors.payment_method_id} />
                             </div>
 
+                            {methodNeedsReceipt && (
+                                <ReceiptField
+                                    id="refund-receipt"
+                                    onChange={(file) => setData('receipt', file)}
+                                    error={errors.receipt}
+                                    disabled={processing}
+                                />
+                            )}
+
                             <div className="space-y-1">
                                 <Label htmlFor="reason">سبب الإرجاع</Label>
                                 <textarea
@@ -210,7 +224,7 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
                                     value={data.reason}
                                     onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setData('reason', e.target.value)}
                                     placeholder="سبب إرجاع الفاتورة..."
-                                    className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                 />
                                 <InputError message={errors.reason} />
                             </div>
@@ -226,7 +240,7 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
                             )}
 
                             {(invoice.hasProducts || invoice.hasMaterials) && invoice.stockReversed && (
-                                <p className="text-xs text-muted-foreground">تم إرجاع مخزون هذه الفاتورة مسبقاً.</p>
+                                <p className="text-muted-foreground text-xs">تم إرجاع مخزون هذه الفاتورة مسبقاً.</p>
                             )}
                         </form>
                     )}

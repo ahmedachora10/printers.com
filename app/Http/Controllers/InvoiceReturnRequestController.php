@@ -46,7 +46,9 @@ class InvoiceReturnRequestController extends Controller
             ->whereIn('id', $requests->getCollection()->pluck('branch_id')->unique())
             ->get()
             ->mapWithKeys(fn (Branch $b) => [
-                $b->id => $b->enabledPaymentMethods()->map(fn ($m) => ['id' => $m->id, 'name' => $m->name])->values(),
+                $b->id => $b->enabledPaymentMethods()
+                    ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'requiresAttachment' => (bool) $m->requires_attachment])
+                    ->values(),
             ]);
 
         return Inertia::render('refunds/requests', [
@@ -68,7 +70,7 @@ class InvoiceReturnRequestController extends Controller
         Gate::authorize('updateStatus', $returnRequest->invoice);
 
         $amount = $request->validated('amount');
-        $action->handle($returnRequest, Auth::user(), $request->validated('payment_method_id'), $amount === null ? null : (float) $amount);
+        $action->handle($returnRequest, Auth::user(), $request->validated('payment_method_id'), $amount === null ? null : (float) $amount, $request->file('receipt'));
 
         return $this->decided($returnRequest->refresh(), 'تم اعتماد الطلب وتسجيل المرتجع');
     }

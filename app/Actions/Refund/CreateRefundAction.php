@@ -15,6 +15,7 @@ use App\Models\ProductInvoice;
 use App\Models\Refund;
 use App\Models\ServiceInvoice;
 use App\Models\User;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -52,7 +53,7 @@ class CreateRefundAction
     ) {}
 
     /**
-     * @param  array{source_type: string, invoice_id: int, amount: float|string, reason: string, reverse_stock?: bool, payment_method_id?: int|null}  $data
+     * @param  array{source_type: string, invoice_id: int, amount: float|string, reason: string, reverse_stock?: bool, payment_method_id?: int|null, receipt?: UploadedFile|null}  $data
      */
     public function handle(array $data, User $actor): Refund
     {
@@ -146,6 +147,10 @@ class CreateRefundAction
                 'reason' => $data['reason'],
                 'stock_reversed' => $reverseStock,
             ]);
+
+            if ($data['receipt'] ?? null) {
+                $refund->addMedia($data['receipt'])->toMediaCollection(Refund::RECEIPT_COLLECTION);
+            }
 
             if ($reverseStock) {
                 if ($invoice instanceof ServiceInvoice) {

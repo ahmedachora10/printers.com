@@ -11,11 +11,16 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
 
-class Refund extends Model
+class Refund extends Model implements HasMedia
 {
     /** @use HasFactory<RefundFactory> */
-    use HasFactory, LogsActivity, SoftDeletes;
+    use HasFactory, InteractsWithMedia, LogsActivity, SoftDeletes;
+
+    /** تاسك 213: إيصال التحويل حين تُردّ القيمة بطريقةٍ تشترط مرفقاً. */
+    public const RECEIPT_COLLECTION = 'receipt';
 
     protected $fillable = [
         'branch_id',
@@ -47,6 +52,22 @@ class Refund extends Model
             $seq = static::withTrashed()->where('branch_id', $refund->branch_id)->lockForUpdate()->count() + 1;
             $refund->notice_number = sprintf('CN-%03d-%05d', $refund->branch_id, $seq);
         });
+    }
+
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection(self::RECEIPT_COLLECTION)
+            ->singleFile()
+            ->useDisk('local')
+            ->acceptsMimeTypes(InvoicePayment::RECEIPT_MIME_TYPES);
+    }
+
+    /** رابط الإيصال المحمي بالصلاحية، أو null إن لم يُرفق شيء. */
+    public function receiptUrl(): ?string
+    {
+        return $this->getFirstMedia(self::RECEIPT_COLLECTION) === null
+            ? null
+            : route('refunds.receipt', ['refund' => $this->id]);
     }
 
     public function getActivitylogOptions(): LogOptions

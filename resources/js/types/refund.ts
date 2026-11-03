@@ -11,6 +11,7 @@ export interface RefundListItem {
     stockReversed: boolean;
     /** تاسك 131 — null للمرتجعات السابقة للحقل */
     paymentMethodName: string | null;
+    receiptUrl: string | null;
     userName: string | null;
     createdAt: string | null;
 }
@@ -44,5 +45,5 @@ export interface InvoiceLookupResult {
     hasMaterials: boolean;
     stockReversed: boolean;
     /** طرق فرع الفاتورة — لاختيار طريقة ردّ المبلغ (تاسك 131) */
-    paymentMethods: { id: number; name: string }[];
+    paymentMethods: { id: number; name: string; requiresAttachment?: boolean }[];
 }
