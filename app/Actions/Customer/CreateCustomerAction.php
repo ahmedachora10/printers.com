@@ -11,7 +11,8 @@ class CreateCustomerAction
     public function handle(array $data, int $branchId): Customer
     {
         return DB::transaction(function () use ($data, $branchId) {
-            return Customer::create(array_merge($data, ['branch_id' => $branchId]));
+            // عميلٌ مسجَّل في فرعٍ آخر يُربط بهذا الفرع بهويته المسجَّلة.
+            return Customer::create(Customer::withKnownIdentity([...$data, 'branch_id' => $branchId]));
         });
     }
 }

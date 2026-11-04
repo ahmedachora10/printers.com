@@ -131,10 +131,9 @@ class CustomerController extends Controller
 
         $customer->load(['branch', 'agent']);
 
+        // الدمج داخل فرع العميل وحده: صفوفه في الفروع الأخرى مرتبطةٌ لا مكرَّرة.
         $customers = Customer::select('id', 'full_name')
-            ->when(! Auth::user()->branchId, function ($query) {
-                return $query->where('branch_id', Auth::user()->branchId);
-            })
+            ->where('branch_id', $customer->branch_id)
             ->where('id', '<>', $customer->id)
             ->get();
 
@@ -145,6 +144,11 @@ class CustomerController extends Controller
             'invoiceHistory' => $this->loadInvoiceHistory($request, $customer),
             'customers' => CustomerResource::collection($customers),
             'canOverrideTier' => Gate::allows('overrideTier', $customer),
+            // صفوف العميل نفسه في الفروع الأخرى — للسوبر أدمن وحده.
+            'linkedCustomers' => Auth::user()->roleName->isSuperAdmin()
+                ? CustomerResource::collection(Customer::with('branch')->where('phone', $customer->phone)
+                    ->whereNotNull('phone')->whereKeyNot($customer->id)->get())
+                : [],
         ]);
     }
 

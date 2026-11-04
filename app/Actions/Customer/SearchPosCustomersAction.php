@@ -38,6 +38,16 @@ class SearchPosCustomersAction
             ->with('addresses')
             ->get(['id', 'full_name', 'phone', 'tax_number', 'agent_id', 'customer_type', 'points_balance', 'tier']);
 
+        // جوالٌ كامل لعميلٍ في فرعٍ آخر فقط: يُربط بهذا الفرع بصمت ويُعاد.
+        $phone = Customer::phoneFromTerm($term);
+        $branches = $customers->isEmpty() && $branchId && $phone !== null
+            ? Customer::query()->where('phone', $phone)->pluck('branch_id')
+            : collect();
+
+        if ($branches->isNotEmpty() && ! $branches->contains($branchId)) {
+            $customers = collect([Customer::resolveWalkIn($branchId, '', $phone)->fresh('addresses')]);
+        }
+
         // النقاط المحجوزة لكل عملاء القائمة باستعلامين، لا باستعلامين لكل عميل.
         $reserved = $this->availablePoints->reservedFor($customers->pluck('id')->all());
 

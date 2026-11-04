@@ -1104,31 +1104,7 @@ class CalculateServiceInvoiceAction
             return null;
         }
 
-        if ($phone !== '') {
-            $existing = Customer::query()
-                ->where('branch_id', $branchId)
-                ->where('phone', $phone)
-                ->first();
-
-            if ($existing) {
-                // Fill the tax number if the customer doesn't have one yet —
-                // never overwrite an already-recorded value.
-                if ($taxNumber !== '' && $existing->tax_number === null) {
-                    $existing->update(['tax_number' => $taxNumber]);
-                }
-
-                return $existing->id;
-            }
-        }
-
-        return Customer::create([
-            'full_name' => $name !== '' ? $name : 'عميل عابر',
-            'phone' => $phone !== '' ? $phone : null,
-            'tax_number' => $taxNumber !== '' ? $taxNumber : null,
-            'branch_id' => $branchId,
-            'customer_type' => CustomerTypeEnum::Individual,
-            'is_active' => true,
-        ])->id;
+        return Customer::resolveWalkIn($branchId, $name, $phone ?: null, $taxNumber ?: null)->id;
     }
 
     /**

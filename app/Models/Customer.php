@@ -11,7 +11,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\Rules\Unique;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Traits\LogsActivity;
 
@@ -22,6 +25,15 @@ class Customer extends Model
 
     use LogsActivity;
     use SoftDeletes;
+
+    /**
+     * هوية العميل المشتركة بين الفروع. العميل نفسه صفٌّ لكل فرع (معاملاته ونقاطه
+     * ومستواه وائتمانه ومندوبه وعناوينه خاصّة بالفرع)، والصفوف يربطها الجوال:
+     * هذه الحقول وحدها تُزامَن بينها.
+     */
+    public const IDENTITY_FIELDS = ['full_name', 'phone', 'email', 'customer_type', 'company_name', 'tax_number'];
+
+    public const WALK_IN_NAME = 'عميل عابر';
 
     protected $fillable = [
         'full_name',
@@ -47,6 +59,79 @@ class Customer extends Model
         'cumulative_spend' => 'decimal:2',
         'is_active' => 'boolean',
     ];
+
+    protected static function booted(): void
+    {
+        // تعديل الهوية في أي فرع يظهر في كل فروع العميل — بالجوال القديم، فتغيير
+        // الجوال نفسه ينتقل. تحديثٌ بالاستعلام بلا أحداث فلا يرتدّ، وسجلّ النشاط
+        // على الصف الذي عُدِّل.
+        static::saved(function (self $customer) {
+            $phone = $customer->getOriginal('phone') ?? $customer->phone;
+
+            if ($phone !== null && $customer->isDirty(self::IDENTITY_FIELDS)) {
+                self::query()->where('phone', $phone)->whereKeyNot($customer->id)
+                    ->update(Arr::only($customer->getAttributes(), self::IDENTITY_FIELDS));
+            }
+        });
+    }
+
+    /**
+     * هوية العميل نفسه من أي فرع (نفس الجوال) فوق المكتوب: ما سُجّل يَغلب، والمكتوب
+     * يملأ الفارغ و«عميل عابر» فقط.
+     *
+     * @param  array<string, mixed>  $attributes
+     * @return array<string, mixed>
+     */
+    public static function withKnownIdentity(array $attributes): array
+    {
+        $known = filled($attributes['phone'] ?? null)
+            ? self::query()->where('phone', $attributes['phone'])->first()
+            : null;
+
+        $identity = array_filter(
+            Arr::only($known?->getAttributes() ?? [], self::IDENTITY_FIELDS),
+            fn ($value) => $value !== null && $value !== self::WALK_IN_NAME,
+        );
+
+        return [...$attributes, ...$identity];
+    }
+
+    /**
+     * عميل الفاتورة من اسمٍ/جوالٍ مكتوب: صفّه في الفرع، وإلا صفٌّ جديد للفرع يرث
+     * هويته من فرعٍ آخر، وإلا عميلٌ جديد.
+     */
+    public static function resolveWalkIn(int $branchId, string $name, ?string $phone, ?string $taxNumber = null): self
+    {
+        $customer = $phone === null ? null : self::query()
+            ->where('branch_id', $branchId)
+            ->where('phone', $phone)
+            ->first();
+
+        $customer ??= new self([
+            'branch_id' => $branchId,
+            'customer_type' => CustomerTypeEnum::Individual,
+            'is_active' => true,
+        ]);
+
+        $customer->fill(self::withKnownIdentity([
+            'full_name' => $name !== '' ? $name : self::WALK_IN_NAME,
+            'phone' => $phone,
+            'tax_number' => $taxNumber,
+        ]))->save();
+
+        return $customer;
+    }
+
+    /**
+     * الجوال الجديد لا يكون لعميلٍ آخر في أي فرع؛ جوال العميل الحالي (وصفوفه في
+     * الفروع الأخرى) مقبول.
+     */
+    public static function uniquePhoneRule(self $customer): Unique
+    {
+        return Rule::unique('customers', 'phone')
+            ->whereNot('phone', $customer->phone)
+            ->whereNull('deleted_at');
+    }
 
     public function getActivitylogOptions(): LogOptions
     {
@@ -179,6 +264,12 @@ class Customer extends Model
         return $international && ! str_starts_with($digits, '0') ? '+'.$digits : $digits;
     }
 
+    /** نصّ بحثٍ بلا حروف يُقرأ جوالاً بصيغته الموحّدة. */
+    public static function phoneFromTerm(string $term): ?string
+    {
+        return preg_match('/\p{L}/u', $term) ? null : self::normalizePhone($term);
+    }
+
     /**
      * بحثٌ بالاسم أو الجوال. نصٌّ بلا حروف يُقرأ جوالاً بصيغته الموحّدة، فـ«+966 55 172»
      * تجد 0551728069.
@@ -188,7 +279,7 @@ class Customer extends Model
     public function scopeMatching(Builder $query, string $term): void
     {
         $term = trim($term);
-        $phone = preg_match('/\p{L}/u', $term) ? null : self::normalizePhone($term);
+        $phone = self::phoneFromTerm($term);
 
         $phone !== null ? $query->where('phone', 'like', "%{$phone}%") : $query->where('full_name', 'like', "%{$term}%");
     }

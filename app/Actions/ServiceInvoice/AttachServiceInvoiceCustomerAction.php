@@ -2,7 +2,6 @@
 
 namespace App\Actions\ServiceInvoice;
 
-use App\Enums\CustomerTypeEnum;
 use App\Models\Customer;
 use App\Models\ServiceInvoice;
 use Illuminate\Support\Facades\DB;
@@ -20,21 +19,9 @@ class AttachServiceInvoiceCustomerAction
     public function handle(ServiceInvoice $invoice, array $data): ServiceInvoice
     {
         return DB::transaction(function () use ($invoice, $data) {
-            $existing = Customer::query()
-                ->where('branch_id', $invoice->branch_id)
-                ->where('phone', $data['phone'])
-                ->first();
+            $customer = Customer::resolveWalkIn($invoice->branch_id, $data['full_name'], $data['phone'], $data['tax_number'] ?? null);
 
-            $customerId = $existing?->id ?? Customer::create([
-                'full_name' => $data['full_name'],
-                'phone' => $data['phone'],
-                'tax_number' => $data['tax_number'] ?? null,
-                'branch_id' => $invoice->branch_id,
-                'customer_type' => CustomerTypeEnum::Individual,
-                'is_active' => true,
-            ])->id;
-
-            $invoice->update(['customer_id' => $customerId]);
+            $invoice->update(['customer_id' => $customer->id]);
 
             return $invoice->refresh();
         });

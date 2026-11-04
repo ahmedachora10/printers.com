@@ -6,7 +6,6 @@ use App\Models\Customer;
 use App\Models\ServiceInvoice;
 use App\Rules\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
 class UpdateInvoiceCustomerRequest extends FormRequest
 {
@@ -40,10 +39,7 @@ class UpdateInvoiceCustomerRequest extends FormRequest
         // found-or-create (an existing phone links that customer), so no unique
         // rule — otherwise a known phone would be rejected instead of linked.
         if ($customer !== null) {
-            $phone[] = Rule::unique('customers', 'phone')
-                ->where('branch_id', $customer->branch_id)
-                ->ignore($customer->id)
-                ->whereNull('deleted_at');
+            $phone[] = Customer::uniquePhoneRule($customer);
         }
 
         return [

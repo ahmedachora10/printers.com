@@ -382,6 +382,13 @@ class CreateProductInvoiceAction
     private function resolveCustomerId(array $data, int $branchId): ?int
     {
         if (! empty($data['customer_id'])) {
+            // الطلب يتحقّق من وجود العميل فقط؛ الفرع يُحسم هنا.
+            if (! Customer::query()->where('branch_id', $branchId)->whereKey($data['customer_id'])->exists()) {
+                throw ValidationException::withMessages([
+                    'customer_id' => 'العميل المحدد لا يتبع فرع هذه الفاتورة.',
+                ]);
+            }
+
             return (int) $data['customer_id'];
         }
 
@@ -392,24 +399,7 @@ class CreateProductInvoiceAction
             return null;
         }
 
-        if ($phone !== '') {
-            $existing = Customer::query()
-                ->where('branch_id', $branchId)
-                ->where('phone', $phone)
-                ->first();
-
-            if ($existing) {
-                return $existing->id;
-            }
-        }
-
-        return Customer::create([
-            'full_name' => $name !== '' ? $name : 'عميل عابر',
-            'phone' => $phone !== '' ? $phone : null,
-            'branch_id' => $branchId,
-            'customer_type' => CustomerTypeEnum::Individual,
-            'is_active' => true,
-        ])->id;
+        return Customer::resolveWalkIn($branchId, $name, $phone ?: null)->id;
     }
 
     /**

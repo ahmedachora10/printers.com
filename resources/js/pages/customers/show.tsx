@@ -78,6 +78,7 @@ interface Props {
     invoiceHistory: Paginated<InvoiceHistoryItem>;
     customers: Customer[];
     canOverrideTier: boolean;
+    linkedCustomers: Customer[];
 }
 
 const invoiceHistoryColumns: ColumnDef<InvoiceHistoryItem>[] = [
@@ -118,6 +119,7 @@ export default function CustomerShow({
     invoiceHistory,
     customers,
     canOverrideTier,
+    linkedCustomers,
 }: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'العملاء', href: customersRoute.index().url },
@@ -229,6 +231,20 @@ export default function CustomerShow({
                                     <span className="text-sm text-muted-foreground">{customer.email}</span>
                                 )}
                             </div>
+                            {linkedCustomers.length > 0 && (
+                                <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
+                                    <span className="text-muted-foreground">
+                                        {customer.branchName ? `${customer.branchName} · ` : ''}فروع أخرى:
+                                    </span>
+                                    {linkedCustomers.map((linked) => (
+                                        <Link key={linked.id} href={customersRoute.show(linked.id).url}>
+                                            <Badge variant="outline" className="hover:bg-muted">
+                                                {linked.branchName} · {formatNumber(linked.pointsBalance)} نقطة
+                                            </Badge>
+                                        </Link>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
 
