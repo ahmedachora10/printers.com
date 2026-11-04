@@ -133,16 +133,6 @@ class Customer extends Model
             ->whereNull('deleted_at');
     }
 
-    /**
-     * صفوف العميل نفسه في الفروع الأخرى.
-     *
-     * @param  Builder<$this>  $query
-     */
-    public function scopeLinkedTo(Builder $query, self $customer): void
-    {
-        $query->where('phone', $customer->phone)->whereNotNull('phone')->whereKeyNot($customer->id);
-    }
-
     public function getActivitylogOptions(): LogOptions
     {
         // Dirty-only: loyalty earns touch points/spend on every paid invoice —

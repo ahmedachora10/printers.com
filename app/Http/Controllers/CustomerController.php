@@ -146,7 +146,8 @@ class CustomerController extends Controller
             'canOverrideTier' => Gate::allows('overrideTier', $customer),
             // صفوف العميل نفسه في الفروع الأخرى — للسوبر أدمن وحده.
             'linkedCustomers' => Auth::user()->roleName->isSuperAdmin()
-                ? CustomerResource::collection(Customer::linkedTo($customer)->with('branch')->get())
+                ? CustomerResource::collection(Customer::with('branch')->where('phone', $customer->phone)
+                    ->whereNotNull('phone')->whereKeyNot($customer->id)->get())
                 : [],
         ]);
     }
