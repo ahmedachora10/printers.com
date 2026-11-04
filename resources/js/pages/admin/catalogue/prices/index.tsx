@@ -188,7 +188,7 @@ export default function CatalogPricesIndex({ subcategory, prices, filters, branc
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-bold">بنود الأسعار</h1>
                         <p className="text-sm text-muted-foreground">
@@ -201,9 +201,22 @@ export default function CatalogPricesIndex({ subcategory, prices, filters, branc
                             )}
                         </p>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href={subcategoryRoutes.index.url(subcategory.categoryId)}>العودة للخدمات</Link>
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href={subcategoryRoutes.index.url(subcategory.categoryId)}>العودة للخدمات</Link>
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                            <Upload className="size-4" /> استيراد
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={exportUrl}>
+                                <Download className="size-4" /> تصدير
+                            </a>
+                        </Button>
+                        <Button size="sm" onClick={openCreate}>
+                            <Plus className="size-4" /> إضافة بند
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="mb-6">
@@ -226,21 +239,6 @@ export default function CatalogPricesIndex({ subcategory, prices, filters, branc
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <>
-                                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-                                    <Upload className="size-4" /> استيراد
-                                </Button>
-                                <Button variant="outline" size="sm" asChild>
-                                    <a href={exportUrl}>
-                                        <Download className="size-4" /> تصدير
-                                    </a>
-                                </Button>
-                                <Button size="sm" onClick={openCreate}>
-                                    <Plus className="size-4" /> إضافة بند
-                                </Button>
-                            </>
-                        }
                     />
                 </div>
 

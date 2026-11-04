@@ -345,14 +345,34 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
-                    <h1 className="text-2xl font-bold">المصروفات</h1>
-                    <div className="bg-muted/40 rounded-lg border px-4 py-2 text-sm">
-                        <div className="flex items-baseline gap-2">
-                            <span className="text-muted-foreground">إجمالي الفترة: </span>
-                            <span className="font-bold tabular-nums">{formatSar(periodTotal)}</span>
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                        <h1 className="text-2xl font-bold">المصروفات</h1>
+                        <div className="bg-muted/40 rounded-lg border px-4 py-2 text-sm">
+                            <div className="flex items-baseline gap-2">
+                                <span className="text-muted-foreground">إجمالي الفترة: </span>
+                                <span className="font-bold tabular-nums">{formatSar(periodTotal)}</span>
+                            </div>
+                            <p className="text-muted-foreground text-xs">{rangeLabel(applied.from, applied.to)}</p>
                         </div>
-                        <p className="text-muted-foreground text-xs">{rangeLabel(applied.from, applied.to)}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        {/* تاسك 161: نفس فلاتر القائمة، فيُنزَّل ما يُرى فقط. */}
+                        {attachmentsCount > 0 && (
+                            <Button size="sm" variant="outline" asChild>
+                                <a href={attachments.url({ query: buildQuery({}) })}>
+                                    <FileArchive className="size-4" /> تنزيل المرفقات ({attachmentsCount})
+                                </a>
+                            </Button>
+                        )}
+                        {canApproveAll && pendingSummary.count > 0 && (
+                            <Button size="sm" variant="outline" onClick={() => setApprovingAll(true)}>
+                                <CheckCheck className="size-4" /> اعتماد جميع المصروفات
+                            </Button>
+                        )}
+                        <Button size="sm" onClick={openCreate}>
+                            <Plus className="size-4" /> تسجيل مصروف
+                        </Button>
                     </div>
                 </div>
 
@@ -418,26 +438,6 @@ export default function ExpensesIndex({ items, periodTotal, pendingSummary, canA
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <div className="flex items-center gap-2">
-                                {/* تاسك 161: نفس فلاتر القائمة، فيُنزَّل ما يُرى فقط. */}
-                                {attachmentsCount > 0 && (
-                                    <Button size="sm" variant="outline" asChild>
-                                        <a href={attachments.url({ query: buildQuery({}) })}>
-                                            <FileArchive className="size-4" /> تنزيل المرفقات ({attachmentsCount})
-                                        </a>
-                                    </Button>
-                                )}
-                                {canApproveAll && pendingSummary.count > 0 && (
-                                    <Button size="sm" variant="outline" onClick={() => setApprovingAll(true)}>
-                                        <CheckCheck className="size-4" /> اعتماد جميع المصروفات
-                                    </Button>
-                                )}
-                                <Button size="sm" onClick={openCreate}>
-                                    <Plus className="size-4" /> تسجيل مصروف
-                                </Button>
-                            </div>
-                        }
                     />
                 </div>
 

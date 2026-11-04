@@ -255,13 +255,18 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-bold">إدارة قوالب الخدمات</h1>
                         {/* تاسك 82: الترتيب عامّ عبر الصفحات، فالسهم في آخر صفّ ينقله إلى الصفحة التالية. */}
                         <p className="text-muted-foreground mt-1 text-xs">
                             الترتيب يسري على نقطة البيع وخدمات الفرع، وهو ترتيب عامّ عبر كل الصفحات لا داخل الصفحة وحدها.
                         </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button size="sm" onClick={openCreate}>
+                            <Plus className="size-4" /> إضافة قالب
+                        </Button>
                     </div>
                 </div>
 
@@ -284,11 +289,6 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <Button size="sm" onClick={openCreate}>
-                                <Plus className="size-4" /> إضافة قالب
-                            </Button>
-                        }
                     />
                 </div>
 

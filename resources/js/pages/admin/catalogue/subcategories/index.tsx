@@ -194,7 +194,7 @@ export default function CatalogSubcategoriesIndex({ category, subcategories, fil
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-bold">الخدمات الفرعية</h1>
                         <p className="text-sm text-muted-foreground">
@@ -207,9 +207,14 @@ export default function CatalogSubcategoriesIndex({ category, subcategories, fil
                             )}
                         </p>
                     </div>
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href={categoryRoutes.index.url()}>العودة للفئات</Link>
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href={categoryRoutes.index.url()}>العودة للفئات</Link>
+                        </Button>
+                        <Button size="sm" onClick={openCreate}>
+                            <Plus className="size-4" /> إضافة خدمة فرعية
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="mb-6">
@@ -232,11 +237,6 @@ export default function CatalogSubcategoriesIndex({ category, subcategories, fil
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <Button size="sm" onClick={openCreate}>
-                                <Plus className="size-4" /> إضافة خدمة فرعية
-                            </Button>
-                        }
                     />
                 </div>
 

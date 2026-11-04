@@ -291,8 +291,20 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-2xl font-bold">العملاء</h1>
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={`/customers/export?${new URLSearchParams(buildParams(search, filterValues))}`}>
+                                <Download className="size-4" />
+                                تصدير
+                            </a>
+                        </Button>
+                        <Button size="sm" onClick={openCreate}>
+                            <Plus className="size-4" />
+                            إضافة عميل
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="mb-6">
@@ -347,20 +359,6 @@ export default function CustomersIndex({ items, stats, agents, branches, isSuper
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <div className="flex items-center gap-2">
-                                <Button variant="outline" size="sm" asChild>
-                                    <a href={`/customers/export?${new URLSearchParams(buildParams(search, filterValues))}`}>
-                                        <Download className="size-4" />
-                                        تصدير
-                                    </a>
-                                </Button>
-                                <Button size="sm" onClick={openCreate}>
-                                    <Plus className="size-4" />
-                                    إضافة عميل
-                                </Button>
-                            </div>
-                        }
                     />
                 </div>
 

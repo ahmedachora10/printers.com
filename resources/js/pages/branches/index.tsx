@@ -178,8 +178,11 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-2xl font-bold">إدارة الفروع</h1>
+                    <Button size="sm" onClick={openCreate}>
+                        <Plus className="size-4" /> إضافة فرع
+                    </Button>
                 </div>
 
                 <div className="mb-6">
@@ -201,11 +204,6 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <Button size="sm" onClick={openCreate}>
-                                <Plus className="size-4" /> إضافة فرع
-                            </Button>
-                        }
                     />
                 </div>
 

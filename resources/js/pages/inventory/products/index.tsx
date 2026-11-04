@@ -260,13 +260,26 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-2xl font-bold">المنتجات</h1>
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href={inventory.stockMovements.index().url}>
-                            <History className="size-4" /> تحركات المخزون
-                        </Link>
-                    </Button>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" asChild>
+                            <Link href={inventory.stockMovements.index().url}>
+                                <History className="size-4" /> تحركات المخزون
+                            </Link>
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                            <Upload className="size-4" /> استيراد الكل
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={exportUrl}>
+                                <Download className="size-4" /> تصدير الكل
+                            </a>
+                        </Button>
+                        <Button size="sm" onClick={openCreate}>
+                            <Plus className="size-4" /> إضافة منتج
+                        </Button>
+                    </div>
                 </div>
 
                 {lowStockCount > 0 && (
@@ -312,21 +325,6 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <>
-                                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-                                    <Upload className="size-4" /> استيراد الكل
-                                </Button>
-                                <Button variant="outline" size="sm" asChild>
-                                    <a href={exportUrl}>
-                                        <Download className="size-4" /> تصدير الكل
-                                    </a>
-                                </Button>
-                                <Button size="sm" onClick={openCreate}>
-                                    <Plus className="size-4" /> إضافة منتج
-                                </Button>
-                            </>
-                        }
                     />
                 </div>
 
