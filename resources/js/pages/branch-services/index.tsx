@@ -269,10 +269,23 @@ export default function BranchServicesIndex({
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-bold">خدمات الفرع</h1>
                         {userBranch && <p className="text-muted-foreground mt-0.5 text-sm">{userBranch.name}</p>}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button size="sm" variant="outline" asChild>
+                            <a href={branchServiceRoutes.export.url({ query: { ...(search && { search }), ...(filterValues.status && { status: filterValues.status }) } })}>
+                                <Download className="size-4" /> تصدير
+                            </a>
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                            <Upload className="size-4" /> استيراد
+                        </Button>
+                        <Button size="sm" onClick={openCreate}>
+                            <Plus className="size-4" /> إضافة خدمة
+                        </Button>
                     </div>
                 </div>
 
@@ -295,21 +308,6 @@ export default function BranchServicesIndex({
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <>
-                                <Button size="sm" variant="outline" asChild>
-                                    <a href={branchServiceRoutes.export.url({ query: { ...(search && { search }), ...(filterValues.status && { status: filterValues.status }) } })}>
-                                        <Download className="size-4" /> تصدير
-                                    </a>
-                                </Button>
-                                <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-                                    <Upload className="size-4" /> استيراد
-                                </Button>
-                                <Button size="sm" onClick={openCreate}>
-                                    <Plus className="size-4" /> إضافة خدمة
-                                </Button>
-                            </>
-                        }
                     />
                 </div>
 

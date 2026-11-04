@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Search, SlidersHorizontal, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -7,7 +7,6 @@ import { Card } from '@/components/ui/card';
 import { Combobox, MultiCombobox } from '@/components/ui/combobox';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -50,7 +49,9 @@ export interface FilterBarProps {
 
     onClearAll?: () => void;
 
-    actions?: React.ReactNode;
+    /** Extra filter controls (e.g. a date range) rendered after the selects. */
+    children?: React.ReactNode;
+
     className?: string;
 }
 
@@ -88,7 +89,7 @@ export function FilterBar({
     multiValues = {},
     onMultiChange,
     onClearAll,
-    actions,
+    children,
     className,
 }: FilterBarProps) {
     const activeFilterChips = filters.filter((f) => !f.multiple && !!filterValues[f.key]);
@@ -96,88 +97,20 @@ export function FilterBar({
     const activeMultiChips = filters
         .filter((f) => f.multiple)
         .flatMap((f) => (multiValues[f.key] ?? []).map((value) => ({ filter: f, value })));
-    const hasActiveSearch = searchable && searchValue.trim().length > 0;
-    const hasAnyActive = activeFilterChips.length > 0 || activeMultiChips.length > 0 || hasActiveSearch;
+    // The search input shows its own text and clear button, so only filters get chips.
+    const hasActiveFilters = activeFilterChips.length > 0 || activeMultiChips.length > 0;
 
     return (
-        <Card
-            className={cn(
-                'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-md px-4 py-3.5 sm:px-5',
-                className,
-            )}
-        >
-            <div className="flex flex-wrap items-center gap-2 w-full">
-                {hasAnyActive && (
-                    <>
-                        {hasActiveSearch && (
-                            <ActiveChip
-                                label={`"${searchValue}"`}
-                                onRemove={() => onSearchChange?.('')}
-                            />
-                        )}
-
-
-                        {actions && searchValue.trim().length > 0 && <Separator orientation="vertical" className="h-5" />}
-
-                        {activeFilterChips.map((f) => {
-                            const option = f.options.find((o) => o.value === filterValues[f.key]);
-                            return (
-                                <ActiveChip
-                                    key={f.key}
-                                    label={`${f.placeholder}: ${option?.label ?? filterValues[f.key]}`}
-                                    onRemove={() => onFilterChange?.(f.key, '')}
-                                />
-                            );
-                        })}
-
-                        {activeMultiChips.map(({ filter, value }) => {
-                            const option = filter.options.find((o) => o.value === value);
-                            return (
-                                <ActiveChip
-                                    key={`${filter.key}:${value}`}
-                                    label={`${filter.placeholder}: ${option?.label ?? value}`}
-                                    onRemove={() =>
-                                        onMultiChange?.(
-                                            filter.key,
-                                            (multiValues[filter.key] ?? []).filter((v) => v !== value),
-                                        )
-                                    }
-                                />
-                            );
-                        })}
-
-                        {(activeFilterChips.length > 0 || activeMultiChips.length > 0) && (
-                            <Separator orientation="vertical" className="h-5" />
-                        )}
-
-                        <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={onClearAll}
-                            className="h-7 gap-1 px-2 text-xs text-white hover:text-white"
-                        >
-                            <X className="size-3" />
-                            مسح الكل
-                        </Button>
-                    </>
-                )}
-            </div>
-
-
-            <div className="flex flex-wrap items-center gap-2">
-
+        <Card className={cn('overflow-hidden border', className)}>
+            <div className="flex flex-wrap items-center gap-2 p-3 sm:px-4">
                 {searchable && (
-                    <div className="relative w-full sm:w-auto">
+                    <div className="relative w-full sm:w-72">
                         <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                             value={searchValue}
                             onChange={(e) => onSearchChange?.(e.target.value)}
                             placeholder={searchPlaceholder}
-                            className={cn(
-                                'h-9 w-full ps-9 text-sm sm:w-64',
-                                searchValue && 'border-primary/40 bg-primary/5',
-                            )}
+                            className={cn('h-9 w-full ps-9 text-sm', searchValue && 'border-primary/40 bg-primary/5')}
                         />
                         {searchValue && (
                             <button
@@ -215,43 +148,80 @@ export function FilterBar({
                             triggerClassName={f.width ?? 'w-40'}
                         />
                     ) : (
-                    <Select
-                        key={f.key}
-                        value={filterValues[f.key] || ''}
-                        onValueChange={(val) => onFilterChange?.(f.key, val === '__all__' ? '' : val)}
-                    >
-                        <SelectTrigger
-                            className={cn(
-                                'h-9 text-sm',
-                                filterValues[f.key]
-                                    ? 'border-primary/40 bg-primary/5 text-primary'
-                                    : 'text-muted-foreground',
-                                f.width ?? 'w-36',
-                            )}
+                        <Select
+                            key={f.key}
+                            value={filterValues[f.key] || ''}
+                            onValueChange={(val) => onFilterChange?.(f.key, val === '__all__' ? '' : val)}
                         >
-                            <SelectValue placeholder={f.placeholder} />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="__all__">{`كل ${f.placeholder}`}</SelectItem>
-                            {f.options.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                    {opt.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                            <SelectTrigger
+                                className={cn(
+                                    'h-9 text-sm',
+                                    filterValues[f.key]
+                                        ? 'border-primary/40 bg-primary/5 text-primary'
+                                        : 'text-muted-foreground',
+                                    f.width ?? 'w-36',
+                                )}
+                            >
+                                <SelectValue placeholder={f.placeholder} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="__all__">{`كل ${f.placeholder}`}</SelectItem>
+                                {f.options.map((opt) => (
+                                    <SelectItem key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
                     ),
                 )}
 
-
-                {filters.length > 0 && (
-                    <SlidersHorizontal className="size-4 text-muted-foreground/60" aria-hidden />
-                )}
+                {children}
             </div>
 
-            {/* Callers pass whole toolbars in here; let them wrap rather than
-                stretch the bar past a narrow viewport. */}
-            {actions && <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>}
+            {hasActiveFilters && (
+                <div className="flex flex-wrap items-center gap-2 border-t bg-muted/30 px-3 py-2 sm:px-4">
+                    <span className="text-xs text-muted-foreground">الفلاتر:</span>
+
+                    {activeFilterChips.map((f) => {
+                        const option = f.options.find((o) => o.value === filterValues[f.key]);
+                        return (
+                            <ActiveChip
+                                key={f.key}
+                                label={`${f.placeholder}: ${option?.label ?? filterValues[f.key]}`}
+                                onRemove={() => onFilterChange?.(f.key, '')}
+                            />
+                        );
+                    })}
+
+                    {activeMultiChips.map(({ filter, value }) => {
+                        const option = filter.options.find((o) => o.value === value);
+                        return (
+                            <ActiveChip
+                                key={`${filter.key}:${value}`}
+                                label={`${filter.placeholder}: ${option?.label ?? value}`}
+                                onRemove={() =>
+                                    onMultiChange?.(
+                                        filter.key,
+                                        (multiValues[filter.key] ?? []).filter((v) => v !== value),
+                                    )
+                                }
+                            />
+                        );
+                    })}
+
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={onClearAll}
+                        className="ms-auto h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-destructive"
+                    >
+                        <X className="size-3" />
+                        مسح الكل
+                    </Button>
+                </div>
+            )}
         </Card>
     );
 }

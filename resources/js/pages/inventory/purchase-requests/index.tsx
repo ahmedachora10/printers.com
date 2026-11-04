@@ -195,8 +195,9 @@ export default function PurchaseRequestsIndex({ items, products, suppliers, bran
                     searchValue={search}
                     onSearchChange={handleSearchChange}
                     onClearAll={handleReset}
-                    actions={<DateRangeBar filters={f} from={applied.date_from} to={applied.date_to} fromKey="date_from" toKey="date_to" />}
-                />
+                >
+                    <DateRangeBar filters={f} from={applied.date_from} to={applied.date_to} fromKey="date_from" toKey="date_to" />
+                </FilterBar>
 
                 <ActiveFilterChips chips={chips} />
 

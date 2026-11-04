@@ -146,8 +146,12 @@ export default function CitiesIndex({ cities, filters }: Props) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-2xl font-bold">إدارة المدن</h1>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm"><Download className="size-4" /> تصدير</Button>
+                        <Button size="sm" onClick={openCreate}><Plus className="size-4" /> إضافة مدينة</Button>
+                    </div>
                 </div>
 
                 <div className="mb-6">
@@ -169,12 +173,6 @@ export default function CitiesIndex({ cities, filters }: Props) {
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <>
-                                <Button variant="outline" size="sm"><Download className="size-4" /> تصدير</Button>
-                                <Button size="sm" onClick={openCreate}><Plus className="size-4" /> إضافة مدينة</Button>
-                            </>
-                        }
                     />
                 </div>
 

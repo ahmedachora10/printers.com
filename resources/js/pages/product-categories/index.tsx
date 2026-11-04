@@ -148,8 +148,21 @@ export default function ProductCategoriesIndex({ items, filters }: Props) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-2xl font-bold">فئات المنتجات</h1>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                            <Upload className="size-4" /> استيراد الكل
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={categoryRoutes.export.url({ query: { ...(search && { search }), ...(filterValues.status && { status: filterValues.status }) } })}>
+                                <Download className="size-4" /> تصدير الكل
+                            </a>
+                        </Button>
+                        <Button size="sm" onClick={openCreate}>
+                            <Plus className="size-4" /> إضافة فئة
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="mb-6">
@@ -171,21 +184,6 @@ export default function ProductCategoriesIndex({ items, filters }: Props) {
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <>
-                                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-                                    <Upload className="size-4" /> استيراد الكل
-                                </Button>
-                                <Button variant="outline" size="sm" asChild>
-                                    <a href={categoryRoutes.export.url({ query: { ...(search && { search }), ...(filterValues.status && { status: filterValues.status }) } })}>
-                                        <Download className="size-4" /> تصدير الكل
-                                    </a>
-                                </Button>
-                                <Button size="sm" onClick={openCreate}>
-                                    <Plus className="size-4" /> إضافة فئة
-                                </Button>
-                            </>
-                        }
                     />
                 </div>
 

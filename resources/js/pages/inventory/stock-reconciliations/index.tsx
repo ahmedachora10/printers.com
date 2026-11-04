@@ -151,8 +151,13 @@ export default function StockReconciliationsIndex({ items, branches, canManage, 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <h1 className="text-2xl font-bold">جرد المخزون</h1>
+                    {canManage && (
+                        <Button size="sm" onClick={() => setStartOpen(true)}>
+                            <Plus className="size-4" /> بدء جرد جديد
+                        </Button>
+                    )}
                 </div>
 
                 <div className="mb-6">
@@ -161,13 +166,6 @@ export default function StockReconciliationsIndex({ items, branches, canManage, 
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            canManage ? (
-                                <Button size="sm" onClick={() => setStartOpen(true)}>
-                                    <Plus className="size-4" /> بدء جرد جديد
-                                </Button>
-                            ) : undefined
-                        }
                     />
                 </div>
 

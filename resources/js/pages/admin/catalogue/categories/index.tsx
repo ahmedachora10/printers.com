@@ -209,7 +209,7 @@ export default function CatalogCategoriesIndex({ categories, filters, branches, 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-2xl font-bold">دليل الخدمات — الفئات</h1>
                         <p className="text-sm text-muted-foreground">
@@ -219,6 +219,19 @@ export default function CatalogCategoriesIndex({ categories, filters, branches, 
                                 'تضيف فئات فرعك وتحرّرها، والفئات العامة تراها ولا تعدّلها.',
                             )}
                         </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+                            <Upload className="size-4" /> استيراد الكل
+                        </Button>
+                        <Button variant="outline" size="sm" asChild>
+                            <a href={exportUrl}>
+                                <Download className="size-4" /> تصدير الكل
+                            </a>
+                        </Button>
+                        <Button size="sm" onClick={openCreate}>
+                            <Plus className="size-4" /> إضافة فئة
+                        </Button>
                     </div>
                 </div>
 
@@ -242,21 +255,6 @@ export default function CatalogCategoriesIndex({ categories, filters, branches, 
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <>
-                                <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-                                    <Upload className="size-4" /> استيراد الكل
-                                </Button>
-                                <Button variant="outline" size="sm" asChild>
-                                    <a href={exportUrl}>
-                                        <Download className="size-4" /> تصدير الكل
-                                    </a>
-                                </Button>
-                                <Button size="sm" onClick={openCreate}>
-                                    <Plus className="size-4" /> إضافة فئة
-                                </Button>
-                            </>
-                        }
                     />
                 </div>
 

@@ -180,7 +180,14 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
             <div className="p-6">
-                <h1 className="mb-4 text-2xl font-bold">المرتجعات</h1>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                    <h1 className="text-2xl font-bold">المرتجعات</h1>
+                    {canCreate && (
+                        <Button size="sm" onClick={() => setFormOpen(true)}>
+                            <Plus className="size-4" /> إنشاء مرتجع
+                        </Button>
+                    )}
+                </div>
                 <RefundTabs active="refunds" />
 
                 <div className="mb-6">
@@ -189,31 +196,25 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
                         filterValues={filterValues}
                         onFilterChange={handleFilterChange}
                         onClearAll={handleClearAll}
-                        actions={
-                            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-                                <Input
-                                    type="date"
-                                    value={dateFrom}
-                                    onChange={(e) => handleDateChange('from', e.target.value)}
-                                    className="h-9 w-full text-sm sm:w-40"
-                                    aria-label="من تاريخ"
-                                />
-                                <span className="text-muted-foreground hidden sm:inline">—</span>
-                                <Input
-                                    type="date"
-                                    value={dateTo}
-                                    onChange={(e) => handleDateChange('to', e.target.value)}
-                                    className="h-9 w-full text-sm sm:w-40"
-                                    aria-label="إلى تاريخ"
-                                />
-                                {canCreate && (
-                                    <Button size="sm" className="h-9 w-full sm:w-auto" onClick={() => setFormOpen(true)}>
-                                        <Plus className="size-4" /> إنشاء مرتجع
-                                    </Button>
-                                )}
-                            </div>
-                        }
-                    />
+                    >
+                        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                            <Input
+                                type="date"
+                                value={dateFrom}
+                                onChange={(e) => handleDateChange('from', e.target.value)}
+                                className="h-9 w-full text-sm sm:w-40"
+                                aria-label="من تاريخ"
+                            />
+                            <span className="text-muted-foreground hidden sm:inline">—</span>
+                            <Input
+                                type="date"
+                                value={dateTo}
+                                onChange={(e) => handleDateChange('to', e.target.value)}
+                                className="h-9 w-full text-sm sm:w-40"
+                                aria-label="إلى تاريخ"
+                            />
+                        </div>
+                    </FilterBar>
                 </div>
 
                 <DataTable rowOffset={Number(items.meta.from ?? 1) - 1} columns={columns} data={items.data} keyExtractor={(item) => item.id} />
