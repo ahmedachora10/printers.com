@@ -23,20 +23,9 @@ class UpdateCustomerRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
-        $customer = $this->route('customer');
-
-        $branchId = $customer->branch_id;
-
         return [
             'full_name' => ['required', 'string', 'max:255'],
-            'phone' => [
-                'required',
-                new PhoneNumber,
-                Rule::unique('customers', 'phone')
-                    ->where('branch_id', $branchId)
-                    ->ignore($customer->id)
-                    ->whereNull('deleted_at'),
-            ],
+            'phone' => ['required', new PhoneNumber, Customer::uniquePhoneRule($this->route('customer'))],
             'email' => ['nullable', 'email', 'max:255'],
             'customer_type' => ['required', Rule::enum(CustomerTypeEnum::class)],
             'company_name' => ['nullable', 'string', 'max:255', 'required_if:customer_type,corporate'],

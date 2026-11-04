@@ -21,7 +21,7 @@ class MergeCustomersRequest extends FormRequest
             'secondary_customer_id' => [
                 'required',
                 'integer',
-                Rule::exists('customers', 'id')->whereNull('deleted_at'),
+                Rule::exists('customers', 'id')->where('branch_id', $primary?->branch_id)->whereNull('deleted_at'),
                 Rule::notIn([$primary?->id]),
             ],
         ];
