@@ -165,6 +165,16 @@ describe('One customer across branches', function () {
                 ->where("stats.{$this->customer->id}.invoiceCount", 1));
     });
 
+    it('lists the other branch customers on the show page without their accounts', function () {
+        $other = Customer::factory()->create(['branch_id' => $this->branchA->id]);
+
+        $this->actingAs($this->adminA)->get(route('customers.show', $this->customer))
+            ->assertOk()
+            ->assertInertia(fn ($page) => $page
+                ->where('customers.0.id', $other->id)
+                ->where('customers.0.tier.value', null));
+    });
+
     it('keeps a branch out of customers it does not have', function () {
         $this->actingAs($this->adminB)->get(route('customers.show', $this->customer))->assertForbidden();
         $this->actingAs($this->adminB)->get(route('customers.index'))
