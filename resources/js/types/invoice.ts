@@ -153,12 +153,17 @@ export interface Invoice {
         attachments: { id: number; name: string; url: string }[];
         /** تاسك 157 — طلب موظفٍ لم يقبله المحاسب: يُعرض ولا يدخل المجموع. */
         pendingRequest: boolean;
+        /** تاسك 224 */
+        isApproved: boolean;
+        canApprove: boolean;
     }[];
     canEditInternalNotes: boolean;
     /** Why a reviewer rejected the invoice — service invoices only. */
     cancellationReason: string | null;
     cancelledByName: string | null;
     cancelledAt: string | null;
+    /** تاسك 225 — سبب الاسترجاع (فواتير الخدمات). */
+    returnReason: string | null;
     /** موعد تسليم العمل للعميل — فواتير الخدمات فقط */
     deliveryAt: string | null;
     deliveryStatus: DeliveryStatus | null;

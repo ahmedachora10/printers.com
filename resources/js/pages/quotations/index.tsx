@@ -15,7 +15,7 @@ import quotations from '@/routes/quotations';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type PaginatedQuotations, type QuotationListItem, type QuotationStatus } from '@/types/quotation';
 import { Head, Link, router, usePage } from '@inertiajs/react';
-import { Check, ClipboardList, FileOutput, MoreHorizontal, Pencil, Plus, Printer, Search, Send, X } from 'lucide-react';
+import { Check, ClipboardList, Eye, FileOutput, MoreHorizontal, Pencil, Plus, Printer, Search, Send, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -174,6 +174,14 @@ export default function QuotationsIndex({ quotations: items, filters, statusOpti
 
                     return (
                         <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                            {/* تاسك 218: الورقة نفسها بلا طباعة تلقائية. */}
+                            {q.can.print && (
+                                <Button size="sm" variant="outline" asChild>
+                                    <Link href={pos.quotation.print(q.id, { query: { preview: 1 } }).url}>
+                                        <Eye className="size-4" /> معاينة
+                                    </Link>
+                                </Button>
+                            )}
                             {primary === 'convert' && (
                                 <Button size="sm" className="bg-emerald-600 text-white hover:bg-emerald-700" asChild>
                                     <Link href={pos.quotation(q.id, { query: { convert: 1 } }).url}>

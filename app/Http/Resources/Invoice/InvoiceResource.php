@@ -143,6 +143,7 @@ class InvoiceResource extends JsonResource
             'cancellationReason' => $isServiceInvoice ? $this->resource->cancellation_reason : null,
             'cancelledByName' => $isServiceInvoice ? $this->resource->cancelledBy?->name : null,
             'cancelledAt' => $isServiceInvoice ? $this->resource->cancelled_at?->toIso8601String() : null,
+            'returnReason' => $isServiceInvoice ? $this->resource->return_reason : null,
             // موعد تسليم العمل للعميل — لفواتير الخدمات وحدها؛ تسليم المنتجات فوري.
             'deliveryAt' => $isServiceInvoice ? $this->resource->delivery_at?->toIso8601String() : null,
             'deliveryStatus' => $isServiceInvoice ? $this->resource->deliveryStatus()?->value : null,
@@ -254,6 +255,9 @@ class InvoiceResource extends JsonResource
                     'paidFromLabel' => $expense->paid_from->label(),
                     // تاسك 157: طلب موظفٍ لم يُقبل — يُعرض ولا يدخل المجموع.
                     'pendingRequest' => $expense->isPendingRequest(),
+                    // تاسك 224: يُعتمد من هنا كما من قائمة المصروفات.
+                    'isApproved' => $expense->isApproved(),
+                    'canApprove' => (bool) $request->user()?->can('approve', $expense),
                     // تاسك 157: الموظف يرى طلبه ولا يفتح مسار المرفق (مسار المحاسبين).
                     'attachments' => $request->user()?->can('view', $expense) ? ExpenseResource::attachmentLinks($expense) : [],
                 ])->all()

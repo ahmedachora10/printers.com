@@ -56,6 +56,7 @@ class ServiceInvoice extends Model implements HasMedia
         'paid_at',
         'commission_earned_at',
         'cancellation_reason',
+        'return_reason',
         'cancelled_by',
         'cancelled_at',
         'messages_closed_at',

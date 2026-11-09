@@ -1,4 +1,5 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
+import { approve as approveExpense } from '@/actions/App/Http/Controllers/ExpenseController';
 import DeliveryBadge from '@/components/invoices/delivery-badge';
 import InternalNotesCard from '@/components/invoices/internal-notes-card';
 import InvoiceNotes from '@/components/invoices/invoice-notes';
@@ -596,17 +597,18 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                 )}
 
                 {/* Why the reviewer rejected the invoice — shown to everyone who may
-                    view it, the employee who raised it above all (تاسك 18). */}
-                {invoice.status === 'cancelled' && invoice.cancellationReason && (
+                    view it, the employee who raised it above all (تاسك 18).
+                    تاسك 225: والشريط نفسه يحمل سبب الاسترجاع. */}
+                {((invoice.status === 'cancelled' && invoice.cancellationReason) || (invoice.status === 'returned' && invoice.returnReason)) && (
                     <div
                         role="alert"
                         className="mb-6 flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
                     >
-                        <Ban className="mt-0.5 size-4 shrink-0" />
+                        {invoice.status === 'returned' ? <Undo2 className="mt-0.5 size-4 shrink-0" /> : <Ban className="mt-0.5 size-4 shrink-0" />}
                         <div className="space-y-1">
-                            <p className="text-sm font-semibold">أُلغيت هذه الفاتورة</p>
-                            <p className="text-sm whitespace-pre-line">{invoice.cancellationReason}</p>
-                            {(invoice.cancelledByName || invoice.cancelledAt) && (
+                            <p className="text-sm font-semibold">{invoice.status === 'returned' ? 'سبب الاسترجاع' : 'أُلغيت هذه الفاتورة'}</p>
+                            <p className="text-sm whitespace-pre-line">{invoice.status === 'returned' ? invoice.returnReason : invoice.cancellationReason}</p>
+                            {invoice.status === 'cancelled' && (invoice.cancelledByName || invoice.cancelledAt) && (
                                 <p className="text-xs opacity-80">
                                     {invoice.cancelledByName && <>بواسطة {invoice.cancelledByName}</>}
                                     {invoice.cancelledByName && invoice.cancelledAt && ' — '}
@@ -1002,6 +1004,11 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                                 بانتظار المحاسب
                                             </Badge>
                                         )}
+                                        {!expense.pendingRequest && !expense.isApproved && (
+                                            <Badge variant="outline" className="text-amber-600">
+                                                غير معتمد
+                                            </Badge>
+                                        )}
                                     </span>
                                     <span className="text-muted-foreground">
                                         {expense.date} — {expense.paidFromLabel}
@@ -1024,6 +1031,11 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                         </span>
                                         {expense.amount !== expense.total && (
                                             <span className="text-muted-foreground text-xs">من {formatCurrency(expense.total)}</span>
+                                        )}
+                                        {expense.canApprove && (
+                                            <Button variant="outline" size="sm" onClick={() => router.post(approveExpense.url(expense.id), {}, { preserveScroll: true })}>
+                                                <CheckCircle2 className="size-3.5" /> اعتماد
+                                            </Button>
                                         )}
                                     </span>
                                 </div>

@@ -79,7 +79,8 @@ class ReturnServiceInvoiceAction
             // حركات الفاتورة فلا تحتاج إلى فحص الحالة هنا.
             $this->consumeMaterials->restore($invoice, (int) $actor->id);
 
-            $invoice->update(['status' => InvoiceStatusEnum::RETURNED]);
+            // تاسك 225: السبب على الفاتورة — الآجلة بلا مرتجع يحمله.
+            $invoice->update(['status' => InvoiceStatusEnum::RETURNED, 'return_reason' => $reason ?: null]);
 
             return $invoice;
         });
