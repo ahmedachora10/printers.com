@@ -2,7 +2,7 @@
 
 namespace App\Actions\Loyalty;
 
-use App\Models\Customer;
+use App\Models\CustomerBranch;
 use App\Models\LoyaltyConfig;
 use Illuminate\Validation\ValidationException;
 
@@ -21,13 +21,13 @@ class ApplyLoyaltyDiscountsAction
      *
      * @return array{0: float, 1: float} [percentage, amount]
      */
-    public function tierDiscount(?Customer $customer, bool $eligible, LoyaltyConfig $config, float $base): array
+    public function tierDiscount(?CustomerBranch $account, bool $eligible, LoyaltyConfig $config, float $base): array
     {
-        if (! $eligible || ! $customer || ! $config->is_active) {
+        if (! $eligible || ! $account || ! $config->is_active) {
             return [0.0, 0.0];
         }
 
-        $pct = $config->discountPctForTier($customer->tier);
+        $pct = $config->discountPctForTier($account->tier);
 
         if ($pct <= 0) {
             return [0.0, 0.0];
@@ -45,13 +45,13 @@ class ApplyLoyaltyDiscountsAction
      *                                     يقع على الرصيد المسجَّل حين لا يُمرَّر.
      * @return array{0: int, 1: float} [pointsRedeemed, discountAmount]
      */
-    public function redemption(?Customer $customer, bool $eligible, LoyaltyConfig $config, int $requestedPoints, float $base, ?int $availablePoints = null): array
+    public function redemption(?CustomerBranch $account, bool $eligible, LoyaltyConfig $config, int $requestedPoints, float $base, ?int $availablePoints = null): array
     {
         if ($requestedPoints <= 0) {
             return [0, 0.0];
         }
 
-        if (! $eligible || ! $customer || ! $config->is_active) {
+        if (! $eligible || ! $account || ! $config->is_active) {
             throw ValidationException::withMessages([
                 'redeem_points' => 'لا يمكن استبدال النقاط لهذا العميل.',
             ]);
@@ -65,10 +65,10 @@ class ApplyLoyaltyDiscountsAction
 
         // المتاح لا الرصيد: نقاطٌ محجوزة على فاتورة أخرى تنتظر الاعتماد لا تُستبدل
         // مرة ثانية، وإن كانت ما زالت ظاهرةً في الرصيد.
-        $available = $availablePoints ?? (int) $customer->points_balance;
+        $available = $availablePoints ?? (int) $account->points_balance;
 
         if ($requestedPoints > $available) {
-            $reserved = (int) $customer->points_balance - $available;
+            $reserved = (int) $account->points_balance - $available;
 
             throw ValidationException::withMessages([
                 'redeem_points' => $reserved > 0

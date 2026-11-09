@@ -6,9 +6,12 @@ export interface Customer {
     fullName: string;
     phone: string;
     email: string | null;
-    branchId: number;
-    /** Super-admin only — omitted by the API for branch-scoped roles. */
+    /** فرع حسابه حين يكون حساباً واحداً (فرع المستخدم، أو فرعه الوحيد). */
+    branchId: number | null;
+    /** Super-admin only — the customer's branch names, omitted for branch-scoped roles. */
     branchName?: string | null;
+    /** Super-admin only — the customer's account in each branch. */
+    branches?: CustomerBranchAccount[];
     customerType: {
         value: CustomerType;
         label: string;
@@ -28,6 +31,17 @@ export interface Customer {
     isActive: boolean;
     createdAt: string;
     updatedAt: string;
+}
+
+/** حساب العميل في فرعٍ واحد (customer_branch). */
+export interface CustomerBranchAccount {
+    branchId: number;
+    branchName: string | null;
+    pointsBalance: number;
+    cumulativeSpend: number;
+    tier: { value: CustomerTier; label: string };
+    creditLimit: number | null;
+    isActive: boolean;
 }
 
 export interface PaginatedCustomer {

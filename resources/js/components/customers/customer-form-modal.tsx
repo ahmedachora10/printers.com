@@ -38,6 +38,8 @@ interface Props {
 
 export default function CustomerFormModal({ open, onOpenChange, customer, agents = [], branches = [], isSuperAdmin = false }: Props) {
     const isEdit = !!customer;
+    // عميل عدّة فروع: السوبر أدمن يعدّل هويته وحدها — حقول كل فرعٍ لذلك الفرع.
+    const identityOnly = isEdit && isSuperAdmin && (customer?.branches?.length ?? 0) > 1;
 
     const { data, setData, post, put, processing, errors, reset } = useForm({
         branch_id: customer?.branchId ? String(customer.branchId) : '',
@@ -217,6 +219,12 @@ export default function CustomerFormModal({ open, onOpenChange, customer, agents
                             <InputError message={errors.tax_number} />
                         </div>
 
+                        {identityOnly ? (
+                            <p className="text-sm text-muted-foreground sm:col-span-2">
+                                العميل مسجّل في عدّة فروع: الائتمان والمندوب والملاحظات لكل فرعٍ على حدة، ويعدّلها مدير ذلك الفرع.
+                            </p>
+                        ) : (
+                        <>
                         <div className="space-y-1">
                             <Label htmlFor="cf-credit-limit">
                                 الحد الائتماني (ر.س)
@@ -277,6 +285,8 @@ export default function CustomerFormModal({ open, onOpenChange, customer, agents
                             />
                             <Label htmlFor="cf-is-active" className="cursor-pointer">نشط</Label>
                         </div>
+                        </>
+                        )}
                     </div>
                 </form>
 

@@ -24,6 +24,8 @@ class UpdateCustomerRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // السوبر أدمن يختار الفرع الذي تُعدَّل حقوله (الائتمان، المندوب، الملاحظات).
+            'branch_id' => ['nullable', 'integer'],
             'full_name' => ['required', 'string', 'max:255'],
             'phone' => ['required', new PhoneNumber, Customer::uniquePhoneRule($this->route('customer'))],
             'email' => ['nullable', 'email', 'max:255'],

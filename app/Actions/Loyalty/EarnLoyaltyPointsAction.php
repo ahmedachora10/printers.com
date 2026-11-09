@@ -6,6 +6,7 @@ use App\Enums\CustomerTypeEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Enums\LoyaltyTransactionTypeEnum;
 use App\Models\Customer;
+use App\Models\CustomerBranch;
 use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
 use App\Models\ProductInvoice;
@@ -37,15 +38,12 @@ class EarnLoyaltyPointsAction
         }
 
         return DB::transaction(function () use ($invoice) {
-            /** @var Customer|null $customer */
-            $customer = Customer::query()
-                ->whereKey($invoice->customer_id)
-                ->lockForUpdate()
-                ->first();
+            // النقاط والإنفاق والمستوى لحسابه في فرع الفاتورة.
+            $account = CustomerBranch::lockFor($invoice->customer_id, (int) $invoice->branch_id);
 
-            if (! $customer
-                || $customer->customer_type !== CustomerTypeEnum::Individual
-                || $customer->agent_id !== null
+            if (! $account
+                || $account->customer->customer_type !== CustomerTypeEnum::Individual
+                || $account->agent_id !== null
             ) {
                 return null;
             }
@@ -74,24 +72,20 @@ class EarnLoyaltyPointsAction
             //
             // تاسك 93: ورسمُ التوصيل خارجه — قياسُ الفئة قياسُ ما اشتراه العميل
             // من المركز، لا ما دفعه لسائقٍ ليحمله إليه.
-            $newBalance = $customer->points_balance + $earned;
-            $newSpend = (float) $customer->cumulative_spend
+            $newSpend = (float) $account->cumulative_spend
                 + round((float) $invoice->total_amount - $invoice->shippingFee(), 2);
-            $tier = $config->tierForSpend($newSpend);
 
-            $customer->update([
-                'points_balance' => $newBalance,
+            $account->update([
+                'points_balance' => $account->points_balance + $earned,
                 'cumulative_spend' => $newSpend,
-                'tier' => $tier,
+                'tier' => $config->tierForSpend($newSpend),
             ]);
 
-            return LoyaltyTransaction::create([
-                'customer_id' => $customer->id,
+            return $account->record([
                 'invoice_id' => $invoice->id,
                 'invoice_type' => $invoice->getMorphClass(),
                 'type' => LoyaltyTransactionTypeEnum::Earn,
                 'points' => $earned,
-                'balance_after' => $newBalance,
             ]);
         });
     }

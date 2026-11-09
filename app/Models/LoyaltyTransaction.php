@@ -21,6 +21,7 @@ class LoyaltyTransaction extends Model
 
     protected $fillable = [
         'customer_id',
+        'branch_id',
         'invoice_id',
         'invoice_type',
         'type',

@@ -213,6 +213,8 @@ class CreateProductInvoiceAction
         $subtotal = round($subtotal, 2);
 
         $customer = $customerId !== null ? Customer::find($customerId) : null;
+        // نقاطه ومستواه ومندوبه من حسابه في فرع الفاتورة.
+        $account = $customer?->accountFor($branchId);
         $config = LoyaltyConfig::forBranch($branchId);
 
         [$agentId, $agentMode, $agentType, $agentRate] = $this->resolveAgent->handle(
@@ -226,10 +228,10 @@ class CreateProductInvoiceAction
         $loyaltyEligible = $agentId === null
             && $customer !== null
             && $customer->customer_type === CustomerTypeEnum::Individual
-            && $customer->agent_id === null;
+            && $account?->agent_id === null;
 
         // Discount pipeline: subtotal → tier → coupon → agent → points → VAT.
-        [$tierPct, $tierDiscount] = $this->loyalty->tierDiscount($customer, $loyaltyEligible, $config, $subtotal);
+        [$tierPct, $tierDiscount] = $this->loyalty->tierDiscount($account, $loyaltyEligible, $config, $subtotal);
         $afterTier = round($subtotal - $tierDiscount, 2);
 
         [$coupon, $couponDiscount] = $this->resolveCoupon($data, $branchId, $afterTier, $invoice);
@@ -247,9 +249,9 @@ class CreateProductInvoiceAction
 
         // الرصيد المتاح لا المسجَّل: ما حُجز على فواتير هذا العميل التي لم
         // تُعتمد بعد ليس له أن يُستبدل مرة أخرى.
-        $available = $customer !== null ? $this->availablePoints->handle($customer, $invoice) : null;
+        $available = $customer !== null ? $this->availablePoints->handle($customer, $branchId, $invoice) : null;
 
-        [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($customer, $loyaltyEligible, $config, $requestedPoints, $afterAgent, $available);
+        [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($account, $loyaltyEligible, $config, $requestedPoints, $afterAgent, $available);
 
         // الأسعار المُدخلة في نقطة البيع شاملة لضريبة القيمة المضافة: ما يبقى
         // بعد كامل سلسلة الخصومات هو ما يدفعه العميل بالضبط، والضريبة تُستخرج
@@ -387,7 +389,7 @@ class CreateProductInvoiceAction
     {
         if (! empty($data['customer_id'])) {
             // الطلب يتحقّق من وجود العميل فقط؛ الفرع يُحسم هنا.
-            if (! Customer::query()->where('branch_id', $branchId)->whereKey($data['customer_id'])->exists()) {
+            if (! Customer::query()->inBranch($branchId)->whereKey($data['customer_id'])->exists()) {
                 throw ValidationException::withMessages([
                     'customer_id' => 'العميل المحدد لا يتبع فرع هذه الفاتورة.',
                 ]);

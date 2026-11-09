@@ -78,7 +78,6 @@ interface Props {
     invoiceHistory: Paginated<InvoiceHistoryItem>;
     customers: Customer[];
     canOverrideTier: boolean;
-    linkedCustomers: Customer[];
 }
 
 const invoiceHistoryColumns: ColumnDef<InvoiceHistoryItem>[] = [
@@ -119,7 +118,6 @@ export default function CustomerShow({
     invoiceHistory,
     customers,
     canOverrideTier,
-    linkedCustomers,
 }: Props) {
     const breadcrumbs: BreadcrumbItem[] = [
         { title: 'العملاء', href: customersRoute.index().url },
@@ -137,7 +135,10 @@ export default function CustomerShow({
     }
 
     const [tierOpen, setTierOpen] = useState(false);
+    // المستوى لكل فرع: عميل عدّة فروع يختار السوبر أدمن فرعه.
+    const tierBranches = (customer.branches?.length ?? 0) > 1 ? customer.branches! : [];
     const tierForm = useForm({
+        branch_id: '' as string,
         tier: customer.tier.value,
         cumulative_spend: '' as string,
         reason: '',
@@ -231,17 +232,14 @@ export default function CustomerShow({
                                     <span className="text-sm text-muted-foreground">{customer.email}</span>
                                 )}
                             </div>
-                            {linkedCustomers.length > 0 && (
+                            {/* السوبر أدمن: حساب العميل في كل فرع من فروعه */}
+                            {customer.branches && customer.branches.length > 0 && (
                                 <div className="mt-2 flex flex-wrap items-center gap-1.5 text-sm">
-                                    <span className="text-muted-foreground">
-                                        {customer.branchName ? `${customer.branchName} · ` : ''}فروع أخرى:
-                                    </span>
-                                    {linkedCustomers.map((linked) => (
-                                        <Link key={linked.id} href={customersRoute.show(linked.id).url}>
-                                            <Badge variant="outline" className="hover:bg-muted">
-                                                {linked.branchName} · {formatNumber(linked.pointsBalance)} نقطة
-                                            </Badge>
-                                        </Link>
+                                    <span className="text-muted-foreground">الفروع:</span>
+                                    {customer.branches.map((account) => (
+                                        <Badge key={account.branchId} variant="outline" className={account.isActive ? '' : 'opacity-60'}>
+                                            {account.branchName} · {account.tier.label} · {formatNumber(account.pointsBalance)} نقطة
+                                        </Badge>
                                     ))}
                                 </div>
                             )}
@@ -516,6 +514,27 @@ export default function CustomerShow({
                     </DialogHeader>
 
                     <form onSubmit={handleTierOverride} className="space-y-4">
+                        {tierBranches.length > 0 && (
+                            <div className="space-y-2">
+                                <Label htmlFor="tier-branch">الفرع</Label>
+                                <Select
+                                    value={tierForm.data.branch_id}
+                                    onValueChange={(value) => tierForm.setData('branch_id', value)}
+                                >
+                                    <SelectTrigger id="tier-branch">
+                                        <SelectValue placeholder="اختر الفرع" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {tierBranches.map((account) => (
+                                            <SelectItem key={account.branchId} value={String(account.branchId)}>
+                                                {account.branchName} — {account.tier.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
                         <div className="space-y-2">
                             <Label htmlFor="tier">المستوى</Label>
                             <Select

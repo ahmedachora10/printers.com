@@ -3,9 +3,8 @@
 namespace App\Actions\Loyalty;
 
 use App\Enums\LoyaltyTransactionTypeEnum;
-use App\Models\Customer;
+use App\Models\CustomerBranch;
 use App\Models\LoyaltyConfig;
-use App\Models\LoyaltyTransaction;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -58,22 +57,26 @@ class ExpireLoyaltyPointsAction
     {
         $cutoff = $asOf->copy()->subMonths((int) $config->expiry_months);
 
-        $customers = Customer::query()
+        // الخمول لكل فرع: آخر حركة ولاء أو فاتورة للعميل في هذا الفرع.
+        $accounts = CustomerBranch::query()
             ->where('branch_id', $config->branch_id)
             ->where('points_balance', '>', 0)
-            ->withMax('loyaltyTransactions as last_loyalty_at', 'created_at')
-            ->withMax('productInvoices as last_product_invoice_at', 'created_at')
-            ->withMax('serviceInvoices as last_service_invoice_at', 'created_at')
-            ->get();
+            ->select('customer_branch.*');
+
+        foreach (['loyalty_transactions' => 'last_loyalty_at', 'product_invoices' => 'last_product_invoice_at', 'service_invoices' => 'last_service_invoice_at'] as $table => $alias) {
+            $accounts->selectSub(DB::table($table)->selectRaw('max(created_at)')
+                ->whereColumn("{$table}.customer_id", 'customer_branch.customer_id')
+                ->whereColumn("{$table}.branch_id", 'customer_branch.branch_id'), $alias);
+        }
 
         $expired = 0;
 
-        foreach ($customers as $customer) {
-            if ($this->lastActivityAt($customer)->greaterThan($cutoff)) {
+        foreach ($accounts->get() as $account) {
+            if ($this->lastActivityAt($account)->greaterThan($cutoff)) {
                 continue;
             }
 
-            if ($this->expire($customer)) {
+            if ($this->expire($account)) {
                 $expired++;
             }
         }
@@ -81,14 +84,14 @@ class ExpireLoyaltyPointsAction
         return $expired;
     }
 
-    /** آخر ما يدلّ على حياة الحساب، وأقدمُ ما يمكن أن يكون هو تاريخ إنشائه. */
-    private function lastActivityAt(Customer $customer): CarbonInterface
+    /** آخر ما يدلّ على حياة الحساب، وأقدمُ ما يمكن أن يكون هو تاريخ ربطه بالفرع. */
+    private function lastActivityAt(CustomerBranch $account): CarbonInterface
     {
         $candidates = array_filter([
-            $customer->last_loyalty_at,
-            $customer->last_product_invoice_at,
-            $customer->last_service_invoice_at,
-            $customer->created_at,
+            $account->last_loyalty_at,
+            $account->last_product_invoice_at,
+            $account->last_service_invoice_at,
+            $account->created_at,
         ]);
 
         $timestamps = array_map(fn ($value) => Date::parse($value), $candidates);
@@ -97,13 +100,11 @@ class ExpireLoyaltyPointsAction
     }
 
     /** @return bool هل انتهت نقاطٌ فعلاً؟ */
-    private function expire(Customer $customer): bool
+    private function expire(CustomerBranch $account): bool
     {
-        return DB::transaction(function () use ($customer) {
-            /** @var Customer $locked */
-            $locked = Customer::query()->whereKey($customer->id)->lockForUpdate()->firstOrFail();
-
-            $balance = (int) $locked->points_balance;
+        return DB::transaction(function () use ($account) {
+            $locked = CustomerBranch::lockFor($account->customer_id, $account->branch_id);
+            $balance = (int) $locked?->points_balance;
 
             // قد يكون العميل قد اشترى بين القراءة والقفل، فيسقط سبب الإنهاء.
             if ($balance <= 0) {
@@ -112,7 +113,7 @@ class ExpireLoyaltyPointsAction
 
             // النقاط المحجوزة على فاتورة تنتظر الاعتماد لا تنتهي: خصمُها مستحقٌّ
             // على الفاتورة وقد نزل من إجماليها فعلاً، فإنهاؤها يمنع اعتمادها.
-            $reserved = $this->availablePoints->reserved((int) $locked->id);
+            $reserved = $this->availablePoints->reserved($locked->customer_id, $locked->branch_id);
             $expirable = $balance - $reserved;
 
             if ($expirable <= 0) {
@@ -121,13 +122,9 @@ class ExpireLoyaltyPointsAction
 
             $locked->update(['points_balance' => $reserved]);
 
-            LoyaltyTransaction::create([
-                'customer_id' => $locked->id,
-                'invoice_id' => null,
-                'invoice_type' => null,
+            $locked->record([
                 'type' => LoyaltyTransactionTypeEnum::Expire,
                 'points' => -$expirable,
-                'balance_after' => $reserved,
                 'notes' => 'انتهاء صلاحية النقاط لخمول الحساب',
             ]);
 

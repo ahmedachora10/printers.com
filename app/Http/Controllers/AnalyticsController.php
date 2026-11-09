@@ -257,9 +257,11 @@ class AnalyticsController extends Controller
      */
     private function tierDistribution(array $scope): array
     {
-        $counts = DB::table('customers')
-            ->whereNull('deleted_at')
-            ->when($scope['branchId'], fn ($q) => $q->where('branch_id', $scope['branchId']))
+        // المستوى لكل فرع: يُعدّ على حسابات العملاء في الفروع.
+        $counts = DB::table('customer_branch')
+            ->join('customers', 'customers.id', '=', 'customer_branch.customer_id')
+            ->whereNull('customers.deleted_at')
+            ->when($scope['branchId'], fn ($q) => $q->where('customer_branch.branch_id', $scope['branchId']))
             ->groupBy('tier')
             ->select('tier', DB::raw('COUNT(*) as c'))
             ->pluck('c', 'tier');
@@ -272,8 +274,7 @@ class AnalyticsController extends Controller
     /**
      * Loyalty points earned vs redeemed per month across the range, zero-filled
      * so both lines are continuous. Redemptions are stored as negative points
-     * and flipped positive for charting. Branch scope goes through the customer,
-     * since the transactions table has no branch column.
+     * and flipped positive for charting. Each transaction carries its branch.
      *
      * @param  array<string, mixed>  $scope
      * @return array<int, array{month: string, earned: int, redeemed: int}>
@@ -291,8 +292,7 @@ class AnalyticsController extends Controller
 
         // Grouped per day (portable across MySQL/SQLite), bucketed into months here.
         $rows = DB::table('loyalty_transactions')
-            ->join('customers', 'customers.id', '=', 'loyalty_transactions.customer_id')
-            ->when($scope['branchId'], fn ($q) => $q->where('customers.branch_id', $scope['branchId']))
+            ->when($scope['branchId'], fn ($q) => $q->where('loyalty_transactions.branch_id', $scope['branchId']))
             ->where('loyalty_transactions.created_at', '>=', $scope['from'])
             ->where('loyalty_transactions.created_at', '<=', $scope['to'])
             ->groupBy(DB::raw('DATE(loyalty_transactions.created_at)'))

@@ -33,10 +33,15 @@ class StoreCustomerRequest extends FormRequest
                 'exists:branches,id',
             ],
             'full_name' => ['required', 'string', 'max:255'],
+            // جوالٌ مسجَّل في فرعٍ آخر يربط ذلك العميل بهذا الفرع (CreateCustomerAction)؛
+            // المرفوض أن يكون من عملاء هذا الفرع أصلاً.
             'phone' => [
                 'required',
                 new PhoneNumber,
-                Rule::unique('customers', 'phone')->where('branch_id', $branchId)->whereNull('deleted_at'),
+                Rule::unique('customers', 'phone')->whereNull('deleted_at')->where(fn ($q) => $q->whereExists(fn ($s) => $s
+                    ->from('customer_branch')
+                    ->whereColumn('customer_branch.customer_id', 'customers.id')
+                    ->where('customer_branch.branch_id', $branchId))),
             ],
             'email' => ['nullable', 'email', 'max:255'],
             'customer_type' => ['required', Rule::enum(CustomerTypeEnum::class)],
@@ -48,5 +53,11 @@ class StoreCustomerRequest extends FormRequest
             'notes' => ['nullable', 'string'],
             'is_active' => ['boolean'],
         ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return ['phone.unique' => 'العميل مسجّل في هذا الفرع.'];
     }
 }

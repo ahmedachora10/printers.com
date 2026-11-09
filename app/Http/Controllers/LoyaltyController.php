@@ -5,10 +5,9 @@ namespace App\Http\Controllers;
 use App\Enums\CustomerTierEnum;
 use App\Http\Controllers\Concerns\BuildsPagedProps;
 use App\Models\Branch;
-use App\Models\Customer;
+use App\Models\CustomerBranch;
 use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -51,7 +50,9 @@ class LoyaltyController extends Controller
             ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
             : new Collection;
 
-        $customers = fn () => Customer::query()
+        // المستوى والنقاط لكل فرع: تُعدّ حسابات العملاء في الفروع.
+        $customers = fn () => CustomerBranch::query()
+            ->whereHas('customer')
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             // السوبر أدمن بلا فرع محدَّد يرى الشبكة كلها؛ ومن سواه بلا فرع (حالة
             // لا ينبغي أن تقع) لا يرى شيئاً بدل أن يرى كل شيء.
@@ -107,11 +108,9 @@ class LoyaltyController extends Controller
     private function transactions(?int $branchId, bool $isSuper): array
     {
         $paginator = LoyaltyTransaction::query()
-            ->with('customer:id,full_name,phone,branch_id')
-            ->whereHas('customer', function (Builder $q) use ($branchId, $isSuper) {
-                $q->when($branchId, fn ($c) => $c->where('branch_id', $branchId))
-                    ->when(! $isSuper && $branchId === null, fn ($c) => $c->whereRaw('1 = 0'));
-            })
+            ->with('customer:id,full_name,phone')
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when(! $isSuper && $branchId === null, fn ($q) => $q->whereRaw('1 = 0'))
             ->latest('created_at')
             ->paginate(self::TRANSACTIONS_PER_PAGE)
             ->withQueryString();
@@ -151,7 +150,8 @@ class LoyaltyController extends Controller
 
         $configs = LoyaltyConfig::query()->whereIn('branch_id', $ids)->get()->keyBy('branch_id');
 
-        $points = Customer::query()
+        $points = CustomerBranch::query()
+            ->whereHas('customer')
             ->whereIn('branch_id', $ids)
             ->selectRaw('branch_id, SUM(points_balance) as total')
             ->groupBy('branch_id')

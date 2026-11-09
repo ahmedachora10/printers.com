@@ -41,9 +41,9 @@ class CustomersExport implements FromCollection, ShouldAutoSize, WithHeadings, W
     public function collection(): Collection
     {
         $customers = Customer::query()
-            ->when($this->includeBranch, fn ($q) => $q->with('branch:id,name'))
-            ->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))
-            ->filteredBy($this->filters)
+            ->with(['accounts' => fn ($q) => $q->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))->with('branch:id,name')])
+            ->when($this->branchId, fn ($q) => $q->inBranch($this->branchId))
+            ->filteredBy($this->filters, $this->branchId)
             ->orderBy('full_name')
             ->get();
 
@@ -67,14 +67,16 @@ class CustomersExport implements FromCollection, ShouldAutoSize, WithHeadings, W
                 ? Carbon::parse(max($dates))->format('d/m/Y')
                 : '—';
 
+            $summary = $customer->accountsSummary();
+
             return [
                 $customer->full_name,
                 $customer->phone,
-                ...($this->includeBranch ? [$customer->branch?->name ?? '—'] : []),
+                ...($this->includeBranch ? [$customer->accounts->map(fn ($a) => $a->branch?->name)->filter()->join('، ') ?: '—'] : []),
                 $customer->customer_type->label(),
-                $customer->tier->label(),
+                $summary['tier']->label(),
                 $invoiceCount,
-                number_format((float) $customer->cumulative_spend, 2),
+                number_format($summary['cumulative_spend'], 2),
                 $lastVisit,
             ];
         });
@@ -100,6 +102,7 @@ class CustomersExport implements FromCollection, ShouldAutoSize, WithHeadings, W
 
         $rows = DB::table($table)
             ->whereIn('customer_id', $ids)
+            ->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))
             ->whereNull('deleted_at')
             ->groupBy('customer_id')
             ->select('customer_id', DB::raw('COUNT(*) as cnt'), DB::raw('MAX(created_at) as last_at'))

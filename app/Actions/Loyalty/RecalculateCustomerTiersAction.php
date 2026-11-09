@@ -5,7 +5,7 @@ namespace App\Actions\Loyalty;
 use App\Enums\CustomerTierEnum;
 use App\Enums\CustomerTypeEnum;
 use App\Enums\InvoiceStatusEnum;
-use App\Models\Customer;
+use App\Models\CustomerBranch;
 use App\Models\LoyaltyConfig;
 use App\Models\ProductInvoice;
 use App\Models\Refund;
@@ -76,26 +76,28 @@ class RecalculateCustomerTiersAction
         // استعلامَين لكل عميل.
         $spendByCustomer = $this->spendByCustomer($branchId);
 
-        $customers = Customer::query()
+        // حسابات الفرع لعملائه الأفراد بلا مندوب.
+        $accounts = CustomerBranch::query()
+            ->with('customer:id,full_name')
             ->where('branch_id', $branchId)
-            ->where('customer_type', CustomerTypeEnum::Individual)
             ->whereNull('agent_id')
+            ->whereHas('customer', fn ($q) => $q->where('customer_type', CustomerTypeEnum::Individual))
             ->get();
 
-        foreach ($customers as $customer) {
-            $newSpend = round((float) ($spendByCustomer[$customer->id] ?? 0), 2);
+        foreach ($accounts as $account) {
+            $newSpend = round((float) ($spendByCustomer[$account->customer_id] ?? 0), 2);
             $newTier = $config->tierForSpend($newSpend);
 
-            $oldSpend = round((float) $customer->cumulative_spend, 2);
-            $oldTier = $customer->tier;
+            $oldSpend = round((float) $account->cumulative_spend, 2);
+            $oldTier = $account->tier;
 
             if ($newTier === $oldTier && abs($newSpend - $oldSpend) < 0.01) {
                 continue;
             }
 
             $rows->push([
-                'customerId' => $customer->id,
-                'customerName' => $customer->full_name,
+                'customerId' => $account->customer_id,
+                'customerName' => $account->customer->full_name,
                 'branchId' => $branchId,
                 'fromSpend' => $oldSpend,
                 'toSpend' => $newSpend,
@@ -106,18 +108,17 @@ class RecalculateCustomerTiersAction
             ]);
 
             if (! $dryRun) {
-                $this->apply($customer, $newSpend, $newTier, $actor);
+                $this->apply($account, $newSpend, $newTier, $actor);
             }
         }
 
-        return $customers->count();
+        return $accounts->count();
     }
 
-    private function apply(Customer $customer, float $spend, CustomerTierEnum $tier, ?User $actor): void
+    private function apply(CustomerBranch $account, float $spend, CustomerTierEnum $tier, ?User $actor): void
     {
-        DB::transaction(function () use ($customer, $spend, $tier, $actor) {
-            /** @var Customer $locked */
-            $locked = Customer::query()->whereKey($customer->id)->lockForUpdate()->firstOrFail();
+        DB::transaction(function () use ($account, $spend, $tier, $actor) {
+            $locked = CustomerBranch::lockFor($account->customer_id, $account->branch_id);
 
             $fromTier = $locked->tier;
             $fromSpend = (float) $locked->cumulative_spend;
@@ -127,9 +128,10 @@ class RecalculateCustomerTiersAction
             // كل تغيير فئةٍ أثرٌ يُراجَع، تماماً كالتعديل اليدوي — وبلا مسبِّبٍ
             // حين يُشغَّل الأمر من المُجدوِل.
             activity('customers')
-                ->performedOn($locked)
+                ->performedOn($locked->customer)
                 ->causedBy($actor)
                 ->withProperties([
+                    'branch_id' => $locked->branch_id,
                     'from_tier' => $fromTier->value,
                     'to_tier' => $tier->value,
                     'from_cumulative_spend' => round($fromSpend, 2),

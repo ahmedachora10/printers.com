@@ -17,6 +17,8 @@ class OverrideCustomerTierRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // المستوى لكل فرع: السوبر أدمن يختار فرعه حين يكون العميل في أكثر من فرع.
+            'branch_id' => ['nullable', 'integer'],
             'tier' => ['required', Rule::enum(CustomerTierEnum::class)],
             // تصحيحٌ اختياري للإنفاق التراكمي يرافق التنزيل: تركُه فارغاً يُبقيه
             // كما هو، فيعود المحرّك ويرقّي العميل عند أول فاتورة مسدَّدة.

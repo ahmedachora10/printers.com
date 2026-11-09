@@ -72,19 +72,22 @@ trait SyncsServiceInvoiceShipments
         }
 
         // العنوان نفسه مرّتين لا يصير صفّين: الكاشير قد يعيد كتابته حرفياً.
-        $saved = CustomerAddress::query()
+        // دفتر العناوين لكل فرع: شرائح التوصيل وأسعارها خاصّة بالفرع.
+        $book = CustomerAddress::query()
             ->where('customer_id', $invoice->customer_id)
-            ->where('address', $address)
-            ->first();
+            ->where('branch_id', $invoice->branch_id);
+
+        $saved = (clone $book)->where('address', $address)->first();
 
         $saved ??= CustomerAddress::create([
             'customer_id' => $invoice->customer_id,
+            'branch_id' => $invoice->branch_id,
             'label' => $this->trimmedOrNull($shipment['address_label']),
             'address' => $address,
             'location_url' => $this->trimmedOrNull($shipment['location_url']),
             'delivery_zone_id' => $row->zone_id,
             // أوّل عنوانٍ للعميل هو افتراضيّه؛ وما بعده لا يزيح افتراضياً قائماً.
-            'is_default' => ! CustomerAddress::query()->where('customer_id', $invoice->customer_id)->exists(),
+            'is_default' => ! $book->exists(),
         ]);
 
         $row->update(['customer_address_id' => $saved->id]);

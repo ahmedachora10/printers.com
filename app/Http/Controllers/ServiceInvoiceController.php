@@ -135,7 +135,7 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('update', $invoice);
 
-        $invoice->load(['lines', 'helpers', 'shipments', 'user:id,name', 'customer:id,full_name,phone,tax_number,agent_id,customer_type,points_balance,tier', 'customer.addresses', 'invoiceAgents:id,service_invoice_id,agent_id,discount_amount,rebate_amount,line_commission_amount']);
+        $invoice->load(['lines', 'helpers', 'shipments', 'user:id,name', 'customer:id,full_name,phone,tax_number,customer_type', 'customer.addresses', 'customer.accounts', 'invoiceAgents:id,service_invoice_id,agent_id,discount_amount,rebate_amount,line_commission_amount']);
 
         return Inertia::render('pos/service/index', [
             ...$this->posFormData(Auth::user(), $listBranchAgents, $invoice),
@@ -206,9 +206,10 @@ class ServiceInvoiceController extends Controller
             // حجز هذه الفاتورة نفسها لا يُطرح من رصيد عميلها هنا: نقاطها لها،
             // فإعادة إرسال العدد نفسه لا تُرفض ولا يظهر الرصيد منقوصاً مرتين.
             'customer' => $invoice->customer?->toPosArray(
+                (int) $invoice->branch_id,
                 $loyalty,
                 $loyaltyActive,
-                $invoice->customer_id !== null ? $availablePoints->reserved((int) $invoice->customer_id, $invoice) : 0,
+                $invoice->customer_id !== null ? $availablePoints->reserved((int) $invoice->customer_id, (int) $invoice->branch_id, $invoice) : 0,
             ),
             // صفّ أنشأته عمولة بندٍ وحدها ليس مندوبَ فاتورة: لو عاد هنا لطُبّق
             // وضعه (خصم) على الفاتورة كلها عند التعديل. مندوب البند محفوظ على بنده.

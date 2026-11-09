@@ -56,26 +56,24 @@ class CustomerController extends Controller
         Gate::authorize('viewAny', Customer::class);
 
         $isSuperAdmin = Auth::user()->roleName->isSuperAdmin();
-        $branchId = $isSuperAdmin ? null : Auth::user()->branchId;
+        // Super-admins see every branch by default, and may narrow to one.
+        $branchId = $this->listBranch($request);
 
         $query = Customer::query()
-            ->with('branch:id,name')
-            ->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $branchId))
-            // Super-admins see every branch by default, and may narrow to one.
-            ->when($isSuperAdmin && $request->filled('branch_id'),
-                fn ($q) => $q->where('branch_id', (int) $request->input('branch_id')))
-            ->filteredBy($request->only(self::LIST_FILTERS))
+            ->with($this->accountsIn($branchId))
+            ->when($branchId, fn ($q) => $q->inBranch($branchId))
+            ->filteredBy($request->only(self::LIST_FILTERS), $branchId)
             ->latest()
             ->paginate(20)
             ->withQueryString();
 
         $ids = $query->pluck('id');
-        $stats = $this->loadPageStats($ids);
+        $stats = $this->loadPageStats($ids, $branchId);
 
         // An agent may work with several branches, so the pickable list follows
         // the branch links rather than the primary branch_id column.
         $agents = Agent::select('id', 'name')
-            ->when(! $isSuperAdmin, fn ($q) => $q->forBranch($branchId))
+            ->when(! $isSuperAdmin, fn ($q) => $q->forBranch(Auth::user()->branchId))
             ->get();
 
         $branches = $isSuperAdmin ? Branch::select('id', 'name')->get() : [];
@@ -129,26 +127,23 @@ class CustomerController extends Controller
     {
         Gate::authorize('view', $customer);
 
-        $customer->load(['branch', 'agent']);
+        // معاملات كل فرعٍ لفرعه: موظف الفرع يرى حسابه وفواتيره هناك وحدها.
+        $branchId = $this->userBranch();
+        $customer->load($this->accountsIn($branchId));
 
-        // الدمج داخل فرع العميل وحده: صفوفه في الفروع الأخرى مرتبطةٌ لا مكرَّرة.
+        // مرشّحو الدمج من عملاء فروعه (فرع المستخدم وحده لغير السوبر أدمن).
         $customers = Customer::select('id', 'full_name')
-            ->where('branch_id', $customer->branch_id)
+            ->whereHas('accounts', fn ($q) => $q->whereIn('branch_id', $customer->accounts->pluck('branch_id')))
             ->where('id', '<>', $customer->id)
             ->get();
 
         return Inertia::render('customers/show', [
             'customer' => new CustomerResource($customer),
-            'financialSummary' => $this->computeFinancialSummary($customer),
-            'loyaltyHistory' => $this->loadLoyaltyHistory($request, $customer),
-            'invoiceHistory' => $this->loadInvoiceHistory($request, $customer),
+            'financialSummary' => $this->computeFinancialSummary($customer, $branchId),
+            'loyaltyHistory' => $this->loadLoyaltyHistory($request, $customer, $branchId),
+            'invoiceHistory' => $this->loadInvoiceHistory($request, $customer, $branchId),
             'customers' => CustomerResource::collection($customers),
             'canOverrideTier' => Gate::allows('overrideTier', $customer),
-            // صفوف العميل نفسه في الفروع الأخرى — للسوبر أدمن وحده.
-            'linkedCustomers' => Auth::user()->roleName->isSuperAdmin()
-                ? CustomerResource::collection(Customer::with('branch')->where('phone', $customer->phone)
-                    ->whereNotNull('phone')->whereKeyNot($customer->id)->get())
-                : [],
         ]);
     }
 
@@ -157,7 +152,7 @@ class CustomerController extends Controller
         Gate::authorize('update', $customer);
 
         return Inertia::render('customers/edit', [
-            'customer' => new CustomerResource($customer),
+            'customer' => new CustomerResource($customer->load($this->accountsIn($this->userBranch()))),
         ]);
     }
 
@@ -168,16 +163,17 @@ class CustomerController extends Controller
     ): RedirectResponse {
         Gate::authorize('update', $customer);
 
-        $action->handle($customer, $request->validated());
+        $action->handle($customer, $request->validated(), $this->editedBranch($request, $customer));
 
         return to_route('customers.show', $customer)->with('success', 'تم تحديث بيانات العميل بنجاح');
     }
 
+    /** مدير الفرع يفصله عن فرعه؛ والسوبر أدمن يحذفه من كل الفروع. */
     public function destroy(Customer $customer, DeleteCustomerAction $action): RedirectResponse
     {
         Gate::authorize('delete', $customer);
 
-        $action->handle($customer);
+        $action->handle($customer, $this->userBranch());
 
         return back(fallback: route('customers.index'))->with('success', 'تم حذف العميل بنجاح');
     }
@@ -215,26 +211,24 @@ class CustomerController extends Controller
     {
         Gate::authorize('viewAny', Customer::class);
 
-        $isSuperAdmin = Auth::user()->roleName->isSuperAdmin();
         // The export follows the screen: the super-admin's branch filter narrows
-        // it just as it narrows the list.
-        $branchId = $isSuperAdmin
-            ? ($request->filled('branch_id') ? (int) $request->input('branch_id') : null)
-            : Auth::user()->branchId;
-
-        // Only the cross-branch role gets a branch column; everyone else exports
-        // a single branch, where the column would repeat the same value.
+        // it just as it narrows the list. Only the cross-branch role gets a
+        // branch column; everyone else exports a single branch.
         return Excel::download(
-            new CustomersExport($branchId, $isSuperAdmin, $request->only(self::LIST_FILTERS)),
+            new CustomersExport($this->listBranch($request), Auth::user()->roleName->isSuperAdmin(), $request->only(self::LIST_FILTERS)),
             'customers.xlsx',
         );
     }
 
-    public function toggleStatus(Customer $customer, UpdateCustomerAction $action): RedirectResponse
+    /** النشاط لكل فرع: موظف الفرع يبدّل حسابه، والسوبر أدمن كل حساباته معاً. */
+    public function toggleStatus(Customer $customer): RedirectResponse
     {
         Gate::authorize('update', $customer);
 
-        $action->handle($customer, ['is_active' => ! $customer->is_active]);
+        $accounts = $customer->load($this->accountsIn($this->userBranch()))->accounts;
+        $active = ! $accounts->contains('is_active', true);
+
+        DB::transaction(fn () => $accounts->each->update(['is_active' => $active]));
 
         return back(fallback: route('customers.index'))->with('success', 'تم تحديث حالة العميل بنجاح');
     }
@@ -250,17 +244,61 @@ class CustomerController extends Controller
     ): RedirectResponse {
         Gate::authorize('overrideTier', $customer);
 
-        $action->handle($customer, $request->validated(), $request->user());
+        $account = $customer->accountFor($this->editedBranch($request, $customer));
+        abort_if($account === null, 422, 'اختر الفرع الذي يُعدَّل فيه المستوى.');
+
+        $action->handle($account, $request->validated(), $request->user());
 
         return back(fallback: route('customers.show', $customer))
             ->with('success', 'تم تحديث مستوى الولاء بنجاح');
+    }
+
+    /** فرع المستخدم — أو null للسوبر أدمن: كل الفروع. */
+    private function userBranch(): ?int
+    {
+        return Auth::user()->roleName->isSuperAdmin() ? null : Auth::user()->branchId;
+    }
+
+    /** فرع قائمة العملاء وتصديرها: فرع المستخدم، أو ما اختاره السوبر أدمن من الفلتر. */
+    private function listBranch(Request $request): ?int
+    {
+        return $this->userBranch() ?? ($request->filled('branch_id') ? (int) $request->input('branch_id') : null);
+    }
+
+    /**
+     * الفرع الذي تُعدَّل حقوله (الائتمان، المندوب، الملاحظات، المستوى): فرع
+     * المستخدم، أو ما اختاره السوبر أدمن، أو فرع العميل الوحيد. ولعميل عدّة
+     * فروع بلا فرعٍ مختار: null — تُعدَّل الهوية وحدها ولا يُكتب حسابٌ بقيمٍ لم تُعرض.
+     */
+    private function editedBranch(Request $request, Customer $customer): ?int
+    {
+        $branchId = $this->userBranch() ?: $request->integer('branch_id') ?: null;
+        $accounts = $customer->accounts()->pluck('branch_id');
+
+        $branchId ??= $accounts->count() === 1 ? $accounts->first() : null;
+
+        abort_if($branchId !== null && ! $accounts->contains($branchId), 422, 'العميل غير مرتبط بهذا الفرع.');
+
+        return $branchId;
+    }
+
+    /**
+     * حسابات العميل في نطاق الطلب مع فروعها ومندوبيها.
+     *
+     * @return array<string, \Closure>
+     */
+    private function accountsIn(?int $branchId): array
+    {
+        return ['accounts' => fn ($q) => $q
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->with(['branch:id,name', 'agent:id,name'])];
     }
 
     /**
      * @param  Collection<int,int>  $ids
      * @return array<int|string, array<string, mixed>>
      */
-    private function loadPageStats(Collection $ids): array
+    private function loadPageStats(Collection $ids, ?int $branchId): array
     {
         if ($ids->isEmpty()) {
             return [];
@@ -275,6 +313,7 @@ class CustomerController extends Controller
 
             $rows = DB::table($table)
                 ->whereIn('customer_id', $ids)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->whereNull('deleted_at')
                 ->groupBy('customer_id')
                 ->select(
@@ -304,9 +343,10 @@ class CustomerController extends Controller
     }
 
     /** @return array<string, mixed> */
-    private function computeFinancialSummary(Customer $customer): array
+    private function computeFinancialSummary(Customer $customer, ?int $branchId): array
     {
         $totals = ['count' => 0, 'total' => 0.0, 'paid' => 0.0, 'due' => 0.0];
+        $creditLimit = $customer->accountsSummary()['credit_limit'];
 
         foreach (['service_invoices', 'product_invoices'] as $table) {
             if (! $this->hasTable($table)) {
@@ -315,6 +355,7 @@ class CustomerController extends Controller
 
             $row = DB::table($table)
                 ->where('customer_id', $customer->id)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->whereNull('deleted_at')
                 ->selectRaw(
                     'COUNT(*) as cnt,
@@ -337,15 +378,15 @@ class CustomerController extends Controller
             'totalBilled' => $totals['total'],
             'totalPaid' => $totals['paid'],
             'totalOutstanding' => $totals['due'],
-            'creditLimit' => $customer->credit_limit,
-            'availableCredit' => $customer->credit_limit !== null
-                ? max(0, (float) $customer->credit_limit - $totals['due'])
+            'creditLimit' => $creditLimit,
+            'availableCredit' => $creditLimit !== null
+                ? max(0, (float) $creditLimit - $totals['due'])
                 : null,
         ];
     }
 
     /** @return array<int, stdClass> */
-    private function loadLoyaltyHistory(Request $request, Customer $customer): array
+    private function loadLoyaltyHistory(Request $request, Customer $customer, ?int $branchId): array
     {
         if (! $this->hasTable('loyalty_transactions')) {
             return ['data' => [], 'meta' => $this->pageMeta(1, 1, 0, self::HISTORY_PER_PAGE)];
@@ -353,6 +394,7 @@ class CustomerController extends Controller
 
         $paginator = DB::table('loyalty_transactions')
             ->where('customer_id', $customer->id)
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->orderByDesc('created_at')
             ->select(['id', 'type', 'points', 'balance_after', 'notes', 'created_at'])
             ->paginate(self::HISTORY_PER_PAGE, pageName: 'loyaltyPage')
@@ -371,7 +413,7 @@ class CustomerController extends Controller
      *
      * @return array{data: list<mixed>, meta: array<string, int>}
      */
-    private function loadInvoiceHistory(Request $request, Customer $customer): array
+    private function loadInvoiceHistory(Request $request, Customer $customer, ?int $branchId): array
     {
         $columns = 'id, invoice_number, total_amount, status, created_at';
 
@@ -386,6 +428,7 @@ class CustomerController extends Controller
             // لا يختلط — والقيمة من ثوابت الكود لا من المستخدم.
             $subQueries[] = DB::table($table)
                 ->where('customer_id', $customer->id)
+                ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                 ->whereNull('deleted_at')
                 ->selectRaw($columns.", '{$type}' as type");
         }
@@ -419,7 +462,7 @@ class CustomerController extends Controller
     private function buildOutstandingReport(?int $branchId): array
     {
         $customers = Customer::query()
-            ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($branchId !== null, fn ($q) => $q->inBranch($branchId))
             ->get(['id', 'full_name', 'phone', 'company_name', 'customer_type']);
 
         if ($customers->isEmpty()) {
@@ -437,6 +480,7 @@ class CustomerController extends Controller
 
             $rows = DB::table($table)
                 ->whereIn('customer_id', $ids)
+                ->when($branchId !== null, fn ($q) => $q->where('branch_id', $branchId))
                 ->where('status', 'due')
                 ->whereNull('deleted_at')
                 ->groupBy('customer_id')

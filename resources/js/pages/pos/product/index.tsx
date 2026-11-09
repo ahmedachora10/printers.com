@@ -518,7 +518,20 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                 fetcher={fetchCustomers}
                                 value={customerId}
                                 selectedLabel={selectedCustomer ? `${selectedCustomer.fullName} — ${selectedCustomer.phone}` : undefined}
-                                onChange={(_v, option) => setSelectedCustomer(option?.data ?? null)}
+                                onChange={(_v, option) => {
+                                    const picked = option?.data ?? null;
+
+                                    // عميلٌ من فرعٍ آخر وُجد بجواله: يُملأ عابراً، ويربطه حفظ الفاتورة بهذا الفرع.
+                                    if (picked && !picked.linked) {
+                                        setWalkinName(picked.fullName);
+                                        setWalkinPhone(picked.phone);
+                                        setSelectedCustomer(null);
+
+                                        return;
+                                    }
+
+                                    setSelectedCustomer(picked);
+                                }}
                                 sentinel={CUSTOMER_SENTINEL}
                                 placeholder="— عميل عابر —"
                                 searchPlaceholder="بحث عن عميل (اسم/هاتف)"

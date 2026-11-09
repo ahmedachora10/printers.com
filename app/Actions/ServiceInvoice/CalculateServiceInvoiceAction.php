@@ -227,6 +227,8 @@ class CalculateServiceInvoiceAction
         $subtotal = round($subtotal, 2);
 
         $customer = $customerId !== null ? Customer::find($customerId) : null;
+        // نقاطه ومستواه ومندوبه من حسابه في فرع الفاتورة.
+        $account = $customer?->accountFor($branchId);
         $config = LoyaltyConfig::forBranch($branchId);
 
         $agents = $this->resolveAgents->handle(
@@ -240,10 +242,10 @@ class CalculateServiceInvoiceAction
         $loyaltyEligible = $agents === []
             && $customer !== null
             && $customer->customer_type === CustomerTypeEnum::Individual
-            && $customer->agent_id === null;
+            && $account?->agent_id === null;
 
         // Discount pipeline: subtotal → tier → coupon → agent → points → VAT.
-        [$tierPct, $tierDiscount] = $this->loyalty->tierDiscount($customer, $loyaltyEligible, $config, $subtotal);
+        [$tierPct, $tierDiscount] = $this->loyalty->tierDiscount($account, $loyaltyEligible, $config, $subtotal);
         $afterTier = round($subtotal - $tierDiscount, 2);
 
         [$coupon, $couponDiscount] = $this->resolveCoupon($data, $branchId, $afterTier);
@@ -281,9 +283,9 @@ class CalculateServiceInvoiceAction
 
         // الرصيد المتاح لا المسجَّل: النقاط المحجوزة على فواتير هذا العميل التي لم
         // تُعتمد بعد ليست له أن يستبدلها مرة أخرى.
-        $available = $customer !== null ? $this->availablePoints->handle($customer, $editing) : null;
+        $available = $customer !== null ? $this->availablePoints->handle($customer, $branchId, $editing) : null;
 
-        [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($customer, $loyaltyEligible, $config, $requestedPoints, $afterAgent, $available);
+        [$pointsRedeemed, $pointsDiscount] = $this->loyalty->redemption($account, $loyaltyEligible, $config, $requestedPoints, $afterAgent, $available);
 
         // الأسعار المُدخلة في نقطة البيع شاملة لضريبة القيمة المضافة: ما يبقى بعد
         // كامل سلسلة الخصومات هو ما يدفعه العميل بالضبط، والضريبة تُستخرج من
@@ -697,6 +699,7 @@ class CalculateServiceInvoiceAction
             $saved = CustomerAddress::query()
                 // بلا عميل لا دفتر عناوين، فأيّ رقم عنوانٍ هنا لعميلٍ آخر.
                 ->where('customer_id', $customerId)
+                ->where('branch_id', $branchId)
                 ->find($addressId);
 
             if (! $saved) {
@@ -1087,7 +1090,7 @@ class CalculateServiceInvoiceAction
             // الطلب يتحقّق من وجود العميل فقط؛ الفرع يُحسم هنا. عميل الفاتورة
             // الحالي يُقبل كما هو، فلا تُقفل فاتورة قديمة عن التعديل.
             if ($id !== (int) $editing?->customer_id
-                && ! Customer::query()->where('branch_id', $branchId)->whereKey($id)->exists()) {
+                && ! Customer::query()->inBranch($branchId)->whereKey($id)->exists()) {
                 throw ValidationException::withMessages([
                     'customer_id' => 'العميل المحدد لا يتبع فرع هذه الفاتورة.',
                 ]);

@@ -27,13 +27,17 @@ class BuildCustomerTimelineAction
     private const TOTAL_LIMIT = 100;
 
     /** @return array<int, array<string, mixed>> */
-    public function handle(Customer $customer): array
+    /**
+     * الفواتير والحركات المحمَّلة على العميل يحصرها المتحكّم بفرع المستخدم؛
+     * والمرتجعات تُحصر هنا بالفرع نفسه.
+     */
+    public function handle(Customer $customer, ?int $branchId = null): array
     {
         $events = array_merge(
             $this->auditEvents($customer),
             $this->invoiceEvents($customer),
             $this->loyaltyEvents($customer),
-            $this->refundEvents($customer),
+            $this->refundEvents($customer, $branchId),
         );
 
         usort($events, fn (array $a, array $b) => strcmp($b['occurredAt'], $a['occurredAt']));
@@ -83,9 +87,10 @@ class BuildCustomerTimelineAction
     }
 
     /** @return array<int, array<string, mixed>> */
-    private function refundEvents(Customer $customer): array
+    private function refundEvents(Customer $customer, ?int $branchId): array
     {
         return Refund::query()
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->whereHasMorph(
                 'invoice',
                 [ServiceInvoice::class, ProductInvoice::class],

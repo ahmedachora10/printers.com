@@ -3,7 +3,7 @@
 namespace App\Actions\Loyalty;
 
 use App\Enums\LoyaltyTransactionTypeEnum;
-use App\Models\Customer;
+use App\Models\CustomerBranch;
 use App\Models\LoyaltyTransaction;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
@@ -32,34 +32,27 @@ class RedeemLoyaltyPointsAction
         }
 
         return DB::transaction(function () use ($invoice, $points) {
-            /** @var Customer|null $customer */
-            $customer = Customer::query()
-                ->whereKey($invoice->customer_id)
-                ->lockForUpdate()
-                ->first();
+            $account = CustomerBranch::lockFor($invoice->customer_id, (int) $invoice->branch_id);
 
-            if (! $customer || $customer->points_balance < $points) {
-                $available = (int) ($customer?->points_balance ?? 0);
+            if (! $account || $account->points_balance < $points) {
+                $available = (int) ($account?->points_balance ?? 0);
 
                 throw ValidationException::withMessages([
                     'redeem_points' => "رصيد نقاط العميل لم يعد كافياً لخصم النقاط المسجَّلة على الفاتورة (المطلوب {$points}، المتاح {$available}). عدّل الفاتورة بنقاطٍ أقل ثم اعتمدها.",
                 ]);
             }
 
-            $newBalance = $customer->points_balance - $points;
-            $customer->update(['points_balance' => $newBalance]);
+            $account->update(['points_balance' => $account->points_balance - $points]);
 
             // ختم لحظة الخصم: بعده لم تعد النقاط محجوزةً بل مخصومة، وهو نفسه ما
             // يجعل الإلغاء/الاسترجاع يعرف أن عليه ردَّها.
             $invoice->forceFill(['points_redeemed_at' => now()])->save();
 
-            return LoyaltyTransaction::create([
-                'customer_id' => $customer->id,
+            return $account->record([
                 'invoice_id' => $invoice->id,
                 'invoice_type' => $invoice->getMorphClass(),
                 'type' => LoyaltyTransactionTypeEnum::Redeem,
                 'points' => -$points,
-                'balance_after' => $newBalance,
             ]);
         });
     }
