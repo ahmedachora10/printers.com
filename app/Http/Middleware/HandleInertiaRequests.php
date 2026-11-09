@@ -7,7 +7,9 @@ use App\Enums\PurchaseRequestStatusEnum;
 use App\Enums\QuotationStatusEnum;
 use App\Enums\ReturnRequestStatusEnum;
 use App\Enums\Roles;
+use App\Http\Controllers\InvoiceMessageController;
 use App\Models\Expense;
+use App\Models\InvoiceMessage;
 use App\Models\InvoiceReturnRequest;
 use App\Models\PurchaseRequest;
 use App\Models\Quotation;
@@ -136,14 +138,27 @@ class HandleInertiaRequests extends Middleware
     {
         $user = $request->user();
 
-        if (! $user || ! Gate::forUser($user)->allows('review', ServiceInvoice::class)) {
+        if (! $user) {
             return [];
+        }
+
+        // تاسك 222: خيوط الملاحظات غير المقروءة — لكل من يرى قائمتها، الموظف ضمناً.
+        $notes = InvoiceMessageController::seesList($user) ? [
+            'unreadMessages' => InvoiceMessage::query()->listedFor($user)->withReadPointer($user)
+                ->whereRaw(InvoiceMessage::UNREAD_SQL, [$user->id])
+                ->distinct()
+                ->count('invoice_messages.service_invoice_id'),
+        ] : [];
+
+        if (! Gate::forUser($user)->allows('review', ServiceInvoice::class)) {
+            return $notes;
         }
 
         $isSuperAdmin = $user->roleName->isSuperAdmin();
         $inBranch = fn (Builder $q) => $q->when(! $isSuperAdmin, fn ($q) => $q->where('branch_id', $user->branchId));
 
         $counts = [
+            ...$notes,
             'reviewQueue' => $inBranch(ServiceInvoice::query()->where('status', InvoiceStatusEnum::DUE))->count(),
             'returnRequests' => $inBranch(InvoiceReturnRequest::query()->where('status', ReturnRequestStatusEnum::PENDING))->count(),
             'shipmentRequests' => $inBranch(ServiceInvoice::query()->awaitingShipmentApproval())->count(),
@@ -248,6 +263,7 @@ class HandleInertiaRequests extends Middleware
                 'url' => route('invoices.messages.index'),
                 'icon' => 'MessageSquare',
                 'group' => 'sales',
+                'pending' => ['key' => 'unreadMessages', 'url' => route('invoices.messages.index', ['read' => 'unread'])],
                 'role' => [Roles::SUPER_ADMIN, Roles::BRANCH_ADMIN, Roles::ACCOUNTANT, Roles::EMPLOYEE],
             ],
             [

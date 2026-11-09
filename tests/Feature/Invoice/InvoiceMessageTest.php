@@ -304,18 +304,103 @@ describe('Invoice internal thread', function () {
         $foreign = threadInvoice($this->elsewhere->id, $this->foreignAccountant->id);
         InvoiceMessage::create(['service_invoice_id' => $foreign->id, 'user_id' => $this->foreignAccountant->id, 'body' => 'فرع آخر']);
 
+        // تاسك 223: صفٌّ لكل فاتورة، وآخر رسالة فيها هي المعروضة.
         $this->actingAs($this->branchAdmin)->get(route('invoices.messages.index'))
             ->assertInertia(fn ($page) => $page->component('invoices/messages')
-                ->has('messages.data', 3)
+                ->has('messages.data', 2)
                 ->where('messages.data.0.body', 'سرّ')
                 ->where('messages.data.0.privateTo', 'مدير الفرع')
+                ->where('messages.data.0.messageCount', 2)
                 ->where('messages.data.0.invoiceNumber', $this->invoice->invoice_number));
 
-        // الموظف يرى خيوط فواتيره وحدها، وبلا الخاصة التي ليست له.
+        // الموظف يرى خيوط فواتيره وحدها، وبلا الخاصة التي ليست له — لا في العدد ولا آخرَ رسالة.
         $this->actingAs($this->owner)->get(route('invoices.messages.index'))
             ->assertInertia(fn ($page) => $page->has('messages.data', 1)
-                ->where('messages.data.0.body', 'على فاتورتي'));
+                ->where('messages.data.0.body', 'على فاتورتي')
+                ->where('messages.data.0.messageCount', 1));
 
         $this->actingAs(threadStaff(Roles::AUDITOR, $this->branch->id))->get(route('invoices.messages.index'))->assertForbidden();
+    });
+
+    // تاسك 220 — الفرز: الكاتب، القراءة للناظر، الإغلاق، التاريخ.
+    it('filters the notes list by author, read state, closed state and date', function () {
+        $other = threadInvoice($this->branch->id, $this->owner->id, ['messages_closed_at' => now()]);
+        ($this->post)($this->accountant, ['body' => 'سؤال المحاسب']);
+        ($this->post)($this->owner, ['body' => 'ردّ الموظف']);
+        InvoiceMessage::create(['service_invoice_id' => $other->id, 'user_id' => $this->owner->id, 'body' => 'قديمة'])
+            ->forceFill(['created_at' => now()->subMonth()])->save();
+        $list = fn (array $filters) => $this->actingAs($this->accountant)->get(route('invoices.messages.index', $filters));
+
+        $list(['author' => $this->accountant->id])->assertInertia(fn ($page) => $page->has('messages.data', 1)
+            ->where('messages.data.0.invoiceId', $this->invoice->id)
+            ->where('messages.data.0.messageCount', 2));
+        // رسالة المحاسب نفسه ليست غير مقروءة عليه؛ ردّ الموظف بعدها كذلك.
+        $list(['read' => 'unread'])->assertInertia(fn ($page) => $page->has('messages.data', 2)
+            ->where('messages.data.1.invoiceId', $this->invoice->id)
+            ->where('messages.data.1.unreadCount', 1));
+        $list(['closed' => '1'])->assertInertia(fn ($page) => $page->has('messages.data', 1)
+            ->where('messages.data.0.invoiceId', $other->id)
+            ->where('messages.data.0.closedAt', fn ($v) => $v !== null));
+        $list(['from' => now()->subDay()->toDateString()])->assertInertia(fn ($page) => $page->has('messages.data', 1)
+            ->where('messages.data.0.invoiceId', $this->invoice->id));
+
+        ($this->show)($this->accountant)->assertInertia(fn ($page) => $page->loadDeferredProps('thread', fn ($page) => $page));
+        $list(['read' => 'read'])->assertInertia(fn ($page) => $page->has('messages.data', 1)
+            ->where('messages.data.0.invoiceId', $this->invoice->id));
+        $list(['read' => 'unread'])->assertInertia(fn ($page) => $page->has('messages.data', 1)
+            ->where('messages.data.0.invoiceId', $other->id));
+    });
+
+    // تاسك 221 — إغلاق المحادثة من القائمة، بصلاحيته في شاشة الفاتورة.
+    it('lets the branch admin close a thread from the notes list', function () {
+        ($this->post)($this->owner, ['body' => 'ملاحظة']);
+
+        $this->actingAs($this->accountant)->get(route('invoices.messages.index'))
+            ->assertInertia(fn ($page) => $page->where('messages.data.0.canClose', false));
+        $this->actingAs($this->branchAdmin)->get(route('invoices.messages.index'))
+            ->assertInertia(fn ($page) => $page->where('messages.data.0.canClose', true));
+
+        $this->patch(route('invoices.messages.toggle-closed', $this->invoice))->assertRedirect();
+        expect($this->invoice->refresh()->messages_closed_at)->not->toBeNull();
+    });
+
+    // تاسك 219 — من قائمة الملاحظات يتنقّل على خيوطها بفلاترها، لا على الفواتير.
+    it('navigates between the notes list threads when opened from it', function () {
+        $older = threadInvoice($this->branch->id, $this->owner->id);
+        InvoiceMessage::create(['service_invoice_id' => $older->id, 'user_id' => $this->owner->id, 'body' => 'أقدم']);
+        ($this->post)($this->owner, ['body' => 'أحدث']);
+        $newest = threadInvoice($this->branch->id, $this->owner->id);
+        InvoiceMessage::create(['service_invoice_id' => $newest->id, 'user_id' => $this->accountant->id, 'body' => 'الأحدث']);
+
+        $this->actingAs($this->branchAdmin)->get(route('invoices.messages.index'));
+        $this->get(route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id, 'from' => 'messages']))
+            ->assertInertia(fn ($page) => $page
+                ->where('neighbours.prevId', $newest->id)
+                ->where('neighbours.nextId', $older->id)
+                ->where('neighbours.fromMessages', true));
+
+        // الفلتر المحفوظ يحكم: بكاتبٍ واحد لا جار للفاتورة إلا خيوطه.
+        $this->get(route('invoices.messages.index', ['author' => $this->accountant->id]));
+        $this->get(route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id, 'from' => 'messages']))
+            ->assertInertia(fn ($page) => $page->where('neighbours.prevId', $newest->id)->where('neighbours.nextId', null));
+
+        // بلا from يبقى تنقّل الفواتير.
+        $this->get(route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]))
+            ->assertInertia(fn ($page) => $page->missing('neighbours.fromMessages'));
+    });
+
+    // تاسك 222 — عدّاد الخيوط غير المقروءة على «الملاحظات الداخلية».
+    it('counts unread threads in the sidebar for whoever sees the notes list', function () {
+        $counts = fn (User $user) => $this->actingAs($user)->get(route('dashboard'))->viewData('page')['props']['pendingCounts'];
+
+        ($this->post)($this->accountant, ['body' => 'للموظف']);
+        ($this->post)($this->accountant, ['body' => 'خاصة', 'private_to' => 'role:branch-admin']);
+
+        expect($counts($this->owner)['unreadMessages'])->toBe(1)
+            ->and($counts($this->otherEmployee)['unreadMessages'])->toBe(0)
+            ->and($counts($this->accountant)['unreadMessages'])->toBe(0);
+
+        ($this->show)($this->owner)->assertInertia(fn ($page) => $page->loadDeferredProps('thread', fn ($page) => $page));
+        expect($counts($this->owner)['unreadMessages'])->toBe(0);
     });
 });

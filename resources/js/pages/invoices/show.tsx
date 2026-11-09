@@ -46,7 +46,8 @@ interface Props {
     paymentMethodHistory: PaymentMethodChange[];
     /** تاسك 100: فاتورة خدمات ولمن يرى محادثتها */
     hasThread: boolean;
-    neighbours: { prevId: number | null; nextId: number | null };
+    /** تاسك 219: fromMessages = التنقّل على خيوط قائمة الملاحظات. */
+    neighbours: { prevId: number | null; nextId: number | null; fromMessages?: boolean };
     /** تاسك 149: لمن يسجّل المصروفات، وفي فاتورة الخدمات وحدها. */
     expenseForm: Pick<ComponentProps<typeof ExpenseFormModal>, 'categories' | 'bankAccounts' | 'branches' | 'isRequest'> | null;
     /** توصيلٌ بعد اعتماد الفاتورة — لمن يملك طلبه. */
@@ -200,6 +201,8 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     const receiptMissingForApproval =
         paymentMethodOptions.find((m) => m.id === invoice.paymentMethodId)?.requiresAttachment === true && !invoice.receiptUrl;
     const canApprove = invoice.paymentMethodId !== null && !receiptMissingForApproval;
+    const returned = invoice.status === 'returned';
+    const statusReason = returned ? invoice.returnReason : invoice.cancellationReason;
     const approveHint = invoice.paymentMethodId === null
         ? 'حدّد طريقة الدفع قبل اعتماد الفاتورة'
         : receiptMissingForApproval
@@ -375,7 +378,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     const neighbourButton = (id: number | null, label: React.ReactNode) =>
         id ? (
             <Button variant="outline" asChild>
-                <Link href={`/invoices/${invoice.type}/${id}`}>{label}</Link>
+                <Link href={`/invoices/${invoice.type}/${id}${neighbours.fromMessages ? '?from=messages' : ''}`}>{label}</Link>
             </Button>
         ) : (
             <Button variant="outline" disabled>
@@ -431,8 +434,8 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                     {/* Full-width pairs on a phone; a single inline row once there is room. */}
                     <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
                         {/* تاسك 147 — التنقّل بين فواتير النوع نفسه بترتيب الإنشاء. */}
-                        {neighbourButton(neighbours.prevId, <><ChevronRight className="size-4" /> الفاتورة السابقة</>)}
-                        {neighbourButton(neighbours.nextId, <>الفاتورة التالية <ChevronLeft className="size-4" /></>)}
+                        {neighbourButton(neighbours.prevId, <><ChevronRight className="size-4" /> {neighbours.fromMessages ? 'الملاحظة السابقة' : 'الفاتورة السابقة'}</>)}
+                        {neighbourButton(neighbours.nextId, <>{neighbours.fromMessages ? 'الملاحظة التالية' : 'الفاتورة التالية'} <ChevronLeft className="size-4" /></>)}
                         {/* تاسك 59: لا اعتماد بلا طريقة دفع، ولا اعتماد لطريقة
                             تشترط مرفقاً بلا إيصالها. الخادم يرفض الاثنين أيضاً،
                             فالتعطيل هنا توضيحٌ لا حارس — وكلاهما يُستدرك من
@@ -599,16 +602,16 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                 {/* Why the reviewer rejected the invoice — shown to everyone who may
                     view it, the employee who raised it above all (تاسك 18).
                     تاسك 225: والشريط نفسه يحمل سبب الاسترجاع. */}
-                {((invoice.status === 'cancelled' && invoice.cancellationReason) || (invoice.status === 'returned' && invoice.returnReason)) && (
+                {(returned || invoice.status === 'cancelled') && statusReason && (
                     <div
                         role="alert"
                         className="mb-6 flex items-start gap-3 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-red-800 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
                     >
-                        {invoice.status === 'returned' ? <Undo2 className="mt-0.5 size-4 shrink-0" /> : <Ban className="mt-0.5 size-4 shrink-0" />}
+                        {returned ? <Undo2 className="mt-0.5 size-4 shrink-0" /> : <Ban className="mt-0.5 size-4 shrink-0" />}
                         <div className="space-y-1">
-                            <p className="text-sm font-semibold">{invoice.status === 'returned' ? 'سبب الاسترجاع' : 'أُلغيت هذه الفاتورة'}</p>
-                            <p className="text-sm whitespace-pre-line">{invoice.status === 'returned' ? invoice.returnReason : invoice.cancellationReason}</p>
-                            {invoice.status === 'cancelled' && (invoice.cancelledByName || invoice.cancelledAt) && (
+                            <p className="text-sm font-semibold">{returned ? 'سبب الاسترجاع' : 'أُلغيت هذه الفاتورة'}</p>
+                            <p className="text-sm whitespace-pre-line">{statusReason}</p>
+                            {!returned && (invoice.cancelledByName || invoice.cancelledAt) && (
                                 <p className="text-xs opacity-80">
                                     {invoice.cancelledByName && <>بواسطة {invoice.cancelledByName}</>}
                                     {invoice.cancelledByName && invoice.cancelledAt && ' — '}
@@ -1002,11 +1005,6 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                         {expense.pendingRequest && (
                                             <Badge variant="outline" className="text-amber-600">
                                                 بانتظار المحاسب
-                                            </Badge>
-                                        )}
-                                        {!expense.pendingRequest && !expense.isApproved && (
-                                            <Badge variant="outline" className="text-amber-600">
-                                                غير معتمد
                                             </Badge>
                                         )}
                                     </span>

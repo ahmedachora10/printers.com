@@ -75,13 +75,14 @@ describe('Sidebar pending counts', function () {
             ->assertInertia(fn (Assert $page) => $page->where('pendingCounts.purchaseRequests', 1));
     });
 
-    it('gives employees and auditors no counters', function (Roles $role) {
+    // تاسك 222: الموظف لا يقرّر في الطوابير، لكن له عدّاد ملاحظاته غير المقروءة.
+    it('gives employees only the unread-notes counter and auditors none', function (Roles $role, array $expected) {
         $user = User::factory()->create(['branch_id' => $this->branch->id]);
         $user->addRole($role->value);
 
         $this->actingAs($user)->get(route('invoices.index'))
-            ->assertInertia(fn (Assert $page) => $page->where('pendingCounts', []));
-    })->with([Roles::EMPLOYEE, Roles::AUDITOR]);
+            ->assertInertia(fn (Assert $page) => $page->where('pendingCounts', $expected));
+    })->with([[Roles::EMPLOYEE, ['unreadMessages' => 0]], [Roles::AUDITOR, []]]);
 
     it('lands the shipment counter on the invoices awaiting a shipment approval', function () {
         $this->actingAs($this->accountant)->get(route('invoices.index', ['pending_shipments' => 1]))

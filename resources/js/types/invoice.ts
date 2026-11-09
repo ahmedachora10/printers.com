@@ -100,8 +100,8 @@ export interface InvoiceMessage {
 }
 
 /** تاسك 209 — صفٌّ في قائمة الملاحظات وحدها. */
+/** تاسك 223 — صفٌّ لكل فاتورة: آخر رسالة فيها وعددها. */
 export interface InvoiceMessageRow {
-    id: number;
     invoiceId: number;
     invoiceNumber: string | null;
     authorName: string;
@@ -109,6 +109,11 @@ export interface InvoiceMessageRow {
     /** اسم من أُرسلت إليه الخاصة، null = للجميع */
     privateTo: string | null;
     createdAt: string | null;
+    messageCount: number;
+    unreadCount: number;
+    /** تاسك 221 */
+    closedAt: string | null;
+    canClose: boolean;
 }
 
 export interface InvoiceThread {
@@ -154,7 +159,6 @@ export interface Invoice {
         /** تاسك 157 — طلب موظفٍ لم يقبله المحاسب: يُعرض ولا يدخل المجموع. */
         pendingRequest: boolean;
         /** تاسك 224 */
-        isApproved: boolean;
         canApprove: boolean;
     }[];
     canEditInternalNotes: boolean;

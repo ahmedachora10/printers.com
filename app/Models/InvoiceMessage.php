@@ -3,11 +3,13 @@
 namespace App\Models;
 
 use Closure;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
@@ -87,19 +89,75 @@ class InvoiceMessage extends Model implements HasMedia
         }
 
         return static::query()
-            ->leftJoin('invoice_thread_participants as p', fn ($join) => $join
-                ->on('p.service_invoice_id', '=', 'invoice_messages.service_invoice_id')
-                ->where('p.user_id', $user->id))
+            ->withReadPointer($user)
             ->whereIn('invoice_messages.service_invoice_id', $invoiceIds)
-            ->whereNotNull('invoice_messages.user_id')
-            ->where('invoice_messages.user_id', '!=', $user->id)
+            ->whereRaw(self::UNREAD_SQL, [$user->id])
             ->where(self::visibleTo($user))
-            ->whereRaw('invoice_messages.id > coalesce(p.last_read_message_id, 0)')
             ->groupBy('invoice_messages.service_invoice_id')
             ->selectRaw('invoice_messages.service_invoice_id, count(*) as unread')
             ->pluck('unread', 'service_invoice_id')
             ->map(fn ($count) => (int) $count)
             ->all();
+    }
+
+    /**
+     * شرط «غير مقروءة للناظر» الواحد (unreadCounts، قائمة الملاحظات، عدّاد القائمة
+     * الجانبية): بعد موضع قراءته، ليست منه، وليست ملاحظةً مُرحَّلة. يحتاج
+     * withReadPointer، والربط الوحيد معرّف الناظر.
+     */
+    public const UNREAD_SQL = 'invoice_messages.user_id IS NOT NULL AND invoice_messages.user_id <> ? AND invoice_messages.id > COALESCE(p.last_read_message_id, 0)';
+
+    /** موضع قراءة الناظر في خيط كل رسالة، باسم `p`. */
+    public function scopeWithReadPointer(Builder $query, User $user): void
+    {
+        $query->leftJoin('invoice_thread_participants as p', fn ($join) => $join
+            ->on('p.service_invoice_id', '=', 'invoice_messages.service_invoice_id')
+            ->where('p.user_id', $user->id));
+    }
+
+    /**
+     * تاسك 209 — ما تعرضه قائمة الملاحظات للناظر: الرسائل التي يراها (visibleTo)
+     * في فرعه، والمراجعون كل الخيوط، والموظف خيوط فواتيره وما شارك فيه.
+     */
+    public function scopeListedFor(Builder $query, User $user): void
+    {
+        $reviewer = Gate::forUser($user)->allows('review', ServiceInvoice::class);
+
+        $query->where(self::visibleTo($user))
+            ->whereHas('invoice', fn ($q) => $q
+                ->when(! $user->roleName->isSuperAdmin(), fn ($q) => $q->where('branch_id', $user->branchId))
+                ->when(! $reviewer, fn ($q) => $q->where(fn ($q) => $q
+                    ->where('user_id', $user->id)
+                    ->orWhereExists(fn ($p) => $p->from('invoice_thread_participants')
+                        ->whereColumn('invoice_thread_participants.service_invoice_id', 'service_invoices.id')
+                        ->where('invoice_thread_participants.user_id', $user->id)))));
+    }
+
+    /**
+     * تاسكات 223/220 — خيوط قائمة الملاحظات، صفٌّ لكل فاتورة: آخر رسالة وعددها
+     * وغير المقروء منها، بفلاتر القائمة. بلا ترتيب: القائمة والتنقّل (219) يرتّبان
+     * بـ last_id.
+     *
+     * @param  array<string, mixed>  $filters  from, to, author, read (read|unread), closed (1|0)
+     */
+    public static function threadsFor(User $user, array $filters): Builder
+    {
+        $unread = 'SUM(CASE WHEN '.self::UNREAD_SQL.' THEN 1 ELSE 0 END)';
+
+        return static::query()
+            ->listedFor($user)
+            ->withReadPointer($user)
+            ->when($filters['from'] ?? null, fn ($q, $from) => $q->whereDate('invoice_messages.created_at', '>=', $from))
+            ->when($filters['to'] ?? null, fn ($q, $to) => $q->whereDate('invoice_messages.created_at', '<=', $to))
+            ->when(in_array($filters['closed'] ?? null, ['0', '1'], true), fn ($q) => $q->whereHas('invoice', fn ($q) => $filters['closed'] === '1'
+                ? $q->whereNotNull('messages_closed_at')
+                : $q->whereNull('messages_closed_at')))
+            ->groupBy('invoice_messages.service_invoice_id')
+            ->select('invoice_messages.service_invoice_id')
+            ->selectRaw('MAX(invoice_messages.id) as last_id, COUNT(*) as message_count')
+            ->selectRaw("{$unread} as unread_count", [$user->id])
+            ->when($filters['author'] ?? null, fn ($q, $author) => $q->havingRaw('SUM(CASE WHEN invoice_messages.user_id = ? THEN 1 ELSE 0 END) > 0', [(int) $author]))
+            ->when(in_array($filters['read'] ?? null, ['read', 'unread'], true), fn ($q) => $q->havingRaw($unread.($filters['read'] === 'unread' ? ' > 0' : ' = 0'), [$user->id]));
     }
 
     /**

@@ -104,9 +104,8 @@ describe('Expense attachment & invoice link', function () {
         $expense->invoices()->attach($this->invoice->id, ['amount' => 70]);
         $show = route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]);
 
-        $this->actingAs($this->accountant)->get($show)->assertInertia(fn ($page) => $page
-            ->where('invoice.linkedExpenses.0.isApproved', false)
-            ->where('invoice.linkedExpenses.0.canApprove', false));
+        $this->actingAs($this->accountant)->get($show)
+            ->assertInertia(fn ($page) => $page->where('invoice.linkedExpenses.0.canApprove', false));
 
         $this->actingAs($this->branchAdmin)->get($show)
             ->assertInertia(fn ($page) => $page->where('invoice.linkedExpenses.0.canApprove', true));

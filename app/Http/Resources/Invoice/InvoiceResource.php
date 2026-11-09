@@ -256,7 +256,6 @@ class InvoiceResource extends JsonResource
                     // تاسك 157: طلب موظفٍ لم يُقبل — يُعرض ولا يدخل المجموع.
                     'pendingRequest' => $expense->isPendingRequest(),
                     // تاسك 224: يُعتمد من هنا كما من قائمة المصروفات.
-                    'isApproved' => $expense->isApproved(),
                     'canApprove' => (bool) $request->user()?->can('approve', $expense),
                     // تاسك 157: الموظف يرى طلبه ولا يفتح مسار المرفق (مسار المحاسبين).
                     'attachments' => $request->user()?->can('view', $expense) ? ExpenseResource::attachmentLinks($expense) : [],
