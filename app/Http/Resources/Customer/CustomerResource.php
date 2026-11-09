@@ -54,8 +54,8 @@ class CustomerResource extends JsonResource
             'pointsBalance' => $summary['points_balance'] ?? 0,
             'cumulativeSpend' => $summary['cumulative_spend'] ?? 0,
             'tier' => [
-                'value' => $summary['tier']?->value,
-                'label' => $summary['tier']?->label(),
+                'value' => ($summary['tier'] ?? null)?->value,
+                'label' => ($summary['tier'] ?? null)?->label(),
             ],
             'notes' => $summary['notes'] ?? null,
             'isActive' => $summary['is_active'] ?? false,
