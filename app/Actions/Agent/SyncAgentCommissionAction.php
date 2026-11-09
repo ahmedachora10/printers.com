@@ -46,7 +46,8 @@ class SyncAgentCommissionAction
 
                     if ($d < 0 && $i < $last) {
                         $d = 0.0;
-                    } elseif ($d < 0 && in_array($column, AgentCommissionEntry::PAYABLE, true)) {
+                    } elseif ($d < 0 && in_array($column, ['rebate_amount', 'line_commission_amount'], true)) {
+                        // المستحق للمندوب: ما صُرف منه لا يُستردّ (M14).
                         $d = -min(-$d, max($unpaid[$agentId][$column] ?? 0, 0));
                     }
 

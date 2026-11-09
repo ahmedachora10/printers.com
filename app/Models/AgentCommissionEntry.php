@@ -22,9 +22,6 @@ class AgentCommissionEntry extends Model
     /** أعمدة المبالغ بالترتيب الذي تكتبه المزامنة. */
     public const AMOUNTS = ['sales_amount', 'discount_amount', 'rebate_amount', 'line_commission_amount'];
 
-    /** ما يُصرف منها — ولا يُستردّ ما صُرف (M14). */
-    public const PAYABLE = ['rebate_amount', 'line_commission_amount'];
-
     protected $fillable = [
         'agent_id',
         'branch_id',
@@ -66,7 +63,6 @@ class AgentCommissionEntry extends Model
             ->selectRaw('SUM(sales_amount) as sales, SUM(discount_amount) as discount')
             ->selectRaw('SUM(rebate_amount) as rebate, SUM(line_commission_amount) as line_commission')
             ->selectRaw('SUM(CASE WHEN agent_payment_id IS NULL THEN 0 ELSE rebate_amount + line_commission_amount END) as paid')
-            ->selectRaw('SUM(CASE WHEN agent_payment_id IS NULL THEN rebate_amount + line_commission_amount ELSE 0 END) as unpaid')
             ->selectRaw('MAX(earned_at) as last_earned_at')
             ->with(['agent:id,name', 'invoice.user:id,name', 'invoice.branch:id,name', 'invoice.lines'])
             ->orderByDesc('last_earned_at')
@@ -100,9 +96,7 @@ class AgentCommissionEntry extends Model
             'rebate' => round((float) $this->rebate, 2),
             'lineCommission' => round((float) $this->line_commission, 2),
             'amount' => round((float) $this->rebate + (float) $this->line_commission, 2),
-            'isPaid' => (float) $this->paid > 0 && round((float) $this->unpaid, 2) <= 0,
-            'status' => $invoice?->status->value,
-            'statusLabel' => $invoice?->status->label(),
+            'isPaid' => (float) $this->paid > 0 && (float) $this->paid >= round((float) $this->rebate + (float) $this->line_commission, 2),
             'date' => Carbon::parse($this->last_earned_at)->toDateString(),
         ];
     }

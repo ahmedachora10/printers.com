@@ -49,8 +49,6 @@ interface InvoiceRow {
     discount: number;
     /** تاسك 217: كل مستحقّ الفاتورة في الفترة مختوم بدفعة مندوب. */
     isPaid: boolean;
-    status: string;
-    statusLabel: string;
     /** آخر تحصيلٍ في الفترة (تاسك 217). */
     date: string;
 }
