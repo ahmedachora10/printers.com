@@ -1,7 +1,7 @@
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar, type FilterOption } from '@/components/filter-bar';
+import { ThreadCloseButton } from '@/components/invoices/invoice-thread';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
 import { formatDateTimeNumeric } from '@/lib/utils';
@@ -9,7 +9,7 @@ import messagesRoute from '@/routes/invoices/messages';
 import { type BreadcrumbItem, type Paginated } from '@/types';
 import { type InvoiceMessageRow } from '@/types/invoice';
 import { Head, Link, router } from '@inertiajs/react';
-import { Lock, LockOpen } from 'lucide-react';
+import { Lock } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'الفواتير', href: '/invoices' },
@@ -66,21 +66,8 @@ const columns: ColumnDef<InvoiceMessageRow>[] = [
     {
         key: 'actions',
         header: '',
-        cell: (row) =>
-            // تاسك 221: المسار والصلاحية نفساهما في شاشة الفاتورة.
-            row.canClose && (
-                <Button variant="outline" size="sm" onClick={() => router.patch(messagesRoute.toggleClosed.url(row.invoiceId), {}, { preserveScroll: true })}>
-                    {row.closedAt ? (
-                        <>
-                            <LockOpen className="size-4" /> فتح المحادثة
-                        </>
-                    ) : (
-                        <>
-                            <Lock className="size-4" /> إغلاق المحادثة
-                        </>
-                    )}
-                </Button>
-            ),
+        // تاسك 221: الزرّ والصلاحية نفساهما في شاشة الفاتورة.
+        cell: (row) => row.canClose && <ThreadCloseButton invoiceId={row.invoiceId} closedAt={row.closedAt} />,
     },
 ];
 
