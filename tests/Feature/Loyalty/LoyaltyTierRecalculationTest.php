@@ -92,8 +92,8 @@ it('promotes a customer whose invoices now clear the threshold', function () {
 
     artisan('loyalty:recalculate-tiers')->assertSuccessful();
 
-    expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
-        ->and((float) $customer->cumulative_spend)->toBe(529.00);
+    expect(account($customer)->tier)->toBe(CustomerTierEnum::Bronze)
+        ->and((float) account($customer)->cumulative_spend)->toBe(529.00);
 });
 
 it('demotes a customer left in a tier their invoices never supported', function () {
@@ -103,8 +103,8 @@ it('demotes a customer left in a tier their invoices never supported', function 
 
     artisan('loyalty:recalculate-tiers')->assertSuccessful();
 
-    expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
-        ->and((float) $customer->cumulative_spend)->toBe(700.00);
+    expect(account($customer)->tier)->toBe(CustomerTierEnum::Bronze)
+        ->and((float) account($customer)->cumulative_spend)->toBe(700.00);
 });
 
 it('subtracts refunds from the rebuilt spend', function () {
@@ -122,8 +122,8 @@ it('subtracts refunds from the rebuilt spend', function () {
     artisan('loyalty:recalculate-tiers')->assertSuccessful();
 
     // 2500 − 700 = 1800، دون حدّ الفضي (2000).
-    expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
-        ->and((float) $customer->cumulative_spend)->toBe(1800.00);
+    expect(account($customer)->tier)->toBe(CustomerTierEnum::Bronze)
+        ->and((float) account($customer)->cumulative_spend)->toBe(1800.00);
 });
 
 it('ignores invoices that are not paid', function () {
@@ -134,8 +134,8 @@ it('ignores invoices that are not paid', function () {
 
     artisan('loyalty:recalculate-tiers')->assertSuccessful();
 
-    expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
-        ->and((float) $customer->cumulative_spend)->toBe(550.00);
+    expect(account($customer)->tier)->toBe(CustomerTierEnum::Bronze)
+        ->and((float) account($customer)->cumulative_spend)->toBe(550.00);
 });
 
 it('ignores agent invoices, matching the earning rule', function () {
@@ -147,8 +147,8 @@ it('ignores agent invoices, matching the earning rule', function () {
 
     artisan('loyalty:recalculate-tiers')->assertSuccessful();
 
-    expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
-        ->and((float) $customer->cumulative_spend)->toBe(550.00);
+    expect(account($customer)->tier)->toBe(CustomerTierEnum::Bronze)
+        ->and((float) account($customer)->cumulative_spend)->toBe(550.00);
 });
 
 it('sums both invoice types', function () {
@@ -159,8 +159,8 @@ it('sums both invoice types', function () {
 
     artisan('loyalty:recalculate-tiers')->assertSuccessful();
 
-    expect((float) $customer->refresh()->cumulative_spend)->toBe(2100.00)
-        ->and($customer->tier)->toBe(CustomerTierEnum::Silver);
+    expect((float) account($customer)->cumulative_spend)->toBe(2100.00)
+        ->and(account($customer)->tier)->toBe(CustomerTierEnum::Silver);
 });
 
 it('leaves corporate and agent-linked customers alone', function () {
@@ -172,8 +172,8 @@ it('leaves corporate and agent-linked customers alone', function () {
 
     artisan('loyalty:recalculate-tiers')->assertSuccessful();
 
-    expect($corporate->refresh()->tier)->toBe(CustomerTierEnum::Gold)
-        ->and((float) $corporate->cumulative_spend)->toBe(9000.00);
+    expect(account($corporate)->tier)->toBe(CustomerTierEnum::Gold)
+        ->and((float) account($corporate)->cumulative_spend)->toBe(9000.00);
 });
 
 it('skips branches whose loyalty program is switched off', function () {
@@ -183,7 +183,7 @@ it('skips branches whose loyalty program is switched off', function () {
 
     artisan('loyalty:recalculate-tiers')->assertSuccessful();
 
-    expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Gold);
+    expect(account($customer)->tier)->toBe(CustomerTierEnum::Gold);
 });
 
 it('writes nothing on a dry run', function () {
@@ -192,8 +192,8 @@ it('writes nothing on a dry run', function () {
 
     artisan('loyalty:recalculate-tiers --dry-run')->assertSuccessful();
 
-    expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Gold)
-        ->and((float) $customer->cumulative_spend)->toBe(9000.00);
+    expect(account($customer)->tier)->toBe(CustomerTierEnum::Gold)
+        ->and((float) account($customer)->cumulative_spend)->toBe(9000.00);
 });
 
 it('confines itself to one branch when asked', function () {
@@ -211,8 +211,8 @@ it('confines itself to one branch when asked', function () {
 
     artisan("loyalty:recalculate-tiers --branch={$this->branch->id}")->assertSuccessful();
 
-    expect($mine->refresh()->tier)->toBe(CustomerTierEnum::None)
-        ->and($theirs->refresh()->tier)->toBe(CustomerTierEnum::Gold);
+    expect(account($mine)->tier)->toBe(CustomerTierEnum::None)
+        ->and(account($theirs)->tier)->toBe(CustomerTierEnum::Gold);
 });
 
 it('records every change in the customer activity log', function () {

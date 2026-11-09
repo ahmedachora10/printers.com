@@ -156,8 +156,8 @@ describe('Loyalty reversal', function () {
 
             approveServiceInvoice(serviceInvoiceFor($customer->id, ['agent_ids' => [$agent->id]]));
 
-            expect($customer->refresh()->points_balance)->toBe(0)
-                ->and((float) $customer->cumulative_spend)->toBe(0.00);
+            expect(account($customer)->points_balance)->toBe(0)
+                ->and((float) account($customer)->cumulative_spend)->toBe(0.00);
 
             $this->assertDatabaseCount('loyalty_transactions', 0);
         });
@@ -172,7 +172,7 @@ describe('Loyalty reversal', function () {
                 'agent_id' => $agent->id,
             ]));
 
-            expect($customer->refresh()->points_balance)->toBe(0);
+            expect(account($customer)->points_balance)->toBe(0);
             $this->assertDatabaseCount('loyalty_transactions', 0);
         });
 
@@ -182,8 +182,8 @@ describe('Loyalty reversal', function () {
             approveServiceInvoice(serviceInvoiceFor($customer->id));
 
             // النقاط من الصافي (100)، والإنفاق من الإجمالي شامل الضريبة (115).
-            expect($customer->refresh()->points_balance)->toBe(100)
-                ->and((float) $customer->cumulative_spend)->toBe(115.00);
+            expect(account($customer)->points_balance)->toBe(100)
+                ->and((float) account($customer)->cumulative_spend)->toBe(115.00);
         });
     });
 
@@ -193,12 +193,12 @@ describe('Loyalty reversal', function () {
             $this->post(route('pos.product.store'), reversalProductPayload(['customer_id' => $customer->id]));
             $invoice = ProductInvoice::firstOrFail();
 
-            expect($customer->refresh()->points_balance)->toBe(100);
+            expect(account($customer)->points_balance)->toBe(100);
 
             refundInvoice($invoice, 115.00);
 
-            expect($customer->refresh()->points_balance)->toBe(0)
-                ->and((float) $customer->cumulative_spend)->toBe(0.00);
+            expect(account($customer)->points_balance)->toBe(0)
+                ->and((float) account($customer)->cumulative_spend)->toBe(0.00);
 
             $this->assertDatabaseHas('loyalty_transactions', [
                 'customer_id' => $customer->id,
@@ -219,8 +219,8 @@ describe('Loyalty reversal', function () {
 
             // 46 من 115 = 40%، فيُسحب 40% من 100 نقطة. والإنفاق يُخصم منه المبلغ
             // المسترجَع كما هو شاملاً الضريبة: 115 − 46 = 69.
-            expect($customer->refresh()->points_balance)->toBe(60)
-                ->and((float) $customer->cumulative_spend)->toBe(69.00);
+            expect(account($customer)->points_balance)->toBe(60)
+                ->and((float) account($customer)->cumulative_spend)->toBe(69.00);
         });
 
         it('reaches exactly the full clawback across successive partial refunds', function () {
@@ -229,16 +229,16 @@ describe('Loyalty reversal', function () {
             $invoice = ProductInvoice::firstOrFail();
 
             refundInvoice($invoice, 38.33);
-            expect($customer->refresh()->points_balance)->toBe(67); // FLOOR(100 × 0.3333) = 33
+            expect(account($customer)->points_balance)->toBe(67); // FLOOR(100 × 0.3333) = 33
 
             refundInvoice($invoice, 38.33);
-            expect($customer->refresh()->points_balance)->toBe(34); // FLOOR(100 × 0.6666) = 66
+            expect(account($customer)->points_balance)->toBe(34); // FLOOR(100 × 0.6666) = 66
 
             refundInvoice($invoice, 38.34);
 
             // لا سحب مضاعف: المجموع ينتهي عند 100 نقطة بالضبط لا أكثر
-            expect($customer->refresh()->points_balance)->toBe(0)
-                ->and((float) $customer->cumulative_spend)->toBe(0.00)
+            expect(account($customer)->points_balance)->toBe(0)
+                ->and((float) account($customer)->cumulative_spend)->toBe(0.00)
                 ->and((int) LoyaltyTransaction::where('type', 'manual_adjust')->sum('points'))->toBe(-100);
         });
 
@@ -247,12 +247,12 @@ describe('Loyalty reversal', function () {
             $invoice = serviceInvoiceFor($customer->id);
             approveServiceInvoice($invoice);
 
-            expect($customer->refresh()->points_balance)->toBe(100);
+            expect(account($customer)->points_balance)->toBe(100);
 
             refundInvoice($invoice, 115.00);
 
-            expect($customer->refresh()->points_balance)->toBe(0)
-                ->and((float) $customer->cumulative_spend)->toBe(0.00);
+            expect(account($customer)->points_balance)->toBe(0)
+                ->and((float) account($customer)->cumulative_spend)->toBe(0.00);
         });
 
         it('returns the points the customer redeemed on the refunded invoice', function () {
@@ -266,12 +266,12 @@ describe('Loyalty reversal', function () {
 
             $invoice = ProductInvoice::firstOrFail();
             expect((float) $invoice->total_amount)->toBe(110.00)
-                ->and($customer->refresh()->points_balance)->toBe(95);
+                ->and(account($customer)->points_balance)->toBe(95);
 
             refundInvoice($invoice, 110.00);
 
             // تُسحب الـ 95 المكتسبة وتُردّ الـ 500 المستبدلة
-            expect($customer->refresh()->points_balance)->toBe(500);
+            expect(account($customer)->points_balance)->toBe(500);
 
             $this->assertDatabaseHas('loyalty_transactions', [
                 'invoice_id' => $invoice->id,
@@ -287,11 +287,11 @@ describe('Loyalty reversal', function () {
             $invoice = ProductInvoice::firstOrFail();
 
             // أنفق العميل نقاطه في مكان آخر قبل أن يُسجَّل المرتجع
-            $customer->update(['points_balance' => 30]);
+            account($customer)->update(['points_balance' => 30]);
 
             refundInvoice($invoice, 115.00);
 
-            expect($customer->refresh()->points_balance)->toBe(0);
+            expect(account($customer)->points_balance)->toBe(0);
         });
 
         it('keeps the tier when the rolled-back spend still meets the threshold', function () {
@@ -303,9 +303,9 @@ describe('Loyalty reversal', function () {
             refundInvoice($invoice, (float) $invoice->fresh()->total_amount);
 
             // عاد الإنفاق إلى 5000 وهو حدّ الذهبي بالتمام، وبلوغُ الحدّ يكفي.
-            expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Gold)
-                ->and((float) $customer->cumulative_spend)->toBe(5000.00)
-                ->and($customer->points_balance)->toBe(0);
+            expect(account($customer)->tier)->toBe(CustomerTierEnum::Gold)
+                ->and((float) account($customer)->cumulative_spend)->toBe(5000.00)
+                ->and(account($customer)->points_balance)->toBe(0);
         });
 
         // القاعدة القديمة كانت تُبقي الفئة معلَّقة فوق إنفاقٍ لم يعد يبلغها.
@@ -317,8 +317,8 @@ describe('Loyalty reversal', function () {
             // 4950 + 92 = 5042 فيبقى ذهبياً، ثم يعيده المرتجع إلى 4950 دون الحدّ.
             refundInvoice($invoice, (float) $invoice->fresh()->total_amount);
 
-            expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Silver)
-                ->and((float) $customer->cumulative_spend)->toBe(4950.00);
+            expect(account($customer)->tier)->toBe(CustomerTierEnum::Silver)
+                ->and((float) account($customer)->cumulative_spend)->toBe(4950.00);
         });
 
         it('leaves the cumulative spend alone for an invoice that never earned', function () {
@@ -329,8 +329,8 @@ describe('Loyalty reversal', function () {
 
             refundInvoice($invoice, 115.00);
 
-            expect((float) $customer->refresh()->cumulative_spend)->toBe(750.00)
-                ->and($customer->points_balance)->toBe(40);
+            expect((float) account($customer)->cumulative_spend)->toBe(750.00)
+                ->and(account($customer)->points_balance)->toBe(40);
         });
 
         it('is a no-op for an invoice with no customer', function () {

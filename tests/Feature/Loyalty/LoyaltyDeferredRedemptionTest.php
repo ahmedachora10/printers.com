@@ -102,7 +102,7 @@ describe('Deferred loyalty redemption', function () {
             ->and((float) $invoice->total_amount)->toBe(25.00)
             // ولم يُخصم من الرصيد شيء بعد، ولا حركة ولاء كُتبت.
             ->and($invoice->points_redeemed_at)->toBeNull()
-            ->and($this->customer->refresh()->points_balance)->toBe(1000)
+            ->and(account($this->customer)->points_balance)->toBe(1000)
             ->and(LoyaltyTransaction::count())->toBe(0);
     });
 
@@ -119,7 +119,7 @@ describe('Deferred loyalty redemption', function () {
             ->assertSessionHasNoErrors();
 
         // 1000 − 500 مستبدلة = 500، ثم اكتساب FLOOR(25 ÷ 1.15) = 21 → 521.
-        expect($this->customer->refresh()->points_balance)->toBe(521)
+        expect(account($this->customer)->points_balance)->toBe(521)
             ->and($invoice->refresh()->points_redeemed_at)->not->toBeNull();
 
         $this->assertDatabaseHas('loyalty_transactions', [
@@ -139,7 +139,7 @@ describe('Deferred loyalty redemption', function () {
     // ---- الحجز يمنع استبدال النقاط نفسها مرتين -----------------------------
 
     it('reserves the points against a second unapproved invoice', function () {
-        $this->customer->update(['points_balance' => 900]);
+        account($this->customer)->update(['points_balance' => 900]);
 
         $this->post(route('pos.service.store'), deferredServicePayload([
             'customer_id' => $this->customer->id,
@@ -153,11 +153,11 @@ describe('Deferred loyalty redemption', function () {
         ]))->assertSessionHasErrors('redeem_points');
 
         expect(ServiceInvoice::count())->toBe(1)
-            ->and($this->customer->refresh()->points_balance)->toBe(900);
+            ->and(account($this->customer)->points_balance)->toBe(900);
     });
 
     it('does not count an invoice against itself while it is being edited', function () {
-        $this->customer->update(['points_balance' => 500]);
+        account($this->customer)->update(['points_balance' => 500]);
 
         $this->post(route('pos.service.store'), deferredServicePayload([
             'customer_id' => $this->customer->id,
@@ -178,7 +178,7 @@ describe('Deferred loyalty redemption', function () {
         expect((float) $invoice->refresh()->total_amount)->toBe(35.00)
             ->and((int) $invoice->points_redeemed)->toBe(500)
             ->and($invoice->points_redeemed_at)->toBeNull()
-            ->and($this->customer->refresh()->points_balance)->toBe(500);
+            ->and(account($this->customer)->points_balance)->toBe(500);
     });
 
     it('frees the reservation when the invoice is returned, with no loyalty row', function () {
@@ -192,7 +192,7 @@ describe('Deferred loyalty redemption', function () {
         $this->post(route('pos.service.return', $invoice), ['reason' => 'إلغاء العمل', 'payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertSessionHasNoErrors();
 
-        expect($this->customer->refresh()->points_balance)->toBe(1000)
+        expect(account($this->customer)->points_balance)->toBe(1000)
             ->and(LoyaltyTransaction::count())->toBe(0);
 
         // وقد تحرّر الحجز، فبإمكانه استبدالها كلها على فاتورة جديدة.
@@ -235,7 +235,7 @@ describe('Deferred loyalty redemption', function () {
         $invoice = ProductInvoice::firstOrFail();
 
         expect((float) $invoice->total_amount)->toBe(25.00)
-            ->and($this->customer->refresh()->points_balance)->toBe(1000);
+            ->and(account($this->customer)->points_balance)->toBe(1000);
 
         // دفعة جزئية لا تعتمد الفاتورة، فلا تُخصم النقاط بعد.
         $this->post(route('invoices.payments.store', ['type' => 'product', 'id' => $invoice->id]), [
@@ -243,7 +243,7 @@ describe('Deferred loyalty redemption', function () {
             'amount' => 10,
         ])->assertSessionHasNoErrors();
 
-        expect($this->customer->refresh()->points_balance)->toBe(1000);
+        expect(account($this->customer)->points_balance)->toBe(1000);
 
         $this->post(route('invoices.payments.store', ['type' => 'product', 'id' => $invoice->id]), [
             'payment_method_id' => $this->cash->id,
@@ -251,7 +251,7 @@ describe('Deferred loyalty redemption', function () {
         ])->assertSessionHasNoErrors();
 
         // اكتمل السداد: 1000 − 500 = 500 ثم اكتساب 21 → 521.
-        expect($this->customer->refresh()->points_balance)->toBe(521)
+        expect(account($this->customer)->points_balance)->toBe(521)
             ->and($invoice->refresh()->points_redeemed_at)->not->toBeNull();
     });
 });

@@ -140,17 +140,17 @@ it('recomputes earned loyalty points instead of stacking them', function () {
     ]);
 
     $invoice = sellThenActAsBranchAdmin(['customer_id' => $customer->id]);
-    expect($customer->refresh()->points_balance)->toBe(13);
+    expect(account($customer)->points_balance)->toBe(13);
 
     // 50 ÷ 1.15 = 43.48 × 0.5 → 21.
     $this->put(route('pos.product.update', $invoice), productEditPayload(5, ['customer_id' => $customer->id]));
-    expect($customer->refresh()->points_balance)->toBe(21)
-        ->and((float) $customer->cumulative_spend)->toBe(50.00);
+    expect(account($customer)->points_balance)->toBe(21)
+        ->and((float) account($customer)->cumulative_spend)->toBe(50.00);
 
     // وتعديلٌ ثانٍ لا يسحب الاكتساب الأول مرة أخرى.
     $this->put(route('pos.product.update', $invoice), productEditPayload(3, ['customer_id' => $customer->id]));
-    expect($customer->refresh()->points_balance)->toBe(13)
-        ->and((float) $customer->cumulative_spend)->toBe(30.00);
+    expect(account($customer)->points_balance)->toBe(13)
+        ->and((float) account($customer)->cumulative_spend)->toBe(30.00);
 });
 
 it('forbids the accountant from editing a product invoice', function () {

@@ -531,14 +531,14 @@ describe('Service invoice edit/return', function () {
 
         // Approve → النقاط على الصافي من الضريبة: floor(30 ÷ 1.15) = 26.
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
-        expect($customer->refresh()->points_balance)->toBe(26);
+        expect(account($customer)->points_balance)->toBe(26);
 
         returnServiceInvoice($invoice)->assertSessionHasNoErrors();
 
         $customer->refresh();
         expect($invoice->refresh()->status->value)->toBe('returned')
-            ->and($customer->points_balance)->toBe(0)
-            ->and((float) $customer->cumulative_spend)->toBe(0.00)
+            ->and(account($customer)->points_balance)->toBe(0)
+            ->and((float) account($customer)->cumulative_spend)->toBe(0.00)
             ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(0.00)
             ->and(LoyaltyTransaction::where('customer_id', $customer->id)
                 ->where('type', LoyaltyTransactionTypeEnum::ManualAdjust)
@@ -573,14 +573,14 @@ describe('Service invoice edit/return', function () {
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
 
         // 30.00 يبلغ حدّ البرونزي (20) فيترقّى.
-        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
-            ->and((float) $customer->cumulative_spend)->toBe(30.00);
+        expect(account($customer)->tier)->toBe(CustomerTierEnum::Bronze)
+            ->and((float) account($customer)->cumulative_spend)->toBe(30.00);
 
         returnServiceInvoice($invoice);
 
         // والإرجاع يعيد الإنفاق إلى الصفر فتسقط الفئة معه.
-        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::None)
-            ->and((float) $customer->cumulative_spend)->toBe(0.00);
+        expect(account($customer)->tier)->toBe(CustomerTierEnum::None)
+            ->and((float) account($customer)->cumulative_spend)->toBe(0.00);
     });
 
     it('blocks returning an invoice already rolled into an agent payment', function () {
@@ -712,7 +712,7 @@ describe('Service invoice edit/return', function () {
         ])->assertRedirect()->assertSessionHas('success');
 
         $customer = Customer::where('phone', '0500000007')->firstOrFail();
-        expect($customer->branch_id)->toBe($this->branch->id)
+        expect(account($customer)->branch_id)->toBe($this->branch->id)
             ->and($invoice->refresh()->customer_id)->toBe($customer->id);
     });
 

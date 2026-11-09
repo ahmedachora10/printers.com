@@ -62,9 +62,10 @@ function anaLoyaltyTx(Customer $customer, string $type, int $points): LoyaltyTra
 {
     return LoyaltyTransaction::create([
         'customer_id' => $customer->id,
+        'branch_id' => account($customer)->branch_id,
         'type' => $type,
         'points' => $points,
-        'balance_after' => max(0, $customer->points_balance + $points),
+        'balance_after' => max(0, account($customer)->points_balance + $points),
     ]);
 }
 
