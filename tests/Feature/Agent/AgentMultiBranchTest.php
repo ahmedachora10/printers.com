@@ -162,13 +162,13 @@ describe('Agent multi-branch (تاسك 20-د)', function () {
             ->and($payment->total_invoices)->toBe(1)
             ->and((float) $payment->total_rebate)->toBe(2.61)
             // فرع ب remains unsettled: its invoice was never in this run.
-            ->and($inA->invoiceAgents()->value('agent_payment_id'))->not->toBeNull()
-            ->and($inB->invoiceAgents()->value('agent_payment_id'))->toBeNull();
+            ->and($inA->hasPaidAgentCommission())->toBeTrue()
+            ->and($inB->hasPaidAgentCommission())->toBeFalse();
     });
 
     it('also scopes product-invoice rebates to the branch being settled', function () {
         foreach ([$this->a, $this->b] as $site) {
-            ProductInvoice::create([
+            syncAgentLedger(ProductInvoice::create([
                 'invoice_number' => 'INV-'.fake()->unique()->numerify('######'),
                 'branch_id' => $site['branch']->id,
                 'user_id' => $site['employee']->id,
@@ -182,7 +182,7 @@ describe('Agent multi-branch (تاسك 20-د)', function () {
                 'total_amount' => 115,
                 'status' => 'paid',
                 'paid_at' => now(),
-            ]);
+            ]));
         }
 
         $this->actingAs(branchAdminOf($this->b['branch']));
@@ -196,7 +196,7 @@ describe('Agent multi-branch (تاسك 20-د)', function () {
 
         expect($payment->total_invoices)->toBe(1)
             ->and((float) $payment->total_rebate)->toBe(8.0)
-            ->and(ProductInvoice::where('branch_id', $this->a['branch']->id)->value('agent_payment_id'))->toBeNull();
+            ->and(ProductInvoice::where('branch_id', $this->a['branch']->id)->firstOrFail()->hasPaidAgentCommission())->toBeFalse();
     });
 
     it('lists one settlement row per agent and branch for a super-admin', function () {

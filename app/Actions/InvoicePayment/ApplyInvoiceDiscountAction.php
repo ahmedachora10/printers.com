@@ -3,6 +3,7 @@
 namespace App\Actions\InvoicePayment;
 
 use App\Actions\Agent\ResolveInvoiceAgentAction;
+use App\Actions\Agent\SyncAgentCommissionAction;
 use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\ProductInvoice\CreateProductInvoiceAction;
 use App\Actions\ServiceInvoice\CalculateServiceInvoiceAction;
@@ -37,6 +38,7 @@ class ApplyInvoiceDiscountAction
         private readonly CreateProductInvoiceAction $productCalculator,
         private readonly ResolveInvoiceAgentAction $resolveAgent,
         private readonly RecalculateIncentivePlanAction $recalculateIncentive,
+        private readonly SyncAgentCommissionAction $syncAgentCommission,
     ) {}
 
     public function handle(ProductInvoice|ServiceInvoice $invoice, float $delta): void
@@ -48,11 +50,7 @@ class ApplyInvoiceDiscountAction
         }
 
         // ريبيتٌ دخل دفعة مندوب لا يُعاد حسابه من تحتها.
-        $inAgentPayment = $invoice instanceof ServiceInvoice
-            ? $invoice->invoiceAgents()->whereNotNull('agent_payment_id')->exists()
-            : $invoice->agent_payment_id !== null;
-
-        if ($inAgentPayment) {
+        if ($invoice->hasPaidAgentCommission()) {
             throw ValidationException::withMessages([
                 'discount' => 'لا يمكن الخصم على فاتورة مُدرجة ضمن دفعة مندوب.',
             ]);
@@ -110,6 +108,9 @@ class ApplyInvoiceDiscountAction
             }
 
             $this->recalculateIncentive->refreshForInvoice($invoice);
+        } elseif ($invoice->status === InvoiceStatusEnum::PARTIALLY_PAID) {
+            // تاسك 217: ريبيت مندوب المنتجات المعاد تسعيره يتبع المحصَّل كذلك.
+            $this->syncAgentCommission->handle($invoice, now());
         }
     }
 

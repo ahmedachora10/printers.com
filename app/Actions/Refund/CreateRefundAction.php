@@ -2,6 +2,7 @@
 
 namespace App\Actions\Refund;
 
+use App\Actions\Agent\SyncAgentCommissionAction;
 use App\Actions\Coupon\ReleaseCouponCapacity;
 use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\Loyalty\ReverseLoyaltyForRefundAction;
@@ -50,6 +51,7 @@ class CreateRefundAction
         private readonly ReverseLoyaltyForRefundAction $reverseLoyalty,
         private readonly ConsumeServiceMaterialsAction $consumeMaterials,
         private readonly RecalculateIncentivePlanAction $recalculateIncentive,
+        private readonly SyncAgentCommissionAction $syncAgentCommission,
     ) {}
 
     /**
@@ -164,9 +166,10 @@ class CreateRefundAction
             }
 
             // تاسك 191: صافي المحصَّل نزل، فتنزل العمولة إلى نسبته — من غير المصروف وحده.
-            if ($invoice instanceof ServiceInvoice) {
-                $this->syncCommissionLedger($invoice, now());
-            }
+            // تاسك 217: ومندوب فاتورة المنتجات (الخدمات يمرّ به syncCommissionLedger).
+            $invoice instanceof ServiceInvoice
+                ? $this->syncCommissionLedger($invoice, now())
+                : $this->syncAgentCommission->handle($invoice, now());
 
             // النقاط والإنفاق التراكمي يُفكّان بعد كتابة صفّ المرتجع، لأن الحساب
             // يقوم على مجموع ما استُرجع على الفاتورة شاملاً هذه الدفعة.

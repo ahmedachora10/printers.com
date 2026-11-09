@@ -43,7 +43,7 @@ class UpdateServiceInvoiceAction
     {
         // An agent rebate already rolled into a payment would be left dangling if
         // the invoice were recomputed underneath it.
-        if ($invoice->invoiceAgents()->whereNotNull('agent_payment_id')->exists()) {
+        if ($invoice->hasPaidAgentCommission()) {
             throw ValidationException::withMessages([
                 'invoice' => 'لا يمكن تعديل فاتورة مُدرجة ضمن دفعة مندوب.',
             ]);

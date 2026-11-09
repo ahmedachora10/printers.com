@@ -2,6 +2,7 @@
 
 namespace App\Actions\InvoicePayment;
 
+use App\Actions\Agent\SyncAgentCommissionAction;
 use App\Actions\Incentive\RecalculateIncentivePlanAction;
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
@@ -43,6 +44,7 @@ class RecordInvoicePaymentAction
         private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
         private readonly RecalculateIncentivePlanAction $recalculateIncentive,
         private readonly ApplyInvoiceDiscountAction $applyDiscount,
+        private readonly SyncAgentCommissionAction $syncAgentCommission,
     ) {}
 
     /**
@@ -144,6 +146,9 @@ class RecordInvoicePaymentAction
                 if ($invoice instanceof ServiceInvoice) {
                     $this->markServiceInvoicePaid->syncCommissionLedger($invoice, $paidAt);
                     $this->recalculateIncentive->refreshForInvoice($invoice);
+                } else {
+                    // تاسك 217: مندوب فاتورة المنتجات يأخذ نصيب الدفعة بتاريخها.
+                    $this->syncAgentCommission->handle($invoice, $paidAt);
                 }
             }
 
@@ -187,6 +192,8 @@ class RecordInvoicePaymentAction
             'status' => InvoiceStatusEnum::PAID,
             'paid_at' => $paidAt,
         ]);
+
+        $this->syncAgentCommission->handle($invoice, $paidAt);
 
         // خصم النقاط المحجوزة ثم احتساب المكتسبة، بالترتيب نفسه الذي يسلكه
         // اعتماد فاتورة الخدمة.

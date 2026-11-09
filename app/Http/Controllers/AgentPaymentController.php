@@ -3,15 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Actions\Agent\GenerateAgentPaymentAction;
-use App\Enums\InvoiceStatusEnum;
 use App\Http\Requests\Agent\AgentPaymentFilterRequest;
 use App\Http\Requests\Agent\StoreAgentPaymentRequest;
 use App\Http\Resources\Agent\AgentPaymentResource;
 use App\Models\Agent;
+use App\Models\AgentCommissionEntry;
 use App\Models\AgentPayment;
 use App\Models\Branch;
-use App\Models\ProductInvoice;
-use App\Models\ServiceInvoiceAgent;
 use App\Notifications\AgentCommissionPaidNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
@@ -124,48 +122,17 @@ class AgentPaymentController extends Controller
      */
     private function outstandingByAgentBranch(?int $branchId): array
     {
-        $outstanding = [];
-
-        $add = function (int $agentId, int $rowBranchId, float $rebate, int $count) use (&$outstanding) {
-            $key = $agentId.'-'.$rowBranchId;
-            $outstanding[$key]['rebate'] = ($outstanding[$key]['rebate'] ?? 0) + $rebate;
-            $outstanding[$key]['count'] = ($outstanding[$key]['count'] ?? 0) + $count;
-        };
-
-        // Only approved (paid) invoices count as outstanding rebate — a due
-        // invoice is not payable, so it must not inflate the agent's balance here.
-        // Product invoices carry a single agent on the invoice row.
-        ProductInvoice::query()
-            ->whereNotNull('agent_id')
+        // تاسك 217: غير المصروف من دفتر المندوب — ما حُصِّل من فواتيره، دفعةً دفعة.
+        return AgentCommissionEntry::query()
             ->whereNull('agent_payment_id')
-            ->where('agent_rebate', '>', 0)
-            ->where('status', InvoiceStatusEnum::PAID->value)
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
-            ->groupBy('agent_id', 'branch_id')
-            ->selectRaw('agent_id, branch_id, SUM(agent_rebate) as rebate, COUNT(*) as cnt')
+            ->groupBy('agent_id', 'branch_id', 'invoice_type', 'invoice_id')
+            ->selectRaw('agent_id, branch_id, SUM(rebate_amount + line_commission_amount) as rebate')
             ->get()
-            ->each(fn ($row) => $add((int) $row->agent_id, (int) $row->branch_id, (float) $row->rebate, (int) $row->cnt));
-
-        // Service invoices settle each agent independently via the pivot. The
-        // payable per row is the invoice-level rebate plus any per-line
-        // commissions accrued to the agent on that invoice. The branch lives on
-        // the invoice, so join rather than filter through whereHas.
-        ServiceInvoiceAgent::query()
-            ->join('service_invoices', 'service_invoices.id', '=', 'service_invoice_agent.service_invoice_id')
-            ->whereNull('service_invoices.deleted_at')
-            ->whereNull('service_invoice_agent.agent_payment_id')
-            ->where(fn ($q) => $q
-                ->where('service_invoice_agent.rebate_amount', '>', 0)
-                ->orWhere('service_invoice_agent.line_commission_amount', '>', 0))
-            ->where('service_invoices.status', InvoiceStatusEnum::PAID->value)
-            ->when($branchId, fn ($q) => $q->where('service_invoices.branch_id', $branchId))
-            ->groupBy('service_invoice_agent.agent_id', 'service_invoices.branch_id')
-            ->selectRaw('service_invoice_agent.agent_id, service_invoices.branch_id,
-                SUM(service_invoice_agent.rebate_amount + service_invoice_agent.line_commission_amount) as rebate,
-                COUNT(*) as cnt')
-            ->get()
-            ->each(fn ($row) => $add((int) $row->agent_id, (int) $row->branch_id, (float) $row->rebate, (int) $row->cnt));
-
-        return $outstanding;
+            ->filter(fn ($row) => round((float) $row->rebate, 2) != 0)
+            ->groupBy(fn ($row) => $row->agent_id.'-'.$row->branch_id)
+            ->map(fn ($rows) => ['rebate' => round((float) $rows->sum('rebate'), 2), 'count' => $rows->count()])
+            ->filter(fn ($row) => $row['rebate'] > 0)
+            ->all();
     }
 }

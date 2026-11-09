@@ -433,6 +433,17 @@ describe('Service invoice edit/return', function () {
             ->and((float) CommissionLedger::where('user_id', $this->employee->id)->sum('amount'))->toBe(0.00);
     });
 
+    // تاسك 225: الآجلة لا مرتجع يحمل السبب — فيُحفظ على الفاتورة ويُعرض.
+    it('keeps the return reason on a due invoice that books no refund', function () {
+        $invoice = makeOwnedDueInvoice();
+
+        $this->post(route('pos.service.return', $invoice), ['reason' => 'العميل ألغى الطلب'])->assertSessionHasNoErrors();
+
+        expect($invoice->refresh()->return_reason)->toBe('العميل ألغى الطلب');
+        $this->get(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
+            ->assertInertia(fn ($page) => $page->where('invoice.returnReason', 'العميل ألغى الطلب'));
+    });
+
     it('books a refund for the full total and reverses commission when returning a paid invoice', function () {
         $invoice = makeOwnedDueInvoice(); // total 30.00 شامل الضريبة، commission 2.61
         $this->actingAs($this->branchAdmin)->patch(route('invoices.service.pay', payable($invoice)));
@@ -599,6 +610,7 @@ describe('Service invoice edit/return', function () {
             'discount_amount' => 0,
             'agent_payment_id' => $payment->id,
         ]);
+        syncAgentLedger($invoice->refresh());
 
         $this->actingAs($this->employee)->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertSessionHasErrors('invoice');

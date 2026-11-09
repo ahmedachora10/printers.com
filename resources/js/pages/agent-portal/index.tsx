@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useReportFilters } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatDate } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { useMemo } from 'react';
 
@@ -43,14 +43,14 @@ interface InvoiceRow {
     employeeName: string | null;
     /** First service/product on the invoice, plus a count of the rest. */
     itemsLabel: string | null;
-    totalAmount: number;
+    invoiceTotal: number;
     rebate: number;
     lineCommission: number;
     discount: number;
-    isRebatePaid: boolean;
-    status: string;
-    statusLabel: string;
-    createdAt: string | null;
+    /** تاسك 217: كل مستحقّ الفاتورة في الفترة مختوم بدفعة مندوب. */
+    isPaid: boolean;
+    /** آخر تحصيلٍ في الفترة (تاسك 217). */
+    date: string;
 }
 
 interface PaymentRow {
@@ -124,11 +124,11 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                 header: 'التاريخ',
                 cell: (i) => (
                     <span className="tabular-nums" dir="ltr">
-                        {i.createdAt}
+                        {formatDate(i.date)}
                     </span>
                 ),
             },
-            { key: 'total', header: 'إجمالي الفاتورة', cell: (i) => <span className="tabular-nums">{formatCurrency(i.totalAmount)}</span> },
+            { key: 'total', header: 'إجمالي الفاتورة', cell: (i) => <span className="tabular-nums">{formatCurrency(i.invoiceTotal)}</span> },
             {
                 key: 'amount',
                 header: isRebate ? 'العمولة' : 'الخصم',
@@ -153,9 +153,9 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                           cell: (i: InvoiceRow) =>
                               i.rebate + i.lineCommission <= 0 ? (
                                   <span className="text-muted-foreground">—</span>
-                              ) : i.isRebatePaid ? (
+                              ) : i.isPaid ? (
                                   // «مستلمة» لا «مدفوعة»: المندوب يقرأ الحالة من طرفه هو
-                                  // (تاسك 41). تسمية واجهة فقط — isRebatePaid كما هو.
+                                  // (تاسك 41). تسمية واجهة فقط — isPaid كما هو.
                                   <Badge variant="secondary">مستلمة</Badge>
                               ) : (
                                   <Badge variant="outline" className="text-muted-foreground">

@@ -92,6 +92,28 @@ describe('Expense attachment & invoice link', function () {
             ->assertSessionHasErrors('invoices.0.id');
     });
 
+    // تاسك 224: اعتماد المصروف المرتبط من شاشة الفاتورة — للمدير وحده.
+    it('lets the branch admin approve a linked expense from the invoice', function () {
+        $expense = Expense::factory()->create([
+            'branch_id' => $this->branch->id,
+            'expense_category_id' => $this->category->id,
+            'user_id' => $this->accountant->id,
+            'total' => 70,
+            'approved_at' => null,
+        ]);
+        $expense->invoices()->attach($this->invoice->id, ['amount' => 70]);
+        $show = route('invoices.show', ['type' => 'service', 'id' => $this->invoice->id]);
+
+        $this->actingAs($this->accountant)->get($show)
+            ->assertInertia(fn ($page) => $page->where('invoice.linkedExpenses.0.canApprove', false));
+
+        $this->actingAs($this->branchAdmin)->get($show)
+            ->assertInertia(fn ($page) => $page->where('invoice.linkedExpenses.0.canApprove', true));
+        $this->post(route('expenses.approve', $expense))->assertSessionHasNoErrors();
+
+        expect($expense->refresh()->isApproved())->toBeTrue();
+    });
+
     it('searches only the branch invoices', function () {
         linkableInvoice($this->otherBranch, $this->otherAdmin, 'SINV-018-00999');
 

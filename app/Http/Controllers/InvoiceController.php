@@ -338,7 +338,10 @@ class InvoiceController extends Controller
                     'byName' => $a->causer?->name,
                     'at' => $a->created_at?->toIso8601String(),
                 ]),
-            'neighbours' => fn () => $this->neighbourIds(InvoiceTypeEnum::from($type), $invoice->id),
+            // تاسك 219: من قائمة الملاحظات يتنقّل على خيوطها لا على الفواتير.
+            'neighbours' => fn () => $invoice instanceof ServiceInvoice && request('from') === 'messages'
+                ? InvoiceMessageController::neighbourIds(Auth::user(), $invoice->id)
+                : $this->neighbourIds(InvoiceTypeEnum::from($type), $invoice->id),
             // تاسك 149: «تسجيل مصروف» من فاتورة الخدمات — فئات فرع الفاتورة، والفرع
             // ثابتٌ عليها (السوبر أدمن يستلمه قائمةً من فرعٍ واحد).
             // تاسك 157: والموظف صاحبها يفتح النافذة نفسها «طلباً» يقبله المحاسب.

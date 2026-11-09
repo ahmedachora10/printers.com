@@ -23,6 +23,16 @@ function firstError(errors: Record<string, string>, fallback: string): string {
     return Object.values(errors)[0] ?? fallback;
 }
 
+/** إغلاق المحادثة وفتحها — في بطاقتها وفي قائمة الملاحظات (تاسك 221). */
+export function ThreadCloseButton({ invoiceId, closedAt, only }: { invoiceId: number; closedAt: string | null; only?: string[] }) {
+    return (
+        <Button variant="outline" size="sm" onClick={() => router.patch(messagesRoute.toggleClosed.url(invoiceId), {}, { preserveScroll: true, only })}>
+            {closedAt ? <LockOpen className="size-4" /> : <Lock className="size-4" />}
+            {closedAt ? 'فتح المحادثة' : 'إغلاق المحادثة'}
+        </Button>
+    );
+}
+
 /**
  * تاسك 100 — المحادثة الداخلية لفاتورة الخدمات، بدل بطاقة الملاحظة الواحدة
  * (تاسك 95). رسائل تتراكم ولا تُستبدل، @ لدورٍ أو لشخص، مرفقات، و«تم الإجراء».
@@ -39,10 +49,6 @@ export default function InvoiceThread({ invoiceId, thread }: { invoiceId: number
         listRef.current?.scrollTo({ top: listRef.current.scrollHeight });
     }, [thread.messages.length]);
 
-    function toggleClosed() {
-        router.patch(messagesRoute.toggleClosed.url(invoiceId), {}, reload);
-    }
-
     return (
         <Card className="border-amber-300 dark:border-amber-900">
             <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 space-y-0">
@@ -51,19 +57,7 @@ export default function InvoiceThread({ invoiceId, thread }: { invoiceId: number
                     المحادثة الداخلية
                     <span className="text-xs font-normal text-amber-800/80 dark:text-amber-200/70">— لا تظهر للعميل</span>
                 </CardTitle>
-                {thread.canModerate && (
-                    <Button variant="outline" size="sm" onClick={toggleClosed}>
-                        {thread.closedAt ? (
-                            <>
-                                <LockOpen className="size-4" /> فتح المحادثة
-                            </>
-                        ) : (
-                            <>
-                                <Lock className="size-4" /> إغلاق المحادثة
-                            </>
-                        )}
-                    </Button>
-                )}
+                {thread.canModerate && <ThreadCloseButton invoiceId={invoiceId} closedAt={thread.closedAt} only={reload.only} />}
             </CardHeader>
             <CardContent className="space-y-4">
                 {thread.messages.length === 0 ? (

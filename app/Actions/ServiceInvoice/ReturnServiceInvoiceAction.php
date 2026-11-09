@@ -79,7 +79,8 @@ class ReturnServiceInvoiceAction
             // حركات الفاتورة فلا تحتاج إلى فحص الحالة هنا.
             $this->consumeMaterials->restore($invoice, (int) $actor->id);
 
-            $invoice->update(['status' => InvoiceStatusEnum::RETURNED]);
+            // تاسك 225: السبب على الفاتورة — الآجلة بلا مرتجع يحمله.
+            $invoice->update(['status' => InvoiceStatusEnum::RETURNED, 'return_reason' => $reason ?: null]);
 
             return $invoice;
         });
@@ -103,7 +104,7 @@ class ReturnServiceInvoiceAction
             ]);
         }
 
-        if ($invoice->invoiceAgents()->whereNotNull('agent_payment_id')->exists()) {
+        if ($invoice->hasPaidAgentCommission()) {
             throw ValidationException::withMessages([
                 'invoice' => 'لا يمكن استرجاع فاتورة مُدرجة ضمن دفعة مندوب.',
             ]);

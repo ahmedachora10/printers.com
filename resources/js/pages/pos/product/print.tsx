@@ -21,6 +21,8 @@ export default function ProductInvoicePrint({ invoice, branch }: Props) {
     const doc = invoiceDocument(invoice);
 
     useEffect(() => {
+        // تاسك 218: «معاينة» عرض السعر تفتح الورقة نفسها بلا طباعة تلقائية.
+        if (new URLSearchParams(window.location.search).has('preview')) return;
         const timer = setTimeout(() => window.print(), 300);
         return () => clearTimeout(timer);
     }, []);
