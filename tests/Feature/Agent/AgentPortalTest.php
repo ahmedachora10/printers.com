@@ -46,15 +46,16 @@ function agentInvoice(string $model, int $branchId, int $agentId, array $attrs):
             'rebate_amount' => $rebate,
             'agent_payment_id' => $paymentId,
         ]);
+        syncAgentLedger($invoice);
 
         return;
     }
 
-    ProductInvoice::create(array_merge($base, [
+    syncAgentLedger(ProductInvoice::create(array_merge($base, [
         'agent_id' => $agentId,
         'agent_rebate' => $rebate,
         'agent_payment_id' => $paymentId,
-    ], $attrs));
+    ], $attrs)));
 }
 
 describe('Agent Portal', function () {
@@ -131,9 +132,8 @@ describe('Agent Portal', function () {
     it('opens on today and hides an invoice from an earlier day', function () {
         agentInvoice(ServiceInvoice::class, $this->branch->id, $this->agent->id, ['agent_rebate' => 10]);
 
-        agentInvoice(ServiceInvoice::class, $this->branch->id, $this->agent->id, ['agent_rebate' => 40]);
-        // created_at is not fillable — force it to backdate the invoice.
-        ServiceInvoice::latest('id')->firstOrFail()->forceFill(['created_at' => now()->subDays(5)])->save();
+        // تاسك 217: يوم التحصيل هو ما يُؤرَّخ به.
+        agentInvoice(ServiceInvoice::class, $this->branch->id, $this->agent->id, ['agent_rebate' => 40, 'paid_at' => now()->subDays(5)]);
 
         $this->actingAs($this->agent);
 

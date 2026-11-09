@@ -2,11 +2,9 @@
 
 namespace App\Actions\Agent;
 
-use App\Enums\InvoiceStatusEnum;
 use App\Models\Agent;
+use App\Models\AgentCommissionEntry;
 use App\Models\AgentPayment;
-use App\Models\ProductInvoice;
-use App\Models\ServiceInvoiceAgent;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -23,47 +21,21 @@ class GenerateAgentPaymentAction
         $branchId = (int) $data['branch_id'];
 
         return DB::transaction(function () use ($agent, $start, $end, $branchId, $data) {
-            $window = [$start.' 00:00:00', $end.' 23:59:59'];
-
-            // An agent may work with several branches, and each branch settles its
-            // own invoices — so every row collected here must belong to the branch
-            // being paid, or one branch would stamp another's dues as settled.
-            // Product invoices still carry a single agent on the invoice row. Only
-            // approved (paid) invoices are settled — a rebate is not payable while
-            // the invoice is still due.
-            $productRows = ProductInvoice::query()
+            // تاسك 217: ما استحقّه المندوب في الفترة من دفتره — كلُّ قيدٍ بتاريخ
+            // التحصيل الذي كتبه (دفعة، اعتماد، مرتجع)، لا بتاريخ إنشاء الفاتورة.
+            // كل فرعٍ يصرف قيود فواتيره وحده، وما صُرف مختومٌ فلا يُصرف مرتين.
+            $entries = AgentCommissionEntry::query()
                 ->where('agent_id', $agent->id)
                 ->where('branch_id', $branchId)
                 ->whereNull('agent_payment_id')
-                ->where('agent_rebate', '>', 0)
-                ->where('status', InvoiceStatusEnum::PAID->value)
-                ->whereBetween('created_at', $window)
+                ->where(fn ($q) => $q->where('rebate_amount', '!=', 0)->orWhere('line_commission_amount', '!=', 0))
+                ->whereBetween('earned_at', [$start.' 00:00:00', $end.' 23:59:59'])
                 ->lockForUpdate()
-                ->get(['id', 'agent_rebate']);
+                ->get(['id', 'invoice_type', 'invoice_id', 'rebate_amount', 'line_commission_amount']);
 
-            // Service invoices may list several agents; each shares the rebate via
-            // its own pivot row settled independently — again, paid invoices only.
-            // A pivot row is payable for its rebate and/or its per-line commissions;
-            // both are settled together under the same agent_payment_id stamp.
-            $serviceRows = ServiceInvoiceAgent::query()
-                ->where('agent_id', $agent->id)
-                ->whereNull('agent_payment_id')
-                ->where(fn ($q) => $q
-                    ->where('rebate_amount', '>', 0)
-                    ->orWhere('line_commission_amount', '>', 0))
-                ->whereHas('invoice', fn ($q) => $q
-                    ->where('status', InvoiceStatusEnum::PAID->value)
-                    ->where('branch_id', $branchId)
-                    ->whereBetween('created_at', $window))
-                ->lockForUpdate()
-                ->get(['id', 'rebate_amount', 'line_commission_amount']);
+            $total = round((float) $entries->sum('rebate_amount') + (float) $entries->sum('line_commission_amount'), 2);
 
-            $totalRebate = (float) $productRows->sum('agent_rebate')
-                + (float) $serviceRows->sum('rebate_amount')
-                + (float) $serviceRows->sum('line_commission_amount');
-            $totalInvoices = $productRows->count() + $serviceRows->count();
-
-            if ($totalInvoices === 0) {
+            if ($total <= 0) {
                 throw ValidationException::withMessages([
                     'agent_id' => 'لا توجد عمولات مستحقة لهذا المندوب في هذا الفرع خلال الفترة المحددة.',
                 ]);
@@ -74,20 +46,14 @@ class GenerateAgentPaymentAction
                 'branch_id' => $branchId,
                 'period_start' => $start,
                 'period_end' => $end,
-                'total_invoices' => $totalInvoices,
-                'total_rebate' => round($totalRebate, 2),
+                'total_invoices' => $entries->unique(fn ($e) => $e->invoice_type.'#'.$e->invoice_id)->count(),
+                'total_rebate' => $total,
                 'paid_by' => Auth::id(),
                 'paid_at' => now(),
                 'notes' => $data['notes'] ?? null,
             ]);
 
-            if ($productRows->isNotEmpty()) {
-                ProductInvoice::whereIn('id', $productRows->pluck('id'))->update(['agent_payment_id' => $payment->id]);
-            }
-
-            if ($serviceRows->isNotEmpty()) {
-                ServiceInvoiceAgent::whereIn('id', $serviceRows->pluck('id'))->update(['agent_payment_id' => $payment->id]);
-            }
+            AgentCommissionEntry::whereIn('id', $entries->pluck('id'))->update(['agent_payment_id' => $payment->id]);
 
             return $payment;
         });

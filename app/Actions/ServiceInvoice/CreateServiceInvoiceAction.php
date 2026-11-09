@@ -70,6 +70,9 @@ class CreateServiceInvoiceAction
                 Quotation::markConverted((int) $data['quotation_id'], $invoice);
             }
 
+            // قبل العمولة: دفتر المندوب (تاسك 217) يُكتب من صفوفهم مع دفتر الموظف.
+            $this->syncInvoiceAgents($invoice, $calc['agents']);
+
             // Commission is earned only once the invoice is approved (paid). A due
             // invoice — every employee-raised one — writes no ledger row yet; it is
             // written when the accountant settles it (MarkServiceInvoicePaidAction).
@@ -79,8 +82,6 @@ class CreateServiceInvoiceAction
                 $this->syncCommissionLedger($invoice, $invoice->paid_at ?? now());
                 $this->consumeMaterials->consume($invoice, (int) $user->id);
             }
-
-            $this->syncInvoiceAgents($invoice, $calc['agents']);
 
             if ($calc['coupon']) {
                 $calc['coupon']->increment('used_count');

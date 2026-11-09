@@ -52,6 +52,7 @@ function agentServiceInvoice(Branch $branch, User $employee, Agent $agent, array
         'rebate_amount' => 20,
         'line_commission_amount' => 0,
     ], $pivot));
+    syncAgentLedger($invoice);
 
     return $invoice;
 }
@@ -140,7 +141,7 @@ describe('Agent Commission Report', function () {
     it('counts a product invoice rebate alongside the service ones', function () {
         agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20]);
 
-        ProductInvoice::create([
+        syncAgentLedger(ProductInvoice::create([
             'invoice_number' => 'INV-AC-1',
             'branch_id' => $this->branch->id,
             'user_id' => $this->accountant->id,
@@ -153,7 +154,7 @@ describe('Agent Commission Report', function () {
             'agent_discount' => 4,
             'status' => 'paid',
             'paid_at' => now(),
-        ]);
+        ]));
 
         $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions'))
@@ -229,8 +230,8 @@ describe('Agent Commission Report', function () {
     it('opens on today and widens with the range', function () {
         agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20]);
 
-        $old = agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 40]);
-        $old->forceFill(['created_at' => now()->subDays(4)])->save();
+        // تاسك 217: يوم التحصيل هو ما يُؤرَّخ به.
+        agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 40], ['paid_at' => now()->subDays(4)]);
 
         $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions'))
@@ -255,7 +256,7 @@ describe('Agent Commission Report', function () {
         agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20, 'agent_payment_id' => $payment->id]);
         agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 5]);
         agentServiceInvoice($this->branch, $this->accountant, $this->agent, ['rebate_amount' => 15]);
-        ProductInvoice::create([
+        syncAgentLedger(ProductInvoice::create([
             'invoice_number' => 'INV-AC-179',
             'branch_id' => $this->branch->id,
             'user_id' => $this->accountant->id,
@@ -267,7 +268,7 @@ describe('Agent Commission Report', function () {
             'agent_rebate' => 11,
             'status' => 'paid',
             'paid_at' => now(),
-        ]);
+        ]));
 
         $this->actingAs($this->branchAdmin)
             ->get(route('reports.agent-commissions', ['user' => $this->employee->id]))

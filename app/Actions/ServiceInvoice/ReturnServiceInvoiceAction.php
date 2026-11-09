@@ -104,7 +104,7 @@ class ReturnServiceInvoiceAction
             ]);
         }
 
-        if ($invoice->invoiceAgents()->whereNotNull('agent_payment_id')->exists()) {
+        if ($invoice->hasPaidAgentCommission()) {
             throw ValidationException::withMessages([
                 'invoice' => 'لا يمكن استرجاع فاتورة مُدرجة ضمن دفعة مندوب.',
             ]);

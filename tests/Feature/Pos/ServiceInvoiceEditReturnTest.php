@@ -610,6 +610,7 @@ describe('Service invoice edit/return', function () {
             'discount_amount' => 0,
             'agent_payment_id' => $payment->id,
         ]);
+        syncAgentLedger($invoice->refresh());
 
         $this->actingAs($this->employee)->post(route('pos.service.return', $invoice), ['payment_method_id' => paymentMethodId($invoice->branch_id)])
             ->assertSessionHasErrors('invoice');

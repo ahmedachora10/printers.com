@@ -2,8 +2,8 @@
 
 namespace App\Actions\ServiceInvoice\Concerns;
 
+use App\Actions\Agent\SyncAgentCommissionAction;
 use App\Enums\CommissionSourceTypeEnum;
-use App\Enums\InvoiceStatusEnum;
 use App\Models\CommissionLedger;
 use App\Models\ServiceInvoice;
 use App\Models\ServiceInvoiceHelper;
@@ -85,11 +85,6 @@ trait WritesServiceInvoiceLines
      */
     public function syncCommissionLedger(ServiceInvoice $invoice, CarbonInterface $at): void
     {
-        $total = round((float) $invoice->total_amount, 2);
-        $payments = $invoice->payments()->orderBy('paid_at')->orderBy('id')->get(['amount', 'paid_at']);
-        $net = round(($invoice->status === InvoiceStatusEnum::PAID ? $total : (float) $payments->sum('amount'))
-            - (float) $invoice->refunds()->sum('amount'), 2);
-
         $key = fn (string $type, int $id, int $userId) => $type.'#'.$id.'#'.$userId;
         $entries = $invoice->ledgerEntries()->lockForUpdate()->get();
         $group = fn ($rows) => $rows->groupBy(fn (CommissionLedger $e) => $key($e->invoice_line_type, $e->invoice_line_id, $e->user_id))
@@ -102,17 +97,10 @@ trait WritesServiceInvoiceLines
             ...$invoice->lines()->get()->map(fn ($l) => [$l, ServiceInvoiceLine::class, (int) $invoice->user_id]),
         ];
 
-        $steps = [];
-        $running = 0.0;
-        foreach ($payments as $payment) {
-            $steps[] = [$payment->paid_at, $running = round($running + (float) $payment->amount, 2)];
-        }
-        $steps[] = [$at, $net];
+        $steps = $invoice->collectionSteps($at);
         $last = count($steps) - 1;
 
-        foreach ($steps as $i => [$date, $collected]) {
-            $ratio = $total > 0 ? min(max(min($collected, $net), 0) / $total, 1.0) : 1.0;
-
+        foreach ($steps as $i => [$date, $ratio]) {
             foreach ($owed as [$row, $type, $userId]) {
                 $k = $key($type, $row->id, $userId);
                 $full = (float) $row->commission_amount;
@@ -147,5 +135,8 @@ trait WritesServiceInvoiceLines
                 $unpaid[$k] = round(($unpaid[$k] ?? 0) + $delta, 2);
             }
         }
+
+        // تاسك 217: والمندوب على الخطوات نفسها — كل مستدعٍ لهذه الدالة يمرّ بدفتره.
+        app(SyncAgentCommissionAction::class)->handle($invoice, $at);
     }
 }

@@ -3,7 +3,9 @@
 namespace App\Models\Concerns;
 
 use App\Enums\InvoiceStatusEnum;
+use App\Models\AgentCommissionEntry;
 use App\Models\InvoicePayment;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Validation\ValidationException;
 
@@ -23,6 +25,44 @@ trait HasInvoicePayments
     public function payments(): MorphMany
     {
         return $this->morphMany(InvoicePayment::class, 'invoice');
+    }
+
+    /** تاسك 217 — دفتر المندوب على هذه الفاتورة. @return MorphMany<AgentCommissionEntry, $this> */
+    public function agentCommissionEntries(): MorphMany
+    {
+        return $this->morphMany(AgentCommissionEntry::class, 'invoice');
+    }
+
+    /** دخل شيءٌ من مستحقّ مندوبها دفعةَ مندوب — فلا يُعاد تسعيرها ولا تُسترجع ولا تُعدَّل. */
+    public function hasPaidAgentCommission(): bool
+    {
+        return $this->agentCommissionEntries()->whereNotNull('agent_payment_id')->exists();
+    }
+
+    /**
+     * تاسكات 191/217 — التحصيل خطوةً خطوة، تُكتب عليه العمولة (دفتر الموظف ودفتر
+     * المندوب): بعد كل دفعة بتاريخها نسبةُ ما حُصِّل حتى الآن من الإجمالي، ثم خطوةٌ
+     * أخيرة بتاريخ $at على الصافي — المعتمدة محصَّلها إجماليُّها، والمرتجعات تُطرح.
+     * لا تتجاوز نسبةُ خطوةٍ الصافي.
+     *
+     * @return list<array{0: CarbonInterface, 1: float}> [التاريخ، النسبة بين 0 و1]
+     */
+    public function collectionSteps(CarbonInterface $at): array
+    {
+        $total = round((float) $this->total_amount, 2);
+        $payments = $this->payments()->orderBy('paid_at')->orderBy('id')->get(['amount', 'paid_at']);
+        $net = round(($this->status === InvoiceStatusEnum::PAID ? $total : (float) $payments->sum('amount'))
+            - (float) $this->refunds()->sum('amount'), 2);
+        $ratio = fn (float $collected) => $total > 0 ? min(max(min($collected, $net), 0) / $total, 1.0) : 1.0;
+
+        $steps = [];
+        $running = 0.0;
+        foreach ($payments as $payment) {
+            $steps[] = [$payment->paid_at, $ratio($running = round($running + (float) $payment->amount, 2))];
+        }
+        $steps[] = [$at, $ratio($net)];
+
+        return $steps;
     }
 
     /**

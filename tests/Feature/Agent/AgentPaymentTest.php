@@ -1,9 +1,12 @@
 <?php
 
+use App\Actions\InvoicePayment\RecordInvoicePaymentAction;
+use App\Actions\Refund\CreateRefundAction;
 use App\Enums\Roles;
 use App\Models\Agent;
 use App\Models\AgentPayment;
 use App\Models\Branch;
+use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -40,6 +43,7 @@ function rebateInvoice(int $branchId, int $agentId, float $rebate, array $overri
         'discount_amount' => 0,
         'rebate_amount' => $rebate,
     ]);
+    syncAgentLedger($invoice);
 
     return $invoice;
 }
@@ -144,8 +148,8 @@ describe('Agent Payments', function () {
         ]);
 
         $paymentId = AgentPayment::firstOrFail()->id;
-        expect($a->invoiceAgents()->first()->agent_payment_id)->toBe($paymentId)
-            ->and($b->invoiceAgents()->first()->agent_payment_id)->toBe($paymentId);
+        expect($a->agentCommissionEntries()->value('agent_payment_id'))->toBe($paymentId)
+            ->and($b->agentCommissionEntries()->value('agent_payment_id'))->toBe($paymentId);
     });
 
     it('does not pay the same rebate twice', function () {
@@ -165,10 +169,9 @@ describe('Agent Payments', function () {
         expect(AgentPayment::count())->toBe(1);
     });
 
-    it('excludes invoices outside the chosen period', function () {
-        $old = rebateInvoice($this->branch->id, $this->agent->id, 10);
-        // created_at is managed on insert; force it into the past for this check.
-        ServiceInvoice::where('id', $old->id)->update(['created_at' => now()->subMonths(2)]);
+    // تاسك 217: الفترة على تاريخ التحصيل لا تاريخ الإنشاء.
+    it('excludes what was collected outside the chosen period', function () {
+        rebateInvoice($this->branch->id, $this->agent->id, 10, ['paid_at' => now()->subMonths(2)]);
 
         $this->post(route('agent-payments.store'), [
             'agent_id' => $this->agent->id,
@@ -206,6 +209,7 @@ describe('Agent Payments', function () {
         // rebate 10 plus line commissions 5 on the same pivot row.
         $invoice = rebateInvoice($this->branch->id, $this->agent->id, 10);
         $invoice->invoiceAgents()->update(['line_commission_amount' => 5]);
+        syncAgentLedger($invoice);
 
         $this->get(route('agent-payments.index'))
             ->assertInertia(fn ($page) => $page
@@ -228,6 +232,7 @@ describe('Agent Payments', function () {
     it('settles a pivot row carrying only line commissions (no rebate)', function () {
         $invoice = rebateInvoice($this->branch->id, $this->agent->id, 0);
         $invoice->invoiceAgents()->update(['line_commission_amount' => 8]);
+        syncAgentLedger($invoice);
 
         $this->get(route('agent-payments.index'))
             ->assertInertia(fn ($page) => $page
@@ -245,12 +250,13 @@ describe('Agent Payments', function () {
             'total_rebate' => 8,
         ]);
 
-        expect($invoice->invoiceAgents()->first()->agent_payment_id)->not->toBeNull();
+        expect($invoice->hasPaidAgentCommission())->toBeTrue();
     });
 
     it('excludes the line commission of a due invoice from the outstanding balance', function () {
         $due = rebateInvoice($this->branch->id, $this->agent->id, 0, ['status' => 'due', 'paid_at' => null]);
         $due->invoiceAgents()->update(['line_commission_amount' => 9]);
+        syncAgentLedger($due);
 
         $this->get(route('agent-payments.index'))
             ->assertInertia(fn ($page) => $page
@@ -389,6 +395,85 @@ describe('Agent Payments', function () {
     it('rejects an unknown sort column', function () {
         $this->get(route('agent-payments.index', ['sort' => 'total_rebate; drop table users']))
             ->assertSessionHasErrors('sort');
+    });
+
+    // تاسك 217 — عمولة المندوب بتاريخ السداد الفعلي، والجزئية بقدر كل دفعة.
+    it('dates the agent commission by the payment that settled the invoice, not its creation', function () {
+        $this->travelTo('2026-10-15 10:00');
+        $invoice = rebateInvoice($this->branch->id, $this->agent->id, 20, ['status' => 'due', 'paid_at' => null]);
+
+        $this->travelTo('2026-11-05 10:00');
+        app(RecordInvoicePaymentAction::class)->handle($invoice, ['amount' => 115], $this->branchAdmin);
+
+        $pay = fn (string $from, string $to) => $this->post(route('agent-payments.store'), [
+            'agent_id' => $this->agent->id, 'period_start' => $from, 'period_end' => $to,
+        ]);
+        $pay('2026-10-01', '2026-10-31')->assertSessionHasErrors('agent_id');
+        $pay('2026-11-01', '2026-11-30')->assertSessionHasNoErrors();
+
+        expect((float) AgentPayment::sole()->total_rebate)->toBe(20.0);
+    });
+
+    it('earns the agent commission payment by payment, each in its own month, and pays it once', function () {
+        $this->travelTo('2026-10-15 10:00');
+        $invoice = rebateInvoice($this->branch->id, $this->agent->id, 20, ['status' => 'due', 'paid_at' => null]);
+        $this->travelTo('2026-10-20 10:00');
+        app(RecordInvoicePaymentAction::class)->handle($invoice, ['amount' => 46], $this->branchAdmin); // 40%
+        $this->travelTo('2026-11-10 10:00');
+        app(RecordInvoicePaymentAction::class)->handle($invoice->refresh(), ['amount' => 69], $this->branchAdmin);
+
+        $pay = fn (string $from, string $to) => $this->post(route('agent-payments.store'), [
+            'agent_id' => $this->agent->id, 'period_start' => $from, 'period_end' => $to,
+        ]);
+        $pay('2026-10-01', '2026-10-31')->assertSessionHasNoErrors();
+        $pay('2026-11-01', '2026-11-30')->assertSessionHasNoErrors();
+        $pay('2026-11-01', '2026-11-30')->assertSessionHasErrors('agent_id');
+
+        expect(AgentPayment::orderBy('id')->pluck('total_rebate')->map(fn ($v) => (float) $v)->all())->toBe([8.0, 12.0])
+            ->and($invoice->refresh()->status->value)->toBe('paid');
+    });
+
+    it('keeps a paid-out agent commission when a later refund lowers what was collected', function () {
+        $this->travelTo('2026-10-20 10:00');
+        $invoice = rebateInvoice($this->branch->id, $this->agent->id, 20, ['status' => 'due', 'paid_at' => null]);
+        app(RecordInvoicePaymentAction::class)->handle($invoice, ['amount' => 46], $this->branchAdmin);
+        $this->post(route('agent-payments.store'), [
+            'agent_id' => $this->agent->id, 'period_start' => '2026-10-01', 'period_end' => '2026-10-31',
+        ])->assertSessionHasNoErrors();
+
+        app(CreateRefundAction::class)->handle([
+            'source_type' => 'service',
+            'invoice_id' => $invoice->id,
+            'amount' => 46,
+            'reason' => 'استرجاع',
+            'payment_method_id' => paymentMethodId($this->branch->id),
+        ], $this->branchAdmin);
+
+        expect((float) $invoice->agentCommissionEntries()->sum('rebate_amount'))->toBe(8.0);
+    });
+
+    it('earns a product-invoice agent rebate on the payment date, in proportion', function () {
+        $this->travelTo('2026-10-15 10:00');
+        $invoice = ProductInvoice::create([
+            'invoice_number' => 'INV-217-1',
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'agent_id' => $this->agent->id,
+            'agent_rebate' => 10,
+            'subtotal' => 100,
+            'vat_pct' => 15,
+            'vat_amount' => 15,
+            'total_amount' => 115,
+            'status' => 'due',
+        ]);
+
+        $this->travelTo('2026-11-05 10:00');
+        app(RecordInvoicePaymentAction::class)->handle($invoice, ['amount' => 57.5], $this->branchAdmin);
+
+        $entry = $invoice->agentCommissionEntries()->sole();
+        expect((float) $entry->rebate_amount)->toBe(5.0)
+            ->and((float) $entry->sales_amount)->toBe(57.5)
+            ->and($entry->earned_at->toDateString())->toBe('2026-11-05');
     });
 
     it('rejects a range that ends before it starts', function () {

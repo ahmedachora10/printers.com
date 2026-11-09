@@ -1,7 +1,9 @@
 <?php
 
+use App\Actions\Agent\SyncAgentCommissionAction;
 use App\Models\InvoiceReturnRequest;
 use App\Models\PaymentMethod;
+use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -149,4 +151,22 @@ function returnServiceInvoice(ServiceInvoice $invoice, array $data = []): TestRe
     }
 
     return $response;
+}
+
+/**
+ * تاسك 217 — فاتورةٌ أنشأها الاختبار مباشرةً (بلا الإجراءات) يُكتب دفتر مندوبها
+ * كما تكتبه الإجراءات، بتاريخ سدادها. وختم «صُرف» القديم الذي يضعه الاختبار على
+ * صفّ المندوب أو الفاتورة ينتقل إلى قيوده — وهو ما يقرؤه الكود الآن.
+ */
+function syncAgentLedger(ProductInvoice|ServiceInvoice $invoice): void
+{
+    app(SyncAgentCommissionAction::class)->handle($invoice, $invoice->paid_at ?? now());
+
+    $stamps = $invoice instanceof ServiceInvoice
+        ? $invoice->invoiceAgents()->whereNotNull('agent_payment_id')->pluck('agent_payment_id', 'agent_id')
+        : collect($invoice->agent_payment_id ? [$invoice->agent_id => $invoice->agent_payment_id] : []);
+
+    foreach ($stamps as $agentId => $paymentId) {
+        $invoice->agentCommissionEntries()->where('agent_id', $agentId)->update(['agent_payment_id' => $paymentId]);
+    }
 }

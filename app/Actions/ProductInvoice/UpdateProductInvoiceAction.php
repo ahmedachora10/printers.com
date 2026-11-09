@@ -2,6 +2,7 @@
 
 namespace App\Actions\ProductInvoice;
 
+use App\Actions\Agent\SyncAgentCommissionAction;
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
 use App\Actions\ServiceInvoice\Concerns\ReversesServiceInvoiceAccruals;
@@ -37,6 +38,7 @@ class UpdateProductInvoiceAction
         private readonly RecordStockMovementAction $recordStockMovement,
         private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
+        private readonly SyncAgentCommissionAction $syncAgentCommission,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -74,6 +76,9 @@ class UpdateProductInvoiceAction
             if ($invoice->status === InvoiceStatusEnum::PAID) {
                 $this->redeemLoyaltyPoints->handle($invoice);
             }
+
+            // تاسك 217: ريبيت المندوب المعدَّل بفرقه وحده، بنسبة المحصَّل.
+            $this->syncAgentCommission->handle($invoice, now());
 
             $this->earnLoyaltyPoints->handle($invoice);
 

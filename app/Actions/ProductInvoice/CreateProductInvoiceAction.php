@@ -3,6 +3,7 @@
 namespace App\Actions\ProductInvoice;
 
 use App\Actions\Agent\ResolveInvoiceAgentAction;
+use App\Actions\Agent\SyncAgentCommissionAction;
 use App\Actions\Loyalty\ApplyLoyaltyDiscountsAction;
 use App\Actions\Loyalty\EarnLoyaltyPointsAction;
 use App\Actions\Loyalty\RedeemLoyaltyPointsAction;
@@ -35,6 +36,7 @@ class CreateProductInvoiceAction
         private readonly RedeemLoyaltyPointsAction $redeemLoyaltyPoints,
         private readonly EarnLoyaltyPointsAction $earnLoyaltyPoints,
         private readonly ResolveAvailablePointsAction $availablePoints,
+        private readonly SyncAgentCommissionAction $syncAgentCommission,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -95,6 +97,8 @@ class CreateProductInvoiceAction
             // سدادها. ثم يأتي الاكتساب، ولا يقع إلا على فاتورة مدفوعة.
             if ($status === InvoiceStatusEnum::PAID) {
                 $this->redeemLoyaltyPoints->handle($invoice);
+                // تاسك 217: مدفوعةٌ عند البيع — نصيب المندوب كاملاً بتاريخها.
+                $this->syncAgentCommission->handle($invoice, $invoice->paid_at);
             }
 
             $this->earnLoyaltyPoints->handle($invoice);

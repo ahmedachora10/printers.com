@@ -59,7 +59,7 @@ class ProductInvoicePolicy
         return ($user->roleName->isSuperAdmin()
                 || ($user->roleName->isBranchAdmin() && $user->branchId === $invoice->branch_id))
             && ! in_array($invoice->status->value, InvoiceStatusEnum::excludedFromRevenue(), true)
-            && $invoice->agent_payment_id === null
+            && ! $invoice->hasPaidAgentCommission()
             && ! $invoice->refunds()->exists();
     }
 

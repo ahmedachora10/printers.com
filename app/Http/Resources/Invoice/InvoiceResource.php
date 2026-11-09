@@ -80,6 +80,8 @@ class InvoiceResource extends JsonResource
 
         // The agents on the invoice: several via the pivot for a service invoice,
         // or the single row-level agent for a product invoice.
+        // تاسك 217: «صُرف» من دفتر المندوب — مندوبٌ دخل شيءٌ من مستحقّه دفعةً.
+        $paidAgentIds = $this->resource->agentCommissionEntries()->whereNotNull('agent_payment_id')->distinct()->pluck('agent_id');
         $agents = $isServiceInvoice
             ? $this->invoiceAgents->map(fn ($a) => [
                 'name' => $a->agent?->name,
@@ -87,7 +89,7 @@ class InvoiceResource extends JsonResource
                 'rebate' => (float) $a->rebate_amount,
                 'lineCommission' => (float) $a->line_commission_amount,
                 'discount' => (float) $a->discount_amount,
-                'isRebatePaid' => $a->agent_payment_id !== null,
+                'isRebatePaid' => $paidAgentIds->contains($a->agent_id),
             ])->values()->all()
             : ($this->agent ? [[
                 'name' => $this->agent->name,
@@ -95,12 +97,10 @@ class InvoiceResource extends JsonResource
                 'rebate' => (float) $this->agent_rebate,
                 'lineCommission' => 0.0,
                 'discount' => (float) $this->agent_discount,
-                'isRebatePaid' => $this->agent_payment_id !== null,
+                'isRebatePaid' => $paidAgentIds->contains($this->agent_id),
             ]] : []);
 
-        $hasSettledAgent = $isServiceInvoice
-            ? $this->invoiceAgents->whereNotNull('agent_payment_id')->isNotEmpty()
-            : $this->agent_payment_id !== null;
+        $hasSettledAgent = $paidAgentIds->isNotEmpty();
 
         $canRecordPayment = $user !== null && $user->can('recordPayment', $this->resource);
 
