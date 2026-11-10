@@ -523,7 +523,7 @@ describe('Incentives', function () {
             return IncentivePlan::latest('id')->firstOrFail();
         };
 
-        it('pays every reached tier in full, each as a percentage of its own threshold (task 214)', function () use ($tieredPlan) {
+        it('pays only the highest reached tier, as a percentage of its own threshold (task 230)', function () use ($tieredPlan) {
             $last = now()->subMonthNoOverflow();
             salesInvoice($this->branch->id, $this->employee->id, 2900, $last->year, $last->month);
 
@@ -533,16 +533,18 @@ describe('Incentives', function () {
             expect((float) $plan->target_amount)->toBe(1000.0)
                 ->and((float) $plan->bonus_value)->toBe(1.0)
                 ->and($plan->reachedTier()['number'])->toBe(2)
-                ->and($plan->bonusAmount())->toBe(50.0)
+                ->and($plan->bonusAmount())->toBe(40.0)
                 ->and($plan->status)->toBe(IncentivePlanStatusEnum::Achieved);
 
-            $this->post(route('incentives.pay', $plan), ['tier' => 2])->assertRedirect();
-            expect($plan->fresh()->status)->toBe(IncentivePlanStatusEnum::Achieved);
+            $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
 
-            $this->post(route('incentives.pay', $plan), ['tier' => 1])->assertRedirect();
-
-            expect(BonusPayment::orderBy('tier_number')->pluck('amount')->map(fn ($a) => (float) $a)->all())->toBe([10.0, 40.0])
+            $payment = BonusPayment::sole();
+            expect((float) $payment->amount)->toBe(40.0)
+                ->and($payment->tier_number)->toBe(2)
                 ->and($plan->fresh()->status)->toBe(IncentivePlanStatusEnum::Paid);
+
+            $this->post(route('incentives.pay', $plan))->assertSessionHasErrors('incentive_plan_id');
+            expect(BonusPayment::count())->toBe(1);
         });
 
         it('misses a tiered plan below its lowest tier once the month is over', function () use ($tieredPlan) {
@@ -568,7 +570,7 @@ describe('Incentives', function () {
                         ->where('plans.data.0.tiers.0.canPay', true)
                         ->where('plans.data.0.tiers.1.canPay', false));
 
-                $this->post(route('incentives.pay', $plan), ['tier' => 1])->assertSessionHasNoErrors();
+                $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
 
                 $payment = BonusPayment::sole();
                 expect((float) $payment->amount)->toBe(60.0)
@@ -583,34 +585,102 @@ describe('Incentives', function () {
                         ->whereNot('plans.data.0.tiers.0.paidAt', null));
             });
 
-            it('refuses the same tier twice and a tier not reached yet', function () use ($clientPlan) {
+            it('refuses a second payout until a higher tier is reached', function () use ($clientPlan) {
                 salesInvoice($this->branch->id, $this->employee->id, 6244, now()->year, now()->month);
                 $plan = $clientPlan();
 
-                $this->post(route('incentives.pay', $plan), ['tier' => 1])->assertSessionHasNoErrors();
-                $this->post(route('incentives.pay', $plan), ['tier' => 1])->assertSessionHasErrors('incentive_plan_id');
-                $this->post(route('incentives.pay', $plan), ['tier' => 2])->assertSessionHasErrors('incentive_plan_id');
+                $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
+                $this->post(route('incentives.pay', $plan))->assertSessionHasErrors('incentive_plan_id');
 
                 expect(BonusPayment::count())->toBe(1);
             });
 
-            it('still pays the first tier after reaching the second, then the second in full', function () use ($clientPlan) {
+            it('pays the difference once a higher tier is reached, never stacking (task 230)', function () use ($clientPlan) {
+                salesInvoice($this->branch->id, $this->employee->id, 6244, now()->year, now()->month);
+                $plan = $clientPlan();
+                $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
+
+                salesInvoice($this->branch->id, $this->employee->id, 4256, now()->year, now()->month);
+                app(RecalculateIncentivePlanAction::class)->handle($plan->fresh());
+
+                $this->get(route('incentives.index'))
+                    ->assertInertia(fn ($page) => $page
+                        ->where('plans.data.0.bonusAmount', 200)
+                        ->where('plans.data.0.payableNow', 140)
+                        ->where('plans.data.0.tiers.0.canPay', false)
+                        ->where('plans.data.0.tiers.1.canPay', true));
+
+                $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
+
+                expect(BonusPayment::orderBy('tier_number')->pluck('amount')->map(fn ($a) => (float) $a)->all())->toBe([60.0, 140.0])
+                    ->and($plan->fresh()->bonusAmount())->toBe(200.0)
+                    ->and($plan->fresh()->status)->toBe(IncentivePlanStatusEnum::Achieved);
+            });
+
+            it('skips an unpaid lower tier once a higher one is reached', function () use ($clientPlan) {
                 salesInvoice($this->branch->id, $this->employee->id, 10500, now()->year, now()->month);
                 $plan = $clientPlan();
 
-                $this->post(route('incentives.pay', $plan), ['tier' => 1])->assertSessionHasNoErrors();
-                $this->post(route('incentives.pay', $plan), ['tier' => 2])->assertSessionHasNoErrors();
+                $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
 
-                expect((float) BonusPayment::sum('amount'))->toBe(260.0)
-                    ->and($plan->fresh()->bonusAmount())->toBe(260.0)
-                    ->and($plan->fresh()->status)->toBe(IncentivePlanStatusEnum::Achieved);
+                $payment = BonusPayment::sole();
+                expect((float) $payment->amount)->toBe(200.0)
+                    ->and($payment->tier_number)->toBe(2);
+            });
+
+            // مثال العميل (8-11.pdf صفحة 4): 100 / 300 / 600 ⇒ بلوغ الثالثة = 600 لا 1,000.
+            $fixedPlan = function (): IncentivePlan {
+                test()->post(route('incentives.store'), [
+                    'user_id' => test()->employee->id,
+                    'period_month' => now()->month,
+                    'period_year' => now()->year,
+                    'bonus_type' => 'fixed',
+                    'tiers' => [['threshold' => 10000, 'value' => 100], ['threshold' => 15000, 'value' => 300], ['threshold' => 20000, 'value' => 600]],
+                ])->assertSessionHasNoErrors();
+
+                return IncentivePlan::latest('id')->firstOrFail();
+            };
+
+            it('totals the highest tier only: 100 paid, then the third tier pays 500 and closes the plan', function () use ($fixedPlan) {
+                salesInvoice($this->branch->id, $this->employee->id, 10500, now()->year, now()->month);
+                $plan = $fixedPlan();
+                $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
+
+                salesInvoice($this->branch->id, $this->employee->id, 10000, now()->year, now()->month);
+                $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
+
+                expect(BonusPayment::orderBy('tier_number')->pluck('amount')->map(fn ($a) => (float) $a)->all())->toBe([100.0, 500.0])
+                    ->and($plan->fresh()->bonusAmount())->toBe(600.0)
+                    ->and($plan->fresh()->status)->toBe(IncentivePlanStatusEnum::Paid);
+            });
+
+            it('does not claw back a plan stacked before task 230, and nets it from the next tier', function () use ($fixedPlan) {
+                salesInvoice($this->branch->id, $this->employee->id, 15072.70, now()->year, now()->month);
+                $plan = $fixedPlan();
+                // صورة العميل: صُرفت الأولى والثانية كاملتين بقاعدة 214 = 400.
+                BonusPayment::factory()->create(['incentive_plan_id' => $plan->id, 'tier_number' => 1, 'amount' => 100]);
+                BonusPayment::factory()->create(['incentive_plan_id' => $plan->id, 'tier_number' => 2, 'amount' => 300]);
+
+                $this->get(route('incentives.index'))
+                    ->assertInertia(fn ($page) => $page
+                        ->where('plans.data.0.bonusAmount', 300)
+                        ->where('plans.data.0.paidAmount', 400)
+                        ->where('plans.data.0.payableNow', 0)
+                        ->where('plans.data.0.tiers.1.canPay', false));
+                $this->post(route('incentives.pay', $plan))->assertSessionHasErrors('incentive_plan_id');
+
+                salesInvoice($this->branch->id, $this->employee->id, 5000, now()->year, now()->month);
+                $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
+
+                expect((float) BonusPayment::where('tier_number', 3)->value('amount'))->toBe(200.0)
+                    ->and((float) BonusPayment::sum('amount'))->toBe(600.0);
             });
 
             it('keeps a paid tier after a return drops below it, alerts, and locks editing', function () use ($clientPlan) {
                 Notification::fake();
                 $invoice = salesInvoice($this->branch->id, $this->employee->id, 6244, now()->year, now()->month);
                 $plan = $clientPlan();
-                $this->post(route('incentives.pay', $plan), ['tier' => 1])->assertSessionHasNoErrors();
+                $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
 
                 refundIncentiveInvoice($invoice, 1000, $this->branchAdmin);
 

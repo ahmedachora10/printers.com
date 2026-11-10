@@ -13,15 +13,15 @@ class PayBonusAction
     public function __construct(private RecalculateIncentivePlanAction $recalculate) {}
 
     /**
-     * تاسك 214: يصرف شريحةً بعينها متى بلغها المحقَّق — قبل نهاية الشهر وبعد
-     * الانتقال إلى أعلى منها — بمكافأتها كاملةً. والخطة تُجمَّد (Paid) حين لا
-     * يبقى ما يُصرف.
+     * تاسك 230: يصرف **أعلى شريحة مبلوغة** متى بلغها المحقَّق (قبل نهاية الشهر
+     * أيضاً، تاسك 214) بالفرق بين مكافأتها وما صُرف للخطة. الشرائح الأدنى غير
+     * المصروفة مشمولةٌ بها. والخطة تُجمَّد (Paid) حين لا يبقى ما يُصرف.
      *
      * @param  array<string, mixed>  $data
      */
-    public function handle(IncentivePlan $plan, int $tierNumber, array $data): BonusPayment
+    public function handle(IncentivePlan $plan, array $data): BonusPayment
     {
-        return DB::transaction(function () use ($plan, $tierNumber, $data) {
+        return DB::transaction(function () use ($plan, $data) {
             $plan = IncentivePlan::query()->lockForUpdate()->findOrFail($plan->id);
 
             if ($plan->status === IncentivePlanStatusEnum::Paid) {
@@ -33,14 +33,15 @@ class PayBonusAction
             // Settle on the latest sales figures before paying out.
             $this->recalculate->handle($plan);
 
-            $tier = $plan->reachedTiers()[$tierNumber] ?? null;
+            $tier = $plan->reachedTier();
             if ($tier === null) {
                 throw ValidationException::withMessages([
-                    'incentive_plan_id' => $plan->isMultiTier() ? 'لم تُبلغ هذه الشريحة بعد.' : 'لم يتم تحقيق هدف هذه الخطة بعد.',
+                    'incentive_plan_id' => 'لم يتم تحقيق هدف هذه الخطة بعد.',
                 ]);
             }
 
-            if (in_array($tierNumber, $plan->paidTierNumbers(), true)) {
+            $amount = $plan->payableNow();
+            if (in_array($tier['number'], $plan->paidTierNumbers(), true) || $amount <= 0) {
                 throw ValidationException::withMessages([
                     'incentive_plan_id' => 'تم صرف مكافأة هذه الشريحة مسبقاً.',
                 ]);
@@ -48,9 +49,9 @@ class PayBonusAction
 
             $payment = BonusPayment::create([
                 'incentive_plan_id' => $plan->id,
-                'tier_number' => $tierNumber,
+                'tier_number' => $tier['number'],
                 'paid_by' => auth()->id(),
-                'amount' => $plan->tierBonus($tier),
+                'amount' => $amount,
                 'paid_at' => now(),
                 'notes' => $data['notes'] ?? null,
             ]);

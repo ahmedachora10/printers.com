@@ -142,8 +142,8 @@ class IncentivePlan extends Model
     }
 
     /**
-     * تاسك 214: كل شريحة بلغها المحقَّق **الآن** مفتاحُها رقمها من 1 — تُصرف كلٌّ
-     * منها مستقلّةً. مرتجعٌ أنزل المحقَّق تحت عتبةٍ يُسقطها ما لم تُصرف.
+     * تاسك 214: كل شريحة بلغها المحقَّق **الآن** مفتاحُها رقمها من 1. مرتجعٌ
+     * أنزل المحقَّق تحت عتبةٍ يُسقطها.
      *
      * @return array<int, array{threshold: string, value: string}>
      */
@@ -161,15 +161,30 @@ class IncentivePlan extends Model
         return $this->bonusPayments->pluck('tier_number')->all();
     }
 
+    public function paidTotal(): float
+    {
+        return round((float) $this->bonusPayments->sum('amount'), 2);
+    }
+
     /**
-     * لا شيء بعدُ يُصرف: صُرفت كل الشرائح، أو انتهى الشهر وصُرفت كل ما بُلغ.
+     * تاسك 230: ما يُصرف الآن = مكافأة أعلى شريحة مبلوغة − ما صُرف للخطة.
+     * صُرفت 100 ثم بلغ الثالثة (600) ⇒ 500. وما صُرف زائداً قبل التاسك
+     * (التجميع في 214) يُحتسب ممّا صُرف ولا يُستردّ.
+     */
+    public function payableNow(): float
+    {
+        return $this->isTargetMet() ? max(0.0, round($this->bonusAmount() - $this->paidTotal(), 2)) : 0.0;
+    }
+
+    /**
+     * لا شيء بعدُ يُصرف: صُرف ما تستحقّه الشريحة الأخيرة، أو انتهى الشهر
+     * وصُرف ما يستحقّه المبلوغ.
      */
     public function isFullyPaid(): bool
     {
-        $paid = $this->paidTierNumbers();
-        $due = $this->periodEnded() ? array_keys($this->reachedTiers()) : range(1, count($this->tiers));
+        $final = $this->periodEnded() || ($this->reachedTier()['number'] ?? 0) === count($this->tiers);
 
-        return $paid !== [] && array_diff($due, $paid) === [];
+        return $this->paidTierNumbers() !== [] && $final && $this->payableNow() == 0;
     }
 
     /** عتبة أعلى شريحة مصروفة — نزول المحقَّق تحتها عجزٌ يُنبَّه إليه. */
@@ -202,16 +217,12 @@ class IncentivePlan extends Model
     }
 
     /**
-     * المكافأة المستحقة الآن. تاسك 214: كل شريحة مبلوغة تُصرف مكافأتها كاملةً،
-     * فالمستحق مجموعها (6,000 ⇒ 60 و10,000 ⇒ 200 = 260). وقبل بلوغ أدناها تُعرض
+     * المكافأة المستحقة الآن. تاسك 230: مكافأة **أعلى شريحة مبلوغة وحدها** — لا
+     * تجميع (100/300/600 ⇒ 600 لا 1,000؛ يعكس تاسك 214). وقبل بلوغ أدناها تُعرض
      * مكافأة الأدنى — ما سيناله عند بلوغها.
      */
     public function bonusAmount(): float
     {
-        $reached = $this->reachedTiers();
-
-        return $reached === []
-            ? $this->tierBonus($this->tiers[0])
-            : round(array_sum(array_map(fn (array $tier) => $this->tierBonus($tier), $reached)), 2);
+        return $this->tierBonus($this->reachedTier() ?? $this->tiers[0]);
     }
 }

@@ -17,7 +17,7 @@ export interface IncentiveTier {
     reached: boolean;
     paidAt: string | null;
     paidBy: string | null;
-    /** مبلوغة ولم تُصرف — زرّ «صرف» مستقل لها. */
+    /** تاسك 230: أعلى شريحة مبلوغة ولم تُصرف — الزرّ الوحيد. */
     canPay: boolean;
 }
 
@@ -37,6 +37,8 @@ export interface IncentivePlan {
     achievedAmount: number;
     progressPct: number;
     bonusAmount: number;
+    /** تاسك 230: مكافأة أعلى شريحة مبلوغة − ما صُرف للخطة. */
+    payableNow: number;
     status: string;
     statusLabel: string;
     isTargetMet: boolean;
