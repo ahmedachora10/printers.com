@@ -48,7 +48,6 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
         price_per_sqm: branchService?.pricePerSqm ?? 0,
         agent_commission_per_sqm: branchService?.agentCommissionPerSqm ?? 0,
         note_examples: branchService?.noteExamples ?? [],
-        is_tahazir: branchService?.isTahazir ?? false,
         has_materials: branchService?.hasMaterials ?? false,
         materials_cost: branchService?.materialsCost ?? 0,
         is_active: branchService?.isActive ?? true,
@@ -67,7 +66,6 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                 price_per_sqm: branchService.pricePerSqm ?? 0,
                 agent_commission_per_sqm: branchService.agentCommissionPerSqm ?? 0,
                 note_examples: branchService.noteExamples ?? [],
-                is_tahazir: branchService.isTahazir ?? false,
                 has_materials: branchService.hasMaterials ?? false,
                 materials_cost: branchService.materialsCost ?? 0,
                 is_active: branchService.isActive ?? true,
@@ -386,15 +384,8 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                     {/* Ready-made detail phrases — become the POS placeholder */}
                     <NoteExamplesField value={data.note_examples} onChange={(next) => setData('note_examples', next)} error={errors.note_examples} />
 
-                    {/* Tahazir + Materials + Active switches */}
+                    {/* Materials + Active switches */}
                     <div className="flex flex-col gap-3 pt-1">
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="bs-tahazir" className="cursor-pointer">
-                                خدمة تحضير
-                            </Label>
-                            <Switch id="bs-tahazir" checked={data.is_tahazir} onCheckedChange={(checked) => setData('is_tahazir', checked)} />
-                        </div>
-
                         {/* الخامات: التكلفة الافتراضية تُعبّئ خانة السطر في نقطة البيع
                             وتبقى قابلة للتعديل هناك. تُخصم من عمولة الموظف وحدها. */}
                         <div className="flex items-center justify-between">

@@ -86,7 +86,6 @@ describe('Service template duplication', function () {
             ->and((float) $copied->price_per_sqm)->toBe(45.75)
             ->and((float) $copied->agent_commission_per_sqm)->toBe(3.5)
             ->and($copied->note_examples)->toBe(['وجهان', 'مع حقيبة'])
-            ->and($copied->is_tahazir)->toBeTrue()
             ->and($copied->has_materials)->toBeTrue()
             ->and((float) $copied->materials_cost)->toBe(20.5)
             ->and($copied->is_active)->toBeTrue();

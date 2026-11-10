@@ -20,7 +20,7 @@ class CommissionReportExport implements FromCollection, ShouldAutoSize, WithHead
     /** @return array<int, string> */
     public function headings(): array
     {
-        return ['الموظف', 'رقم الفاتورة', 'الخدمة', 'النوع', 'الشريحة', 'المصدر', 'إجمالي الفاتورة', 'المحصّل', 'عمولة الموظف', 'عمولات خارجية', 'تكلفة الخامات', 'الحالة', 'تاريخ الاستحقاق', 'تاريخ الصرف'];
+        return ['الموظف', 'رقم الفاتورة', 'الخدمة', 'الشريحة', 'المصدر', 'إجمالي الفاتورة', 'المحصّل', 'عمولة الموظف', 'عمولات خارجية', 'تكلفة الخامات', 'الحالة', 'تاريخ الاستحقاق', 'تاريخ الصرف'];
     }
 
     /** @return Collection<int, mixed> */
@@ -30,7 +30,6 @@ class CommissionReportExport implements FromCollection, ShouldAutoSize, WithHead
             $line['userName'],
             $line['invoiceNumber'],
             $line['serviceName'],
-            $line['isTahazir'] ? 'تحضير' : 'عادي',
             $line['tierApplied'] !== null ? (string) $line['tierApplied'] : '—',
             $line['sourceLabel'],
             number_format((float) $line['invoiceTotal'], 2),

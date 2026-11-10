@@ -38,7 +38,6 @@ export interface BranchService {
     agentCommissionPerSqm: number;
     /** ready-made detail phrases shown as the POS placeholder for this service */
     noteExamples: string[];
-    isTahazir: boolean;
     /** هل للخدمة خامات، وتكلفتها الافتراضية للوحدة الواحدة */
     hasMaterials: boolean;
     materialsCost: number;
@@ -62,7 +61,6 @@ export interface BranchServiceFormData {
     price_per_sqm: number;
     agent_commission_per_sqm: number;
     note_examples: string[];
-    is_tahazir: boolean;
     has_materials: boolean;
     materials_cost: number;
     is_active: boolean;
@@ -78,7 +76,6 @@ export interface BranchServiceUpdateData {
     price_per_sqm: number;
     agent_commission_per_sqm: number;
     note_examples: string[];
-    is_tahazir: boolean;
     has_materials: boolean;
     materials_cost: number;
     is_active: boolean;

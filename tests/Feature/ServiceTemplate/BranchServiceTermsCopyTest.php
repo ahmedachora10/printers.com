@@ -60,7 +60,6 @@ describe('Copying branch-service terms', function () {
                 ->where('templates.data.0.branches.0.pricePerSqm', 215)
                 ->where('templates.data.0.branches.0.agentCommissionPerSqm', 7)
                 ->where('templates.data.0.branches.0.noteExamples', ['لامع', 'مطفي'])
-                ->where('templates.data.0.branches.0.isTahazir', true)
                 ->where('templates.data.0.branches.0.hasMaterials', true)
                 ->where('templates.data.0.branches.0.materialsCost', 45));
     });

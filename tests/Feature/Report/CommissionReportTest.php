@@ -115,7 +115,7 @@ describe('Employee Commission Report', function () {
 
     // ── AGGREGATION ────────────────────────────────────────────────
 
-    it('aggregates earned, paid, pending and tahazir per employee', function () {
+    it('aggregates earned, paid and pending per employee, tahazir rows included', function () {
         ledgerLine($this->employee, $this->branch, ['amount' => 100, 'is_tahazir' => false, 'paid_at' => now()]);
         ledgerLine($this->employee, $this->branch, ['amount' => 40, 'is_tahazir' => true, 'paid_at' => null]);
 
@@ -125,7 +125,7 @@ describe('Employee Commission Report', function () {
                 ->where('totals.earned', 140)
                 ->where('totals.paid', 100)
                 ->where('totals.pending', 40)
-                ->where('totals.tahazir', 40)
+                ->missing('totals.tahazir')
                 ->where('summary.0.pending', 40)
                 ->where('summary.0.lineCount', 2));
     });

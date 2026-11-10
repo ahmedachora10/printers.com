@@ -44,7 +44,6 @@ class DuplicateServiceTemplateAction
                     'price_per_sqm' => $source->price_per_sqm,
                     'agent_commission_per_sqm' => $source->agent_commission_per_sqm,
                     'note_examples' => $source->note_examples ?? [],
-                    'is_tahazir' => $source->is_tahazir,
                     'has_materials' => $source->has_materials,
                     'materials_cost' => $source->materials_cost,
                     'is_active' => $source->is_active,

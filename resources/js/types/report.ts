@@ -9,7 +9,6 @@ export interface CommissionReportSummaryRow {
     earned: number;
     paid: number;
     pending: number;
-    tahazir: number;
     /** Agent (مندوب) line-commissions on the approved invoices this employee raised. */
     lineCommission: number;
     /** تكلفة الخامات المخصومة من أساس العمولة على تلك الفواتير — داخلية. */
@@ -23,7 +22,6 @@ export interface CommissionReportDayRow {
     earned: number;
     paid: number;
     pending: number;
-    tahazir: number;
     lineCommission: number;
     materials: number;
     /** تاسك 133: فواتير معتمدة في يوم أول دفعة — شاملة الضريبة، ناقصاً مرتجعات اليوم. */
@@ -53,7 +51,6 @@ export interface CommissionReportLine {
     lineCommission: number;
     /** تكلفة خامات هذا السطر — خُصمت أصلاً من `amount`، تُعرض للتوضيح. */
     materials: number;
-    isTahazir: boolean;
     tierApplied: number | null;
     sourceType: string;
     sourceLabel: string;
@@ -65,7 +62,6 @@ export interface CommissionReportTotals {
     earned: number;
     paid: number;
     pending: number;
-    tahazir: number;
     lineCommission: number;
     materials: number;
     lineCount: number;

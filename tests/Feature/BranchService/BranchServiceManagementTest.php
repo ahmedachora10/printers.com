@@ -195,10 +195,11 @@ describe('BranchService Management', function () {
             'is_active'           => true,
         ])->assertRedirect(route('branch-services.index'));
 
+        // تاسك 227: «التحاضير» لم تعد تُعدَّل — إرسالها لا يغيّر المحفوظ.
         $this->assertDatabaseHas('branch_services', [
             'id'                  => $branchService->id,
             'base_commission_pct' => 15.00,
-            'is_tahazir'          => true,
+            'is_tahazir'          => false,
         ]);
     });
 

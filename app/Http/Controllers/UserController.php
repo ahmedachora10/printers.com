@@ -221,7 +221,7 @@ class UserController extends Controller
     /**
      * Aggregate the append-only commission ledger for a user.
      *
-     * @return array{totalEarned: float, totalPaid: float, pending: float, tahazirEarned: float, standardEarned: float}
+     * @return array{totalEarned: float, totalPaid: float, pending: float}
      */
     private function commissionSummary(User $user): array
     {
@@ -229,9 +229,7 @@ class UserController extends Controller
             ->where('user_id', $user->id)
             ->selectRaw(
                 'COALESCE(SUM(amount), 0) as total_earned,
-                COALESCE(SUM(CASE WHEN paid_at IS NOT NULL THEN amount ELSE 0 END), 0) as total_paid,
-                COALESCE(SUM(CASE WHEN is_tahazir = 1 THEN amount ELSE 0 END), 0) as tahazir_earned,
-                COALESCE(SUM(CASE WHEN is_tahazir = 0 THEN amount ELSE 0 END), 0) as standard_earned'
+                COALESCE(SUM(CASE WHEN paid_at IS NOT NULL THEN amount ELSE 0 END), 0) as total_paid'
             )
             ->first();
 
@@ -242,8 +240,6 @@ class UserController extends Controller
             'totalEarned' => $totalEarned,
             'totalPaid' => $totalPaid,
             'pending' => max(0, $totalEarned - $totalPaid),
-            'tahazirEarned' => (float) ($row->tahazir_earned ?? 0),
-            'standardEarned' => (float) ($row->standard_earned ?? 0),
         ];
     }
 
@@ -324,7 +320,7 @@ class UserController extends Controller
             ->where('user_id', $user->id)
             ->orderByDesc('earned_at')
             ->limit(10)
-            ->get(['id', 'amount', 'is_tahazir', 'source_type', 'earned_at', 'paid_at'])
+            ->get(['id', 'amount', 'source_type', 'earned_at', 'paid_at'])
             ->toArray();
     }
 

@@ -45,8 +45,6 @@ class BranchServicesSheetImport implements ToCollection, WithHeadingRow
 
     public const AGENT_PER_SQM = ['عمولة الوكيل للمتر', 'agent_commission_per_sqm'];
 
-    public const TAHAZIR = ['تحضير', 'is_tahazir'];
-
     public const HAS_MATERIALS = ['لها خامات', 'has_materials'];
 
     public const MATERIALS_COST = ['تكلفة الخامات', 'materials_cost'];
@@ -189,7 +187,6 @@ class BranchServicesSheetImport implements ToCollection, WithHeadingRow
             'agent_commission_per_sqm' => $this->effective($numbers['agent_commission_per_sqm'], $service?->agent_commission_per_sqm),
             'materials_cost' => $this->effective($numbers['materials_cost'], $service?->materials_cost),
             'note_examples' => $notes ?? $service?->note_examples ?? [],
-            'is_tahazir' => $this->bool($row, self::TAHAZIR, (bool) $service?->is_tahazir),
             'has_materials' => $this->bool($row, self::HAS_MATERIALS, (bool) $service?->has_materials),
             'is_active' => $this->bool($row, self::ACTIVE, $service === null ? true : (bool) $service->is_active),
         ];

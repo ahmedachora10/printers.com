@@ -397,7 +397,6 @@ describe('User Management', function () {
                 ->where('commissionSummary.totalEarned', 140)
                 ->where('commissionSummary.totalPaid', 100)
                 ->where('commissionSummary.pending', 40)
-                ->where('commissionSummary.tahazirEarned', 40)
-                ->where('commissionSummary.standardEarned', 100));
+                ->missing('commissionSummary.tahazirEarned'));
     });
 });

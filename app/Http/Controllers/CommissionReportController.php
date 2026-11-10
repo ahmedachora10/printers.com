@@ -53,7 +53,6 @@ class CommissionReportController extends Controller
                 'earned' => (float) $summary->sum('earned'),
                 'paid' => (float) $summary->sum('paid'),
                 'pending' => (float) $summary->sum('pending'),
-                'tahazir' => (float) $summary->sum('tahazir'),
                 'lineCommission' => (float) $summary->sum('lineCommission'),
                 'materials' => (float) $summary->sum('materials'),
                 'lineCount' => $lines->count(),
@@ -215,7 +214,6 @@ class CommissionReportController extends Controller
                 'earned' => 0.0,
                 'paid' => 0.0,
                 'pending' => 0.0,
-                'tahazir' => 0.0,
                 ...$invoiceSide($row['userId']),
             ]);
 
@@ -240,7 +238,6 @@ class CommissionReportController extends Controller
                 DB::raw('COUNT(*) as line_count'),
                 DB::raw('COALESCE(SUM(commission_ledger.amount), 0) as earned'),
                 DB::raw('COALESCE(SUM(CASE WHEN commission_ledger.paid_at IS NOT NULL THEN commission_ledger.amount ELSE 0 END), 0) as paid'),
-                DB::raw('COALESCE(SUM(CASE WHEN commission_ledger.is_tahazir = 1 THEN commission_ledger.amount ELSE 0 END), 0) as tahazir'),
             ])
             ->map(function ($row) {
                 $earned = (float) $row->earned;
@@ -253,7 +250,6 @@ class CommissionReportController extends Controller
                     'earned' => $earned,
                     'paid' => $paid,
                     'pending' => max(0, $earned - $paid),
-                    'tahazir' => (float) $row->tahazir,
                 ];
             })
             ->values();
@@ -282,7 +278,6 @@ class CommissionReportController extends Controller
                 'earned' => 0.0,
                 'paid' => 0.0,
                 'pending' => 0.0,
-                'tahazir' => 0.0,
             ];
         }
 
@@ -293,7 +288,6 @@ class CommissionReportController extends Controller
                 DB::raw('COUNT(*) as line_count'),
                 DB::raw('COALESCE(SUM(commission_ledger.amount), 0) as earned'),
                 DB::raw('COALESCE(SUM(CASE WHEN commission_ledger.paid_at IS NOT NULL THEN commission_ledger.amount ELSE 0 END), 0) as paid'),
-                DB::raw('COALESCE(SUM(CASE WHEN commission_ledger.is_tahazir = 1 THEN commission_ledger.amount ELSE 0 END), 0) as tahazir'),
             ]);
 
         foreach ($rows as $row) {
@@ -307,7 +301,6 @@ class CommissionReportController extends Controller
                 'earned' => $earned,
                 'paid' => $paid,
                 'pending' => max(0, $earned - $paid),
-                'tahazir' => (float) $row->tahazir,
             ];
         }
 
@@ -376,7 +369,6 @@ class CommissionReportController extends Controller
                 DB::raw('COALESCE(service_invoice_lines.materials_total, 0) as materials_total'),
                 'commission_ledger.invoice_line_type as invoice_line_type',
                 'commission_ledger.amount as amount',
-                'commission_ledger.is_tahazir as is_tahazir',
                 'commission_ledger.tier_applied as tier_applied',
                 'commission_ledger.source_type as source_type',
                 'commission_ledger.earned_at as earned_at',
@@ -408,7 +400,6 @@ class CommissionReportController extends Controller
                 // وتُعرض للتوضيح فقط.
                 'materials' => (float) $row->materials_total,
                 'amount' => (float) $row->amount,
-                'isTahazir' => (bool) $row->is_tahazir,
                 'tierApplied' => $row->tier_applied !== null ? (int) $row->tier_applied : null,
                 'sourceType' => $row->source_type,
                 'sourceLabel' => $row->invoice_line_type === ServiceInvoiceHelper::class

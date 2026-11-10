@@ -102,11 +102,6 @@ const detailColumns: ColumnDef<CommissionReportLine>[] = [
         cell: (line) => (
             <>
                 {line.serviceName}
-                {line.isTahazir && (
-                    <Badge variant="secondary" className="ms-2">
-                        تحضير
-                    </Badge>
-                )}
             </>
         ),
     },
