@@ -27,3 +27,7 @@ resources/js/actions
 resources/js/routes
 
 # docs/
+
+graphify-out/
+
+docs/
