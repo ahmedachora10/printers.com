@@ -174,9 +174,9 @@ describe('Product POS', function () {
         $this->assertDatabaseHas('customers', [
             'full_name' => 'زائر الناسخ',
             'phone' => '0500000001',
-            'branch_id' => $this->branch->id,
             'customer_type' => 'individual',
         ]);
+        $this->assertDatabaseHas('customer_branch', ['branch_id' => $this->branch->id]);
 
         $invoice = ProductInvoice::firstOrFail();
         expect($invoice->customer_id)->not->toBeNull();

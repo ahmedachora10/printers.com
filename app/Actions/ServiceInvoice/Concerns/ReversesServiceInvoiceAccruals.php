@@ -6,7 +6,7 @@ use App\Actions\Coupon\ReleaseCouponCapacity;
 use App\Enums\CommissionSourceTypeEnum;
 use App\Enums\LoyaltyTransactionTypeEnum;
 use App\Models\CommissionLedger;
-use App\Models\Customer;
+use App\Models\CustomerBranch;
 use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
 use App\Models\ProductInvoice;
@@ -71,27 +71,20 @@ trait ReversesServiceInvoiceAccruals
             return;
         }
 
-        /** @var Customer|null $customer */
-        $customer = Customer::query()
-            ->whereKey($invoice->customer_id)
-            ->lockForUpdate()
-            ->first();
+        $account = CustomerBranch::lockFor($invoice->customer_id, (int) $invoice->branch_id);
 
-        if (! $customer) {
+        if (! $account) {
             return;
         }
 
-        $newBalance = $customer->points_balance + $points;
-        $customer->update(['points_balance' => $newBalance]);
+        $account->update(['points_balance' => $account->points_balance + $points]);
         $invoice->forceFill(['points_redeemed_at' => null])->save();
 
-        LoyaltyTransaction::create([
-            'customer_id' => $customer->id,
+        $account->record([
             'invoice_id' => $invoice->id,
             'invoice_type' => $invoice->getMorphClass(),
             'type' => LoyaltyTransactionTypeEnum::ManualAdjust,
             'points' => $points,
-            'balance_after' => $newBalance,
             'notes' => "استرجاع نقاط بعد إلغاء/استرجاع الفاتورة {$invoice->invoice_number}",
         ]);
     }
@@ -123,36 +116,29 @@ trait ReversesServiceInvoiceAccruals
             return;
         }
 
-        /** @var Customer|null $customer */
-        $customer = Customer::query()
-            ->whereKey($invoice->customer_id)
-            ->lockForUpdate()
-            ->first();
+        $account = CustomerBranch::lockFor($invoice->customer_id, (int) $invoice->branch_id);
 
-        if (! $customer) {
+        if (! $account) {
             return;
         }
 
-        $removed = min($earned, $customer->points_balance);
-        $newBalance = $customer->points_balance - $removed;
+        $removed = min($earned, $account->points_balance);
         // يُطرح بالمقياس نفسه الذي أُضيف به (تاسك 93): صافياً من رسم التوصيل،
         // وإلا سحب الإرجاعُ من إنفاق العميل مالاً لم يُضَف إليه قطّ.
-        $newSpend = max(0, (float) $customer->cumulative_spend
+        $newSpend = max(0, (float) $account->cumulative_spend
             - round((float) $invoice->total_amount - $invoice->shippingFee(), 2));
 
-        $customer->update([
-            'points_balance' => $newBalance,
+        $account->update([
+            'points_balance' => $account->points_balance - $removed,
             'cumulative_spend' => $newSpend,
-            'tier' => LoyaltyConfig::forBranch($customer->branch_id)->tierForSpend($newSpend),
+            'tier' => LoyaltyConfig::forBranch($account->branch_id)->tierForSpend($newSpend),
         ]);
 
-        LoyaltyTransaction::create([
-            'customer_id' => $customer->id,
+        $account->record([
             'invoice_id' => $invoice->id,
             'invoice_type' => $invoice->getMorphClass(),
             'type' => LoyaltyTransactionTypeEnum::ManualAdjust,
             'points' => -$removed,
-            'balance_after' => $newBalance,
             'notes' => "سحب نقاط مكتسبة بعد استرجاع الفاتورة {$invoice->invoice_number}",
         ]);
     }

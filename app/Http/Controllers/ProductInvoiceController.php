@@ -110,9 +110,10 @@ class ProductInvoiceController extends Controller
             // حجز الفاتورة نفسها لا يُطرح من رصيد عميلها، وما خُصم عليها فعلاً
             // يُضاف إليه: التعديل يردّه قبل أن يعيد الخصم.
             'customer' => $invoice->customer?->toPosArray(
+                (int) $invoice->branch_id,
                 $loyalty,
                 (bool) $loyalty->is_active,
-                $availablePoints->reserved((int) $invoice->customer_id, $invoice)
+                $availablePoints->reserved((int) $invoice->customer_id, (int) $invoice->branch_id, $invoice)
                     - ($invoice->points_redeemed_at !== null ? (int) $invoice->points_redeemed : 0),
             ),
             'agentId' => $invoice->agent_id,

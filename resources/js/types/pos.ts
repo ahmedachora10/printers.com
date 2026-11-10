@@ -98,6 +98,8 @@ export interface ServiceCartLine {
 
 export interface PosCustomer {
     id: number;
+    /** من عملاء فرع نقطة البيع؟ false: وُجد بجواله في فرعٍ آخر، فيُملأ عابراً ويُربط عند الحفظ */
+    linked: boolean;
     fullName: string;
     phone: string;
     taxNumber: string | null;

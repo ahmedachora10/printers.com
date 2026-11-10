@@ -120,8 +120,8 @@ describe('Customer Management', function () {
         $this->assertDatabaseHas('customers', [
             'full_name' => 'أحمد محمد',
             'phone' => '0512345678',
-            'branch_id' => $this->branch->id,
         ]);
+        expect(account(Customer::where('phone', '0512345678')->sole(), $this->branch->id))->not->toBeNull();
     });
 
     it('creates a corporate customer with company_name', function () {
@@ -148,10 +148,7 @@ describe('Customer Management', function () {
             'is_active' => true,
         ])->assertRedirect(route('customers.index'));
 
-        $this->assertDatabaseHas('customers', [
-            'phone' => '0534567890',
-            'credit_limit' => '5000.00',
-        ]);
+        expect(account(Customer::where('phone', '0534567890')->sole())->credit_limit)->toBe('5000.00');
     });
 
     it('fails to create customer without required fields', function () {
@@ -251,15 +248,26 @@ describe('Customer Management', function () {
         $this->patch(route('customers.toggle-status', $customer))
             ->assertRedirect(route('customers.index'));
 
-        $this->assertDatabaseHas('customers', ['id' => $customer->id, 'is_active' => false]);
+        expect(account($customer)->is_active)->toBeFalse();
     });
 
     // ── DELETE ─────────────────────────────────────────────────────
 
-    it('soft-deletes a customer with no invoices', function () {
+    it('unlinks a customer with no invoices from the branch admin branch only', function () {
         $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
+        $customer->attachTo(Branch::factory()->create()->id);
 
         $this->delete(route('customers.destroy', $customer))
+            ->assertRedirect(route('customers.index'));
+
+        expect($customer->accounts()->pluck('branch_id')->all())->not->toContain($this->branch->id)
+            ->and($customer->fresh()->trashed())->toBeFalse();
+    });
+
+    it('lets the super admin delete a customer with no invoices from every branch', function () {
+        $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
+
+        $this->actingAs(makeSuperAdmin())->delete(route('customers.destroy', $customer))
             ->assertRedirect(route('customers.index'));
 
         $this->assertSoftDeleted('customers', ['id' => $customer->id]);
@@ -299,7 +307,7 @@ describe('Customer Management', function () {
         ])->assertRedirect(route('customers.show', $primary));
 
         $primary->refresh();
-        expect($primary->points_balance)->toBe(150);
+        expect(account($primary)->points_balance)->toBe(150);
         $this->assertSoftDeleted('customers', ['id' => $secondary->id]);
     });
 
@@ -438,14 +446,14 @@ describe('Customer Management', function () {
     it('creates bronze tier customer via factory', function () {
         $customer = Customer::factory()->bronze()->create(['branch_id' => $this->branch->id]);
 
-        expect($customer->tier)->toBe(CustomerTierEnum::Bronze);
-        expect((float) $customer->cumulative_spend)->toBeGreaterThanOrEqual(500);
+        expect(account($customer)->tier)->toBe(CustomerTierEnum::Bronze);
+        expect((float) account($customer)->cumulative_spend)->toBeGreaterThanOrEqual(500);
     });
 
     it('creates gold tier customer via factory', function () {
         $customer = Customer::factory()->gold()->create(['branch_id' => $this->branch->id]);
 
-        expect($customer->tier)->toBe(CustomerTierEnum::Gold);
+        expect(account($customer)->tier)->toBe(CustomerTierEnum::Gold);
     });
 
     it('creates corporate customer via factory', function () {

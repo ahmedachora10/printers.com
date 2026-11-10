@@ -27,32 +27,33 @@ class SearchPosCustomersAction
 
         $term = trim($term);
 
+        // تاسك 93: دفتر العناوين يسافر مع البطاقة — تحميلٌ واحد لكل القائمة
+        // لا استعلامٌ لكل عميل، فاختيار العنوان في نقطة البيع بلا رحلة ثانية.
+        $with = ['addresses', 'accounts' => fn ($q) => $q->where('branch_id', $branchId)];
+
         $customers = Customer::query()
-            ->where('branch_id', $branchId)
-            ->where('is_active', true)
+            ->whereHas('accounts', fn ($q) => $q->where('branch_id', $branchId)->where('is_active', true))
             ->when($term !== '', fn ($q) => $q->matching($term))
             ->orderBy('full_name')
             ->limit($limit)
-            // تاسك 93: دفتر العناوين يسافر مع البطاقة — تحميلٌ واحد لكل القائمة
-            // لا استعلامٌ لكل عميل، فاختيار العنوان في نقطة البيع بلا رحلة ثانية.
-            ->with('addresses')
-            ->get(['id', 'full_name', 'phone', 'tax_number', 'agent_id', 'customer_type', 'points_balance', 'tier']);
+            ->with($with)
+            ->get(['id', 'full_name', 'phone', 'tax_number', 'customer_type']);
 
-        // جوالٌ كامل لعميلٍ في فرعٍ آخر فقط: يُربط بهذا الفرع بصمت ويُعاد.
+        // جوالٌ كامل لعميلٍ ليس من عملاء الفرع بعدُ: تُعرض هويته (linked=false)
+        // فتملأ حقول العميل العابر، ويربطه حفظ الفاتورة — لا يُربط بمجرّد البحث.
         $phone = Customer::phoneFromTerm($term);
-        $branches = $customers->isEmpty() && $branchId && $phone !== null
-            ? Customer::query()->where('phone', $phone)->pluck('branch_id')
-            : collect();
 
-        if ($branches->isNotEmpty() && ! $branches->contains($branchId)) {
-            $customers = collect([Customer::resolveWalkIn($branchId, '', $phone)->fresh('addresses')]);
+        if ($customers->isEmpty() && $branchId && $phone !== null) {
+            $customers = Customer::query()->where('phone', $phone)
+                ->whereDoesntHave('accounts', fn ($q) => $q->where('branch_id', $branchId))
+                ->with($with)->get();
         }
 
         // النقاط المحجوزة لكل عملاء القائمة باستعلامين، لا باستعلامين لكل عميل.
-        $reserved = $this->availablePoints->reservedFor($customers->pluck('id')->all());
+        $reserved = $branchId ? $this->availablePoints->reservedFor($customers->pluck('id')->all(), $branchId) : [];
 
         return $customers->map(
-            fn (Customer $customer) => $customer->toPosArray($loyalty, $loyaltyActive, $reserved[$customer->id] ?? 0),
+            fn (Customer $customer) => $customer->toPosArray($branchId, $loyalty, $loyaltyActive, $reserved[$customer->id] ?? 0),
         );
     }
 }

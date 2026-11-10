@@ -85,8 +85,8 @@ describe('Loyalty earning', function () {
 
         // النقاط من الصافي: 26.09 × 0.5 = 13.045 → FLOOR = 13.
         // والإنفاق التراكمي من الإجمالي شامل الضريبة: 30.00.
-        expect($customer->refresh()->points_balance)->toBe(13)
-            ->and((float) $customer->cumulative_spend)->toBe(30.00);
+        expect(account($customer)->points_balance)->toBe(13)
+            ->and((float) account($customer)->cumulative_spend)->toBe(30.00);
 
         $invoice = ProductInvoice::firstOrFail();
         $this->assertDatabaseHas('loyalty_transactions', [
@@ -115,8 +115,8 @@ describe('Loyalty earning', function () {
 
         expect((float) $invoice->total_amount)->toBe(115.00)
             ->and((float) $invoice->vat_amount)->toBe(15.00)
-            ->and($customer->refresh()->points_balance)->toBe(100)
-            ->and((float) $customer->cumulative_spend)->toBe(115.00);
+            ->and(account($customer)->points_balance)->toBe(100)
+            ->and((float) account($customer)->cumulative_spend)->toBe(115.00);
     });
 
     it('accumulates points and balance_after across invoices', function () {
@@ -126,7 +126,7 @@ describe('Loyalty earning', function () {
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
         // 100 + FLOOR(26.09) = 126
-        expect($customer->refresh()->points_balance)->toBe(126);
+        expect(account($customer)->points_balance)->toBe(126);
         $this->assertDatabaseHas('loyalty_transactions', [
             'customer_id' => $customer->id,
             'points' => 26,
@@ -147,7 +147,7 @@ describe('Loyalty earning', function () {
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
         // cumulative 26.09 ≥ bronze_threshold 26 → bronze
-        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze);
+        expect(account($customer)->tier)->toBe(CustomerTierEnum::Bronze);
     });
 
     // المستوى يُشتقّ من الإنفاق التراكمي عند كل اكتساب، فتنزيلٌ يدويٌّ يترك
@@ -164,7 +164,7 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Silver);
+        expect(account($customer)->tier)->toBe(CustomerTierEnum::Silver);
     });
 
     it('keeps a manual downgrade that corrected the spend as well', function () {
@@ -178,7 +178,7 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::None);
+        expect(account($customer)->tier)->toBe(CustomerTierEnum::None);
     });
 
     // القاعدة القديمة كانت «الفئة لا تنزل أبداً»، فبقي عملاء معلَّقين في فئةٍ لا
@@ -198,8 +198,8 @@ describe('Loyalty earning', function () {
 
         // 30.00 ناقص خصم الفئة الذهبية 8% = 27.60 شاملة الضريبة: تبلغ حدّ
         // البرونزي (20) ولا تبلغ الفضي، فينزل من الذهبي إلى البرونزي.
-        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
-            ->and((float) $customer->cumulative_spend)->toBe(27.60);
+        expect(account($customer)->tier)->toBe(CustomerTierEnum::Bronze)
+            ->and((float) account($customer)->cumulative_spend)->toBe(27.60);
     });
 
     // بلوغ الحدّ يكفي، فلا يُشترط تجاوزه.
@@ -213,7 +213,7 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze);
+        expect(account($customer)->tier)->toBe(CustomerTierEnum::Bronze);
     });
 
     it('earns no points for a corporate customer', function () {
@@ -222,7 +222,7 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        expect($customer->refresh()->points_balance)->toBe(0);
+        expect(account($customer)->points_balance)->toBe(0);
         expect(LoyaltyTransaction::count())->toBe(0);
     });
 
@@ -233,7 +233,7 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        expect($customer->refresh()->points_balance)->toBe(0);
+        expect(account($customer)->points_balance)->toBe(0);
         expect(LoyaltyTransaction::count())->toBe(0);
     });
 
@@ -243,7 +243,7 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id, 'status' => 'due']));
 
-        expect($customer->refresh()->points_balance)->toBe(0);
+        expect(account($customer)->points_balance)->toBe(0);
         expect(LoyaltyTransaction::count())->toBe(0);
     });
 
@@ -253,7 +253,7 @@ describe('Loyalty earning', function () {
 
         post(route('pos.product.store'), loyaltyPayload(['customer_id' => $customer->id]));
 
-        expect($customer->refresh()->points_balance)->toBe(0);
+        expect(account($customer)->points_balance)->toBe(0);
         expect(LoyaltyTransaction::count())->toBe(0);
     });
 

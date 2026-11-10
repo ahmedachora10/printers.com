@@ -41,7 +41,7 @@ function shippedPaidInvoice(Branch $branch, User $user, Customer $customer): Ser
     $invoice->shipments()->create(['provider_id' => $provider->id, 'fee' => 20]);
 
     // ما أُضيف إلى إنفاق العميل هو مال الخدمات وحده: 100 لا 120.
-    $customer->update(['cumulative_spend' => 100]);
+    account($customer)->update(['cumulative_spend' => 100]);
 
     return $invoice->fresh();
 }
@@ -147,7 +147,7 @@ describe('Refunding the shipping fee is the accountant decision', function () {
             'points' => 86,
             'balance_after' => 86,
         ]);
-        $this->customer->update(['points_balance' => 86]);
+        account($this->customer)->update(['points_balance' => 86]);
 
         $this->post(route('refunds.store'), [
             'source_type' => 'service',
@@ -160,7 +160,7 @@ describe('Refunding the shipping fee is the accountant decision', function () {
 
         // أُضيف 100 إلى الإنفاق، فيُطرح 100: المرتجع 120 لكنّ عشرينه شحنٌ لم
         // يدخل الإنفاق أصلاً. ولولا الطرح لصار الإنفاق سالباً بعشرين.
-        expect((float) $this->customer->refresh()->cumulative_spend)->toEqual(0.00);
+        expect((float) account($this->customer)->cumulative_spend)->toEqual(0.00);
     });
 
     it('leaves shipping alone on an invoice that had none', function () {

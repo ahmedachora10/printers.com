@@ -94,7 +94,7 @@ describe('Loyalty redemption & tier discount', function () {
             ->and((float) $invoice->total_amount)->toBe(25.00);
 
         // 1000 − 500 redeemed = 500، ثم اكتساب FLOOR(25 ÷ 1.15) = 21 → 521
-        expect($customer->refresh()->points_balance)->toBe(521);
+        expect(account($customer)->points_balance)->toBe(521);
 
         $this->assertDatabaseHas('loyalty_transactions', [
             'customer_id' => $customer->id,

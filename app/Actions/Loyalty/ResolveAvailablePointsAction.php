@@ -27,15 +27,17 @@ class ResolveAvailablePointsAction
      * الرصيد المتاح للاستبدال، مع استثناء حجز فاتورةٍ بعينها — الفاتورة قيد
      * التعديل تُحسب نقاطها المحجوزة لها هي، فإعادة إرسال العدد نفسه لا تُرفض.
      */
-    public function handle(Customer $customer, ProductInvoice|ServiceInvoice|null $excluding = null): int
+    public function handle(Customer $customer, int $branchId, ProductInvoice|ServiceInvoice|null $excluding = null): int
     {
-        return max(0, (int) $customer->points_balance - $this->reserved((int) $customer->id, $excluding));
+        $balance = (int) $customer->accountFor($branchId)?->points_balance;
+
+        return max(0, $balance - $this->reserved((int) $customer->id, $branchId, $excluding));
     }
 
-    /** مجموع النقاط المحجوزة على فواتير العميل غير المعتمدة، من النوعين معاً. */
-    public function reserved(int $customerId, ProductInvoice|ServiceInvoice|null $excluding = null): int
+    /** مجموع النقاط المحجوزة على فواتير العميل غير المعتمدة في الفرع، من النوعين معاً. */
+    public function reserved(int $customerId, int $branchId, ProductInvoice|ServiceInvoice|null $excluding = null): int
     {
-        return $this->reservedFor([$customerId], $excluding)[$customerId] ?? 0;
+        return $this->reservedFor([$customerId], $branchId, $excluding)[$customerId] ?? 0;
     }
 
     /**
@@ -45,7 +47,7 @@ class ResolveAvailablePointsAction
      * @param  list<int>  $customerIds
      * @return array<int, int>
      */
-    public function reservedFor(array $customerIds, ProductInvoice|ServiceInvoice|null $excluding = null): array
+    public function reservedFor(array $customerIds, int $branchId, ProductInvoice|ServiceInvoice|null $excluding = null): array
     {
         $customerIds = array_values(array_unique(array_filter($customerIds)));
 
@@ -62,6 +64,8 @@ class ResolveAvailablePointsAction
             $rows = DB::table($instance->getTable())
                 ->selectRaw('customer_id, SUM(points_redeemed) as total')
                 ->whereIn('customer_id', $customerIds)
+                // النقاط لكل فرع، فحجزها كذلك.
+                ->where('branch_id', $branchId)
                 ->whereNull('deleted_at')
                 ->whereNull('points_redeemed_at')
                 ->where('points_redeemed', '>', 0)

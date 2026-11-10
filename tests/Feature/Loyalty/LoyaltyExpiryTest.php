@@ -46,7 +46,7 @@ describe('Loyalty points expiry', function () {
 
         expect($this->action->handle())->toBe(1);
 
-        expect($customer->refresh()->points_balance)->toBe(0);
+        expect(account($customer)->points_balance)->toBe(0);
 
         $this->assertDatabaseHas('loyalty_transactions', [
             'customer_id' => $customer->id,
@@ -63,8 +63,8 @@ describe('Loyalty points expiry', function () {
 
         $this->action->handle();
 
-        expect($customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
-            ->and((float) $customer->cumulative_spend)->toBe(900.00);
+        expect(account($customer)->tier)->toBe(CustomerTierEnum::Bronze)
+            ->and((float) account($customer)->cumulative_spend)->toBe(900.00);
     });
 
     it('never expires anything when the branch set no window', function () {
@@ -72,7 +72,7 @@ describe('Loyalty points expiry', function () {
         $customer = expiryCustomer();
 
         expect($this->action->handle())->toBe(0)
-            ->and($customer->refresh()->points_balance)->toBe(400);
+            ->and(account($customer)->points_balance)->toBe(400);
     });
 
     it('skips a branch whose programme is switched off', function () {
@@ -83,7 +83,7 @@ describe('Loyalty points expiry', function () {
         $customer = expiryCustomer();
 
         expect($this->action->handle())->toBe(0)
-            ->and($customer->refresh()->points_balance)->toBe(400);
+            ->and(account($customer)->points_balance)->toBe(400);
     });
 
     it('spares a customer who is still inside the window', function () {
@@ -91,7 +91,7 @@ describe('Loyalty points expiry', function () {
         $customer = expiryCustomer(['created_at' => now()->subMonths(11)]);
 
         expect($this->action->handle())->toBe(0)
-            ->and($customer->refresh()->points_balance)->toBe(400);
+            ->and(account($customer)->points_balance)->toBe(400);
     });
 
     it('spares a customer whose last loyalty movement is recent', function () {
@@ -107,7 +107,7 @@ describe('Loyalty points expiry', function () {
         ]);
 
         expect($this->action->handle())->toBe(0)
-            ->and($customer->refresh()->points_balance)->toBe(400);
+            ->and(account($customer)->points_balance)->toBe(400);
     });
 
     // شراءٌ جديد يُصفّر عدّاد الخمول ويُنقذ الرصيد كلّه — المدة تُقرأ للعميل لا
@@ -154,7 +154,7 @@ describe('Loyalty points expiry', function () {
         expect(ProductInvoice::count())->toBe(1);
 
         expect($this->action->handle())->toBe(0)
-            ->and($customer->refresh()->points_balance)->toBe(400);
+            ->and(account($customer)->points_balance)->toBe(400);
     });
 
     it('ignores a customer with no points left', function () {
@@ -181,8 +181,8 @@ describe('Loyalty points expiry', function () {
 
         expect($this->action->handle($this->branch->id))->toBe(1);
 
-        expect($mine->refresh()->points_balance)->toBe(0)
-            ->and($theirs->refresh()->points_balance)->toBe(400);
+        expect(account($mine)->points_balance)->toBe(0)
+            ->and(account($theirs)->points_balance)->toBe(400);
     });
 
     it('is safe to run twice in a row', function () {
@@ -201,7 +201,7 @@ describe('Loyalty points expiry', function () {
 
         $this->artisan('loyalty:expire-points')->assertSuccessful();
 
-        expect($customer->refresh()->points_balance)->toBe(0);
+        expect(account($customer)->points_balance)->toBe(0);
     });
 
     it('accepts a branch option on the command', function () {
@@ -220,7 +220,7 @@ describe('Loyalty points expiry', function () {
 
         $this->artisan('loyalty:expire-points', ['--branch' => $other->id])->assertSuccessful();
 
-        expect($customer->refresh()->points_balance)->toBe(400)
-            ->and($theirs->refresh()->points_balance)->toBe(0);
+        expect(account($customer)->points_balance)->toBe(400)
+            ->and(account($theirs)->points_balance)->toBe(0);
     });
 });

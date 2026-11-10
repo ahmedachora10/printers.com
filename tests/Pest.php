@@ -1,6 +1,8 @@
 <?php
 
 use App\Actions\Agent\SyncAgentCommissionAction;
+use App\Models\Customer;
+use App\Models\CustomerBranch;
 use App\Models\InvoiceReturnRequest;
 use App\Models\PaymentMethod;
 use App\Models\ProductInvoice;
@@ -169,4 +171,13 @@ function syncAgentLedger(ProductInvoice|ServiceInvoice $invoice): void
     foreach ($stamps as $agentId => $paymentId) {
         $invoice->agentCommissionEntries()->where('agent_id', $agentId)->update(['agent_payment_id' => $paymentId]);
     }
+}
+
+/**
+ * حساب العميل في فرعه — نقاطه ومستواه وإنفاقه وائتمانه ومندوبه (customer_branch)،
+ * مقروءاً من قاعدة البيانات. بلا فرع: حسابه الوحيد.
+ */
+function account(Customer $customer, ?int $branchId = null): CustomerBranch
+{
+    return $customer->accounts()->when($branchId, fn ($q) => $q->where('branch_id', $branchId))->sole();
 }

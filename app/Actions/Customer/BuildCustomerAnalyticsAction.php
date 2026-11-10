@@ -30,8 +30,11 @@ class BuildCustomerAnalyticsAction
     ];
 
     /** @return array<string, mixed> */
-    public function handle(Customer $customer): array
+    /** @param  int|null  $branchId  فرع المستخدم — معاملات كل فرعٍ لفرعه؛ null للسوبر أدمن. */
+    public function handle(Customer $customer, ?int $branchId = null): array
     {
+        $this->branchId = $branchId;
+
         return [
             'monthlySpend' => $this->monthlySpend($customer),
             'kpis' => $this->kpis($customer),
@@ -39,6 +42,8 @@ class BuildCustomerAnalyticsAction
             'topProducts' => $this->topItems($customer, ProductInvoiceLine::class, 'product_name'),
         ];
     }
+
+    private ?int $branchId = null;
 
     /**
      * Paid spend per month for the trailing 12 months, split by invoice type
@@ -64,6 +69,7 @@ class BuildCustomerAnalyticsAction
         foreach (self::INVOICE_TYPES as $model => $type) {
             $rows = $model::query()
                 ->whereBelongsTo($customer)
+                ->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))
                 ->where('status', InvoiceStatusEnum::PAID)
                 ->where('created_at', '>=', $start)
                 ->groupByRaw('DATE(created_at)')
@@ -95,6 +101,7 @@ class BuildCustomerAnalyticsAction
         foreach (array_keys(self::INVOICE_TYPES) as $model) {
             $row = $model::query()
                 ->whereBelongsTo($customer)
+                ->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))
                 ->where('status', InvoiceStatusEnum::PAID)
                 ->selectRaw(
                     'COUNT(*) as cnt,
@@ -143,6 +150,7 @@ class BuildCustomerAnalyticsAction
         return $lineModel::query()
             ->whereHas('invoice', fn (Builder $query) => $query
                 ->whereBelongsTo($customer)
+                ->when($this->branchId, fn ($q) => $q->where('branch_id', $this->branchId))
                 ->where('status', '<>', InvoiceStatusEnum::CANCELLED))
             ->groupBy($nameColumn)
             ->orderByDesc('total')

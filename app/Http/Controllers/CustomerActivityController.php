@@ -6,6 +6,7 @@ use App\Actions\Customer\BuildCustomerAnalyticsAction;
 use App\Actions\Customer\BuildCustomerTimelineAction;
 use App\Http\Resources\Customer\CustomerResource;
 use App\Models\Customer;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -28,21 +29,25 @@ class CustomerActivityController extends Controller
     ): Response {
         Gate::authorize('view', $customer);
 
+        // معاملات كل فرعٍ لفرعه: موظف الفرع يرى ما جرى في فرعه وحده.
+        $branchId = Auth::user()->roleName->isSuperAdmin() ? null : Auth::user()->branchId;
+        $inBranch = fn ($query) => $query->when($branchId, fn ($q) => $q->where('branch_id', $branchId));
+
         return Inertia::render('customers/activity', [
-            'customer' => new CustomerResource($customer),
-            'timeline' => Inertia::defer(function () use ($customer, $timeline) {
+            'customer' => new CustomerResource($customer->load(['accounts' => $inBranch])),
+            'timeline' => Inertia::defer(function () use ($customer, $timeline, $branchId, $inBranch) {
                 $limit = BuildCustomerTimelineAction::PER_SOURCE_LIMIT;
 
                 $customer->load([
-                    'productInvoices' => fn ($query) => $query->latest()->limit($limit),
-                    'serviceInvoices' => fn ($query) => $query->latest()->limit($limit),
+                    'productInvoices' => fn ($query) => $inBranch($query)->latest()->limit($limit),
+                    'serviceInvoices' => fn ($query) => $inBranch($query)->latest()->limit($limit),
                     'activities' => fn ($query) => $query->with('causer')->latest()->limit($limit),
-                    'loyaltyTransactions' => fn ($query) => $query->latest()->limit($limit),
+                    'loyaltyTransactions' => fn ($query) => $inBranch($query)->latest()->limit($limit),
                 ]);
 
-                return $timeline->handle($customer);
+                return $timeline->handle($customer, $branchId);
             }, 'timeline'),
-            'analytics' => Inertia::defer(fn () => $analytics->handle($customer), 'analytics'),
+            'analytics' => Inertia::defer(fn () => $analytics->handle($customer, $branchId), 'analytics'),
         ]);
     }
 }

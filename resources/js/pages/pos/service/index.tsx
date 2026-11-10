@@ -701,6 +701,14 @@ export default function ServicePos({
 
     /** Pick a customer and re-seed the editable details from that record. */
     function pickCustomer(customer: PosCustomer | null) {
+        // عميلٌ من فرعٍ آخر وُجد بجواله: يُملأ عابراً، ويربطه حفظ الفاتورة بهذا الفرع.
+        if (customer && !customer.linked) {
+            setWalkinName(customer.fullName);
+            setWalkinPhone(customer.phone);
+            setWalkinTaxNumber(customer.taxNumber ?? '');
+            customer = null;
+        }
+
         setSelectedCustomer(customer);
         setCustomerEdit({
             full_name: customer?.fullName ?? '',

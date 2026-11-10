@@ -44,9 +44,9 @@ describe('Manual tier override', function () {
             'reason' => 'تصحيح مستوى نتج عن فواتير مرتجعة',
         ])->assertRedirect();
 
-        expect($this->customer->refresh()->tier)->toBe(CustomerTierEnum::Silver)
+        expect(account($this->customer)->tier)->toBe(CustomerTierEnum::Silver)
             // تُرك الإنفاق فارغاً فبقي كما هو
-            ->and((float) $this->customer->cumulative_spend)->toBe(6000.00);
+            ->and((float) account($this->customer)->cumulative_spend)->toBe(6000.00);
     });
 
     it('corrects the cumulative spend alongside the tier', function () {
@@ -56,8 +56,8 @@ describe('Manual tier override', function () {
             'reason' => 'تصحيح الإنفاق بعد مرتجعات قديمة',
         ])->assertRedirect();
 
-        expect($this->customer->refresh()->tier)->toBe(CustomerTierEnum::Bronze)
-            ->and((float) $this->customer->cumulative_spend)->toBe(800.00);
+        expect(account($this->customer)->tier)->toBe(CustomerTierEnum::Bronze)
+            ->and((float) account($this->customer)->cumulative_spend)->toBe(800.00);
     });
 
     it('records the change in the activity log with its reason', function () {
@@ -82,14 +82,14 @@ describe('Manual tier override', function () {
     });
 
     it('promotes as well as downgrades', function () {
-        $this->customer->update(['tier' => CustomerTierEnum::None, 'cumulative_spend' => 0]);
+        account($this->customer)->update(['tier' => CustomerTierEnum::None, 'cumulative_spend' => 0]);
 
         $this->patch(route('customers.override-tier', $this->customer), [
             'tier' => 'gold',
             'reason' => 'عميل مميز بقرار الإدارة',
         ])->assertRedirect();
 
-        expect($this->customer->refresh()->tier)->toBe(CustomerTierEnum::Gold);
+        expect(account($this->customer)->tier)->toBe(CustomerTierEnum::Gold);
     });
 
     it('requires a reason', function () {
@@ -97,7 +97,7 @@ describe('Manual tier override', function () {
             'tier' => 'silver',
         ])->assertSessionHasErrors('reason');
 
-        expect($this->customer->refresh()->tier)->toBe(CustomerTierEnum::Gold);
+        expect(account($this->customer)->tier)->toBe(CustomerTierEnum::Gold);
     });
 
     it('rejects a tier outside the enum', function () {
@@ -117,7 +117,7 @@ describe('Manual tier override', function () {
                 'reason' => 'محاولة',
             ])->assertForbidden();
 
-        expect($this->customer->refresh()->tier)->toBe(CustomerTierEnum::Gold);
+        expect(account($this->customer)->tier)->toBe(CustomerTierEnum::Gold);
     });
 
     it('forbids a branch admin from another branch', function () {

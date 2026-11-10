@@ -364,7 +364,7 @@ class InvoiceController extends Controller
                     'providers' => DeliveryProvider::posOptions($invoice->branch_id),
                     'zones' => DeliveryZone::posOptions($invoice->branch_id),
                     // عميل الفاتورة محمَّلٌ بأعمدةٍ مختارة أعلاه، فيُقرأ كاملاً مع دفتره.
-                    'customer' => Customer::with('addresses')->find($invoice->customer_id)?->toPosArray(null, false),
+                    'customer' => Customer::with('addresses')->find($invoice->customer_id)?->toPosArray($invoice->branch_id, null, false),
                     'canEditFee' => ! Auth::user()->roleName->isEmployee(),
                 ]
                 : null,

@@ -122,7 +122,7 @@ describe('Service invoice review', function () {
         $this->patch(route('invoices.service.pay', $invoice));
 
         // النقاط على الصافي من الضريبة: floor(115 ÷ 1.15) = 100.
-        expect($customer->refresh()->points_balance)->toBe(100)
+        expect(account($customer)->points_balance)->toBe(100)
             ->and(LoyaltyTransaction::where('type', LoyaltyTransactionTypeEnum::Earn)->count())->toBe(1);
     });
 
@@ -166,7 +166,7 @@ describe('Service invoice review', function () {
 
         $this->patch(route('invoices.service.cancel', $invoice), ['reason' => 'إلغاء بطلب الإدارة']);
 
-        expect($customer->refresh()->points_balance)->toBe(700)
+        expect(account($customer)->points_balance)->toBe(700)
             ->and(LoyaltyTransaction::count())->toBe(0);
     });
 
@@ -188,7 +188,7 @@ describe('Service invoice review', function () {
 
         $this->patch(route('invoices.service.cancel', $invoice), ['reason' => 'إلغاء بطلب الإدارة']);
 
-        expect($customer->refresh()->points_balance)->toBe(700)
+        expect(account($customer)->points_balance)->toBe(700)
             ->and(LoyaltyTransaction::where('type', LoyaltyTransactionTypeEnum::ManualAdjust)->where('points', 500)->count())->toBe(1)
             ->and($invoice->refresh()->points_redeemed_at)->toBeNull();
     });
@@ -338,7 +338,7 @@ describe('Service invoice review', function () {
             'tax_number' => '300000000000004',
         ])->assertSessionHasNoErrors();
 
-        $customer = Customer::where('phone', '0500000011')->where('branch_id', $this->branch->id)->first();
+        $customer = Customer::where('phone', '0500000011')->inBranch($this->branch->id)->first();
 
         expect($customer)->not->toBeNull()
             ->and($customer->tax_number)->toBe('300000000000004');
@@ -389,7 +389,7 @@ describe('Service invoice review', function () {
             ->assertRedirect(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]))
             ->assertSessionHas('success');
 
-        $customer = Customer::where('phone', '0500000003')->where('branch_id', $this->branch->id)->first();
+        $customer = Customer::where('phone', '0500000003')->inBranch($this->branch->id)->first();
 
         expect($customer)->not->toBeNull()
             ->and($customer->full_name)->toBe('عميل جديد')
@@ -411,7 +411,7 @@ describe('Service invoice review', function () {
             'phone' => '0500000006',
         ])->assertRedirect(route('invoices.show', ['type' => 'service', 'id' => $invoice->id]));
 
-        expect(Customer::where('phone', '0500000006')->where('branch_id', $this->branch->id)->count())->toBe(1)
+        expect(Customer::where('phone', '0500000006')->inBranch($this->branch->id)->count())->toBe(1)
             ->and($invoice->refresh()->customer_id)->toBe($existing->id);
     });
 

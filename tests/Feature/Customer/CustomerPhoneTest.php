@@ -6,8 +6,6 @@ use App\Models\Customer;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 uses(RefreshDatabase::class);
 
@@ -61,32 +59,5 @@ describe('Customer phone', function () {
             $this->post(route('customers.store'), [...$payload, 'phone' => $phone])
                 ->assertSessionHasErrors('phone');
         }
-    });
-
-    it('normalizes existing phones and leaves branch collisions for a manual merge', function () {
-        $other = Branch::factory()->create();
-        $insert = fn (int $branchId, string $phone) => DB::table('customers')->insertGetId([
-            'full_name' => 'عميل', 'phone' => $phone, 'branch_id' => $branchId,
-            'customer_type' => 'individual', 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
-        ]);
-
-        $spaced = $insert($this->branch->id, '+966 56 179 9635');
-        $dupA = $insert($this->branch->id, '+966 55 172 8069');
-        $dupB = $insert($this->branch->id, '0551728069');
-        $otherBranch = $insert($other->id, '055 172 8069');
-        $foreign = $insert($this->branch->id, '+92 302 9216123');
-
-        Log::spy();
-        (require database_path('migrations/2026_10_13_120000_normalize_customer_phones.php'))->up();
-
-        $phone = fn (int $id) => DB::table('customers')->where('id', $id)->value('phone');
-        expect($phone($spaced))->toBe('0561799635')
-            ->and($phone($otherBranch))->toBe('0551728069')
-            ->and($phone($foreign))->toBe('+923029216123')
-            ->and($phone($dupA))->toBe('+966 55 172 8069')
-            ->and($phone($dupB))->toBe('0551728069');
-
-        Log::shouldHaveReceived('warning')->once()
-            ->withArgs(fn ($msg, $ctx) => $ctx['customer_ids'] === [$dupA, $dupB]);
     });
 });

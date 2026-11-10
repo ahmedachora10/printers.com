@@ -3,12 +3,12 @@
 namespace App\Actions\Customer;
 
 use App\Enums\CustomerTierEnum;
-use App\Models\Customer;
+use App\Models\CustomerBranch;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
 /**
- * تعديل مستوى ولاء العميل يدوياً.
+ * تعديل مستوى ولاء العميل يدوياً — في فرعٍ واحد، فالمستوى لكل فرع.
  *
  * والتعديل وحده لا يثبت: المستوى يُشتقّ من الإنفاق التراكمي عند كل فاتورة
  * مسدَّدة — صعوداً وهبوطاً معاً — فأيُّ مستوى يخالف ما يبلغه إنفاقُ العميل
@@ -21,11 +21,11 @@ use Illuminate\Support\Facades\DB;
 class OverrideCustomerTierAction
 {
     /** @param array{tier: string, cumulative_spend?: float|string|null, reason: string} $data */
-    public function handle(Customer $customer, array $data, User $actor): Customer
+    public function handle(CustomerBranch $account, array $data, User $actor): CustomerBranch
     {
-        return DB::transaction(function () use ($customer, $data, $actor) {
-            $previousTier = $customer->tier;
-            $previousSpend = (float) $customer->cumulative_spend;
+        return DB::transaction(function () use ($account, $data, $actor) {
+            $previousTier = $account->tier;
+            $previousSpend = (float) $account->cumulative_spend;
 
             $attributes = ['tier' => CustomerTierEnum::from($data['tier'])];
 
@@ -33,21 +33,22 @@ class OverrideCustomerTierAction
                 $attributes['cumulative_spend'] = round((float) $data['cumulative_spend'], 2);
             }
 
-            $customer->update($attributes);
+            $account->update($attributes);
 
             activity('customers')
-                ->performedOn($customer)
+                ->performedOn($account->customer)
                 ->causedBy($actor)
                 ->withProperties([
+                    'branch_id' => $account->branch_id,
                     'from_tier' => $previousTier->value,
-                    'to_tier' => $customer->tier->value,
+                    'to_tier' => $account->tier->value,
                     'from_cumulative_spend' => $previousSpend,
-                    'to_cumulative_spend' => (float) $customer->cumulative_spend,
+                    'to_cumulative_spend' => (float) $account->cumulative_spend,
                     'reason' => $data['reason'],
                 ])
                 ->log('تعديل يدوي لمستوى الولاء');
 
-            return $customer->refresh();
+            return $account->refresh();
         });
     }
 }

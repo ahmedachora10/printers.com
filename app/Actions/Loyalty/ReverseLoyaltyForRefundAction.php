@@ -3,7 +3,7 @@
 namespace App\Actions\Loyalty;
 
 use App\Enums\LoyaltyTransactionTypeEnum;
-use App\Models\Customer;
+use App\Models\CustomerBranch;
 use App\Models\LoyaltyConfig;
 use App\Models\LoyaltyTransaction;
 use App\Models\ProductInvoice;
@@ -76,40 +76,34 @@ class ReverseLoyaltyForRefundAction
             return;
         }
 
-        /** @var Customer|null $customer */
-        $customer = Customer::query()
-            ->whereKey($invoice->customer_id)
-            ->lockForUpdate()
-            ->first();
+        // حسابه في فرع الفاتورة: هناك كسب النقاط وهناك تُسحب.
+        $account = CustomerBranch::lockFor($invoice->customer_id, (int) $invoice->branch_id);
 
-        if (! $customer) {
+        if (! $account) {
             return;
         }
 
-        $balance = (int) $customer->points_balance;
-
         // السحب أولاً ثم الاسترجاع، ليأتي balance_after في الصفّين متسلسلاً.
         // يُقيَّد السحب بالرصيد المتاح: نقاطٌ أُنفقت لا تُستردّ بجعل الرصيد سالباً.
-        $removed = min($toClaw, $balance);
+        $removed = min($toClaw, (int) $account->points_balance);
 
         if ($removed > 0) {
-            $balance -= $removed;
-            $this->record($invoice, $customer, -$removed, $balance, "سحب نقاط مكتسبة بعد مرتجع الفاتورة {$invoice->invoice_number}");
+            $account->points_balance -= $removed;
+            $this->record($invoice, $account, -$removed, "سحب نقاط مكتسبة بعد مرتجع الفاتورة {$invoice->invoice_number}");
         }
 
         if ($toRestore > 0) {
-            $balance += $toRestore;
-            $this->record($invoice, $customer, $toRestore, $balance, "استرجاع نقاط مستبدلة بعد مرتجع الفاتورة {$invoice->invoice_number}");
+            $account->points_balance += $toRestore;
+            $this->record($invoice, $account, $toRestore, "استرجاع نقاط مستبدلة بعد مرتجع الفاتورة {$invoice->invoice_number}");
         }
 
         // الفئة تتبع الإنفاق هبوطاً كما تتبعه صعوداً، فمرتجعٌ يهبط بالإنفاق دون
         // حدّ الفئة يُنزل صاحبه عنها.
-        $newSpend = max(0, (float) $customer->cumulative_spend - $spendRollback);
+        $newSpend = max(0, (float) $account->cumulative_spend - $spendRollback);
 
-        $customer->update([
-            'points_balance' => $balance,
+        $account->update([
             'cumulative_spend' => $newSpend,
-            'tier' => LoyaltyConfig::forBranch($customer->branch_id)->tierForSpend($newSpend),
+            'tier' => LoyaltyConfig::forBranch($account->branch_id)->tierForSpend($newSpend),
         ]);
     }
 
@@ -143,15 +137,13 @@ class ReverseLoyaltyForRefundAction
             ->where('invoice_type', $invoice->getMorphClass());
     }
 
-    private function record(ProductInvoice|ServiceInvoice $invoice, Customer $customer, int $points, int $balanceAfter, string $notes): void
+    private function record(ProductInvoice|ServiceInvoice $invoice, CustomerBranch $account, int $points, string $notes): void
     {
-        LoyaltyTransaction::create([
-            'customer_id' => $customer->id,
+        $account->record([
             'invoice_id' => $invoice->id,
             'invoice_type' => $invoice->getMorphClass(),
             'type' => LoyaltyTransactionTypeEnum::ManualAdjust,
             'points' => $points,
-            'balance_after' => $balanceAfter,
             'notes' => $notes,
         ]);
     }

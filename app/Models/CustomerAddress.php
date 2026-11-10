@@ -21,6 +21,7 @@ class CustomerAddress extends Model
 
     protected $fillable = [
         'customer_id',
+        'branch_id',
         'label',
         'address',
         'location_url',

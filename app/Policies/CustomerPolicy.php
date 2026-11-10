@@ -32,7 +32,7 @@ class CustomerPolicy
             return true;
         }
 
-        return $user->branchId === $customer->branch_id;
+        return $this->inBranch($user, $customer);
     }
 
     /**
@@ -68,7 +68,7 @@ class CustomerPolicy
             return true;
         }
 
-        return $user->branchId === $customer->branch_id
+        return $this->inBranch($user, $customer)
             && ($user->roleName->isBranchAdmin() || $user->roleName->isEmployee());
     }
 
@@ -88,9 +88,9 @@ class CustomerPolicy
         }
 
         return ($user->roleName->isEmployee() || $user->roleName->isAccountant())
-            && $user->branchId === $customer->branch_id
+            && $this->inBranch($user, $customer)
             && $customer->customer_type === CustomerTypeEnum::Individual
-            && $customer->agent_id === null;
+            && $customer->accountFor($user->branchId)?->agent_id === null;
     }
 
     /**
@@ -104,7 +104,7 @@ class CustomerPolicy
             return true;
         }
 
-        return $user->branchId === $customer->branch_id
+        return $this->inBranch($user, $customer)
             && $user->roleName->isBranchAdmin();
     }
 
@@ -114,7 +114,7 @@ class CustomerPolicy
             return true;
         }
 
-        return $user->branchId === $customer->branch_id
+        return $this->inBranch($user, $customer)
             && $user->roleName->isBranchAdmin();
     }
 
@@ -124,8 +124,14 @@ class CustomerPolicy
             return true;
         }
 
-        return $user->branchId === $customer->branch_id
+        return $this->inBranch($user, $customer)
             && $user->roleName->isBranchAdmin();
+    }
+
+    /** العميل من عملاء فرع المستخدم (له حسابٌ فيه). */
+    private function inBranch(User $user, Customer $customer): bool
+    {
+        return $user->branchId !== null && $customer->accountFor($user->branchId) !== null;
     }
 
     public function restore(User $user, Customer $customer): bool

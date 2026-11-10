@@ -106,6 +106,7 @@ describe('Shipping on the service POS screen', function () {
         $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
         CustomerAddress::create([
             'customer_id' => $customer->id,
+            'branch_id' => $this->branch->id,
             'label' => 'المكتب',
             'address' => 'طريق الملك فهد',
             'delivery_zone_id' => $this->zone->id,

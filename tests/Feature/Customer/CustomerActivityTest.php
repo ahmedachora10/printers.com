@@ -17,7 +17,7 @@ function activityServiceInvoice(Customer $customer, User $user, array $overrides
 {
     return ServiceInvoice::create(array_merge([
         'invoice_number' => 'SINV-TST-'.fake()->unique()->numberBetween(1, 999999),
-        'branch_id' => $customer->branch_id,
+        'branch_id' => account($customer)->branch_id,
         'user_id' => $user->id,
         'customer_id' => $customer->id,
         'subtotal' => 200,
@@ -34,7 +34,7 @@ function activityProductInvoice(Customer $customer, User $user, array $overrides
 {
     return ProductInvoice::create(array_merge([
         'invoice_number' => 'INV-TST-'.fake()->unique()->numberBetween(1, 999999),
-        'branch_id' => $customer->branch_id,
+        'branch_id' => account($customer)->branch_id,
         'user_id' => $user->id,
         'customer_id' => $customer->id,
         'subtotal' => 100,

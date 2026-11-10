@@ -8,7 +8,7 @@ use Database\Factories\CustomerFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Arr;
@@ -27,116 +27,75 @@ class Customer extends Model
     use SoftDeletes;
 
     /**
-     * هوية العميل المشتركة بين الفروع. العميل نفسه صفٌّ لكل فرع (معاملاته ونقاطه
-     * ومستواه وائتمانه ومندوبه وعناوينه خاصّة بالفرع)، والصفوف يربطها الجوال:
-     * هذه الحقول وحدها تُزامَن بينها.
+     * هوية العميل — واحدةٌ لكل الفروع. ما يخصّ كل فرع (نقاط، مستوى، إنفاق، ائتمان،
+     * مندوب، ملاحظات، نشاط) في حسابه هناك: CustomerBranch.
      */
     public const IDENTITY_FIELDS = ['full_name', 'phone', 'email', 'customer_type', 'company_name', 'tax_number'];
 
     public const WALK_IN_NAME = 'عميل عابر';
 
-    protected $fillable = [
-        'full_name',
-        'phone',
-        'email',
-        'branch_id',
-        'customer_type',
-        'company_name',
-        'tax_number',
-        'credit_limit',
-        'agent_id',
-        'points_balance',
-        'cumulative_spend',
-        'tier',
-        'notes',
-        'is_active',
-    ];
+    protected $fillable = self::IDENTITY_FIELDS;
 
     protected $casts = [
         'customer_type' => CustomerTypeEnum::class,
-        'tier' => CustomerTierEnum::class,
-        'credit_limit' => 'decimal:2',
-        'cumulative_spend' => 'decimal:2',
-        'is_active' => 'boolean',
     ];
 
-    protected static function booted(): void
+    /** العميل بجواله، والمحذوف منه يعود بإعادة تسجيله (الجوال فريدٌ وإن حُذف). */
+    public static function forPhone(string $phone): self
     {
-        // تعديل الهوية في أي فرع يظهر في كل فروع العميل — بالجوال القديم، فتغيير
-        // الجوال نفسه ينتقل. تحديثٌ بالاستعلام بلا أحداث فلا يرتدّ، وسجلّ النشاط
-        // على الصف الذي عُدِّل.
-        static::saved(function (self $customer) {
-            $phone = $customer->getOriginal('phone') ?? $customer->phone;
-
-            if ($phone !== null && $customer->isDirty(self::IDENTITY_FIELDS)) {
-                self::query()->where('phone', $phone)->whereKeyNot($customer->id)
-                    ->update(Arr::only($customer->getAttributes(), self::IDENTITY_FIELDS));
-            }
-        });
-    }
-
-    /**
-     * هوية العميل نفسه من أي فرع (نفس الجوال) فوق المكتوب: ما سُجّل يَغلب، والمكتوب
-     * يملأ الفارغ و«عميل عابر» فقط.
-     *
-     * @param  array<string, mixed>  $attributes
-     * @return array<string, mixed>
-     */
-    public static function withKnownIdentity(array $attributes): array
-    {
-        $known = filled($attributes['phone'] ?? null)
-            ? self::query()->where('phone', $attributes['phone'])->first()
-            : null;
-
-        $identity = array_filter(
-            Arr::only($known?->getAttributes() ?? [], self::IDENTITY_FIELDS),
-            fn ($value) => $value !== null && $value !== self::WALK_IN_NAME,
-        );
-
-        return [...$attributes, ...$identity];
-    }
-
-    /**
-     * عميل الفاتورة من اسمٍ/جوالٍ مكتوب: صفّه في الفرع، وإلا صفٌّ جديد للفرع يرث
-     * هويته من فرعٍ آخر، وإلا عميلٌ جديد.
-     */
-    public static function resolveWalkIn(int $branchId, string $name, ?string $phone, ?string $taxNumber = null): self
-    {
-        $customer = $phone === null ? null : self::query()
-            ->where('branch_id', $branchId)
-            ->where('phone', $phone)
-            ->first();
-
-        $customer ??= new self([
-            'branch_id' => $branchId,
-            'customer_type' => CustomerTypeEnum::Individual,
-            'is_active' => true,
-        ]);
-
-        $customer->fill(self::withKnownIdentity([
-            'full_name' => $name !== '' ? $name : self::WALK_IN_NAME,
-            'phone' => $phone,
-            'tax_number' => $taxNumber,
-        ]))->save();
+        $customer = self::withTrashed()->firstOrNew(['phone' => $phone]);
+        $customer->deleted_at = null;
 
         return $customer;
     }
 
     /**
-     * الجوال الجديد لا يكون لعميلٍ آخر في أي فرع؛ جوال العميل الحالي (وصفوفه في
-     * الفروع الأخرى) مقبول.
+     * يملأ الهوية من المكتوب: العميل الجديد يأخذه كلّه، والمسجَّل لا يُكتب فوق
+     * ما سُجّل له — يُملأ الفارغ و«عميل عابر» فقط.
+     *
+     * @param  array<string, mixed>  $attributes
      */
+    public function fillIdentity(array $attributes): static
+    {
+        foreach (Arr::only($attributes, self::IDENTITY_FIELDS) as $key => $value) {
+            $current = $this->exists ? $this->getAttribute($key) : null;
+
+            if (filled($value) && ($current === null || $current === self::WALK_IN_NAME)) {
+                $this->setAttribute($key, $value);
+            }
+        }
+
+        return $this;
+    }
+
+    /**
+     * عميل الفاتورة من اسمٍ/جوالٍ مكتوب: العميل بجواله وإلا عميلٌ جديد، مربوطاً
+     * بفرع الفاتورة.
+     */
+    public static function resolveWalkIn(int $branchId, string $name, ?string $phone, ?string $taxNumber = null): self
+    {
+        $customer = $phone === null ? new self : self::forPhone($phone);
+
+        $customer->fillIdentity([
+            'full_name' => $name !== '' ? $name : self::WALK_IN_NAME,
+            'phone' => $phone,
+            'tax_number' => $taxNumber,
+            'customer_type' => CustomerTypeEnum::Individual,
+        ])->save();
+
+        $customer->attachTo($branchId);
+
+        return $customer;
+    }
+
+    /** الجوال لا يكون لعميلٍ آخر (والمحذوف داخلٌ في الفهرس الفريد). */
     public static function uniquePhoneRule(self $customer): Unique
     {
-        return Rule::unique('customers', 'phone')
-            ->whereNot('phone', $customer->phone)
-            ->whereNull('deleted_at');
+        return Rule::unique('customers', 'phone')->ignore($customer->id);
     }
 
     public function getActivitylogOptions(): LogOptions
     {
-        // Dirty-only: loyalty earns touch points/spend on every paid invoice —
-        // logging full snapshots each time would drown the CRM timeline.
         return LogOptions::defaults()
             ->logFillable()
             ->logOnlyDirty()
@@ -144,16 +103,80 @@ class Customer extends Model
             ->useLogName('customers');
     }
 
-    /** @return BelongsTo<Branch, $this> */
-    public function branch(): BelongsTo
+    /** @return HasMany<CustomerBranch, $this> */
+    public function accounts(): HasMany
     {
-        return $this->belongsTo(Branch::class);
+        return $this->hasMany(CustomerBranch::class);
     }
 
-    /** @return BelongsTo<User, $this> */
-    public function agent(): BelongsTo
+    /** @return BelongsToMany<Branch, $this, CustomerBranch> */
+    public function branches(): BelongsToMany
     {
-        return $this->belongsTo(User::class, 'agent_id');
+        return $this->belongsToMany(Branch::class, 'customer_branch')
+            ->using(CustomerBranch::class)
+            ->withPivot(['id', ...CustomerBranch::FIELDS])
+            ->withTimestamps();
+    }
+
+    /**
+     * حسابه في الفرع، أو null إن لم يكن من عملائه. يقرأ العلاقة المحمَّلة إن وُجدت،
+     * فقوائم نقطة البيع لا تُطلق استعلاماً لكل عميل.
+     */
+    public function accountFor(?int $branchId): ?CustomerBranch
+    {
+        return $this->relationLoaded('accounts')
+            ? $this->accounts->firstWhere('branch_id', $branchId)
+            : $this->accounts()->where('branch_id', $branchId)->first();
+    }
+
+    /**
+     * يربطه بالفرع (أول فاتورة له هناك أو إضافته من شاشة العملاء) ويعيد حسابه.
+     *
+     * @param  array<string, mixed>  $values
+     */
+    public function attachTo(int $branchId, array $values = []): CustomerBranch
+    {
+        $account = $this->accounts()->firstOrCreate(['branch_id' => $branchId], $values);
+
+        if ($this->relationLoaded('accounts') && $account->wasRecentlyCreated) {
+            $this->accounts->push($account);
+        }
+
+        return $account;
+    }
+
+    /**
+     * ما تعرضه الشاشات من حساباته المحمَّلة: حساب فرع المستخدم كما هو، وللسوبر
+     * أدمن مجموعُ فروعه — النقاط والإنفاق مجموعان، والمستوى أعلاها، ونشطٌ إن نشط
+     * في فرعٍ واحد، والائتمان والمندوب والملاحظات حين يكون فرعاً واحداً.
+     *
+     * @return array{points_balance: int, cumulative_spend: float, tier: CustomerTierEnum, is_active: bool, credit_limit: ?string, agent_id: ?int, notes: ?string, account: ?CustomerBranch}
+     */
+    public function accountsSummary(): array
+    {
+        $accounts = $this->accounts;
+        $single = $accounts->count() === 1 ? $accounts->first() : null;
+
+        return [
+            'points_balance' => (int) $accounts->sum('points_balance'),
+            'cumulative_spend' => round((float) $accounts->sum('cumulative_spend'), 2),
+            'tier' => $accounts->pluck('tier')->sortByDesc(fn (CustomerTierEnum $tier) => $tier->rank())->first() ?? CustomerTierEnum::None,
+            'is_active' => $accounts->contains('is_active', true),
+            'credit_limit' => $single?->credit_limit,
+            'agent_id' => $single?->agent_id,
+            'notes' => $single?->notes,
+            'account' => $single,
+        ];
+    }
+
+    /**
+     * عملاء الفرع.
+     *
+     * @param  Builder<$this>  $query
+     */
+    public function scopeInBranch(Builder $query, ?int $branchId): void
+    {
+        $query->whereHas('accounts', fn ($q) => $q->where('branch_id', $branchId));
     }
 
     /**
@@ -165,30 +188,37 @@ class Customer extends Model
      *                               المتاح، فما يظهر للكاشير هو ما يمكن استبداله فعلاً.
      * @return array<string, mixed>
      */
-    public function toPosArray(?LoyaltyConfig $loyalty, bool $loyaltyActive, int $reservedPoints = 0): array
+    public function toPosArray(?int $branchId, ?LoyaltyConfig $loyalty, bool $loyaltyActive, int $reservedPoints = 0): array
     {
+        // حسابه في فرع نقطة البيع. غير المربوط بالفرع بعدُ (وُجد بجواله الكامل)
+        // يُعرض بلا نقاط ولا مستوى، وتربطه الفاتورة عند حفظها.
+        $account = $this->accountFor($branchId);
+        $tier = $account?->tier ?? CustomerTierEnum::None;
+        $points = (int) $account?->points_balance;
+
         $eligible = $loyaltyActive
             && $this->customer_type === CustomerTypeEnum::Individual
-            && $this->agent_id === null;
+            && $account?->agent_id === null;
 
         return [
             'id' => $this->id,
+            'linked' => $account !== null,
             'fullName' => $this->full_name,
             'phone' => $this->phone,
             'taxNumber' => $this->tax_number,
-            'agentId' => $this->agent_id,
-            'pointsBalance' => (int) $this->points_balance,
+            'agentId' => $account?->agent_id,
+            'pointsBalance' => $points,
             'reservedPoints' => $reservedPoints,
-            'availablePoints' => max(0, (int) $this->points_balance - $reservedPoints),
-            'tier' => $this->tier->value,
-            'tierLabel' => $this->tier->label(),
-            'tierDiscountPct' => $eligible ? $loyalty->discountPctForTier($this->tier) : 0.0,
+            'availablePoints' => max(0, $points - $reservedPoints),
+            'tier' => $tier->value,
+            'tierLabel' => $tier->label(),
+            'tierDiscountPct' => $eligible ? $loyalty->discountPctForTier($tier) : 0.0,
             'loyaltyEligible' => $eligible,
             // تاسك 93: دفتر العناوين يسافر مع بطاقة العميل، فاختياره في نقطة
             // البيع لا يكلّف استعلاماً. تُقرأ من العلاقة المحمَّلة وحدها — بلا
             // تحميلٍ مسبق تعود فارغة ولا تُطلق استعلاماً لكل عميل في القائمة.
             'addresses' => $this->relationLoaded('addresses')
-                ? $this->addresses->map(fn (CustomerAddress $address) => [
+                ? $this->addresses->where('branch_id', $branchId)->map(fn (CustomerAddress $address) => [
                     'id' => $address->id,
                     'label' => $address->label,
                     'address' => $address->address,
@@ -291,20 +321,25 @@ class Customer extends Model
      * @param  Builder<$this>  $query
      * @param  array<string, mixed>  $filters
      */
-    public function scopeFilteredBy(Builder $query, array $filters): void
+    public function scopeFilteredBy(Builder $query, array $filters, ?int $branchId = null): void
     {
         $search = $filters['search'] ?? null;
+        // المستوى والمندوب من حسابه في الفرع المحدَّد (أو أيّ فرع للسوبر أدمن بلا فرع).
+        $account = fn (string $column, mixed $value) => fn ($q) => $q->whereHas('accounts', fn ($a) => $a
+            ->when($branchId, fn ($a) => $a->where('branch_id', $branchId))
+            ->where($column, $value));
 
         $query
             ->when(filled($search), fn ($q) => $q->matching($search))
-            ->when(filled($filters['tier'] ?? null), fn ($q) => $q->where('tier', $filters['tier']))
+            ->when(filled($filters['tier'] ?? null), $account('tier', $filters['tier'] ?? null))
             ->when(filled($filters['type'] ?? null), fn ($q) => $q->where('customer_type', $filters['type']))
-            ->when(filled($filters['agent_id'] ?? null), fn ($q) => $q->where('agent_id', (int) $filters['agent_id']))
-            ->when(filter_var($filters['has_outstanding'] ?? false, FILTER_VALIDATE_BOOLEAN), fn ($q) => $q->whereExists(function ($sub) {
+            ->when(filled($filters['agent_id'] ?? null), $account('agent_id', (int) ($filters['agent_id'] ?? 0)))
+            ->when(filter_var($filters['has_outstanding'] ?? false, FILTER_VALIDATE_BOOLEAN), fn ($q) => $q->whereExists(function ($sub) use ($branchId) {
                 foreach (['service_invoices', 'product_invoices'] as $table) {
                     if (Schema::hasTable($table)) {
                         $sub->selectRaw('1')->from($table)
                             ->whereColumn("{$table}.customer_id", 'customers.id')
+                            ->when($branchId, fn ($s) => $s->where("{$table}.branch_id", $branchId))
                             ->where("{$table}.status", 'due')
                             ->whereNull("{$table}.deleted_at");
 

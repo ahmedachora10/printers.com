@@ -170,8 +170,8 @@ describe('Shipping fee on the service invoice', function () {
 
         // النقاط على صافي الخدمات: floor(86.96) = 86، لا floor(104.35) = 104.
         // والإنفاق التراكمي على الخدمات شاملةً ضريبتها: 100 لا 120.
-        expect($customer->points_balance)->toBe(86)
-            ->and((float) $customer->cumulative_spend)->toEqual(100.00);
+        expect(account($customer)->points_balance)->toBe(86)
+            ->and((float) account($customer)->cumulative_spend)->toEqual(100.00);
     });
 
     // ── من يملك تعديل القيمة ──────────────────────────────────────
@@ -248,6 +248,7 @@ describe('Shipping fee on the service invoice', function () {
         $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
         $home = CustomerAddress::create([
             'customer_id' => $customer->id,
+            'branch_id' => $this->branch->id,
             'label' => 'المنزل',
             'address' => 'حي الياسمين، شارع 5',
             'is_default' => true,
@@ -270,6 +271,7 @@ describe('Shipping fee on the service invoice', function () {
         $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
         CustomerAddress::create([
             'customer_id' => $customer->id,
+            'branch_id' => $this->branch->id,
             'address' => 'حي النرجس، مكتب 12',
             'is_default' => true,
         ]);
@@ -286,6 +288,7 @@ describe('Shipping fee on the service invoice', function () {
         $customer = Customer::factory()->create(['branch_id' => $this->branch->id]);
         $address = CustomerAddress::create([
             'customer_id' => $customer->id,
+            'branch_id' => $this->branch->id,
             'address' => 'حي النرجس، مكتب 12',
             'delivery_zone_id' => $this->zone->id,
             'is_default' => true,
