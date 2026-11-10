@@ -2,7 +2,6 @@
 
 namespace App\Http\Resources\Incentive;
 
-use App\Enums\IncentivePlanStatusEnum;
 use App\Models\IncentivePlan;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -22,8 +21,6 @@ class IncentivePlanResource extends JsonResource
         $payment = $payments->first();
         $reachedTiers = $this->reachedTiers();
         $reached = $this->reachedTier();
-        // تاسك 230: زرّ واحد — على أعلى شريحة مبلوغة، بالفرق عمّا صُرف.
-        $payable = $this->status === IncentivePlanStatusEnum::Paid ? 0.0 : $this->payableNow();
         // الشرائح مرتّبة، فالتالية هي التي بعد المبلوغة.
         $nextNumber = ($reached['number'] ?? 0) + 1;
         $next = $this->tiers[$nextNumber - 1] ?? null;
@@ -48,8 +45,9 @@ class IncentivePlanResource extends JsonResource
             'statusLabel' => $this->status->label(),
             'isTargetMet' => $reached !== null,
             // تاسك 105: الشرائح بمكافأة كلٍّ منها، والمبلوغة، والتالية وما بقي إليها.
-            'payableNow' => $payable,
-            'tiers' => array_map(function (array $tier, int $i) use ($payments, $reachedTiers, $reached, $payable) {
+            // تاسك 230: زرّ «صرف» واحد للخطة — أعلى شريحة مبلوغة، بالفرق عمّا صُرف.
+            'payableNow' => $this->payableNow(),
+            'tiers' => array_map(function (array $tier, int $i) use ($payments, $reachedTiers) {
                 $paid = $payments->firstWhere('tier_number', $i + 1);
 
                 return [
@@ -59,7 +57,6 @@ class IncentivePlanResource extends JsonResource
                     'reached' => isset($reachedTiers[$i + 1]),
                     'paidAt' => $paid?->paid_at?->format('d/m/Y H:i'),
                     'paidBy' => $paid?->paidBy?->name,
-                    'canPay' => $i + 1 === ($reached['number'] ?? null) && $paid === null && $payable > 0,
                 ];
             }, $this->tiers, array_keys($this->tiers)),
             'reachedTier' => $reached['number'] ?? null,

@@ -41,7 +41,7 @@ class PayBonusAction
             }
 
             $amount = $plan->payableNow();
-            if (in_array($tier['number'], $plan->paidTierNumbers(), true) || $amount <= 0) {
+            if ($amount <= 0) {
                 throw ValidationException::withMessages([
                     'incentive_plan_id' => 'تم صرف مكافأة هذه الشريحة مسبقاً.',
                 ]);

@@ -161,11 +161,6 @@ class IncentivePlan extends Model
         return $this->bonusPayments->pluck('tier_number')->all();
     }
 
-    public function paidTotal(): float
-    {
-        return round((float) $this->bonusPayments->sum('amount'), 2);
-    }
-
     /**
      * تاسك 230: ما يُصرف الآن = مكافأة أعلى شريحة مبلوغة − ما صُرف للخطة.
      * صُرفت 100 ثم بلغ الثالثة (600) ⇒ 500. وما صُرف زائداً قبل التاسك
@@ -173,7 +168,7 @@ class IncentivePlan extends Model
      */
     public function payableNow(): float
     {
-        return $this->isTargetMet() ? max(0.0, round($this->bonusAmount() - $this->paidTotal(), 2)) : 0.0;
+        return $this->isTargetMet() ? max(0.0, round($this->bonusAmount() - (float) $this->bonusPayments->sum('amount'), 2)) : 0.0;
     }
 
     /**
