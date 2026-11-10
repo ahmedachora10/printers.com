@@ -38,7 +38,6 @@ function makeEditService(): BranchService
         'service_template_id' => $template->id,
         'base_commission_pct' => 10,
         'max_discount_pct' => 20,
-        'is_tahazir' => false,
         'is_active' => true,
     ]);
 

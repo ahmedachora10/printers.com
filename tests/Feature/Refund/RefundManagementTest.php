@@ -103,7 +103,6 @@ function refundableServiceInvoice(Branch $branch, User $employee, float $commiss
         'invoice_line_id' => $line->id,
         'invoice_line_type' => ServiceInvoiceLine::class,
         'amount' => $commission,
-        'is_tahazir' => false,
         'earned_at' => now(),
     ]);
 

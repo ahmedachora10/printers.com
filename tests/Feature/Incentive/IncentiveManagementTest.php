@@ -120,7 +120,7 @@ describe('Incentives', function () {
         $helperPlan = monthPlan($helper, ['achieved_amount' => 0, 'status' => IncentivePlanStatusEnum::Active]);
 
         $template = ServiceTemplate::factory()->create();
-        BranchService::create(['branch_id' => $this->branch->id, 'service_template_id' => $template->id, 'base_commission_pct' => 0, 'max_discount_pct' => 0, 'is_tahazir' => false, 'is_active' => true]);
+        BranchService::create(['branch_id' => $this->branch->id, 'service_template_id' => $template->id, 'base_commission_pct' => 0, 'max_discount_pct' => 0, 'is_active' => true]);
         $service = BranchService::where('service_template_id', $template->id)->firstOrFail();
 
         $invoice = salesInvoice($this->branch->id, $this->employee->id, 1150);

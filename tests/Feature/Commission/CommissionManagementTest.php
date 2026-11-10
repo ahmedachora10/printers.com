@@ -63,7 +63,6 @@ describe('Commission System', function () {
             'user_id' => $this->employee->id,
             'branch_id' => $this->branch->id,
             'amount' => 100,
-            'is_tahazir' => false,
             'paid_at' => now(),
         ]);
         CommissionLedger::factory()->create([

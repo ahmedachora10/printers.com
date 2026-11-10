@@ -381,13 +381,13 @@ describe('User Management', function () {
             [
                 'user_id' => $user->id, 'branch_id' => $this->branch->id,
                 'invoice_line_id' => 1, 'invoice_line_type' => 'service',
-                'amount' => 100, 'is_tahazir' => false, 'source_type' => 'standard',
+                'amount' => 100, 'source_type' => 'standard',
                 'earned_at' => now(), 'paid_at' => now(),
             ],
             [
                 'user_id' => $user->id, 'branch_id' => $this->branch->id,
                 'invoice_line_id' => 2, 'invoice_line_type' => 'service',
-                'amount' => 40, 'is_tahazir' => true, 'source_type' => 'standard',
+                'amount' => 40, 'source_type' => 'standard',
                 'earned_at' => now(), 'paid_at' => null,
             ],
         ]);
@@ -396,7 +396,6 @@ describe('User Management', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('commissionSummary.totalEarned', 140)
                 ->where('commissionSummary.totalPaid', 100)
-                ->where('commissionSummary.pending', 40)
-                ->missing('commissionSummary.tahazirEarned'));
+                ->where('commissionSummary.pending', 40));
     });
 });

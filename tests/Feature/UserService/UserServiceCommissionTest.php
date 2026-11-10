@@ -23,7 +23,6 @@ function makeService(Branch $branch, array $attrs = []): BranchService
         // Deliberately high: commission must come from the per-employee rate, not this.
         'base_commission_pct' => 99,
         'max_discount_pct' => 50,
-        'is_tahazir' => false,
         'is_active' => true,
     ], $attrs));
 

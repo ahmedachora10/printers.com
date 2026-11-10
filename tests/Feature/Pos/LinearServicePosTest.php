@@ -30,7 +30,6 @@ function makeLinearService(array $attrs = []): BranchService
         'pricing_type' => 'linear',
         'price_per_sqm' => 5,
         'agent_commission_per_sqm' => 2,
-        'is_tahazir' => false,
         'is_active' => true,
     ], $attrs));
 

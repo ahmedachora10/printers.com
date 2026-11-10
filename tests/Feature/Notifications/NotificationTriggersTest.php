@@ -140,7 +140,6 @@ describe('Notification triggers', function () {
             'invoice_line_id' => $line->id,
             'invoice_line_type' => ServiceInvoiceLine::class,
             'amount' => 100,
-            'is_tahazir' => false,
             'earned_at' => now(),
         ]);
 

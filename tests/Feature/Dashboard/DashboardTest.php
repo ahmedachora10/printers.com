@@ -214,7 +214,7 @@ describe('Dashboard', function () {
         ]);
         // 260.87 صافية = 300 شاملة الضريبة = 30% من الفاتورة.
         $invoice->helpers()->create([
-            'user_id' => $helper->id, 'branch_service_id' => BranchService::query()->insertGetId(['branch_id' => $this->branch->id, 'service_template_id' => ServiceTemplate::factory()->create()->id, 'base_commission_pct' => 0, 'max_discount_pct' => 0, 'is_tahazir' => false, 'is_active' => true]), 'service_name' => 'x',
+            'user_id' => $helper->id, 'branch_service_id' => BranchService::query()->insertGetId(['branch_id' => $this->branch->id, 'service_template_id' => ServiceTemplate::factory()->create()->id, 'base_commission_pct' => 0, 'max_discount_pct' => 0, 'is_active' => true]), 'service_name' => 'x',
             'share_type' => 'percentage', 'share_value' => 30, 'share_net' => 260.87,
         ]);
 

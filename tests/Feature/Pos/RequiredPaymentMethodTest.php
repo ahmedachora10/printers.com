@@ -57,7 +57,6 @@ describe('Payment method: optional for the employee, required of whoever settles
             'service_template_id' => $template->id,
             'base_commission_pct' => 10,
             'max_discount_pct' => 20,
-            'is_tahazir' => false,
             'is_active' => true,
         ]);
         $this->service = BranchService::where('branch_id', $this->branch->id)

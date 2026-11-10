@@ -70,7 +70,7 @@ describe('One customer across branches', function () {
         $template = ServiceTemplate::factory()->create();
         BranchService::create([
             'branch_id' => $this->branchB->id, 'service_template_id' => $template->id,
-            'base_commission_pct' => 10, 'max_discount_pct' => 20, 'is_tahazir' => false, 'is_active' => true,
+            'base_commission_pct' => 10, 'max_discount_pct' => 20, 'is_active' => true,
         ]);
         $employee = User::factory()->create(['branch_id' => $this->branchB->id]);
         $employee->addRole(Roles::EMPLOYEE->value);

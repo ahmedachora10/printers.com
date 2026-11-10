@@ -39,7 +39,6 @@ describe('Service note examples', function () {
             'branch_id' => test()->branch->id,
             'base_commission_pct' => 10.00,
             'max_discount_pct' => 5.00,
-            'is_tahazir' => false,
             'is_active' => true,
         ], $overrides);
     }
@@ -98,7 +97,6 @@ describe('Service note examples', function () {
             'base_commission_pct' => 10.00,
             'max_discount_pct' => 5.00,
             'note_examples' => ['تغليف حراري'],
-            'is_tahazir' => false,
             'is_active' => true,
         ])->assertRedirect();
 
@@ -108,7 +106,6 @@ describe('Service note examples', function () {
             'base_commission_pct' => 10.00,
             'max_discount_pct' => 5.00,
             'note_examples' => [],
-            'is_tahazir' => false,
             'is_active' => true,
         ])->assertRedirect();
 

@@ -26,7 +26,6 @@ function materialsService(array $attrs = []): BranchService
         'service_template_id' => $template->id,
         'base_commission_pct' => 50,
         'max_discount_pct' => 50,
-        'is_tahazir' => false,
         'has_materials' => false,
         'materials_cost' => 0,
         'is_active' => true,

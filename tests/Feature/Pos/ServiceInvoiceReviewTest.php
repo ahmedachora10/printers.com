@@ -50,7 +50,6 @@ function makeDueInvoice(array $overrides = [], ?int $commission = 10): ServiceIn
         'subtotal' => 100,
         'commission_pct' => 10,
         'commission_amount' => $commission,
-        'is_tahazir' => false,
     ]);
 
     return $invoice;

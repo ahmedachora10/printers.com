@@ -45,7 +45,6 @@ describe('Service template duplication', function () {
             'price_per_sqm' => 45.75,
             'agent_commission_per_sqm' => 3.5,
             'note_examples' => ['وجهان', 'مع حقيبة'],
-            'is_tahazir' => true,
             'has_materials' => true,
             'materials_cost' => 20.5,
             'is_active' => true,
