@@ -49,9 +49,9 @@ class CustomerBranch extends Pivot
     }
 
     /** حساب العميل في الفرع مقفلاً للكتابة — كل حركة نقاطٍ تمرّ منه. */
-    public static function lockFor(?int $customerId, int $branchId): ?self
+    public static function lockFor(int $customerId, int $branchId): ?self
     {
-        return $customerId === null ? null : self::query()
+        return self::query()
             ->where('customer_id', $customerId)
             ->where('branch_id', $branchId)
             ->lockForUpdate()

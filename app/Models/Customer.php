@@ -8,7 +8,6 @@ use Database\Factories\CustomerFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Arr;
@@ -107,15 +106,6 @@ class Customer extends Model
     public function accounts(): HasMany
     {
         return $this->hasMany(CustomerBranch::class);
-    }
-
-    /** @return BelongsToMany<Branch, $this, CustomerBranch> */
-    public function branches(): BelongsToMany
-    {
-        return $this->belongsToMany(Branch::class, 'customer_branch')
-            ->using(CustomerBranch::class)
-            ->withPivot(['id', ...CustomerBranch::FIELDS])
-            ->withTimestamps();
     }
 
     /**
