@@ -17,8 +17,6 @@ export interface IncentiveTier {
     reached: boolean;
     paidAt: string | null;
     paidBy: string | null;
-    /** تاسك 230: أعلى شريحة مبلوغة ولم تُصرف — الزرّ الوحيد. */
-    canPay: boolean;
 }
 
 export interface IncentivePlan {

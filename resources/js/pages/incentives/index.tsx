@@ -73,7 +73,7 @@ export default function IncentivesIndex({
     const [formOpen, setFormOpen] = useState(false);
     const [editing, setEditing] = useState<IncentivePlan | null>(null);
     const [deleting, setDeleting] = useState<IncentivePlan | null>(null);
-    const [paying, setPaying] = useState<{ plan: IncentivePlan; tier: number } | null>(null);
+    const [paying, setPaying] = useState<IncentivePlan | null>(null);
     const [deductionOpen, setDeductionOpen] = useState(false);
     // تاسك 126: نفس النافذة للتسجيل والتعديل — القيد المفتوح أو null.
     const [editingDeduction, setEditingDeduction] = useState<EmployeeDeduction | null>(null);
@@ -186,13 +186,10 @@ export default function IncentivesIndex({
                 cell: (p) => (
                     <div className="flex items-center justify-end gap-2">
                         {/* تاسك 230: زرّ واحد على أعلى شريحة مبلوغة. */}
-                        {p.tiers.map(
-                            (t, i) =>
-                                t.canPay && (
-                                    <Button key={t.threshold} size="sm" onClick={() => setPaying({ plan: p, tier: i + 1 })}>
-                                        <Wallet className="h-3.5 w-3.5" /> صرف{p.tiers.length > 1 && ` ش${i + 1}`}
-                                    </Button>
-                                ),
+                        {p.payableNow > 0 && (
+                            <Button size="sm" onClick={() => setPaying(p)}>
+                                <Wallet className="h-3.5 w-3.5" /> صرف{p.tiers.length > 1 && ` ش${p.reachedTier}`}
+                            </Button>
                         )}
                         {p.status !== 'paid' && !p.tiers.some((t) => t.paidAt) && (
                             <>
@@ -479,11 +476,10 @@ export default function IncentivesIndex({
             />
 
             <PayBonusModal
-                key={paying ? `${paying.plan.id}-${paying.tier}` : 'none'}
+                key={paying?.id ?? 'none'}
                 open={!!paying}
                 onOpenChange={(open) => !open && setPaying(null)}
-                plan={paying?.plan ?? null}
-                tier={paying?.tier ?? 1}
+                plan={paying}
             />
 
             <DeductionFormModal

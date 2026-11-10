@@ -12,12 +12,12 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     plan: IncentivePlan | null;
-    /** رقم الشريحة المصروفة (من 1) — أعلى مبلوغة (تاسك 230). */
-    tier: number;
 }
 
-export default function PayBonusModal({ open, onOpenChange, plan, tier }: Props) {
+export default function PayBonusModal({ open, onOpenChange, plan }: Props) {
     const { data, setData, post, processing, errors, reset } = useForm({ notes: '' });
+    // تاسك 230: المصروفة دائماً أعلى شريحة مبلوغة.
+    const tier = plan?.reachedTier ?? 1;
     const paidTier = plan?.tiers[tier - 1];
 
     useEffect(() => {

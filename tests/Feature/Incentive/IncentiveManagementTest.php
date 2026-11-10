@@ -567,8 +567,7 @@ describe('Incentives', function () {
                     ->assertInertia(fn ($page) => $page
                         ->where('plans.data.0.nextTier.number', 2)
                         ->where('plans.data.0.nextTier.remaining', 3756)
-                        ->where('plans.data.0.tiers.0.canPay', true)
-                        ->where('plans.data.0.tiers.1.canPay', false));
+                        ->where('plans.data.0.payableNow', 60));
 
                 $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
 
@@ -580,7 +579,7 @@ describe('Incentives', function () {
 
                 $this->get(route('incentives.index'))
                     ->assertInertia(fn ($page) => $page
-                        ->where('plans.data.0.tiers.0.canPay', false)
+                        ->where('plans.data.0.payableNow', 0)
                         ->where('plans.data.0.tiers.0.paidBy', $this->branchAdmin->name)
                         ->whereNot('plans.data.0.tiers.0.paidAt', null));
             });
@@ -607,8 +606,7 @@ describe('Incentives', function () {
                     ->assertInertia(fn ($page) => $page
                         ->where('plans.data.0.bonusAmount', 200)
                         ->where('plans.data.0.payableNow', 140)
-                        ->where('plans.data.0.tiers.0.canPay', false)
-                        ->where('plans.data.0.tiers.1.canPay', true));
+                        ->where('plans.data.0.reachedTier', 2));
 
                 $this->post(route('incentives.pay', $plan))->assertSessionHasNoErrors();
 
@@ -665,8 +663,7 @@ describe('Incentives', function () {
                     ->assertInertia(fn ($page) => $page
                         ->where('plans.data.0.bonusAmount', 300)
                         ->where('plans.data.0.paidAmount', 400)
-                        ->where('plans.data.0.payableNow', 0)
-                        ->where('plans.data.0.tiers.1.canPay', false));
+                        ->where('plans.data.0.payableNow', 0));
                 $this->post(route('incentives.pay', $plan))->assertSessionHasErrors('incentive_plan_id');
 
                 salesInvoice($this->branch->id, $this->employee->id, 5000, now()->year, now()->month);
