@@ -12,12 +12,12 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     plan: IncentivePlan | null;
-    /** تاسك 214: رقم الشريحة المصروفة (من 1). */
+    /** رقم الشريحة المصروفة (من 1) — أعلى مبلوغة (تاسك 230). */
     tier: number;
 }
 
 export default function PayBonusModal({ open, onOpenChange, plan, tier }: Props) {
-    const { data, setData, post, processing, errors, reset } = useForm({ notes: '', tier });
+    const { data, setData, post, processing, errors, reset } = useForm({ notes: '' });
     const paidTier = plan?.tiers[tier - 1];
 
     useEffect(() => {
@@ -63,9 +63,22 @@ export default function PayBonusModal({ open, onOpenChange, plan, tier }: Props)
                             <span className="text-muted-foreground">المبيعات المحققة</span>
                             <span className="tabular-nums">{formatCurrency(plan?.achievedAmount ?? 0)}</span>
                         </div>
+                        {/* تاسك 230: مكافأة الشريحة ناقص ما صُرف قبلها من شرائح أدنى. */}
+                        {!!plan?.paidAmount && (
+                            <>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">مكافأة الشريحة</span>
+                                    <span className="tabular-nums">{formatCurrency(paidTier?.bonus ?? 0)}</span>
+                                </div>
+                                <div className="flex justify-between">
+                                    <span className="text-muted-foreground">صُرف سابقاً</span>
+                                    <span className="tabular-nums">− {formatCurrency(plan.paidAmount)}</span>
+                                </div>
+                            </>
+                        )}
                         <div className="flex justify-between border-t pt-2 font-semibold">
                             <span>قيمة المكافأة</span>
-                            <span className="tabular-nums">{formatCurrency(paidTier?.bonus ?? 0)}</span>
+                            <span className="tabular-nums">{formatCurrency(plan?.payableNow ?? 0)}</span>
                         </div>
                     </div>
 

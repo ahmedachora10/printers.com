@@ -41,10 +41,10 @@ class IncentiveController extends Controller
         $branchId = $scope['branchId'];
 
         $plans = IncentivePlan::query()
-            ->with(['user:id,name', 'branch:id,name', 'bonusPayments' => fn($q) => $q->with('paidBy:id,name')->latest('paid_at')])
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->when($scope['userId'], fn($q) => $q->where('user_id', $scope['userId']))
-            ->when($scope['status'], fn($q) => $q->where('status', $scope['status']))
+            ->with(['user:id,name', 'branch:id,name', 'bonusPayments' => fn ($q) => $q->with('paidBy:id,name')->latest('paid_at')])
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($scope['userId'], fn ($q) => $q->where('user_id', $scope['userId']))
+            ->when($scope['status'], fn ($q) => $q->where('status', $scope['status']))
             ->inPeriodRange($scope['from'], $scope['to'])
             ->orderByDesc('period_year')
             ->orderByDesc('period_month')
@@ -54,9 +54,9 @@ class IncentiveController extends Controller
         // تاسك 74: الخصومات بندٌ مستقلّ يُعرض بجانب الخطط ولا يُعيد كتابة أي رقم
         // منشور — لا عمولة ولا مكافأة. صفحتها الخاصّة كي لا يزاحم تصفيحُها تصفيحَ
         // الخطط في الشاشة الواحدة.
-        $deductionQuery = fn() => EmployeeDeduction::query()
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->when($scope['userId'], fn($q) => $q->where('user_id', $scope['userId']))
+        $deductionQuery = fn () => EmployeeDeduction::query()
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($scope['userId'], fn ($q) => $q->where('user_id', $scope['userId']))
             ->deductedBetween($scope['from'], $scope['to']);
 
         $deductions = $deductionQuery()
@@ -73,12 +73,12 @@ class IncentiveController extends Controller
             // أحدٌ إلا على أنه مجموع ما يراه.
             'deductionsTotal' => (float) $deductionQuery()->sum('amount'),
             'deductionReasons' => array_map(
-                fn(DeductionReasonEnum $c) => ['value' => $c->value, 'label' => $c->label(), 'requiresNote' => $c->requiresNote()],
+                fn (DeductionReasonEnum $c) => ['value' => $c->value, 'label' => $c->label(), 'requiresNote' => $c->requiresNote()],
                 DeductionReasonEnum::cases(),
             ),
             'employees' => $this->employees($branchId, $isSuper),
-            'bonusTypes' => array_map(fn($c) => ['value' => $c->value, 'label' => $c->label()], IncentiveBonusTypeEnum::cases()),
-            'statuses' => array_map(fn($c) => ['value' => $c->value, 'label' => $c->label()], IncentivePlanStatusEnum::cases()),
+            'bonusTypes' => array_map(fn ($c) => ['value' => $c->value, 'label' => $c->label()], IncentiveBonusTypeEnum::cases()),
+            'statuses' => array_map(fn ($c) => ['value' => $c->value, 'label' => $c->label()], IncentivePlanStatusEnum::cases()),
             'branches' => $isSuper
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,
@@ -137,8 +137,8 @@ class IncentiveController extends Controller
 
         IncentivePlan::query()
             ->where('status', '!=', IncentivePlanStatusEnum::Paid->value)
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
-            ->each(fn(IncentivePlan $plan) => $action->handle($plan));
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->each(fn (IncentivePlan $plan) => $action->handle($plan));
 
         return back(fallback: route('incentives.index'))->with('success', 'تم تحديث المبيعات المحققة');
     }
@@ -147,7 +147,7 @@ class IncentiveController extends Controller
     {
         Gate::authorize('pay', $incentivePlan);
 
-        $payment = $action->handle($incentivePlan, (int) ($request->validated('tier') ?? 1), $request->validated());
+        $payment = $action->handle($incentivePlan, $request->validated());
 
         $incentivePlan->user?->notify(new BonusPaidNotification($payment));
 
@@ -166,7 +166,7 @@ class IncentiveController extends Controller
         abort_if($branchId === null, 422, 'الموظف غير مرتبط بفرع.');
 
         // Branch-admins may only file plans for their own branch's employees.
-        if (!auth()->user()->roleName->isSuperAdmin()) {
+        if (! auth()->user()->roleName->isSuperAdmin()) {
             abort_unless((int) $branchId === auth()->user()->branchId, 403);
         }
 
@@ -179,13 +179,13 @@ class IncentiveController extends Controller
     private function employees(?int $branchId, bool $isSuper)
     {
         return User::query()
-            ->whereHas('roles', fn(Builder $q) => $q->where('name', Roles::EMPLOYEE->value))
+            ->whereHas('roles', fn (Builder $q) => $q->where('name', Roles::EMPLOYEE->value))
             ->where('is_active', true)
-            ->when($branchId, fn($q) => $q->where('branch_id', $branchId))
+            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
             ->with('branch:id,name')
             ->orderBy('name')
             ->get(['id', 'name', 'branch_id'])
-            ->map(fn(User $u) => [
+            ->map(fn (User $u) => [
                 'id' => $u->id,
                 'name' => $u->name,
                 'branchName' => $isSuper ? $u->branch?->name : null,

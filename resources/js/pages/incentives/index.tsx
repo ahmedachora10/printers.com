@@ -167,6 +167,10 @@ export default function IncentivesIndex({
                     <div className="text-sm">
                         <span className="font-semibold tabular-nums">{formatCurrency(p.bonusAmount)}</span>
                         <span className="text-muted-foreground mr-1 text-xs">({p.bonusTypeLabel})</span>
+                        {/* تاسك 230: ما صُرف قبل التاسك بالتجميع قد يفوق المستحق — لا يُستردّ، ويُعرض. */}
+                        {p.paidAmount !== null && p.paidAmount !== p.bonusAmount && (
+                            <div className="text-muted-foreground text-xs tabular-nums">صُرف {formatCurrency(p.paidAmount)}</div>
+                        )}
                     </div>
                 ),
             },
@@ -181,7 +185,7 @@ export default function IncentivesIndex({
                 headerClassName: 'w-32',
                 cell: (p) => (
                     <div className="flex items-center justify-end gap-2">
-                        {/* تاسك 214: زرّ مستقل لكل شريحة مبلوغة لم تُصرف. */}
+                        {/* تاسك 230: زرّ واحد على أعلى شريحة مبلوغة. */}
                         {p.tiers.map(
                             (t, i) =>
                                 t.canPay && (
