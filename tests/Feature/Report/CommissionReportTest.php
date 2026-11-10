@@ -115,8 +115,8 @@ describe('Employee Commission Report', function () {
 
     // ── AGGREGATION ────────────────────────────────────────────────
 
-    it('aggregates earned, paid, pending and tahazir per employee', function () {
-        ledgerLine($this->employee, $this->branch, ['amount' => 100, 'is_tahazir' => false, 'paid_at' => now()]);
+    it('aggregates earned, paid and pending per employee', function () {
+        ledgerLine($this->employee, $this->branch, ['amount' => 100, 'paid_at' => now()]);
         ledgerLine($this->employee, $this->branch, ['amount' => 40, 'is_tahazir' => true, 'paid_at' => null]);
 
         $this->actingAs($this->superAdmin)
@@ -125,7 +125,6 @@ describe('Employee Commission Report', function () {
                 ->where('totals.earned', 140)
                 ->where('totals.paid', 100)
                 ->where('totals.pending', 40)
-                ->where('totals.tahazir', 40)
                 ->where('summary.0.pending', 40)
                 ->where('summary.0.lineCount', 2));
     });
@@ -168,7 +167,7 @@ describe('Employee Commission Report', function () {
         $invoice = ServiceInvoiceLine::findOrFail($owner->invoice_line_id)->invoice;
         // 50 صافية = 57.50 شاملة الضريبة = نصف الفاتورة (115).
         $share = $invoice->helpers()->create([
-            'user_id' => $helper->id, 'branch_service_id' => BranchService::query()->insertGetId(['branch_id' => $this->branch->id, 'service_template_id' => ServiceTemplate::factory()->create()->id, 'base_commission_pct' => 0, 'max_discount_pct' => 0, 'is_tahazir' => false, 'is_active' => true]), 'service_name' => 'تصميم',
+            'user_id' => $helper->id, 'branch_service_id' => BranchService::query()->insertGetId(['branch_id' => $this->branch->id, 'service_template_id' => ServiceTemplate::factory()->create()->id, 'base_commission_pct' => 0, 'max_discount_pct' => 0, 'is_active' => true]), 'service_name' => 'تصميم',
             'share_type' => 'amount', 'share_value' => 57.5, 'share_net' => 50,
         ]);
         CommissionLedger::factory()->create([

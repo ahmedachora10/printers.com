@@ -67,7 +67,6 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         price_per_sqm: 0,
         agent_commission_per_sqm: 0,
         note_examples: [],
-        is_tahazir: false,
         has_materials: false,
         materials_cost: 0,
         is_active: true,
@@ -82,7 +81,6 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
         price_per_sqm: 0,
         agent_commission_per_sqm: 0,
         note_examples: [],
-        is_tahazir: false,
         has_materials: false,
         materials_cost: 0,
         is_active: true,
@@ -113,7 +111,6 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
             price_per_sqm: source?.pricePerSqm ?? 0,
             agent_commission_per_sqm: source?.agentCommissionPerSqm ?? 0,
             note_examples: source?.noteExamples ?? [],
-            is_tahazir: source?.isTahazir ?? false,
             has_materials: source?.hasMaterials ?? false,
             materials_cost: source?.materialsCost ?? 0,
             is_active: true,
@@ -153,7 +150,6 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
             price_per_sqm: service.pricePerSqm ?? 0,
             agent_commission_per_sqm: service.agentCommissionPerSqm ?? 0,
             note_examples: service.noteExamples ?? [],
-            is_tahazir: service.isTahazir,
             has_materials: service.hasMaterials ?? false,
             materials_cost: service.materialsCost ?? 0,
             is_active: service.isActive,
@@ -225,11 +221,6 @@ export default function BranchServiceManageModal({ open, onOpenChange, template,
                                                         {service.pricingType === 'sqm' && (
                                                             <span className="ms-1 rounded bg-sky-100 px-1 text-sky-700 dark:bg-sky-950 dark:text-sky-300">
                                                                 م² {service.pricePerSqm} ر.س
-                                                            </span>
-                                                        )}
-                                                        {service.isTahazir && (
-                                                            <span className="ms-1 rounded bg-violet-100 px-1 text-violet-700 dark:bg-violet-950 dark:text-violet-300">
-                                                                تحاضر
                                                             </span>
                                                         )}
                                                     </span>
@@ -400,7 +391,6 @@ interface FieldsProps {
         price_per_sqm: number;
         agent_commission_per_sqm: number;
         note_examples: string[];
-        is_tahazir: boolean;
         has_materials: boolean;
         materials_cost: number;
         is_active: boolean;
@@ -573,13 +563,6 @@ function BranchServiceFields({ data, errors, setData }: FieldsProps) {
             )}
 
             <div className="flex items-center gap-6">
-                <div className="flex items-center gap-2">
-                    <Checkbox id="bs-tahazir" checked={data.is_tahazir} onCheckedChange={(checked) => setData('is_tahazir', checked === true)} />
-                    <Label htmlFor="bs-tahazir" className="cursor-pointer text-xs">
-                        تحاضر
-                    </Label>
-                </div>
-
                 <div className="flex items-center gap-2">
                     <Checkbox
                         id="bs-materials"

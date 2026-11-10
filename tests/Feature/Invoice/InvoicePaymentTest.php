@@ -46,7 +46,6 @@ function paymentTestInvoice(array $overrides = [], float $commission = 10): Serv
         'subtotal' => 100,
         'commission_pct' => 10,
         'commission_amount' => $commission,
-        'is_tahazir' => false,
     ]);
 
     return $invoice;

@@ -24,7 +24,6 @@ import {
 import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
 import { Combobox } from '@/components/ui/combobox';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -273,7 +272,6 @@ function ServiceTile({
                 <span className="line-clamp-2 font-medium">{s.name}</span>
                 <span className="flex w-full items-center justify-between gap-1">
                     <span className="text-muted-foreground text-xs">عمولة {s.baseCommissionPct}%</span>
-                    {s.isTahazir && <Badge variant="secondary">تحضير</Badge>}
                 </span>
             </button>
             <FavoriteStar isFavorite={isFavorite} onToggle={onToggleFavorite} className="top-1.5 end-1.5" />
@@ -375,7 +373,6 @@ export default function ServicePos({
                 maxSellingPrice: l.maxSellingPrice ?? null,
                 minSellingPrice: l.minSellingPrice ?? null,
                 baseCommissionPct: l.baseCommissionPct,
-                isTahazir: l.isTahazir,
                 hasMaterials: l.hasMaterials ?? false,
                 materialsCost: l.materialsCost ?? 0,
                 materialsCostIsOpen: l.materialsCostIsOpen ?? false,
@@ -679,7 +676,6 @@ export default function ServicePos({
                     maxSellingPrice: s.maxSellingPrice ?? null,
                     minSellingPrice: s.minSellingPrice ?? null,
                     baseCommissionPct: s.baseCommissionPct,
-                    isTahazir: s.isTahazir,
                     hasMaterials: s.hasMaterials,
                     materialsCost: s.materialsCost,
                     materialsCostIsOpen: s.materialsCostIsOpen,
@@ -771,7 +767,6 @@ export default function ServicePos({
                 maxSellingPrice: null,
                 minSellingPrice: null,
                 baseCommissionPct: 0,
-                isTahazir: false,
                 hasMaterials: false,
                 materialsCost: 0,
                 materialsCostIsOpen: false,
@@ -806,7 +801,6 @@ export default function ServicePos({
             maxSellingPrice: s.maxSellingPrice ?? null,
             minSellingPrice: s.minSellingPrice ?? null,
             baseCommissionPct: s.baseCommissionPct,
-            isTahazir: s.isTahazir,
             // الخامات تُعاد تعبئتها من الخدمة الجديدة — الخدمة تغيّرت فتغيّرت موادها.
             hasMaterials: s.hasMaterials,
             materialsCost: s.materialsCost,
@@ -1784,7 +1778,6 @@ export default function ServicePos({
                                                     <p className="truncate font-medium">{s.name}</p>
                                                     <p className="text-muted-foreground text-xs">عمولة {s.baseCommissionPct}%</p>
                                                 </div>
-                                                {s.isTahazir && <Badge variant="secondary">تحضير</Badge>}
                                             </button>
                                             <FavoriteStar
                                                 isFavorite={favoriteIds.includes(s.id)}

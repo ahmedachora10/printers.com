@@ -267,7 +267,6 @@ class ServiceInvoiceController extends Controller
                     'maxSellingPrice' => $service['maxSellingPrice'] ?? null,
                     'minSellingPrice' => $service['minSellingPrice'] ?? null,
                     'baseCommissionPct' => (float) ($service['baseCommissionPct'] ?? $line->commission_pct),
-                    'isTahazir' => (bool) ($service['isTahazir'] ?? false),
                     'pricingType' => $service['pricingType'] ?? 'unit',
                     'pricePerSqm' => (float) ($service['pricePerSqm'] ?? 0),
                     'agentCommissionPerSqm' => (float) ($service['agentCommissionPerSqm'] ?? 0),
@@ -811,7 +810,6 @@ class ServiceInvoiceController extends Controller
                 // Ready-made detail phrases; the POS joins them into the
                 // placeholder of the line's free-text detail box.
                 'noteExamples' => array_values($service->note_examples ?? []),
-                'isTahazir' => $service->is_tahazir,
                 // خدمة رفعها هذا الموظف أعلى قائمته (تاسك 76).
                 'isFavorite' => $favorites->has($service->id),
                 // تكلفة الخامات الافتراضية — تُعبّئ خانة السطر وتبقى قابلة للتعديل.

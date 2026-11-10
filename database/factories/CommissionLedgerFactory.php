@@ -21,18 +21,12 @@ class CommissionLedgerFactory extends Factory
             'invoice_line_id' => fake()->numberBetween(1, 1000),
             'invoice_line_type' => 'service',
             'amount' => fake()->randomFloat(2, 5, 500),
-            'is_tahazir' => false,
             'tier_applied' => null,
             'source_type' => CommissionSourceTypeEnum::STANDARD,
             'referral_order_id' => null,
             'earned_at' => now(),
             'paid_at' => null,
         ];
-    }
-
-    public function tahazir(): static
-    {
-        return $this->state(['is_tahazir' => true]);
     }
 
     public function paid(): static

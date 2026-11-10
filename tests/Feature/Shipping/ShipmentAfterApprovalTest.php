@@ -52,7 +52,7 @@ describe('Shipment requested after approval', function () {
         ]);
         $this->invoice->lines()->create([
             'service_name' => 'لوحة', 'qty' => 1, 'unit_price' => 115, 'discount_pct' => 0,
-            'subtotal' => 115, 'commission_pct' => 10, 'commission_amount' => 10, 'is_tahazir' => false,
+            'subtotal' => 115, 'commission_pct' => 10, 'commission_amount' => 10,
         ]);
         $this->actingAs($this->accountant)->patch(route('invoices.service.pay', $this->invoice))->assertSessionHasNoErrors();
 

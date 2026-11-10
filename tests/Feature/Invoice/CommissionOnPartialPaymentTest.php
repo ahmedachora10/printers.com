@@ -46,7 +46,6 @@ function floorInvoice(float $lineCommission = 10, float $helperCommission = 0, f
         'commission_amount' => $lineCommission,
         'materials_cost' => $materials,
         'materials_total' => $materials,
-        'is_tahazir' => false,
     ]);
 
     if ($helperCommission > 0) {
@@ -59,7 +58,6 @@ function floorInvoice(float $lineCommission = 10, float $helperCommission = 0, f
             'share_net' => 20,
             'commission_pct' => 10,
             'commission_amount' => $helperCommission,
-            'is_tahazir' => false,
         ]);
     }
 
@@ -118,7 +116,6 @@ beforeEach(function () {
         'service_template_id' => $template->id,
         'base_commission_pct' => 10,
         'max_discount_pct' => 0,
-        'is_tahazir' => false,
         'is_active' => true,
     ]);
     $this->service = BranchService::where('service_template_id', $template->id)->firstOrFail();
@@ -235,7 +232,6 @@ it('rebases commission written in full on partially paid invoices, unpaid commis
             'invoice_line_id' => $invoice->lines()->value('id'),
             'invoice_line_type' => ServiceInvoiceLine::class,
             'amount' => 10,
-            'is_tahazir' => false,
             'source_type' => 'standard',
             'earned_at' => now()->subWeek(),
             'paid_at' => $paidOut ? now() : null,

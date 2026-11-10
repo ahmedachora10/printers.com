@@ -34,7 +34,6 @@ export interface PosService {
     agentTerms: Record<number, { type: LineAgentCommissionType; value: number }>;
     /** ready-made detail phrases set by the branch admin for this service */
     noteExamples: string[];
-    isTahazir: boolean;
     /** خدمة رفعها هذا الموظف أعلى قائمته (تاسك 76) */
     isFavorite: boolean;
     /** هل للخدمة خامات، وتكلفتها الافتراضية للوحدة الواحدة */
@@ -75,7 +74,6 @@ export interface ServiceCartLine {
     /** أرضية سعر البيع للموظف — null يعني بلا أرضية. لخدمة م² هي أرضية سعر المتر. */
     minSellingPrice: number | null;
     baseCommissionPct: number;
-    isTahazir: boolean;
     /** تكلفة الخامات لهذا السطر — داخلية، تُخصم من أساس عمولة الموظف فقط */
     hasMaterials: boolean;
     /** المبلغ للوحدة الواحدة؛ يُضرب في الكمية */
@@ -192,7 +190,6 @@ export interface EditServiceInvoiceLine {
     /** أرضية سعر البيع للموظف — null يعني بلا أرضية. لخدمة م² هي أرضية سعر المتر. */
     minSellingPrice: number | null;
     baseCommissionPct: number;
-    isTahazir: boolean;
     /** لقطة الخامات المحفوظة على السطر — لا القيمة الافتراضية للخدمة */
     hasMaterials: boolean;
     materialsCost: number;

@@ -40,7 +40,6 @@ describe('Copying branch-service terms', function () {
             'price_per_sqm' => 215,
             'agent_commission_per_sqm' => 7,
             'note_examples' => ['لامع', 'مطفي'],
-            'is_tahazir' => true,
             'has_materials' => true,
             'materials_cost' => 45,
             'is_active' => true,
@@ -60,7 +59,6 @@ describe('Copying branch-service terms', function () {
                 ->where('templates.data.0.branches.0.pricePerSqm', 215)
                 ->where('templates.data.0.branches.0.agentCommissionPerSqm', 7)
                 ->where('templates.data.0.branches.0.noteExamples', ['لامع', 'مطفي'])
-                ->where('templates.data.0.branches.0.isTahazir', true)
                 ->where('templates.data.0.branches.0.hasMaterials', true)
                 ->where('templates.data.0.branches.0.materialsCost', 45));
     });
@@ -78,7 +76,6 @@ describe('Copying branch-service terms', function () {
             'min_selling_price' => 180,
             'pricing_type' => 'sqm',
             'price_per_sqm' => 215,
-            'is_tahazir' => true,
             'has_materials' => true,
             'materials_cost' => 45,
             'is_active' => true,
@@ -93,7 +90,6 @@ describe('Copying branch-service terms', function () {
             'min_selling_price' => 180,
             'pricing_type' => 'sqm',
             'price_per_sqm' => 230,
-            'is_tahazir' => true,
             'has_materials' => true,
             'materials_cost' => 45,
             'is_active' => true,

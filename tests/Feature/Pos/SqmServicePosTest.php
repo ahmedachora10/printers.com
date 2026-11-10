@@ -28,7 +28,6 @@ function makeSqmService(array $attrs = []): BranchService
         'pricing_type' => 'sqm',
         'price_per_sqm' => 100,
         'agent_commission_per_sqm' => 5,
-        'is_tahazir' => false,
         'is_active' => true,
     ], $attrs));
 
@@ -181,7 +180,6 @@ describe('Square-meter priced services', function () {
             'service_template_id' => $unitTemplate->id,
             'base_commission_pct' => 10,
             'max_discount_pct' => 0,
-            'is_tahazir' => false,
             'is_active' => true,
         ]);
         $unitService = BranchService::where('service_template_id', $unitTemplate->id)->firstOrFail();

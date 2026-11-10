@@ -43,7 +43,6 @@ class BranchServiceResource extends JsonResource
             'pricePerSqm' => (float) ($hasPivot ? $this->pivot->price_per_sqm : $this->price_per_sqm),
             'agentCommissionPerSqm' => (float) ($hasPivot ? $this->pivot->agent_commission_per_sqm : $this->agent_commission_per_sqm),
             'noteExamples' => array_values(($hasPivot ? $this->pivot->note_examples : $this->note_examples) ?? []),
-            'isTahazir' => (bool) ($hasPivot ? $this->pivot->is_tahazir : $this->is_tahazir),
             'hasMaterials' => (bool) ($hasPivot ? $this->pivot->has_materials : $this->has_materials),
             'materialsCost' => (float) ($hasPivot ? $this->pivot->materials_cost : $this->materials_cost),
             // خامات المخزون (تاسك 50) — مستقلّة تماماً عن materialsCost أعلاه:

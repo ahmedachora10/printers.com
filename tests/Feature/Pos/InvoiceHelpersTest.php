@@ -28,7 +28,6 @@ function helperService(Branch $branch, array $attrs = []): BranchService
         'service_template_id' => $template->id,
         'base_commission_pct' => 0,
         'max_discount_pct' => 50,
-        'is_tahazir' => false,
         'is_active' => true,
         ...$attrs,
     ]);

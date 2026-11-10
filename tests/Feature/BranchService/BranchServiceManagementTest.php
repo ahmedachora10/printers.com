@@ -58,7 +58,6 @@ describe('BranchService Management', function () {
             'branch_id'           => $this->branch->id,
             'base_commission_pct' => 10.00,
             'max_discount_pct'    => 5.00,
-            'is_tahazir'          => false,
             'is_active'           => true,
         ])->assertStatus(302);
     });
@@ -69,7 +68,6 @@ describe('BranchService Management', function () {
             'branch_id'           => $this->branch->id,
             'base_commission_pct' => 8.00,
             'max_discount_pct'    => 3.00,
-            'is_tahazir'          => false,
             'is_active'           => true,
         ])->assertRedirect(route('branch-services.index'));
 
@@ -88,7 +86,6 @@ describe('BranchService Management', function () {
             'pricing_type'        => 'sqm',
             'price_per_sqm'       => 120.50,
             'agent_commission_per_sqm' => 4.25,
-            'is_tahazir'          => false,
             'is_active'           => true,
         ])->assertRedirect(route('branch-services.index'));
 
@@ -107,7 +104,6 @@ describe('BranchService Management', function () {
             'base_commission_pct' => 8.00,
             'max_discount_pct'    => 3.00,
             'pricing_type'        => 'sqm',
-            'is_tahazir'          => false,
             'is_active'           => true,
         ])->assertSessionHasErrors('price_per_sqm');
     });
@@ -129,7 +125,6 @@ describe('BranchService Management', function () {
         $this->template->branches()->attach($this->branch->id, [
             'base_commission_pct' => 10,
             'max_discount_pct'    => 5,
-            'is_tahazir'          => false,
             'is_active'           => true,
         ]);
 
@@ -160,7 +155,6 @@ describe('BranchService Management', function () {
         $this->template->branches()->attach($this->branch->id, [
             'base_commission_pct' => 10,
             'max_discount_pct'    => 5,
-            'is_tahazir'          => false,
             'is_active'           => true,
         ]);
 
@@ -171,7 +165,6 @@ describe('BranchService Management', function () {
         $this->put(route('branch-services.update', $branchService), [
             'base_commission_pct' => 15.00,
             'max_discount_pct'    => 8.00,
-            'is_tahazir'          => true,
             'is_active'           => true,
         ])->assertStatus(302);
     });
@@ -180,7 +173,6 @@ describe('BranchService Management', function () {
         $this->template->branches()->attach($this->branch->id, [
             'base_commission_pct' => 10,
             'max_discount_pct'    => 5,
-            'is_tahazir'          => false,
             'is_active'           => true,
         ]);
 
@@ -195,10 +187,11 @@ describe('BranchService Management', function () {
             'is_active'           => true,
         ])->assertRedirect(route('branch-services.index'));
 
+        // تاسك 227: «التحاضير» لم تعد تُعدَّل — إرسالها لا يغيّر المحفوظ.
         $this->assertDatabaseHas('branch_services', [
             'id'                  => $branchService->id,
             'base_commission_pct' => 15.00,
-            'is_tahazir'          => true,
+            'is_tahazir'          => false,
         ]);
     });
 
@@ -209,7 +202,6 @@ describe('BranchService Management', function () {
         $this->template->branches()->attach($otherBranch->id, [
             'base_commission_pct' => 10,
             'max_discount_pct'    => 5,
-            'is_tahazir'          => false,
             'is_active'           => true,
         ]);
 
@@ -220,7 +212,6 @@ describe('BranchService Management', function () {
         $this->put(route('branch-services.update', $branchService), [
             'base_commission_pct' => 20.00,
             'max_discount_pct'    => 10.00,
-            'is_tahazir'          => false,
             'is_active'           => true,
         ])->assertForbidden();
     });
@@ -233,7 +224,6 @@ describe('BranchService Management', function () {
         $this->template->branches()->attach($this->branch->id, [
             'base_commission_pct' => 10,
             'max_discount_pct'    => 5,
-            'is_tahazir'          => false,
             'is_active'           => true,
         ]);
 
@@ -249,7 +239,6 @@ describe('BranchService Management', function () {
         $this->template->branches()->attach($this->branch->id, [
             'base_commission_pct' => 10,
             'max_discount_pct'    => 5,
-            'is_tahazir'          => false,
             'is_active'           => true,
         ]);
 

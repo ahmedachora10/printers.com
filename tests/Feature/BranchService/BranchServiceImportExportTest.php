@@ -99,11 +99,10 @@ function serviceRow(string $name, array $overrides = []): array
         5 => 'بالوحدة', // نوع التسعير
         6 => '0.00',    // سعر المتر
         7 => '0.00',    // عمولة الوكيل للمتر
-        8 => 0,         // تحضير
-        9 => 0,         // لها خامات
-        10 => '0.00',   // تكلفة الخامات
-        11 => '',       // أمثلة الملاحظات
-        12 => 1,        // نشط
+        8 => 0,         // لها خامات
+        9 => '0.00',    // تكلفة الخامات
+        10 => '',       // أمثلة الملاحظات
+        11 => 1,        // نشط
     ];
 
     ksort($row);
@@ -173,7 +172,7 @@ describe('export', function () {
         $sheets = (new BranchServicesExport($this->branch->id))->sheets();
 
         expect($sheets[0]->collection()->first())->toBe([
-            'طباعة ملونة', '12.50', '20.00', '90.00', '', 'بالوحدة', '0.00', '0.00', 0, 0, '0.00', 'وجه واحد | وجهين', 1,
+            'طباعة ملونة', '12.50', '20.00', '90.00', '', 'بالوحدة', '0.00', '0.00', 0, '0.00', 'وجه واحد | وجهين', 1,
         ]);
 
         expect($sheets[1]->collection()->first())->toBe(['طباعة ملونة', 'أحمد علي', 'ahmed', '7.25', $this->branch->name]);
@@ -380,11 +379,31 @@ describe('import', function () {
 
     it('splits the note examples cell on its separator', function () {
         $this->post(route('branch-services.import'), [
-            'file' => branchServicesSheet([serviceRow('تجليد', [11 => 'وجه واحد | وجهين | وجه واحد'])]),
+            'file' => branchServicesSheet([serviceRow('تجليد', [10 => 'وجه واحد | وجهين | وجه واحد'])]),
         ])->assertOk();
 
         expect(BranchService::where('branch_id', $this->branch->id)->firstOrFail()->note_examples)
             ->toBe(['وجه واحد', 'وجهين']);
+    });
+
+    it('imports a file exported before task 227, ignoring its «تحضير» column', function () {
+        $headings = BranchServicesExport::serviceHeadings();
+        array_splice($headings, 8, 0, ['تحضير']);
+        $row = serviceRow('تجليد', [8 => 1, 11 => 0]); // لها خامات = 1، نشط = 0
+        array_splice($row, 8, 0, [1]);                  // تحضير = 1
+
+        $this->post(route('branch-services.import'), [
+            'file' => branchServicesWorkbook([[
+                'title' => BranchServicesExport::SERVICES_SHEET,
+                'headings' => $headings,
+                'rows' => [$row],
+            ]]),
+        ])->assertOk();
+
+        $service = BranchService::where('branch_id', $this->branch->id)->firstOrFail();
+        expect($service->has_materials)->toBeTrue()
+            ->and($service->is_active)->toBeFalse()
+            ->and($service->is_tahazir)->toBeFalse();
     });
 });
 

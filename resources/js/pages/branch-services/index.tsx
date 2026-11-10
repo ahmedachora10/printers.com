@@ -154,21 +154,6 @@ export default function BranchServicesIndex({
                     ),
             },
             {
-                key: 'isTahazir',
-                header: 'تحضير',
-                cell: (s) =>
-                    s.isTahazir ? (
-                        <Badge
-                            variant="outline"
-                            className="border-violet-200 bg-violet-50 text-violet-700 dark:border-violet-800 dark:bg-violet-950 dark:text-violet-300"
-                        >
-                            نعم
-                        </Badge>
-                    ) : (
-                        <span className="text-muted-foreground text-sm">لا</span>
-                    ),
-            },
-            {
                 key: 'isActive',
                 header: 'الحالة',
                 // تاسك 116: القالب قاطعٌ علويّ — خدمةٌ عطّلها مدير النظام لا تُباع

@@ -38,8 +38,6 @@ export interface UserCommissionSummary {
     totalEarned: number;
     totalPaid: number;
     pending: number;
-    tahazirEarned: number;
-    standardEarned: number;
 }
 
 export interface UserSalesSummary {
@@ -68,7 +66,6 @@ export interface UserServiceCommission {
 export interface UserCommissionLedgerItem {
     id: number;
     amount: number | string;
-    is_tahazir: boolean | number;
     source_type: string;
     earned_at: string;
     paid_at: string | null;

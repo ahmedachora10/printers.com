@@ -42,7 +42,6 @@ class UpdateBranchServiceRequest extends FormRequest
             // للمربع وسعر المتر الطولي للطولي، فيلزم في التسعيرين معاً.
             'price_per_sqm' => ['nullable', 'required_if:pricing_type,sqm', 'required_if:pricing_type,linear', 'numeric', 'min:0'],
             'agent_commission_per_sqm' => ['nullable', 'numeric', 'min:0'],
-            'is_tahazir' => ['boolean'],
             // الخامات: مفتاح + تكلفة افتراضية للوحدة تُعبَّأ في نقطة البيع. صفر
             // مقبول — يعني «لها خامات لكن المبلغ يُدخَل مع كل فاتورة».
             'has_materials' => ['boolean'],

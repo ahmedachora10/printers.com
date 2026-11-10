@@ -39,7 +39,6 @@ describe('Shipping on the service POS screen', function () {
             'service_template_id' => $template->id,
             'base_commission_pct' => 50,
             'max_discount_pct' => 50,
-            'is_tahazir' => false,
             'is_active' => true,
         ]);
         $this->service = BranchService::where('branch_id', $this->branch->id)->firstOrFail();

@@ -303,18 +303,6 @@ export default function UserShow({
                                         {formatCurrency(commissionSummary.pending)}
                                     </span>
                                 </div>
-                                <div className="flex items-center justify-between border-t pt-3 text-sm">
-                                    <span className="text-muted-foreground">قياسية</span>
-                                    <span className="tabular-nums" dir="ltr">
-                                        {formatCurrency(commissionSummary.standardEarned)}
-                                    </span>
-                                </div>
-                                <div className="flex items-center justify-between text-sm">
-                                    <span className="text-muted-foreground">تحضير</span>
-                                    <span className="tabular-nums" dir="ltr">
-                                        {formatCurrency(commissionSummary.tahazirEarned)}
-                                    </span>
-                                </div>
                             </CardContent>
                         </Card>
 
@@ -345,7 +333,6 @@ export default function UserShow({
                                                     </span>
                                                     <p className="text-muted-foreground text-xs">
                                                         {tx.paid_at ? 'مدفوعة' : 'مستحقة'}
-                                                        {tx.is_tahazir ? ' · تحضير' : ''}
                                                     </p>
                                                 </div>
                                                 <span className="text-muted-foreground text-xs">{formatDate(tx.earned_at)}</span>
