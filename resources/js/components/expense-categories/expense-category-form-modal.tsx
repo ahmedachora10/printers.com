@@ -30,7 +30,7 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
     const { data, setData, post, put, processing, errors, reset, transform } = useForm({
         name: expenseCategory?.name ?? '',
         is_active: expenseCategory?.isActive ?? true,
-        branch_id: 'global',
+        branch_id: expenseCategory?.branchId?.toString() ?? 'global',
     });
 
     transform((d) => ({ ...d, branch_id: d.branch_id === 'global' ? null : d.branch_id }));
@@ -40,7 +40,7 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
             setData({
                 name: expenseCategory.name ?? '',
                 is_active: expenseCategory.isActive ?? true,
-                branch_id: 'global',
+                branch_id: expenseCategory.branchId?.toString() ?? 'global',
             });
         } else {
             reset();
@@ -71,8 +71,8 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
                 </DialogHeader>
 
                 <form id="expense-category-form" onSubmit={handleSubmit} className="space-y-4 py-2">
-                    {/* النطاق لا يُنقل بالتعديل — يُختار عند الإضافة وحدها. */}
-                    {branches && !isEdit && (
+                    {/* تاسك 231: السوبر أدمن ينقل النطاق عند التعديل أيضاً. */}
+                    {branches && (
                         <div className="space-y-1">
                             <Label htmlFor="ec-branch">النطاق</Label>
                             <Select value={data.branch_id} onValueChange={(val) => setData('branch_id', val)}>

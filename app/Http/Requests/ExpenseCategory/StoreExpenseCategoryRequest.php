@@ -37,7 +37,8 @@ class StoreExpenseCategoryRequest extends FormRequest
                 'string',
                 'max:255',
                 // فريد بين ما يراه الفرع: العامة + فئاته. فرعان يسمّيان «كهرباء» معاً.
-                Rule::unique('expense_categories', 'name')->where(fn ($q) => $branchId === null
+                // التعديل يرث القاعدة نفسها ويستثني فئته (تاسك 231).
+                Rule::unique('expense_categories', 'name')->ignore($this->route('expenseCategory')?->id)->where(fn ($q) => $branchId === null
                     ? $q->whereNull('branch_id')
                     : $q->where(fn ($w) => $w->whereNull('branch_id')->orWhere('branch_id', $branchId))),
             ],

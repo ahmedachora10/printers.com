@@ -184,6 +184,50 @@ describe('ExpenseCategory Management', function () {
             expect(ExpenseCategory::firstWhere('name', 'وقود')->branch_id)->toBe($this->otherBranch->id);
         });
 
+        // ── تاسك 231: السوبر أدمن ينقل النطاق عند التعديل ──────────────
+
+        it('lets the super-admin move a category between a branch and global', function () {
+            $superAdmin = User::factory()->create();
+            $superAdmin->addRole('super-admin');
+            $this->actingAs($superAdmin);
+
+            $category = ExpenseCategory::factory()->create(['name' => 'صيانة', 'branch_id' => $this->branch->id]);
+            Expense::factory()->create(['expense_category_id' => $category->id, 'branch_id' => $this->branch->id]);
+
+            // فرع ⇒ عامة: مسموح دائماً.
+            $this->put(route('expense-categories.update', $category), ['name' => 'صيانة', 'branch_id' => null])
+                ->assertSessionHasNoErrors();
+            expect($category->fresh()->branch_id)->toBeNull();
+
+            // عامة ⇒ فرعٍ آخر ولها مصروف في الأول: مرفوض.
+            $this->put(route('expense-categories.update', $category), ['name' => 'صيانة', 'branch_id' => $this->otherBranch->id])
+                ->assertSessionHasErrors('branch_id');
+            expect($category->fresh()->branch_id)->toBeNull();
+
+            // عامة ⇒ الفرع الذي فيه مصروفاتها كلها: مسموح.
+            $this->put(route('expense-categories.update', $category), ['name' => 'صيانة', 'branch_id' => $this->branch->id])
+                ->assertSessionHasNoErrors();
+            expect($category->fresh()->branch_id)->toBe($this->branch->id);
+        });
+
+        it('measures the name against the new scope and ignores a branch admin\'s branch_id', function () {
+            $mine = ExpenseCategory::factory()->create(['name' => 'كهرباء', 'branch_id' => $this->branch->id]);
+            ExpenseCategory::factory()->create(['name' => 'كهرباء', 'branch_id' => $this->otherBranch->id]);
+
+            // مدير الفرع يرسل branch_id ⇒ لا يتغيّر.
+            $this->put(route('expense-categories.update', $mine), ['name' => 'كهرباء', 'branch_id' => $this->otherBranch->id])
+                ->assertSessionHasNoErrors();
+            expect($mine->fresh()->branch_id)->toBe($this->branch->id);
+
+            $superAdmin = User::factory()->create();
+            $superAdmin->addRole('super-admin');
+
+            // اسمٌ مكرّر في النطاق الجديد.
+            $this->actingAs($superAdmin)
+                ->put(route('expense-categories.update', $mine), ['name' => 'كهرباء', 'branch_id' => $this->otherBranch->id])
+                ->assertSessionHasErrors('name');
+        });
+
         it('rejects an expense booked under another branch\'s category', function () {
             $theirs = ExpenseCategory::factory()->create(['branch_id' => $this->otherBranch->id]);
             $mine = ExpenseCategory::factory()->create(['branch_id' => $this->branch->id]);
