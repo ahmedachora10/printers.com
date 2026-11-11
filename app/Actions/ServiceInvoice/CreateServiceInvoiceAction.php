@@ -13,7 +13,6 @@ use App\Enums\InvoiceStatusEnum;
 use App\Models\Branch;
 use App\Models\Quotation;
 use App\Models\ServiceInvoice;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
 class CreateServiceInvoiceAction
@@ -29,14 +28,14 @@ class CreateServiceInvoiceAction
     ) {}
 
     /** @param array<string, mixed> $data */
-    public function handle(array $data, ?UploadedFile $receipt = null): ServiceInvoice
+    public function handle(array $data, array $receipts = []): ServiceInvoice
     {
         $user = auth()->user();
         $branchId = $user->branchId;
         $branch = Branch::findOrFail($branchId);
         $vatPct = (float) $branch->vat_rate_override;
 
-        return DB::transaction(function () use ($data, $user, $branchId, $vatPct, $receipt) {
+        return DB::transaction(function () use ($data, $user, $branchId, $vatPct, $receipts) {
             $calc = $this->calculator->handle($data, $user, $branchId, $vatPct);
 
             $status = InvoiceStatusEnum::from($data['status']);
@@ -50,9 +49,7 @@ class CreateServiceInvoiceAction
                 ...$calc['attributes'],
             ]);
 
-            if ($receipt !== null) {
-                $invoice->addMedia($receipt)->toMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);
-            }
+            $invoice->addReceipts($receipts);
 
             // تاسك 100: خانة «ملاحظات داخلية» تفتتح المحادثة الداخلية للفاتورة.
             if (filled($data['internal_notes'] ?? null)) {

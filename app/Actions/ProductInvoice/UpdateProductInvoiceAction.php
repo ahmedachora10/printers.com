@@ -12,7 +12,6 @@ use App\Enums\StockMovementTypeEnum;
 use App\Models\Product;
 use App\Models\ProductInvoice;
 use App\Models\User;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -42,9 +41,9 @@ class UpdateProductInvoiceAction
     ) {}
 
     /** @param array<string, mixed> $data */
-    public function handle(ProductInvoice $invoice, array $data, User $actor, ?UploadedFile $receipt = null): ProductInvoice
+    public function handle(ProductInvoice $invoice, array $data, User $actor, array $receipts = []): ProductInvoice
     {
-        return DB::transaction(function () use ($invoice, $data, $actor, $receipt) {
+        return DB::transaction(function () use ($invoice, $data, $actor, $receipts) {
             $invoice = ProductInvoice::query()->whereKey($invoice->id)->lockForUpdate()->firstOrFail();
 
             $heldQty = $invoice->lines()->whereNotNull('product_id')->get()
@@ -62,9 +61,7 @@ class UpdateProductInvoiceAction
             $invoice->update($calc['attributes']);
             $invoice->settleAfterEdit($actor->id, $previousTotal);
 
-            if ($receipt !== null) {
-                $invoice->addMedia($receipt)->toMediaCollection(ProductInvoice::RECEIPT_COLLECTION);
-            }
+            $invoice->addReceipts($receipts);
 
             $this->creator->writeLines($invoice, $calc['lines']);
             $this->moveStockByDifference($invoice, $heldQty, $calc['lines'], $actor);

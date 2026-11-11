@@ -75,7 +75,7 @@ class RefundController extends Controller
     {
         Gate::authorize('view', $refund);
 
-        $media = $refund->getFirstMedia(Refund::RECEIPT_COLLECTION);
+        $media = $refund->receipt($request->integer('media') ?: null);
         abort_if($media === null, 404);
 
         return $media->toInlineResponse($request);

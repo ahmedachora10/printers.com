@@ -54,10 +54,7 @@ class UpdateInvoicePaymentMethodRequest extends FormRequest
 
         return [
             'payment_method_id' => ['required', 'integer', Rule::in($enabledIds)],
-            'receipt' => [
-                $this->receiptRequired() ? 'required' : 'nullable',
-                'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120',
-            ],
+            ...ServiceInvoice::receiptRules($this->receiptRequired()),
         ];
     }
 
@@ -100,9 +97,6 @@ class UpdateInvoicePaymentMethodRequest extends FormRequest
         return [
             'payment_method_id.required' => 'طريقة الدفع مطلوبة.',
             'payment_method_id.in' => 'طريقة الدفع غير متاحة لهذا الفرع.',
-            'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.',
-            'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
-            'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
         ];
     }
 }

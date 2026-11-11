@@ -257,7 +257,7 @@ describe('Invoice payments', function () {
         $invoice = paymentTestInvoice();
 
         postPayment($invoice, ['amount' => 40, 'payment_method_id' => $this->transfer->id])
-            ->assertSessionHasErrors('receipt');
+            ->assertSessionHasErrors('receipts');
 
         expect($invoice->payments()->count())->toBe(0);
     });
@@ -269,7 +269,7 @@ describe('Invoice payments', function () {
         postPayment($invoice, [
             'amount' => 40,
             'payment_method_id' => $this->transfer->id,
-            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+            'receipts' => [UploadedFile::fake()->image('transfer.jpg')],
         ])->assertRedirect()->assertSessionHasNoErrors();
 
         $payment = $invoice->payments()->firstOrFail();
@@ -279,6 +279,22 @@ describe('Invoice payments', function () {
 
         // الإيصال على القرص الخاص ولا يُقدَّم إلا من المسار المحمي بالصلاحية.
         $this->get($payment->receiptUrl())->assertOk();
+    });
+
+    it('keeps every receipt of a payment and serves each one (task 229)', function () {
+        Storage::fake('local');
+        $invoice = paymentTestInvoice();
+
+        postPayment($invoice, [
+            'amount' => 40,
+            'payment_method_id' => $this->transfer->id,
+            'receipts' => [UploadedFile::fake()->image('one.jpg'), UploadedFile::fake()->image('two.jpg')],
+        ])->assertSessionHasNoErrors();
+
+        $urls = $invoice->payments()->firstOrFail()->receiptUrls();
+
+        expect($urls)->toHaveCount(2);
+        $this->get($urls[1]['url'])->assertOk();
     });
 
     it('needs no receipt for a method that does not require one', function () {
@@ -296,7 +312,7 @@ describe('Invoice payments', function () {
         postPayment($invoice, [
             'amount' => 40,
             'payment_method_id' => $this->transfer->id,
-            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+            'receipts' => [UploadedFile::fake()->image('transfer.jpg')],
         ])->assertRedirect();
 
         $payment = $invoice->payments()->firstOrFail();

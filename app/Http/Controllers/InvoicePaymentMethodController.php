@@ -22,7 +22,7 @@ class InvoicePaymentMethodController extends Controller
         abort_if($invoice === null, 404);
         Gate::authorize('changePaymentMethod', $invoice);
 
-        $action->handle($target, (int) $request->validated('payment_method_id'), $request->file('receipt'), $request->user());
+        $action->handle($target, (int) $request->validated('payment_method_id'), $request->file('receipts', []), $request->user());
 
         return back(fallback: route('invoices.index'))
             ->with('success', "تم تحديث طريقة الدفع للفاتورة {$invoice->invoice_number}");

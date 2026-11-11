@@ -155,7 +155,7 @@ class ProductInvoiceController extends Controller
             Gate::authorize('convert', Quotation::findOrFail($quotationId));
         }
 
-        $invoice = $action->handle($request->validated(), $request->file('receipt'));
+        $invoice = $action->handle($request->validated(), $request->file('receipts', []));
 
         if ($invoice->status === InvoiceStatusEnum::DUE) {
             Notification::send(
@@ -182,7 +182,7 @@ class ProductInvoiceController extends Controller
     {
         Gate::authorize('update', $invoice);
 
-        $action->handle($invoice, $request->validated(), $request->user(), $request->file('receipt'));
+        $action->handle($invoice, $request->validated(), $request->user(), $request->file('receipts', []));
 
         $redirect = $request->boolean('print')
             ? to_route('pos.product.print', $invoice)

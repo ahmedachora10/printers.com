@@ -1,5 +1,5 @@
 import MaterialsShortageDialog from '@/components/invoices/materials-shortage-dialog';
-import { ReceiptField } from '@/components/invoices/receipt-field';
+import { ReceiptField, receiptError } from '@/components/invoices/receipt-field';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -66,7 +66,7 @@ export default function RecordPaymentModal({
     const [discountValue, setDiscountValue] = useState('');
     const [discountIsPct, setDiscountIsPct] = useState(false);
     const [methodId, setMethodId] = useState<string>('');
-    const [receipt, setReceipt] = useState<File | null>(null);
+    const [receipts, setReceipts] = useState<File[]>([]);
     const [notes, setNotes] = useState('');
     const [errors, setErrors] = useState<Record<string, string>>({});
     const [submitting, setSubmitting] = useState(false);
@@ -80,7 +80,7 @@ export default function RecordPaymentModal({
             setDiscountValue('');
             setDiscountIsPct(false);
             setMethodId('');
-            setReceipt(null);
+            setReceipts([]);
             setNotes('');
             setErrors({});
             setMaterialsShortage(null);
@@ -109,7 +109,7 @@ export default function RecordPaymentModal({
     const amountValid = amount.trim() !== '' && Number.isFinite(parsed) && parsed > 0 && parsed <= remainingAfterDiscount + 0.001;
     const isValid = discountOnly
         ? discountValid
-        : amountValid && discountValid && hasMethods && methodId !== '' && (!requiresReceipt || receipt !== null);
+        : amountValid && discountValid && hasMethods && methodId !== '' && (!requiresReceipt || receipts.length > 0);
     const settlesInvoice = amountValid && Math.abs(remainingAfterDiscount - parsed) < 0.005;
 
     function submit(confirmedShortage = false) {
@@ -121,8 +121,8 @@ export default function RecordPaymentModal({
             setErrors({ payment_method_id: 'طريقة الدفع مطلوبة.' });
             return;
         }
-        if (!discountOnly && requiresReceipt && receipt === null) {
-            setErrors({ receipt: 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.' });
+        if (!discountOnly && requiresReceipt && receipts.length === 0) {
+            setErrors({ receipts: 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.' });
             return;
         }
 
@@ -138,7 +138,7 @@ export default function RecordPaymentModal({
                       amount: parsed,
                       discount: discountAmount > 0 ? discountAmount : null,
                       payment_method_id: Number(methodId),
-                      receipt,
+                      receipts,
                       notes: notes.trim() || null,
                       confirm_materials_shortage: confirmedShortage ? 1 : 0,
                   },
@@ -286,7 +286,7 @@ export default function RecordPaymentModal({
                         </div>
 
                         {requiresReceipt && (
-                            <ReceiptField id="payment-receipt" onChange={setReceipt} error={errors.receipt} disabled={submitting} />
+                            <ReceiptField id="payment-receipt" onChange={setReceipts} error={receiptError(errors)} disabled={submitting} />
                         )}
 
                         <div className="space-y-1.5">

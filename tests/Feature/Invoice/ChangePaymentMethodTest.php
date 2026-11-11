@@ -187,7 +187,7 @@ describe('Change payment method (task 99)', function () {
             ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $transfer->id,
             ])
-            ->assertSessionHasErrors('receipt');
+            ->assertSessionHasErrors('receipts');
 
         expect($invoice->refresh()->payment_method_id)->toBe($this->card->id);
     });

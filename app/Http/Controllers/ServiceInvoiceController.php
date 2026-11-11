@@ -294,7 +294,7 @@ class ServiceInvoiceController extends Controller
             Gate::authorize('convert', Quotation::findOrFail($quotationId));
         }
 
-        $invoice = $action->handle($request->validated(), $request->file('receipt'));
+        $invoice = $action->handle($request->validated(), $request->file('receipts', []));
 
         if ($invoice->status === InvoiceStatusEnum::DUE) {
             Notification::send(
@@ -333,7 +333,7 @@ class ServiceInvoiceController extends Controller
     {
         Gate::authorize('update', $invoice);
 
-        $action->handle($invoice, $request->validated(), $request->file('receipt'));
+        $action->handle($invoice, $request->validated(), $request->file('receipts', []));
 
         return to_route('invoices.show', ['type' => InvoiceTypeEnum::SERVICE->value, 'id' => $invoice->id])
             ->with('success', "تم تحديث الفاتورة {$invoice->invoice_number} بنجاح");
@@ -454,7 +454,7 @@ class ServiceInvoiceController extends Controller
 
         if ($method?->requires_attachment && ! $invoice->hasReceipt()) {
             throw ValidationException::withMessages([
-                'receipt' => "طريقة الدفع «{$method->name}» تستلزم إيصال التحويل — أرفقه قبل اعتماد الفاتورة.",
+                'receipts' => "طريقة الدفع «{$method->name}» تستلزم إيصال التحويل — أرفقه قبل اعتماد الفاتورة.",
             ]);
         }
     }

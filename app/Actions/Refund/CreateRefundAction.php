@@ -55,7 +55,7 @@ class CreateRefundAction
     ) {}
 
     /**
-     * @param  array{source_type: string, invoice_id: int, amount: float|string, reason: string, reverse_stock?: bool, payment_method_id?: int|null, receipt?: UploadedFile|null}  $data
+     * @param  array{source_type: string, invoice_id: int, amount: float|string, reason: string, reverse_stock?: bool, payment_method_id?: int|null, receipts?: array<int, UploadedFile>}  $data
      */
     public function handle(array $data, User $actor): Refund
     {
@@ -150,9 +150,7 @@ class CreateRefundAction
                 'stock_reversed' => $reverseStock,
             ]);
 
-            if ($data['receipt'] ?? null) {
-                $refund->addMedia($data['receipt'])->toMediaCollection(Refund::RECEIPT_COLLECTION);
-            }
+            $refund->addReceipts($data['receipts'] ?? []);
 
             if ($reverseStock) {
                 if ($invoice instanceof ServiceInvoice) {

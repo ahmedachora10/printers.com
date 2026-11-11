@@ -1,6 +1,6 @@
 import { noteExamplesPlaceholder } from '@/components/branch-services/note-examples-field';
 import InvoiceCustomerFields, { type InvoiceCustomerErrors, type InvoiceCustomerFormData } from '@/components/invoices/invoice-customer-fields';
-import { ReceiptField } from '@/components/invoices/receipt-field';
+import { ReceiptField, receiptError } from '@/components/invoices/receipt-field';
 import {
     DraftNumberInput,
     LINE_HINT_CLASS,
@@ -414,7 +414,7 @@ export default function ServicePos({
     const [walkinTaxNumber, setWalkinTaxNumber] = useState('');
     const [status, setStatus] = useState<InvoiceStatus>(isEmployee ? 'due' : 'paid');
     const [paymentMethodId, setPaymentMethodId] = useState<number | null>(invoice?.paymentMethodId ?? null);
-    const [receipt, setReceipt] = useState<File | null>(null);
+    const [receipts, setReceipts] = useState<File[]>([]);
     const [couponCode, setCouponCode] = useState(invoice?.coupon?.code ?? '');
     const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(
         invoice?.coupon ? { code: invoice.coupon.code, type: invoice.coupon.type, value: invoice.coupon.value } : null,
@@ -923,7 +923,7 @@ export default function ServicePos({
         setWalkinPhone('');
         setWalkinTaxNumber('');
         setPaymentMethodId(null);
-        setReceipt(null);
+        setReceipts([]);
         setStatus(isEmployee ? 'due' : 'paid');
         setRedeemPoints('');
         setNotes('');
@@ -977,7 +977,7 @@ export default function ServicePos({
         }
         // A bank-transfer method needs a receipt — unless editing an invoice that
         // already carries one and keeps the same method.
-        if (!quoting && requiresReceipt && !receipt && !(isEditing && invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
+        if (!quoting && requiresReceipt && receipts.length === 0 && !(isEditing && invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
             toast.error('يجب إرفاق إيصال التحويل لطريقة الدفع المحددة');
             return;
         }
@@ -1002,7 +1002,7 @@ export default function ServicePos({
             coupon_code: appliedCoupon?.code ?? null,
             redeem_points: loyaltyOn && Number(redeemPoints) > 0 ? Number(redeemPoints) : null,
             payment_method_id: paymentMethodId,
-            receipt,
+            receipts,
             notes: notes.trim() || null,
             internal_notes: internalNotes.trim() || null,
             delivery_at: deliveryAt,
@@ -1535,7 +1535,7 @@ export default function ServicePos({
                                                 type="button"
                                                 variant={paymentMethodId === m.id ? 'default' : 'outline'}
                                                 onClick={() => {
-                                                    setReceipt(null);
+                                                    setReceipts([]);
                                                     setPaymentMethodId((prev) => (prev === m.id ? null : m.id));
                                                 }}
                                             >
@@ -1544,7 +1544,7 @@ export default function ServicePos({
                                         ))}
                                     </div>
 
-                                    {requiresReceipt && <ReceiptField id="receipt" onChange={setReceipt} error={errors.receipt} />}
+                                    {requiresReceipt && <ReceiptField id="receipt" onChange={setReceipts} error={receiptError(errors)} />}
                                 </div>
                             )}
                             {errors.payment_method_id && <p className="text-destructive mt-2 text-xs">{errors.payment_method_id}</p>}

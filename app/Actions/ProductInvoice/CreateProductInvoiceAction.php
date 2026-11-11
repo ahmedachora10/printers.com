@@ -23,7 +23,6 @@ use App\Models\Product;
 use App\Models\ProductInvoice;
 use App\Models\Quotation;
 use App\Support\Quantity;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -40,14 +39,14 @@ class CreateProductInvoiceAction
     ) {}
 
     /** @param array<string, mixed> $data */
-    public function handle(array $data, ?UploadedFile $receipt = null): ProductInvoice
+    public function handle(array $data, array $receipts = []): ProductInvoice
     {
         $user = auth()->user();
         $branchId = $user->branchId;
         $branch = Branch::findOrFail($branchId);
         $vatPct = (float) $branch->vat_rate_override;
 
-        return DB::transaction(function () use ($data, $user, $branchId, $vatPct, $receipt) {
+        return DB::transaction(function () use ($data, $user, $branchId, $vatPct, $receipts) {
             $calc = $this->calculate($data, $branchId, $vatPct);
             $status = InvoiceStatusEnum::from($data['status']);
 
@@ -60,9 +59,7 @@ class CreateProductInvoiceAction
                 'paid_at' => $status === InvoiceStatusEnum::PAID ? now() : null,
             ]);
 
-            if ($receipt !== null) {
-                $invoice->addMedia($receipt)->toMediaCollection(ProductInvoice::RECEIPT_COLLECTION);
-            }
+            $invoice->addReceipts($receipts);
 
             $this->writeLines($invoice, $calc['lines']);
 

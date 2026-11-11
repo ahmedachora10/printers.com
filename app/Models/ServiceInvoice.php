@@ -113,7 +113,6 @@ class ServiceInvoice extends Model implements HasMedia
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection(self::RECEIPT_COLLECTION)
-            ->singleFile()
             ->useDisk('local')
             ->acceptsMimeTypes(self::RECEIPT_MIME_TYPES);
     }

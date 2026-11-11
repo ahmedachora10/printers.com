@@ -1,5 +1,6 @@
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
 import { FilterBar } from '@/components/filter-bar';
+import { ReceiptLinks } from '@/components/invoices/receipt-field';
 import RefundFormModal from '@/components/refunds/refund-form-modal';
 import RefundTabs from '@/components/refunds/refund-tabs';
 import { Badge } from '@/components/ui/badge';
@@ -11,7 +12,7 @@ import refunds from '@/routes/refunds';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import { type PaginatedRefund, type RefundFilters, type RefundListItem } from '@/types/refund';
 import { Link, router, usePage } from '@inertiajs/react';
-import { Paperclip, Plus, Printer } from 'lucide-react';
+import { Plus, Printer } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'المرتجعات', href: '/refunds' }];
@@ -109,11 +110,7 @@ export default function RefundsIndex({ items, sourceTypes, filters }: Props) {
                     <span className="flex items-center gap-1.5 text-sm">
                         {item.paymentMethodName ?? '—'}
                         {/* تاسك 213: إيصال تحويل الردّ */}
-                        {item.receiptUrl && (
-                            <a href={item.receiptUrl} target="_blank" rel="noopener noreferrer" title="إيصال التحويل" className="text-primary">
-                                <Paperclip className="size-4" />
-                            </a>
-                        )}
+                        <ReceiptLinks receipts={item.receipts} />
                     </span>
                 ),
             },

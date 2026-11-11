@@ -9,7 +9,6 @@ use App\Enums\ReturnRequestStatusEnum;
 use App\Models\InvoiceReturnRequest;
 use App\Models\Refund;
 use App\Models\User;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -29,9 +28,9 @@ class ApproveInvoiceReturnRequestAction
      * الفاتورة قائمة وتُعكس العمولة والولاء نسبياً ولا تعود الخامات. الفارغ أو
      * كامل المحصَّل = الاسترجاع الكامل.
      */
-    public function handle(InvoiceReturnRequest $request, User $actor, ?int $paymentMethodId, ?float $amount = null, ?UploadedFile $receipt = null): InvoiceReturnRequest
+    public function handle(InvoiceReturnRequest $request, User $actor, ?int $paymentMethodId, ?float $amount = null, array $receipts = []): InvoiceReturnRequest
     {
-        return DB::transaction(function () use ($request, $actor, $paymentMethodId, $amount, $receipt) {
+        return DB::transaction(function () use ($request, $actor, $paymentMethodId, $amount, $receipts) {
             $request = $request->lockPending();
 
             $invoice = $request->invoice;
@@ -56,8 +55,8 @@ class ApproveInvoiceReturnRequestAction
             $refundId = $refunds->where('id', '>', $lastRefundId)->value('id');
 
             // تاسك 213: الإيصال على المرتجع الناتج، جزئياً كان أو كاملاً.
-            if ($receipt && $refundId) {
-                Refund::find($refundId)->addMedia($receipt)->toMediaCollection(Refund::RECEIPT_COLLECTION);
+            if ($receipts && $refundId) {
+                Refund::find($refundId)->addReceipts($receipts);
             }
 
             $request->update([

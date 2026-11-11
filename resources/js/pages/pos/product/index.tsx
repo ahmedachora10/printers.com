@@ -1,4 +1,4 @@
-import { ReceiptField } from '@/components/invoices/receipt-field';
+import { ReceiptField, receiptError } from '@/components/invoices/receipt-field';
 import { LineChip, LineField, LineHint, LineReadout, LineSection, PosCartTable } from '@/components/pos/cart-table';
 import { PosStickyTotalBar } from '@/components/pos/sticky-total-bar';
 import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox';
@@ -110,7 +110,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
     const [walkinPhone, setWalkinPhone] = useState('');
     const [status, setStatus] = useState<InvoiceStatus>('paid');
     const [paymentMethodId, setPaymentMethodId] = useState<number | null>(invoice?.paymentMethodId ?? null);
-    const [receipt, setReceipt] = useState<File | null>(null);
+    const [receipts, setReceipts] = useState<File[]>([]);
     const [couponCode, setCouponCode] = useState(invoice?.coupon?.code ?? '');
     const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(invoice?.coupon ?? null);
     const [couponLoading, setCouponLoading] = useState(false);
@@ -388,7 +388,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
         setWalkinName('');
         setWalkinPhone('');
         setPaymentMethodId(null);
-        setReceipt(null);
+        setReceipts([]);
         setStatus('paid');
         setRedeemPoints('');
         setNotes('');
@@ -414,7 +414,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
             return;
         }
         // الفاتورة المعدَّلة التي تحمل إيصالاً بالطريقة نفسها لا تطلبه مرة ثانية.
-        if (!quoting && requiresReceipt && !receipt && !(invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
+        if (!quoting && requiresReceipt && receipts.length === 0 && !(invoice?.hasReceipt && paymentMethodId === invoice.paymentMethodId)) {
             toast.error('يجب إرفاق إيصال التحويل لطريقة الدفع المحددة');
             return;
         }
@@ -440,7 +440,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                 coupon_code: appliedCoupon?.code ?? null,
                 redeem_points: loyaltyOn && Number(redeemPoints) > 0 ? Number(redeemPoints) : null,
                 payment_method_id: paymentMethodId,
-                receipt,
+                receipts,
                 print,
                 notes: notes.trim() || null,
                 internal_notes: internalNotes.trim() || null,
@@ -775,7 +775,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                                 type="button"
                                                 variant={paymentMethodId === m.id ? 'default' : 'outline'}
                                                 onClick={() => {
-                                                    setReceipt(null);
+                                                    setReceipts([]);
                                                     setPaymentMethodId((prev) => (prev === m.id ? null : m.id));
                                                 }}
                                             >
@@ -784,7 +784,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                         ))}
                                     </div>
 
-                                    {requiresReceipt && <ReceiptField id="receipt" onChange={setReceipt} error={errors.receipt} />}
+                                    {requiresReceipt && <ReceiptField id="receipt" onChange={setReceipts} error={receiptError(errors)} />}
                                 </div>
                             )}
                             {errors.payment_method_id && <p className="text-destructive mt-2 text-xs">{errors.payment_method_id}</p>}

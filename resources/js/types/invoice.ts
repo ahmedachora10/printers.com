@@ -1,3 +1,4 @@
+import { type ReceiptFile } from '@/components/invoices/receipt-field';
 import { type DeliveryLogRow } from './delivery-log';
 import { type ReturnRequestItem } from './return-request';
 
@@ -60,8 +61,10 @@ export interface InvoicePayment {
     paymentMethodId: number | null;
     recordedByName: string | null;
     notes: string | null;
-    /** رابط إيصال هذه الدفعة (محمي بالصلاحية)، أو null إن لم يُرفق شيء */
+    /** رابط أول إيصالات هذه الدفعة (محمي بالصلاحية)، أو null إن لم يُرفق شيء */
     receiptUrl: string | null;
+    /** تاسك 229: كل إيصالات الدفعة */
+    receipts: ReceiptFile[];
 }
 
 /** تغييرٌ واحد لطريقة الدفع — على الفاتورة أو على دفعةٍ منها (تاسك 99). */
@@ -240,7 +243,9 @@ export interface Invoice {
     paymentMethodId: number | null;
     /** ملاحظات على مستوى الفاتورة كاملة — تختلف عن ملاحظات السطر */
     notes: string | null;
+    /** أول الإيصالات — يكفي لفحص «يوجد إيصال»؛ القائمة كلها في receipts (تاسك 229) */
     receiptUrl: string | null;
+    receipts: ReceiptFile[];
     lines: InvoiceLine[];
     refundedTotal: number;
     refundableRemaining: number;

@@ -1,4 +1,4 @@
-import { ReceiptField } from '@/components/invoices/receipt-field';
+import { ReceiptField, receiptError } from '@/components/invoices/receipt-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -33,7 +33,7 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
         reason: '',
         reverse_stock: false as boolean,
         payment_method_id: '' as string,
-        receipt: null as File | null,
+        receipts: [] as File[],
     });
 
     // When opened for a specific invoice, resolve it immediately.
@@ -210,8 +210,8 @@ export default function RefundFormModal({ open, onOpenChange, presetNumber }: Pr
                             {methodNeedsReceipt && (
                                 <ReceiptField
                                     id="refund-receipt"
-                                    onChange={(file) => setData('receipt', file)}
-                                    error={errors.receipt}
+                                    onChange={(files) => setData('receipts', files)}
+                                    error={receiptError(errors)}
                                     disabled={processing}
                                 />
                             )}

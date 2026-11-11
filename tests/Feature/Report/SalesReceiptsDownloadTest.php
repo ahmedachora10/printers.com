@@ -96,6 +96,12 @@ it('includes a deposit receipt under its own payment method', function () {
 
     expect(($this->zipNames)($response))->toHaveCount(1)
         ->and(($this->zipNames)($response)[0])->toEndWith('.png');
+
+    // تاسك 229: إيصالٌ ثانٍ على الدفعة نفسها يدخل الملف باسمٍ مرقَّم.
+    $payment->addMedia(UploadedFile::fake()->image('deposit-2.png'))->toMediaCollection(InvoicePayment::RECEIPT_COLLECTION);
+
+    expect(($this->zipNames)($this->get(route('reports.sales.receipts', ['payment_method' => $this->rajhi->id]))->assertOk()))
+        ->toHaveCount(2);
 });
 
 it('keeps a branch admin out of another branch even when sending branch', function () {

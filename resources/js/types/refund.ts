@@ -1,3 +1,4 @@
+import { type ReceiptFile } from '@/components/invoices/receipt-field';
 export type RefundSourceType = 'product' | 'service';
 
 export interface RefundListItem {
@@ -12,6 +13,7 @@ export interface RefundListItem {
     /** تاسك 131 — null للمرتجعات السابقة للحقل */
     paymentMethodName: string | null;
     receiptUrl: string | null;
+    receipts: ReceiptFile[];
     userName: string | null;
     createdAt: string | null;
 }

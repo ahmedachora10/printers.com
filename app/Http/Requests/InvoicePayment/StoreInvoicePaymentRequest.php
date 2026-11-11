@@ -5,6 +5,7 @@ namespace App\Http\Requests\InvoicePayment;
 use App\Enums\InvoiceTypeEnum;
 use App\Models\Branch;
 use App\Models\PaymentMethod;
+use App\Models\ServiceInvoice;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -33,10 +34,7 @@ class StoreInvoicePaymentRequest extends FormRequest
             // خصمٌ يرافق الدفعة؛ حدوده (تحت الإجمالي، فوق المحصَّل) في ApplyInvoiceDiscountAction.
             'discount' => ['nullable', 'numeric', 'min:0', 'max:99999999.99'],
             'payment_method_id' => ['required', 'integer', Rule::in($this->enabledPaymentMethodIds())],
-            'receipt' => [
-                $this->paymentMethodRequiresAttachment() ? 'required' : 'nullable',
-                'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120',
-            ],
+            ...ServiceInvoice::receiptRules($this->paymentMethodRequiresAttachment()),
             'paid_at' => ['nullable', 'date'],
             'notes' => ['nullable', 'string', 'max:500'],
             // إقرارُ المحاسب بعجز خامات المخزون حين تُغلق هذه الدفعةُ الفاتورة.
@@ -53,9 +51,6 @@ class StoreInvoicePaymentRequest extends FormRequest
             'amount.min' => 'مبلغ الدفعة يجب أن يكون أكبر من صفر.',
             'payment_method_id.required' => 'طريقة الدفع مطلوبة.',
             'payment_method_id.in' => 'طريقة الدفع غير متاحة لهذا الفرع.',
-            'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.',
-            'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
-            'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
             'discount.numeric' => 'الخصم يجب أن يكون رقماً.',
             'discount.min' => 'الخصم لا يكون سالباً هنا — صحّحه من زر «إضافة خصم».',
             'paid_at.date' => 'تاريخ الدفعة غير صالح.',
