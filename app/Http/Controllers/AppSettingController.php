@@ -119,6 +119,7 @@ class AppSettingController extends Controller
                     'name' => $a->name,
                     'bankName' => $a->bank_name,
                     'ibanLast4' => $a->iban_last4,
+                    'paymentMethodId' => $a->payment_method_id,
                 ]),
             'canManageBankAccounts' => Gate::allows('create', BankAccount::class),
             'isSuperAdmin' => $isSuperAdmin,

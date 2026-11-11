@@ -70,6 +70,8 @@ export interface SalesReportPaymentMethodRow {
     total: number;
     /** تاسك 131: ما رُدّ بهذه الطريقة، موجباً */
     refunds: number;
+    /** تاسك 234: مصروفات التحويل من الحسابات البنكية المربوطة بهذه الطريقة */
+    transferExpenses: number;
 }
 
 /** تاسك 178 — حدث تحصيل (دفعة أو مرتجع) تحت طريقة دفعه. */
