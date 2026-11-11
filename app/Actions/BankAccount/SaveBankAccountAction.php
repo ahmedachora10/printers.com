@@ -7,7 +7,7 @@ use App\Models\BankAccount;
 /** تاسك 187 — حفظ حساب بنكي لفرع. */
 class SaveBankAccountAction
 {
-    /** @param array{branch_id: int, name: string, bank_name?: ?string, iban_last4?: ?string} $data */
+    /** @param array{branch_id: int, name: string, bank_name?: ?string, iban_last4?: ?string, payment_method_id?: ?int} $data */
     public function handle(array $data, ?BankAccount $account = null): BankAccount
     {
         $account ??= new BankAccount;

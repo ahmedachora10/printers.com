@@ -17,17 +17,23 @@ export interface BankAccount {
     name: string;
     bankName: string | null;
     ibanLast4: string | null;
+    /** تاسك 234: طريقة الدفع التي يُنسب إليها مصروف هذا الحساب في تقرير المبيعات. */
+    paymentMethodId: number | null;
 }
+
+/** طريقة دفع للربط: العامة (branchId = null) أو طريقة فرع الحساب. */
+type MethodOption = { id: number; name: string; branchId: number | null };
 
 interface Props {
     accounts: BankAccount[];
     branches: { id: number; name: string }[];
+    paymentMethods: MethodOption[];
     isSuperAdmin: boolean;
     canManage: boolean;
 }
 
 /** تاسك 187 — حسابات الشركة البنكية لكل فرع؛ تُختار في مصروف «تحويل بنكي من حساب الشركة». */
-export default function BankAccountsTab({ accounts, branches, isSuperAdmin, canManage }: Props) {
+export default function BankAccountsTab({ accounts, branches, paymentMethods, isSuperAdmin, canManage }: Props) {
     const [editing, setEditing] = useState<BankAccount | 'new' | null>(null);
 
     const remove = (account: BankAccount) => {
@@ -59,6 +65,13 @@ export default function BankAccountsTab({ accounts, branches, isSuperAdmin, canM
                                 <Landmark className="text-muted-foreground size-4 shrink-0" />
                                 <span className="font-medium">{a.name}</span>
                                 {a.bankName && <Badge variant="outline">{a.bankName}</Badge>}
+                                {a.paymentMethodId ? (
+                                    <Badge variant="secondary">{paymentMethods.find((m) => m.id === a.paymentMethodId)?.name ?? 'طريقة دفع'}</Badge>
+                                ) : (
+                                    <Badge variant="outline" className="text-amber-600">
+                                        غير مربوط بطريقة دفع
+                                    </Badge>
+                                )}
                                 {a.ibanLast4 && (
                                     <span className="text-muted-foreground text-sm tabular-nums" dir="ltr">
                                         ••{a.ibanLast4}
@@ -86,7 +99,13 @@ export default function BankAccountsTab({ accounts, branches, isSuperAdmin, canM
             )}
 
             {editing && (
-                <AccountDialog account={editing === 'new' ? null : editing} branches={branches} isSuperAdmin={isSuperAdmin} onClose={() => setEditing(null)} />
+                <AccountDialog
+                    account={editing === 'new' ? null : editing}
+                    branches={branches}
+                    paymentMethods={paymentMethods}
+                    isSuperAdmin={isSuperAdmin}
+                    onClose={() => setEditing(null)}
+                />
             )}
         </div>
     );
@@ -95,11 +114,13 @@ export default function BankAccountsTab({ accounts, branches, isSuperAdmin, canM
 function AccountDialog({
     account,
     branches,
+    paymentMethods,
     isSuperAdmin,
     onClose,
 }: {
     account: BankAccount | null;
     branches: { id: number; name: string }[];
+    paymentMethods: MethodOption[];
     isSuperAdmin: boolean;
     onClose: () => void;
 }) {
@@ -108,7 +129,10 @@ function AccountDialog({
         name: account?.name ?? '',
         bank_name: account?.bankName ?? '',
         iban_last4: account?.ibanLast4 ?? '',
+        payment_method_id: account?.paymentMethodId ?? null,
     });
+    // غير المدير العام يرى طرق فرعه والعامة وحدها أصلاً (branch_id فارغ عنده).
+    const methodOptions = paymentMethods.filter((m) => m.branchId === null || form.data.branch_id === null || m.branchId === form.data.branch_id);
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -164,6 +188,27 @@ function AccountDialog({
                             placeholder="اختياري"
                         />
                         <InputError message={form.errors.iban_last4} />
+                    </div>
+                    <div className="space-y-1">
+                        <Label>طريقة الدفع المقابلة</Label>
+                        <Select
+                            value={form.data.payment_method_id ? String(form.data.payment_method_id) : 'none'}
+                            onValueChange={(v) => form.setData('payment_method_id', v === 'none' ? null : Number(v))}
+                        >
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="none">بلا ربط</SelectItem>
+                                {methodOptions.map((m) => (
+                                    <SelectItem key={m.id} value={String(m.id)}>
+                                        {m.name}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        <p className="text-muted-foreground text-xs">مصروفات التحويل من هذا الحساب تظهر في صفّ هذه الطريقة في تقرير المبيعات.</p>
+                        <InputError message={form.errors.payment_method_id} />
                     </div>
                 </form>
                 <DialogFooter>

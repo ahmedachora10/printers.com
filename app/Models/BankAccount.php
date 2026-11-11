@@ -12,7 +12,7 @@ class BankAccount extends Model
 {
     use SoftDeletes;
 
-    protected $fillable = ['branch_id', 'name', 'bank_name', 'iban_last4'];
+    protected $fillable = ['branch_id', 'payment_method_id', 'name', 'bank_name', 'iban_last4'];
 
     /** @return BelongsTo<Branch, $this> */
     public function branch(): BelongsTo

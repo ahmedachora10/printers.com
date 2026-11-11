@@ -6,6 +6,7 @@ use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\PaymentMethod;
 use App\Models\ServiceInvoice;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -154,6 +155,20 @@ describe('Expense bank accounts, attachments & invoice split', function () {
         expect(DB::table('expense_service_invoice')->where('expense_id', $expense->id)->first())
             ->service_invoice_id->toBe($a->id)
             ->amount->toEqual(75);
+    });
+
+    it('links a bank account to a payment method of its own branch only (task 234)', function () {
+        $mine = PaymentMethod::factory()->create(['branch_id' => $this->branch->id]);
+        $theirs = PaymentMethod::factory()->create(['branch_id' => Branch::factory()->create()->id]);
+
+        $this->actingAs($this->admin)
+            ->put(route('bank-accounts.update', $this->account), ['name' => 'الرئيسي', 'payment_method_id' => $theirs->id])
+            ->assertSessionHasErrors('payment_method_id');
+
+        $this->put(route('bank-accounts.update', $this->account), ['name' => 'الرئيسي', 'payment_method_id' => $mine->id])
+            ->assertSessionHasNoErrors();
+
+        expect($this->account->refresh()->payment_method_id)->toBe($mine->id);
     });
 
     it('lets a branch admin manage only their own bank accounts', function () {

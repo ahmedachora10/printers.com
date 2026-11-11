@@ -364,7 +364,13 @@ export default function AppSettingsIndex({
 
                     {/* ── Bank accounts (تاسك 187) ───────────────────────── */}
                     <TabsContent value="bank-accounts">
-                        <BankAccountsTab accounts={bankAccounts} branches={loyaltyBranches} isSuperAdmin={isSuperAdmin} canManage={canManageBankAccounts} />
+                        <BankAccountsTab
+                            accounts={bankAccounts}
+                            branches={loyaltyBranches}
+                            paymentMethods={paymentMethods}
+                            isSuperAdmin={isSuperAdmin}
+                            canManage={canManageBankAccounts}
+                        />
                     </TabsContent>
 
                     {/* ── Loyalty Program ──────────────────────────────── */}

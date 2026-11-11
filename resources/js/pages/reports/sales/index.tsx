@@ -431,6 +431,8 @@ function PaymentMethodCard({
 }) {
     const cashRows = rows.filter((r) => r.isCash).length;
     const onRow = (row: SalesReportPaymentMethodRow) => row.isCash && cashRows === 1;
+    // تاسك 234: مصروف تحويلٍ من حسابٍ بنكي غير مربوط بطريقة دفع — في الإجمالي وحده.
+    const unlinkedTransfer = Math.round((totals.transferExpenses - rows.reduce((sum, r) => sum + r.transferExpenses, 0)) * 100) / 100;
     const columns: ColumnDef<SalesReportPaymentMethodRow>[] = [
         { key: 'name', header: 'طريقة الدفع', className: 'font-medium', cell: (row) => row.methodName },
         { key: 'count', header: 'عدد الفواتير', cell: (row) => row.count },
@@ -450,8 +452,13 @@ function PaymentMethodCard({
             className: 'text-amber-600',
             cell: (row) => (onRow(row) ? formatCurrency(totals.cashExpenses) : '—'),
         },
-        // تاسك 119: الأعمدة الثلاثة التالية أرقامُ فترةٍ لا طريقة — في صفّ الإجمالي وحده.
-        { key: 'transferExpenses', header: 'مصروفات تحويل', cell: () => '—' },
+        // تاسك 234: مصروف التحويل في صفّ طريقة حسابه البنكي، كمصروف النقد على صفّ النقد.
+        {
+            key: 'transferExpenses',
+            header: 'مصروفات تحويل',
+            className: 'text-amber-600',
+            cell: (row) => (row.transferExpenses > 0 ? formatCurrency(row.transferExpenses) : '—'),
+        },
         {
             key: 'cashRemaining',
             header: <HintedHeader label="المتبقي من النقد" hint={CASH_HINT} />,
@@ -459,7 +466,12 @@ function PaymentMethodCard({
             cell: (row) => (onRow(row) ? <Remaining value={totals.cashRemaining} /> : '—'),
         },
         { key: 'totalAfterCash', header: 'الإجمالي بعد خصم مصروف النقد', cell: () => '—' },
-        { key: 'totalAfterTransfer', header: 'الإجمالي بعد خصم مصروف التحويل', cell: () => '—' },
+        {
+            key: 'totalAfterTransfer',
+            header: 'الإجمالي بعد خصم مصروف التحويل',
+            className: 'font-semibold',
+            cell: (row) => (row.transferExpenses > 0 ? <Remaining value={row.total - row.transferExpenses} /> : '—'),
+        },
         {
             key: 'receipts',
             header: <span className="sr-only">الإيصالات</span>,
@@ -486,6 +498,15 @@ function PaymentMethodCard({
                     <div className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
                         <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
                         <span>لا تحصيل بطريقة دفع معلَّمة «نقدية» في هذه الفترة، فالمصروفات مطروحةٌ من صفر. تُعلَّم طريقة النقد من إعدادات طرق الدفع.</span>
+                    </div>
+                )}
+                {unlinkedTransfer > 0 && (
+                    <div className="flex items-start gap-2 border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+                        <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
+                        <span>
+                            {formatCurrency(unlinkedTransfer)} مصروفات تحويل من حسابات بنكية غير مربوطة بطريقة دفع، فتظهر في الإجمالي وحده. اربط الحساب
+                            بطريقته من الإعدادات ← الحسابات البنكية.
+                        </span>
                     </div>
                 )}
                 <DataTable

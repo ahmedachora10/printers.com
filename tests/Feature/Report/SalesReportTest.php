@@ -2,6 +2,7 @@
 
 use App\Enums\Roles;
 use App\Enums\StockMovementTypeEnum;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
@@ -467,6 +468,46 @@ describe('Sales Report', function () {
                 $methods = collect($page->toArray()['props']['byPaymentMethod']);
                 expect($methods->firstWhere('methodName', 'نقد ( كاش)')['isCash'])->toBeTrue();
                 expect($methods->firstWhere('methodName', 'شبكة')['isCash'])->toBeFalse();
+
+                return $page;
+            });
+    });
+
+    // تاسك 234 — مصروف التحويل في صفّ طريقة الدفع المربوطة بحسابه البنكي.
+    it('books transfer expenses on the row of the bank account payment method', function () {
+        $ahli = PaymentMethod::factory()->create(['name' => 'الأهلي 303']);
+        $rajhi = PaymentMethod::factory()->create(['name' => 'الراجحي 209']);
+        paidProductInvoice($this->branch, $this->branchAdmin, ['payment_method_id' => $ahli->id, 'total_amount' => 30]);
+
+        $expense = fn (?int $methodId, float $total, string $source = 'company_transfer') => Expense::factory()->create([
+            'branch_id' => $this->branch->id,
+            'user_id' => $this->branchAdmin->id,
+            'expense_category_id' => ExpenseCategory::factory(),
+            'total' => $total,
+            'paid_from' => $source,
+            'bank_account_id' => $source === 'company_transfer'
+                ? BankAccount::create(['branch_id' => $this->branch->id, 'name' => 'حساب', 'payment_method_id' => $methodId])->id
+                : null,
+            'date' => today()->toDateString(),
+        ]);
+        $expense($ahli->id, 100);
+        // طريقة بلا تحصيل في الفترة تأخذ صفاً صفرياً يحمل مصروفها.
+        $expense($rajhi->id, 60);
+        // حسابٌ غير مربوط: في الإجمالي وحده.
+        $expense(null, 40);
+        $expense(null, 15, 'cash_drawer');
+
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.sales'))
+            ->assertInertia(function ($page) use ($ahli, $rajhi) {
+                $rows = collect($page->toArray()['props']['byPaymentMethod'])->keyBy('methodId');
+
+                expect($rows)->toHaveCount(2)
+                    ->and($rows[$ahli->id]['transferExpenses'])->toEqual(100)
+                    ->and($rows[$ahli->id]['total'])->toEqual(30)
+                    ->and($rows[$rajhi->id]['transferExpenses'])->toEqual(60)
+                    ->and($rows[$rajhi->id]['count'])->toBe(0)
+                    ->and($page->toArray()['props']['totals']['transferExpenses'])->toEqual(200);
 
                 return $page;
             });

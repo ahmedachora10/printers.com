@@ -9,10 +9,13 @@ use App\Enums\ExpenseSourceEnum;
 use App\Exports\SalesReportExport;
 use App\Http\Requests\Report\SalesReportFilterRequest;
 use App\Models\AccountReconciliation;
+use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\Expense;
 use App\Models\InvoicePayment;
+use App\Models\PaymentMethod;
 use App\Support\MediaZip;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Response as HttpResponse;
 use Illuminate\Support\Carbon;
@@ -63,7 +66,7 @@ class SalesReportController extends Controller
             'byType' => $byType,
             'byDay' => $byDay,
             'byEmployee' => $this->byEmployee($scope, $type),
-            'byPaymentMethod' => $this->byPaymentMethod($scope, $type),
+            'byPaymentMethod' => $this->withTransferExpenses($this->byPaymentMethod($scope, $type), $scope),
             // تاسك 178: أحداث التحصيل تحت كل طريقة، مؤجَّلةً — تُفتح بالتوسيع لا مع الصفحة.
             'methodInvoices' => Inertia::defer(fn () => $this->detailInvoices($scope, $type)->groupBy('methodId')),
             'byBranch' => $scope['isSuper'] ? $this->byBranch($scope, $type) : [],
@@ -405,17 +408,7 @@ class SalesReportController extends Controller
     {
         $daily = [];
 
-        $rows = DB::table('expenses')
-            // DB::table يتجاوز نطاق الحذف الناعم، فالشرط صريح — وإلا حُسب
-            // مصروفٌ محذوف (نفس المطبّ الذي وقع في هذا التقرير سابقاً).
-            ->whereNull('deleted_at')
-            // تاسك 123: المعتمد وغيره معاً — «زر اعتماد المصروف لا يعني تسجيله
-            // أو إضافته للحسابات، وإنما تثبيته وقفل التعديل عليه». يعكس تاسك 113.
-            // تاسك 157: أما طلب الموظف فلا يُحسب قبل قبول المحاسب.
-            ->where(Expense::counted())
-            ->when($scope['branchIds'], fn ($q) => $q->whereIn('branch_id', $scope['branchIds']))
-            ->when($scope['from'], fn ($q) => $q->where('date', '>=', $scope['from']))
-            ->when($scope['to'], fn ($q) => $q->where('date', '<=', $scope['to']))
+        $rows = $this->countedExpenses($scope)
             ->groupBy(DB::raw('DATE(date)'))
             ->selectRaw('DATE(date) as day, COALESCE(SUM(total), 0) as amount')
             ->selectRaw('COALESCE(SUM(CASE WHEN paid_from = ? THEN total ELSE 0 END), 0) as cash_amount', [ExpenseSourceEnum::CashDrawer->value])
@@ -426,6 +419,72 @@ class SalesReportController extends Controller
         }
 
         return $daily;
+    }
+
+    /**
+     * مصروفات النطاق المحسوبة في التقرير — الأساس الواحد لعمود اليوم ولتوزيع التحويل على الطرق.
+     *
+     * @param  array<string, mixed>  $scope
+     */
+    private function countedExpenses(array $scope): Builder
+    {
+        return DB::table('expenses')
+            // DB::table يتجاوز نطاق الحذف الناعم، فالشرط صريح — وإلا حُسب
+            // مصروفٌ محذوف (نفس المطبّ الذي وقع في هذا التقرير سابقاً).
+            ->whereNull('deleted_at')
+            // تاسك 123: المعتمد وغيره معاً — «زر اعتماد المصروف لا يعني تسجيله
+            // أو إضافته للحسابات، وإنما تثبيته وقفل التعديل عليه». يعكس تاسك 113.
+            // تاسك 157: أما طلب الموظف فلا يُحسب قبل قبول المحاسب.
+            ->where(Expense::counted())
+            ->when($scope['branchIds'], fn ($q) => $q->whereIn('branch_id', $scope['branchIds']))
+            ->when($scope['from'], fn ($q) => $q->where('date', '>=', $scope['from']))
+            ->when($scope['to'], fn ($q) => $q->where('date', '<=', $scope['to']));
+    }
+
+    /**
+     * تاسك 234 — مصروف التحويل في صفّ طريقته: الحساب البنكي للمصروف مربوطٌ بطريقة دفع
+     * (`bank_accounts.payment_method_id`)، كما يُطرح مصروف النقد على صفّ النقد.
+     * طريقةٌ عليها مصروف وبلا تحصيل في الفترة تأخذ صفّاً صفرياً؛ ومصروف حسابٍ غير
+     * مربوط يبقى في الإجمالي وحده (الواجهة تنبّه إليه).
+     *
+     * خارج byPaymentMethod عمداً: مطابقة الحسابات تقرأ صفوف التحصيل وحدها.
+     *
+     * @param  array<int, array<string, mixed>>  $methods
+     * @param  array<string, mixed>  $scope
+     * @return array<int, array<string, mixed>>
+     */
+    private function withTransferExpenses(array $methods, array $scope): array
+    {
+        $byAccount = $this->countedExpenses($scope)
+            ->where('paid_from', ExpenseSourceEnum::CompanyTransfer->value)
+            ->whereNotNull('bank_account_id')
+            ->groupBy('bank_account_id')
+            ->selectRaw('bank_account_id, COALESCE(SUM(total), 0) as amount')
+            ->pluck('amount', 'bank_account_id');
+
+        $byMethod = [];
+        foreach (BankAccount::withTrashed()->whereKey($byAccount->keys())->whereNotNull('payment_method_id')->pluck('payment_method_id', 'id') as $accountId => $methodId) {
+            $byMethod[$methodId] = ($byMethod[$methodId] ?? 0) + (float) $byAccount[$accountId];
+        }
+
+        $rows = collect($methods)->keyBy(fn ($row) => $row['methodId'] ?? 0);
+
+        foreach (PaymentMethod::withTrashed()->findMany(array_diff(array_keys($byMethod), $rows->keys()->all())) as $method) {
+            $rows[$method->id] = [
+                'methodId' => $method->id,
+                'methodName' => $method->name,
+                'isCash' => (bool) $method->is_cash,
+                'isNetwork' => (bool) $method->is_network,
+                'count' => 0,
+                'total' => 0.0,
+                'refunds' => 0.0,
+            ];
+        }
+
+        return $rows
+            ->map(fn ($row) => [...$row, 'transferExpenses' => round($byMethod[$row['methodId'] ?? 0] ?? 0, 2)])
+            ->values()
+            ->all();
     }
 
     /**
