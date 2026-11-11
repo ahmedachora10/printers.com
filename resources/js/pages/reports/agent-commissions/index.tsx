@@ -1,7 +1,7 @@
 import { DataTable, type ColumnDef } from '@/components/data-table';
 import { ActiveFilterChips, type FilterChip } from '@/components/reports/active-filter-chips';
 import DateRangeBar from '@/components/reports/date-range-bar';
-import { FilterSelect } from '@/components/reports/filter-fields';
+import { FilterMultiSelect, FilterSelect } from '@/components/reports/filter-fields';
 import { FilterModal } from '@/components/reports/filter-modal';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -102,7 +102,7 @@ export default function AgentCommissionReportIndex({ rows, lines, totals, filter
     const canPickEmployee = employees.length > 0;
 
     const defaults = useMemo<FilterValues>(
-        () => ({ from: defaultDate, to: defaultDate, agent: 'all', user: 'all', branch: 'all' }),
+        () => ({ from: defaultDate, to: defaultDate, agent: 'all', user: 'all', branch: '' }),
         [defaultDate],
     );
 
@@ -111,7 +111,7 @@ export default function AgentCommissionReportIndex({ rows, lines, totals, filter
         to: filters.to,
         agent: filters.agent ?? 'all',
         user: filters.user ?? 'all',
-        branch: filters.branch ?? 'all',
+        branch: filters.branch ?? '',
     };
     const f = useReportFilters(REPORT_URL, applied, defaults);
 
@@ -121,8 +121,9 @@ export default function AgentCommissionReportIndex({ rows, lines, totals, filter
     // No chips for from/to — the range is always visible in the bar above.
     const chips: FilterChip[] = [];
     if (f.isActive('branch')) {
-        const name = branches.find((b) => b.id.toString() === applied.branch)?.name ?? applied.branch;
-        chips.push({ key: 'branch', label: `الفرع: ${name}`, onRemove: () => f.remove('branch') });
+        const ids = applied.branch.split(',');
+        const names = branches.filter((b) => ids.includes(b.id.toString())).map((b) => b.name);
+        chips.push({ key: 'branch', label: `الفرع: ${names.join('، ') || applied.branch}`, onRemove: () => f.remove('branch') });
     }
     if (f.isActive('agent')) {
         const name = agents.find((a) => a.id.toString() === applied.agent)?.name ?? applied.agent;
@@ -152,12 +153,14 @@ export default function AgentCommissionReportIndex({ rows, lines, totals, filter
                     <div className="flex items-center gap-2">
                         <FilterModal open={f.open} onOpenChange={f.onOpenChange} onApply={f.apply} onReset={f.reset} activeCount={f.activeCount}>
                             {canPickBranch && (
-                                <FilterSelect
+                                <FilterMultiSelect
                                     label="الفرع"
                                     value={f.draft.branch}
                                     onChange={(v) => f.setField('branch', v)}
                                     allLabel="كل الفروع"
+                                    searchPlaceholder="ابحث عن فرع..."
                                     options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                                    className="sm:col-span-2"
                                 />
                             )}
                             {canPickAgent && (

@@ -36,9 +36,9 @@ class Agent extends User
      *
      * @param  Builder<covariant Agent>  $query
      */
-    public function scopeForBranch(Builder $query, ?int $branchId): void
+    public function scopeForBranch(Builder $query, int|array|null $branchId): void
     {
-        $query->whereHas('agentBranches', fn (Builder $q) => $q->where('branches.id', $branchId));
+        $query->whereHas('agentBranches', fn (Builder $q) => $q->whereIn('branches.id', (array) $branchId));
     }
 
     /**

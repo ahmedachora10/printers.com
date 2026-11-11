@@ -19,7 +19,8 @@ class AgentCommissionReportFilterRequest extends FormRequest
         return [
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
-            'branch' => ['nullable', 'integer', 'exists:branches,id'],
+            // تاسك 233: «3,7» — ResolveReportScope يحلّلها ويثبّت غير السوبر أدمن على فرعه.
+            'branch' => ['nullable', 'string'],
             'agent' => ['nullable', 'integer', 'exists:users,id'],
             'user' => ['nullable', 'integer', 'exists:users,id'],
         ];

@@ -57,11 +57,12 @@ class AgentCommissionReportController extends Controller
                 'to' => $scope['to']->toDateString(),
                 'agent' => $scope['agentId'] ? (string) $scope['agentId'] : null,
                 'user' => $scope['userId'] ? (string) $scope['userId'] : null,
-                'branch' => $scope['isSuper'] && $scope['branchId'] ? (string) $scope['branchId'] : null,
+                // تاسك 233: أكثر من فرع — ?branch=3,7.
+                'branch' => $scope['isSuper'] && $scope['branchIds'] ? implode(',', $scope['branchIds']) : null,
             ],
             'defaultDate' => now()->toDateString(),
             'agents' => $this->agentOptions($scope),
-            'employees' => User::invoiceRaiserOptions($scope['branchId']),
+            'employees' => User::invoiceRaiserOptions($scope['branchIds']),
             'branches' => $scope['isSuper']
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : [],
@@ -86,7 +87,7 @@ class AgentCommissionReportController extends Controller
      * The employee is the invoice's creator (تاسك 179). One from another branch
      * needs no check: the branch condition already leaves nothing to match.
      *
-     * @return array{isSuper: bool, branchId: ?int, agentId: ?int, userId: ?int, from: Carbon, to: Carbon}
+     * @return array{isSuper: bool, branchId: ?int, branchIds: list<int>, agentId: ?int, userId: ?int, from: Carbon, to: Carbon}
      */
     private function scope(AgentCommissionReportFilterRequest $request, ResolveReportScope $resolveScope): array
     {
@@ -141,7 +142,7 @@ class AgentCommissionReportController extends Controller
     {
         return AgentCommissionEntry::query()
             ->whereBetween('earned_at', [$scope['from'], $scope['to']])
-            ->when($scope['branchId'], fn ($q) => $q->where('branch_id', $scope['branchId']))
+            ->when($scope['branchIds'], fn ($q) => $q->whereIn('branch_id', $scope['branchIds']))
             ->when($scope['agentId'], fn ($q) => $q->where('agent_id', $scope['agentId']))
             ->when($scope['userId'], fn ($q) => $q->whereHasMorph('invoice', [ServiceInvoice::class, ProductInvoice::class], fn ($q) => $q->where('user_id', $scope['userId'])));
     }
@@ -159,7 +160,7 @@ class AgentCommissionReportController extends Controller
     }
 
     /**
-     * Agents selectable in the filter — those of the scoped branch.
+     * Agents selectable in the filter — those of the scoped branches.
      *
      * @param  array<string, mixed>  $scope
      * @return Collection<int, array{id: int, name: string}>
@@ -169,7 +170,7 @@ class AgentCommissionReportController extends Controller
         return Agent::query()
             // Agents are picked by the branches they work with, not by the single
             // primary branch_id column.
-            ->when($scope['branchId'], fn ($q) => $q->forBranch($scope['branchId']))
+            ->when($scope['branchIds'], fn ($q) => $q->forBranch($scope['branchIds']))
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (Agent $agent) => ['id' => $agent->id, 'name' => $agent->name])
