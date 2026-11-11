@@ -5,6 +5,7 @@ namespace App\Actions\Agent;
 use App\Models\Agent;
 use App\Models\AgentCommissionEntry;
 use App\Models\AgentPayment;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -49,7 +50,8 @@ class GenerateAgentPaymentAction
                 'total_invoices' => $entries->unique(fn ($e) => $e->invoice_type.'#'.$e->invoice_id)->count(),
                 'total_rebate' => $total,
                 'paid_by' => Auth::id(),
-                'paid_at' => now(),
+                // تاسك 232: اليوم المختار بوقت الآن — فيبقى ترتيب دفعات اليوم الواحد.
+                'paid_at' => Carbon::parse($data['paid_at'] ?? now())->setTimeFrom(now()),
                 'notes' => $data['notes'] ?? null,
             ]);
 

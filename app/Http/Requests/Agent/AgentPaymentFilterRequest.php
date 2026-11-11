@@ -10,6 +10,8 @@ use Illuminate\Validation\Rule;
  *
  * تاسك 164: المدى يُطبَّق على **الفترة المدفوع عنها** (`period_start/period_end`)
  * — دفعةٌ تتداخل فترتها مع المدى تظهر — لا على `paid_at`، بطلب العميل.
+ *
+ * تاسك 232: `due_*` لبطاقة «العمولات المستحقة» وحدها — أسماءٌ لا تتصادم مع فلاتر السجلّ.
  */
 class AgentPaymentFilterRequest extends FormRequest
 {
@@ -30,6 +32,10 @@ class AgentPaymentFilterRequest extends FormRequest
             'agent' => ['nullable', 'integer'],
             'sort' => ['nullable', Rule::in(self::SORTABLE)],
             'dir' => ['nullable', Rule::in(['asc', 'desc'])],
+            'due_from' => ['nullable', 'date_format:Y-m-d'],
+            'due_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:due_from'],
+            'due_branch' => ['nullable', 'integer'],
+            'due_sort' => ['nullable', Rule::in(['name', 'amount'])],
         ];
     }
 

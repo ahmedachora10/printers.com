@@ -5,6 +5,7 @@ import SortHeader from '@/components/reports/sort-header';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useReportFilters, type FilterValues } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
@@ -45,11 +46,20 @@ interface Props {
         agent?: string | null;
         sort: string;
         dir: 'asc' | 'desc';
+        /** تاسك 232: فلاتر بطاقة «العمولات المستحقة» وحدها. */
+        due_from?: string | null;
+        due_to?: string | null;
+        due_branch?: string | null;
+        due_sort?: string | null;
     };
+    /** للسوبر أدمن وحده. */
+    branches: { id: number; name: string }[] | null;
 }
 
-export default function AgentPaymentsIndex({ agents, payments, paymentTotals, filters }: Props) {
-    const [paying, setPaying] = useState<AgentOutstanding | null>(null);
+export default function AgentPaymentsIndex({ agents, payments, paymentTotals, filters, branches }: Props) {
+    const [payingKey, setPayingKey] = useState<string | null>(null);
+    // الصفّ يُقرأ من الخصائص الحيّة: تغيير الفترة داخل النافذة يعيد تحميل المستحق.
+    const paying = agents.find((a) => `${a.id}-${a.branchId}` === payingKey) ?? null;
 
     const applied: FilterValues = {
         from: filters.from ?? '',
@@ -57,11 +67,32 @@ export default function AgentPaymentsIndex({ agents, payments, paymentTotals, fi
         agent: filters.agent ?? '',
         sort: filters.sort,
         dir: filters.dir,
+        due_from: filters.due_from ?? '',
+        due_to: filters.due_to ?? '',
+        due_branch: filters.due_branch ?? '',
+        due_sort: filters.due_sort ?? 'name',
     };
 
     // الفرز الافتراضي (paid_at تنازلياً) لا يُكتب في الرابط — وإلا حمل كل تنقّل
     // معاملين لا يغيّران شيئاً.
-    const f = useReportFilters(PAGE_URL, applied, { from: '', to: '', agent: '', sort: 'paid_at', dir: 'desc' });
+    // فلاتر البطاقة (due_*) في الخطّاف نفسه كي لا يُسقطها التنقّل بفلاتر السجلّ، والعكس.
+    const f = useReportFilters(PAGE_URL, applied, {
+        from: '',
+        to: '',
+        agent: '',
+        sort: 'paid_at',
+        dir: 'desc',
+        due_from: '',
+        due_to: '',
+        due_branch: '',
+        due_sort: 'name',
+    });
+
+    // مدى معكوس يرفضه الخادم — يُنتظر حتى يستقيم.
+    const setDueRange = (from: string, to: string) => {
+        if (!from || !to || from <= to) f.replaceMany({ due_from: from, due_to: to });
+    };
+    const hasDueFilter = !!applied.due_from || !!applied.due_to || !!applied.due_branch || applied.due_sort !== 'name';
 
     // تاسك 164: قائمة المناديب من صفوف «العمولات المستحقة» — المندوب متعدد الفروع
     // يتكرر فيها بفرعين، فيُدمج بالـid.
@@ -131,8 +162,64 @@ export default function AgentPaymentsIndex({ agents, payments, paymentTotals, fi
                 <Card className="mb-6">
                     <CardHeader className="pb-3">
                         <CardTitle className="text-base">العمولات المستحقة</CardTitle>
-                        {/* رصيد قائم لا حركة فترة — فلا يتبع المدى أدناه. */}
-                        <p className="text-muted-foreground text-xs">رصيد قائم منذ آخر تسوية — لا يتأثر بالمدى التاريخي المطبَّق على سجل الدفعات.</p>
+                        <p className="text-muted-foreground text-xs">
+                            {applied.due_from || applied.due_to
+                                ? `المستحق ${rangeLabel(applied.due_from, applied.due_to)} — ما استُحقّ في هذه الفترة ولم يُصرف.`
+                                : 'رصيد قائم منذ آخر تسوية — لا يتأثر بالمدى التاريخي المطبَّق على سجل الدفعات.'}
+                        </p>
+                        {/* تاسك 232: فلاتر البطاقة وحدها. */}
+                        <div className="flex flex-wrap items-center gap-2 pt-2">
+                            <Input
+                                type="date"
+                                aria-label="المستحق من تاريخ"
+                                className="h-9 w-auto sm:h-8"
+                                dir="ltr"
+                                value={applied.due_from}
+                                onChange={(e) => setDueRange(e.target.value, applied.due_to)}
+                            />
+                            <Input
+                                type="date"
+                                aria-label="المستحق إلى تاريخ"
+                                className="h-9 w-auto sm:h-8"
+                                dir="ltr"
+                                value={applied.due_to}
+                                onChange={(e) => setDueRange(applied.due_from, e.target.value)}
+                            />
+                            {branches && (
+                                <Select value={applied.due_branch || 'all'} onValueChange={(v) => f.replace('due_branch', v === 'all' ? '' : v)}>
+                                    <SelectTrigger className="h-9 w-auto min-w-36 sm:h-8">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">كل الفروع</SelectItem>
+                                        {branches.map((b) => (
+                                            <SelectItem key={b.id} value={b.id.toString()}>
+                                                {b.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            )}
+                            <Select value={applied.due_sort} onValueChange={(v) => f.replace('due_sort', v)}>
+                                <SelectTrigger className="h-9 w-auto min-w-36 sm:h-8">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="name">ترتيب: الاسم</SelectItem>
+                                    <SelectItem value="amount">ترتيب: الأعلى مستحقاً</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            {hasDueFilter && (
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => f.replaceMany({ due_from: '', due_to: '', due_branch: '', due_sort: 'name' })}
+                                >
+                                    <X className="size-3" /> مسح
+                                </Button>
+                            )}
+                        </div>
                     </CardHeader>
                     <CardContent>
                         {agents.length === 0 ? (
@@ -163,7 +250,7 @@ export default function AgentPaymentsIndex({ agents, payments, paymentTotals, fi
                                             <Button
                                                 size="sm"
                                                 disabled={a.outstandingRebate <= 0}
-                                                onClick={() => setPaying(a)}
+                                                onClick={() => setPayingKey(`${a.id}-${a.branchId}`)}
                                             >
                                                 <Wallet className="size-4" /> دفع
                                             </Button>
@@ -196,7 +283,7 @@ export default function AgentPaymentsIndex({ agents, payments, paymentTotals, fi
                         </Select>
                         {/* حقل type="date" لا يُفرَّغ بالكتابة، فالمسح يحتاج زرّاً. */}
                         {(hasRange || applied.agent) && (
-                            <Button type="button" variant="ghost" size="sm" onClick={f.reset}>
+                            <Button type="button" variant="ghost" size="sm" onClick={() => f.replaceMany({ from: '', to: '', agent: '' })}>
                                 <X className="size-3" /> مسح التصفية
                             </Button>
                         )}
@@ -232,10 +319,13 @@ export default function AgentPaymentsIndex({ agents, payments, paymentTotals, fi
             </div>
 
             <PaymentFormModal
-                key={paying ? `${paying.id}-${paying.branchId}` : 'none'}
+                key={payingKey ?? 'none'}
                 open={!!paying}
-                onOpenChange={(open) => !open && setPaying(null)}
+                onOpenChange={(open) => !open && setPayingKey(null)}
                 agent={paying}
+                dueFrom={applied.due_from}
+                dueTo={applied.due_to}
+                onPeriodChange={setDueRange}
             />
         </AppLayout>
     );

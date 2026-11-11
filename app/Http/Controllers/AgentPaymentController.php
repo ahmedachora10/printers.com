@@ -25,20 +25,23 @@ class AgentPaymentController extends Controller
 
         $branchId = auth()->user()->branchId ?? null;
 
-        // **بلا مدى تاريخي عمداً**: «العمولات المستحقة» رصيد قائم لا حركة فترة —
-        // حصرُه بمدى يعرض مبلغاً لا يساوي ما سيُدفع فعلاً عند الضغط على «دفع».
-        $outstanding = $this->outstandingByAgentBranch($branchId);
+        $isSuper = Auth::user()->roleName?->isSuperAdmin() ?? false;
+
+        // تاسك 232: للبطاقة فلاترها (due_*) المستقلّة عن فلاتر السجلّ. بلا مدى =
+        // الرصيد القائم؛ بمدى = مستحق الفترة، وهو ما تصرفه نافذة الدفع للفترة نفسها.
+        $dueBranchId = $branchId ?? ($isSuper ? ($request->integer('due_branch') ?: null) : null);
+        $outstanding = $this->outstandingByAgentBranch($dueBranchId, $request->input('due_from'), $request->input('due_to'));
 
         // One settlement row per (agent × branch): an agent may work with several
         // branches and each is paid separately, so a single merged figure would
         // invite settling one branch against another's total.
         $agents = Agent::query()
-            ->when($branchId, fn ($q) => $q->forBranch($branchId))
+            ->when($dueBranchId, fn ($q) => $q->forBranch($dueBranchId))
             ->with('agentBranches:id,name')
             ->orderBy('name')
             ->get()
             ->flatMap(fn (Agent $agent) => $agent->agentBranches
-                ->when($branchId, fn ($branches) => $branches->where('id', $branchId))
+                ->when($dueBranchId, fn ($branches) => $branches->where('id', $dueBranchId))
                 ->map(fn (Branch $branch) => [
                     'id' => $agent->id,
                     'name' => $agent->name,
@@ -48,6 +51,7 @@ class AgentPaymentController extends Controller
                     'outstandingRebate' => round($outstanding[$agent->id.'-'.$branch->id]['rebate'] ?? 0, 2),
                     'outstandingInvoices' => $outstanding[$agent->id.'-'.$branch->id]['count'] ?? 0,
                 ]))
+            ->when($request->input('due_sort') === 'amount', fn ($rows) => $rows->sortByDesc('outstandingRebate'))
             ->values();
 
         // تاسك 57: المدى والمندوب والفرز تخصّ **سجل الدفعات** وحده. الاستعلام
@@ -89,8 +93,12 @@ class AgentPaymentController extends Controller
                 'agent' => $request->input('agent'),
                 'sort' => $request->sortColumn(),
                 'dir' => $request->sortDirection(),
+                'due_from' => $request->input('due_from'),
+                'due_to' => $request->input('due_to'),
+                'due_branch' => $isSuper ? $request->input('due_branch') : null,
+                'due_sort' => $request->input('due_sort'),
             ],
-            'branches' => Auth::user()->roleName?->isSuperAdmin()
+            'branches' => $isSuper
                 ? Branch::query()->where('is_active', true)->orderBy('name')->get(['id', 'name'])
                 : null,
         ]);
@@ -118,14 +126,19 @@ class AgentPaymentController extends Controller
      * The branch dimension is not cosmetic: each branch settles its own invoices,
      * so a figure merged across branches could never be paid in one run.
      *
+     * المدى (تاسك 232) على `earned_at` بحدود GenerateAgentPaymentAction نفسها،
+     * فالمعروض للفترة هو ما يُصرف لها.
+     *
      * @return array<string, array{rebate: float, count: int}>
      */
-    private function outstandingByAgentBranch(?int $branchId): array
+    private function outstandingByAgentBranch(?int $branchId, ?string $from, ?string $to): array
     {
         // تاسك 217: غير المصروف من دفتر المندوب — ما حُصِّل من فواتيره، دفعةً دفعة.
         return AgentCommissionEntry::query()
             ->whereNull('agent_payment_id')
             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($from, fn ($q) => $q->where('earned_at', '>=', $from.' 00:00:00'))
+            ->when($to, fn ($q) => $q->where('earned_at', '<=', $to.' 23:59:59'))
             ->groupBy('agent_id', 'branch_id', 'invoice_type', 'invoice_id')
             ->selectRaw('agent_id, branch_id, SUM(rebate_amount + line_commission_amount) as rebate')
             ->get()
