@@ -9,7 +9,8 @@ class UpdateExpenseCategoryAction
     /** @param array<string, mixed> $data */
     public function handle(ExpenseCategory $expenseCategory, array $data): ExpenseCategory
     {
-        $expenseCategory->update(array_filter($data, fn ($value) => $value !== null));
+        // بلا تصفية الفارغ: branch_id = null هو «عامة» (تاسك 231).
+        $expenseCategory->update($data);
 
         return $expenseCategory->fresh();
     }

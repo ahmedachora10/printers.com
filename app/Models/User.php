@@ -230,15 +230,15 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
 
     /**
      * Who can have raised an invoice, for a report's «الموظف» filter: the active
-     * users of the branch (all branches when null). Agents never create invoices.
+     * users of the branch or branches (all branches when empty). Agents never create invoices.
      *
      * @return \Illuminate\Support\Collection<int, array{id: int, name: string}>
      */
-    public static function invoiceRaiserOptions(?int $branchId): \Illuminate\Support\Collection
+    public static function invoiceRaiserOptions(int|array|null $branchId): \Illuminate\Support\Collection
     {
         return static::query()
             ->where('is_active', true)
-            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+            ->when($branchId, fn ($q) => $q->whereIn('branch_id', (array) $branchId))
             ->whereDoesntHave('roles', fn ($q) => $q->where('name', Roles::AGENT->value))
             ->orderBy('name')
             ->get(['id', 'name'])

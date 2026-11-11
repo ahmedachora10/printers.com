@@ -290,6 +290,38 @@ describe('Agent Commission Report', function () {
                 ->where('rows.0.paid', 0));
     });
 
+    it('lets the super-admin pick several branches (task 233)', function () {
+        agentServiceInvoice($this->branch, $this->employee, $this->agent, ['rebate_amount' => 20]);
+
+        [$second, $third] = Branch::factory()->count(2)->create()->map(function (Branch $branch, int $i) {
+            $employee = User::factory()->create(['branch_id' => $branch->id]);
+            $employee->addRole(Roles::EMPLOYEE->value);
+            agentServiceInvoice($branch, $employee, Agent::factory()->create(['branch_id' => $branch->id]), ['rebate_amount' => [30, 77][$i]]);
+
+            return $branch;
+        })->all();
+
+        $picked = $this->branch->id.','.$second->id;
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.agent-commissions', ['branch' => $picked]))
+            ->assertInertia(fn ($page) => $page
+                ->has('rows', 2)
+                ->where('totals.due', 50)
+                ->where('filters.branch', $picked)
+                // الموظفون في القائمة من الفرعين المختارين وحدهما.
+                ->where('employees', fn ($employees) => collect($employees)->pluck('id')->intersect(User::where('branch_id', $third->id)->pluck('id'))->isEmpty()));
+
+        // مدير الفرع مثبَّت على فرعه مهما أرسل.
+        $this->actingAs($this->branchAdmin)
+            ->get(route('reports.agent-commissions', ['branch' => $second->id.','.$third->id]))
+            ->assertInertia(fn ($page) => $page->has('rows', 1)->where('totals.due', 20)->where('filters.branch', null));
+
+        $this->actingAs($this->superAdmin)
+            ->get(route('reports.agent-commissions.export', ['branch' => $picked]))
+            ->assertOk();
+    });
+
     // ── DRILL-DOWN & EXPORT ────────────────────────────────────────
 
     it('names the employee and the service on each drill-down row', function () {
