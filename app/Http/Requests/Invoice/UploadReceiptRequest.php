@@ -17,9 +17,4 @@ class UploadReceiptRequest extends FormRequest
     {
         return ServiceInvoice::receiptRules(true);
     }
-
-    public function messages(): array
-    {
-        return ['receipts.required' => 'يجب اختيار ملف الإيصال.'];
-    }
 }

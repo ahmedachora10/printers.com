@@ -319,7 +319,7 @@ describe('إيصال تحويل المرتجع (تاسك 213)', function () {
 
         $this->get(route('refunds.receipt', $refund))->assertOk();
         $this->get(route('refunds.index'))
-            ->assertInertia(fn ($page) => $page->where('items.data.0.receiptUrl', route('refunds.receipt', $refund)));
+            ->assertInertia(fn ($page) => $page->where('items.data.0.receipts.0.url', $refund->receiptUrls()[0]['url']));
     })->with([
         'full' => [null],
         'partial' => [500.0],

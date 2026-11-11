@@ -199,7 +199,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     // النافذة: الزرّ يُعطَّل والخادم يرفض. paymentMethodId لا paymentMethod —
     // الثاني اسمٌ للعرض قد يأتي من الدفعات.
     const receiptMissingForApproval =
-        paymentMethodOptions.find((m) => m.id === invoice.paymentMethodId)?.requiresAttachment === true && !invoice.receiptUrl;
+        paymentMethodOptions.find((m) => m.id === invoice.paymentMethodId)?.requiresAttachment === true && invoice.receipts.length === 0;
     const canApprove = invoice.paymentMethodId !== null && !receiptMissingForApproval;
     const returned = invoice.status === 'returned';
     const statusReason = returned ? invoice.returnReason : invoice.cancellationReason;

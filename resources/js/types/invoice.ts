@@ -61,9 +61,7 @@ export interface InvoicePayment {
     paymentMethodId: number | null;
     recordedByName: string | null;
     notes: string | null;
-    /** رابط أول إيصالات هذه الدفعة (محمي بالصلاحية)، أو null إن لم يُرفق شيء */
-    receiptUrl: string | null;
-    /** تاسك 229: كل إيصالات الدفعة */
+    /** إيصالات هذه الدفعة بروابطها المحميّة (تاسك 229) */
     receipts: ReceiptFile[];
 }
 
@@ -243,8 +241,6 @@ export interface Invoice {
     paymentMethodId: number | null;
     /** ملاحظات على مستوى الفاتورة كاملة — تختلف عن ملاحظات السطر */
     notes: string | null;
-    /** أول الإيصالات — يكفي لفحص «يوجد إيصال»؛ القائمة كلها في receipts (تاسك 229) */
-    receiptUrl: string | null;
     receipts: ReceiptFile[];
     lines: InvoiceLine[];
     refundedTotal: number;
