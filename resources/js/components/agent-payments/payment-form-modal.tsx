@@ -12,39 +12,40 @@ import { Label } from '@/components/ui/label';
 import { formatCurrency } from '@/lib/utils';
 import { type AgentOutstanding } from '@/types/agent-payment';
 import { useForm } from '@inertiajs/react';
-import { useEffect } from 'react';
 import InputError from '../input-error';
 
 interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     agent: AgentOutstanding | null;
+    /** تاسك 232: فلتر بطاقة المستحق — تبدأ منه الفترة، وتغييرها يعيد تحميل مستحقها. */
+    dueFrom: string;
+    dueTo: string;
+    onPeriodChange: (from: string, to: string) => void;
 }
 
 function todayIso(): string {
     return new Date().toISOString().slice(0, 10);
 }
 
-export default function PaymentFormModal({ open, onOpenChange, agent }: Props) {
+export default function PaymentFormModal({ open, onOpenChange, agent, dueFrom, dueTo, onPeriodChange }: Props) {
+    // النافذة تُركَّب من جديد لكل صفّ (key في الصفحة)، فالقيم الابتدائية تكفي.
     const { data, setData, post, processing, errors, reset } = useForm({
         agent_id: agent?.id ?? 0,
         // The settlement covers one branch: an agent may work with several, and
         // each branch pays its own invoices.
         branch_id: agent?.branchId ?? 0,
-        period_start: '',
-        period_end: todayIso(),
+        period_start: dueFrom,
+        period_end: dueTo || todayIso(),
+        paid_at: todayIso(),
         notes: '',
     });
 
-    useEffect(() => {
-        setData({
-            agent_id: agent?.id ?? 0,
-            branch_id: agent?.branchId ?? 0,
-            period_start: '',
-            period_end: todayIso(),
-            notes: '',
-        });
-    }, [agent, open]);
+    function setPeriod(key: 'period_start' | 'period_end', value: string) {
+        setData(key, value);
+        const next = { ...data, [key]: value };
+        onPeriodChange(next.period_start, next.period_end);
+    }
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -69,7 +70,9 @@ export default function PaymentFormModal({ open, onOpenChange, agent }: Props) {
 
                 <form id="agent-payment-form" onSubmit={handleSubmit} className="space-y-4 py-2">
                     <div className="rounded-lg border bg-muted/40 px-4 py-2 text-sm">
-                        <span className="text-muted-foreground">العمولة المستحقة (إجمالي غير مدفوع): </span>
+                        <span className="text-muted-foreground">
+                            {dueFrom || dueTo ? 'قيمة الصرف (مستحق الفترة المحددة): ' : 'العمولة المستحقة (إجمالي غير مدفوع): '}
+                        </span>
                         <span className="font-bold tabular-nums">{formatCurrency(agent?.outstandingRebate ?? 0)}</span>
                     </div>
                     <p className="text-muted-foreground text-xs">
@@ -83,7 +86,7 @@ export default function PaymentFormModal({ open, onOpenChange, agent }: Props) {
                                 id="ap-start"
                                 type="date"
                                 value={data.period_start}
-                                onChange={(e) => setData('period_start', e.target.value)}
+                                onChange={(e) => setPeriod('period_start', e.target.value)}
                                 dir="ltr"
                             />
                             <InputError message={errors.period_start} />
@@ -94,11 +97,25 @@ export default function PaymentFormModal({ open, onOpenChange, agent }: Props) {
                                 id="ap-end"
                                 type="date"
                                 value={data.period_end}
-                                onChange={(e) => setData('period_end', e.target.value)}
+                                onChange={(e) => setPeriod('period_end', e.target.value)}
                                 dir="ltr"
                             />
                             <InputError message={errors.period_end} />
                         </div>
+                    </div>
+
+                    <div className="space-y-1">
+                        <Label htmlFor="ap-paid-at">تاريخ الصرف</Label>
+                        <Input
+                            id="ap-paid-at"
+                            type="date"
+                            value={data.paid_at}
+                            min={data.period_start || undefined}
+                            max={todayIso()}
+                            onChange={(e) => setData('paid_at', e.target.value)}
+                            dir="ltr"
+                        />
+                        <InputError message={errors.paid_at} />
                     </div>
 
                     <div className="space-y-1">

@@ -41,6 +41,8 @@ class StoreAgentPaymentRequest extends FormRequest
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
             'period_start' => ['required', 'date'],
             'period_end' => ['required', 'date', 'after_or_equal:period_start'],
+            // تاسك 232: تاريخ الصرف — اليوم أو قبله، لا قبل بداية الفترة. بلا قيمة = الآن.
+            'paid_at' => ['nullable', 'date_format:Y-m-d', 'before_or_equal:today', 'after_or_equal:period_start'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];
     }
@@ -71,6 +73,8 @@ class StoreAgentPaymentRequest extends FormRequest
         return [
             'period_end.after_or_equal' => 'تاريخ نهاية الفترة يجب أن يكون بعد تاريخ البداية.',
             'branch_id.required' => 'يجب تحديد الفرع الذي تُسوّى عمولاته.',
+            'paid_at.before_or_equal' => 'تاريخ الصرف لا يكون في المستقبل.',
+            'paid_at.after_or_equal' => 'تاريخ الصرف لا يسبق بداية الفترة.',
         ];
     }
 }

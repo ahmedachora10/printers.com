@@ -339,6 +339,69 @@ describe('Agent Payments', function () {
                 ->where('agents.0.outstandingInvoices', 1));
     });
 
+    // ── تاسك 232: فلاتر «العمولات المستحقة» وتاريخ الصرف ────────────
+
+    it('narrows the outstanding card to a period, a branch and an amount order', function () {
+        $october = ['paid_at' => '2026-10-10 10:00:00'];
+        $november = ['paid_at' => '2026-11-05 10:00:00'];
+        rebateInvoice($this->branch->id, $this->agent->id, 30, $october);
+        rebateInvoice($this->branch->id, $this->agent->id, 12, $november);
+        $big = Agent::factory()->create(['branch_id' => $this->branch->id, 'name' => 'ي الأخير أبجدياً']);
+        rebateInvoice($this->branch->id, $big->id, 90, $october);
+
+        $row = fn ($page, int $agentId) => collect($page->toArray()['props']['agents'])->firstWhere('id', $agentId);
+
+        // بلا مدى: الرصيد القائم.
+        $this->get(route('agent-payments.index'))
+            ->assertInertia(fn ($page) => expect($row($page, $this->agent->id)['outstandingRebate'])->toEqual(42));
+
+        $this->get(route('agent-payments.index', ['due_from' => '2026-10-01', 'due_to' => '2026-10-31', 'due_sort' => 'amount']))
+            ->assertInertia(fn ($page) => $page
+                ->where('agents.0.id', $big->id)
+                ->where('agents.1.outstandingRebate', 30)
+                ->where('agents.1.outstandingInvoices', 1)
+                ->where('filters.due_from', '2026-10-01'));
+
+        // مدير الفرع يرسل فرعاً آخر ⇒ يبقى على فرعه.
+        $this->get(route('agent-payments.index', ['due_branch' => Branch::factory()->create()->id]))
+            ->assertInertia(fn ($page) => $page->has('agents', 2)->where('filters.due_branch', null));
+
+        // ما يُعرض للفترة هو ما يُصرف لها.
+        $this->post(route('agent-payments.store'), [
+            'agent_id' => $this->agent->id, 'period_start' => '2026-10-01', 'period_end' => '2026-10-31',
+        ])->assertSessionHasNoErrors();
+        expect((float) AgentPayment::firstOrFail()->total_rebate)->toEqual(30.0);
+    });
+
+    it('lets the super-admin narrow the outstanding card to one branch', function () {
+        $superAdmin = User::factory()->create();
+        $superAdmin->addRole(Roles::SUPER_ADMIN->value);
+        $other = Branch::factory()->create();
+        Agent::factory()->create(['branch_id' => $other->id]);
+
+        $this->actingAs($superAdmin)
+            ->get(route('agent-payments.index', ['due_branch' => $this->branch->id]))
+            ->assertInertia(fn ($page) => $page->has('agents', 1)->where('agents.0.branchId', $this->branch->id));
+    });
+
+    it('stamps the chosen payout date and refuses the future or a day before the period', function () {
+        rebateInvoice($this->branch->id, $this->agent->id, 10);
+        $payload = [
+            'agent_id' => $this->agent->id,
+            'period_start' => now()->subDays(3)->toDateString(),
+            'period_end' => now()->toDateString(),
+        ];
+
+        $this->post(route('agent-payments.store'), [...$payload, 'paid_at' => now()->addDay()->toDateString()])
+            ->assertSessionHasErrors('paid_at');
+        $this->post(route('agent-payments.store'), [...$payload, 'paid_at' => now()->subDays(4)->toDateString()])
+            ->assertSessionHasErrors('paid_at');
+
+        $this->post(route('agent-payments.store'), [...$payload, 'paid_at' => now()->subDay()->toDateString()])
+            ->assertSessionHasNoErrors();
+        expect(AgentPayment::firstOrFail()->paid_at->toDateString())->toBe(now()->subDay()->toDateString());
+    });
+
     it('filters the payment log by agent from the dropdown', function () {
         $other = Agent::factory()->create(['branch_id' => $this->branch->id, 'name' => 'مؤسسة الريان']);
 
