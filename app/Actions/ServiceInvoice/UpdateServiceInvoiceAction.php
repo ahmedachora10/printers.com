@@ -12,7 +12,6 @@ use App\Actions\ServiceInvoice\Concerns\WritesServiceInvoiceLines;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\Branch;
 use App\Models\ServiceInvoice;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -39,7 +38,7 @@ class UpdateServiceInvoiceAction
     ) {}
 
     /** @param array<string, mixed> $data */
-    public function handle(ServiceInvoice $invoice, array $data, ?UploadedFile $receipt = null): ServiceInvoice
+    public function handle(ServiceInvoice $invoice, array $data, array $receipts = []): ServiceInvoice
     {
         // An agent rebate already rolled into a payment would be left dangling if
         // the invoice were recomputed underneath it.
@@ -63,7 +62,7 @@ class UpdateServiceInvoiceAction
             ? (float) Branch::findOrFail($branchId)->vat_rate_override
             : (float) $invoice->vat_pct;
 
-        return DB::transaction(function () use ($invoice, $data, $receipt, $branchId, $vatPct) {
+        return DB::transaction(function () use ($invoice, $data, $receipts, $branchId, $vatPct) {
             // Unwind the current invoice before recomputing. Restoring the
             // redeemed points first means the recomputation sees the customer's
             // real balance, so an unchanged redemption nets to zero. The
@@ -92,10 +91,7 @@ class UpdateServiceInvoiceAction
                 $this->postMessage->handle($invoice, auth()->user(), $data['internal_notes']);
             }
 
-            if ($receipt !== null) {
-                $invoice->clearMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);
-                $invoice->addMedia($receipt)->toMediaCollection(ServiceInvoice::RECEIPT_COLLECTION);
-            }
+            $invoice->addReceipts($receipts);
 
             $this->writeLines($invoice, $calc['lines']);
             $this->writeHelpers($invoice, $calc['helpers']);

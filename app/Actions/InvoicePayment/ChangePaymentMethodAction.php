@@ -7,7 +7,6 @@ use App\Models\PaymentMethod;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
 use App\Models\User;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -24,10 +23,10 @@ class ChangePaymentMethodAction
     public function handle(
         ServiceInvoice|ProductInvoice|InvoicePayment $target,
         int $paymentMethodId,
-        ?UploadedFile $receipt,
+        array $receipts,
         User $by,
     ): void {
-        DB::transaction(function () use ($target, $paymentMethodId, $receipt, $by) {
+        DB::transaction(function () use ($target, $paymentMethodId, $receipts, $by) {
             $invoice = $target instanceof InvoicePayment ? $target->invoice : $target;
             $before = $target->payment_method_id;
 
@@ -37,9 +36,7 @@ class ChangePaymentMethodAction
             // سيضاعف أحداث التحصيل في تقرير المبيعات لمالٍ لم يتغيّر.
             $target->forceFill(['payment_method_id' => $paymentMethodId])->save();
 
-            if ($receipt !== null) {
-                $target->addMedia($receipt)->toMediaCollection($target::RECEIPT_COLLECTION);
-            }
+            $target->addReceipts($receipts);
 
             if ($before !== $paymentMethodId) {
                 activity('invoices')

@@ -81,6 +81,6 @@ class ApproveShipmentAction
             'notes' => 'المحصَّل عند اعتماد الفاتورة',
         ]);
 
-        $invoice->getFirstMedia(ServiceInvoice::RECEIPT_COLLECTION)?->copy($payment, InvoicePayment::RECEIPT_COLLECTION);
+        $invoice->getMedia(ServiceInvoice::RECEIPT_COLLECTION)->each->copy($payment, InvoicePayment::RECEIPT_COLLECTION);
     }
 }

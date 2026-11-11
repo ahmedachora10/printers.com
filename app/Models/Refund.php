@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\InvoiceTypeEnum;
+use App\Models\Concerns\HasReceiptMedia;
 use Database\Factories\RefundFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -17,10 +18,8 @@ use Spatie\MediaLibrary\InteractsWithMedia;
 class Refund extends Model implements HasMedia
 {
     /** @use HasFactory<RefundFactory> */
-    use HasFactory, InteractsWithMedia, LogsActivity, SoftDeletes;
-
-    /** تاسك 213: إيصال التحويل حين تُردّ القيمة بطريقةٍ تشترط مرفقاً. */
-    public const RECEIPT_COLLECTION = 'receipt';
+    // تاسك 213: إيصال التحويل حين تُردّ القيمة بطريقةٍ تشترط مرفقاً (HasReceiptMedia).
+    use HasFactory, HasReceiptMedia, InteractsWithMedia, LogsActivity, SoftDeletes;
 
     protected $fillable = [
         'branch_id',
@@ -57,17 +56,8 @@ class Refund extends Model implements HasMedia
     public function registerMediaCollections(): void
     {
         $this->addMediaCollection(self::RECEIPT_COLLECTION)
-            ->singleFile()
             ->useDisk('local')
-            ->acceptsMimeTypes(InvoicePayment::RECEIPT_MIME_TYPES);
-    }
-
-    /** رابط الإيصال المحمي بالصلاحية، أو null إن لم يُرفق شيء. */
-    public function receiptUrl(): ?string
-    {
-        return $this->getFirstMedia(self::RECEIPT_COLLECTION) === null
-            ? null
-            : route('refunds.receipt', ['refund' => $this->id]);
+            ->acceptsMimeTypes(self::RECEIPT_MIME_TYPES);
     }
 
     public function getActivitylogOptions(): LogOptions

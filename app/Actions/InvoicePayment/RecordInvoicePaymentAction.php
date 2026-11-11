@@ -49,12 +49,12 @@ class RecordInvoicePaymentAction
 
     /**
      * @param  array{amount: float|string, discount?: float|string|null, paid_at?: string|null, payment_method_id?: int|null, notes?: string|null}  $data
-     * @param  UploadedFile|null  $receipt  إيصال التحويل حين تشترطه طريقة الدفع
+     * @param  array<int, UploadedFile>  $receipts  إيصال التحويل حين تشترطه طريقة الدفع
      * @param  bool  $confirmedShortage  إقرارُ المعتمِد بعجز خامات المخزون حين تُغلق هذه الدفعةُ الفاتورة
      */
-    public function handle(ProductInvoice|ServiceInvoice $invoice, array $data, User $actor, ?UploadedFile $receipt = null, bool $confirmedShortage = false): InvoicePayment
+    public function handle(ProductInvoice|ServiceInvoice $invoice, array $data, User $actor, array $receipts = [], bool $confirmedShortage = false): InvoicePayment
     {
-        return DB::transaction(function () use ($invoice, $data, $actor, $receipt, $confirmedShortage) {
+        return DB::transaction(function () use ($invoice, $data, $actor, $receipts, $confirmedShortage) {
             // قفل صف الفاتورة يُسلسل الدفعات المتزامنة، فلا يمرّ تحصيلان معاً
             // فيتجاوز مجموعُهما الإجمالي.
             $invoice = $invoice->newQuery()->whereKey($invoice->getKey())->lockForUpdate()->firstOrFail();
@@ -123,9 +123,7 @@ class RecordInvoicePaymentAction
                 'notes' => $data['notes'] ?? null,
             ]);
 
-            if ($receipt !== null) {
-                $payment->addMedia($receipt)->toMediaCollection(InvoicePayment::RECEIPT_COLLECTION);
-            }
+            $payment->addReceipts($receipts);
 
             // معتمدةٌ أصلاً: الدفعة تحصيلٌ فحسب — لكنها مبيعاتٌ في شهرها (تاسك 201).
             if ($owesAfterApproval) {

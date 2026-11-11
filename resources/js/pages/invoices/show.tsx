@@ -6,7 +6,7 @@ import InvoiceNotes from '@/components/invoices/invoice-notes';
 import InvoiceThread from '@/components/invoices/invoice-thread';
 import LineInternals from '@/components/invoices/line-internals';
 import MaterialsShortageDialog from '@/components/invoices/materials-shortage-dialog';
-import { ReceiptField } from '@/components/invoices/receipt-field';
+import { ReceiptField, ReceiptLinks, receiptError } from '@/components/invoices/receipt-field';
 import RecordPaymentModal, { type PaymentMethodOption } from '@/components/invoices/record-payment-modal';
 import ExpenseFormModal from '@/components/expenses/expense-form-modal';
 import { PendingShipments, ShipmentRequestDialog, type ShipmentRequestForm } from '@/components/invoices/shipment-requests';
@@ -176,21 +176,21 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     const [methodPayment, setMethodPayment] = useState<InvoicePayment | null>(null);
     const [methodId, setMethodId] = useState<number | null>(invoice.paymentMethodId);
     const [savingMethod, setSavingMethod] = useState(false);
-    const [methodReceipt, setMethodReceipt] = useState<File | null>(null);
+    const [methodReceipts, setMethodReceipts] = useState<File[]>([]);
     const [methodErrors, setMethodErrors] = useState<Record<string, string | undefined>>({});
 
     const methodCurrentId = methodPayment ? methodPayment.paymentMethodId : invoice.paymentMethodId;
-    const methodExistingReceipt = methodPayment ? methodPayment.receiptUrl : invoice.receiptUrl;
+    const methodExistingReceipts = methodPayment ? methodPayment.receipts : invoice.receipts;
 
     // طريقةُ تحويلٍ اختيرت ولمّا يحمل الهدف إيصالاً: النافذة تطلبه قبل الحفظ،
     // والخادم يرفض بدونه — فلا تُعتمد فاتورة تحويل بلا إثبات.
     const methodNeedsReceipt = paymentMethodOptions.find((m) => m.id === methodId)?.requiresAttachment === true;
-    const methodReceiptMissing = methodNeedsReceipt && !methodExistingReceipt && !methodReceipt;
+    const methodReceiptMissing = methodNeedsReceipt && methodExistingReceipts.length === 0 && methodReceipts.length === 0;
 
     function openMethodDialog(payment: InvoicePayment | null) {
         setMethodPayment(payment);
         setMethodId(payment ? payment.paymentMethodId : invoice.paymentMethodId);
-        setMethodReceipt(null);
+        setMethodReceipts([]);
         setMethodErrors({});
         setMethodOpen(true);
     }
@@ -199,7 +199,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
     // النافذة: الزرّ يُعطَّل والخادم يرفض. paymentMethodId لا paymentMethod —
     // الثاني اسمٌ للعرض قد يأتي من الدفعات.
     const receiptMissingForApproval =
-        paymentMethodOptions.find((m) => m.id === invoice.paymentMethodId)?.requiresAttachment === true && !invoice.receiptUrl;
+        paymentMethodOptions.find((m) => m.id === invoice.paymentMethodId)?.requiresAttachment === true && invoice.receipts.length === 0;
     const canApprove = invoice.paymentMethodId !== null && !receiptMissingForApproval;
     const returned = invoice.status === 'returned';
     const statusReason = returned ? invoice.returnReason : invoice.cancellationReason;
@@ -298,16 +298,16 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
             methodPayment
                 ? updatePaymentRowMethod(methodPayment.id).url
                 : updateInvoicePaymentMethod({ type: invoice.type, id: invoice.id }).url,
-            { _method: 'patch', payment_method_id: methodId, ...(methodReceipt ? { receipt: methodReceipt } : {}) },
+            { _method: 'patch', payment_method_id: methodId, receipts: methodReceipts },
             {
                 forceFormData: true,
                 preserveScroll: true,
                 onError: (e) => {
                     setMethodErrors(e);
-                    toast.error(e.payment_method_id ?? e.receipt ?? 'تعذّر تحديث طريقة الدفع.');
+                    toast.error(e.payment_method_id ?? receiptError(e) ?? 'تعذّر تحديث طريقة الدفع.');
                 },
                 onSuccess: () => {
-                    setMethodReceipt(null);
+                    setMethodReceipts([]);
                     setMethodOpen(false);
                 },
                 onFinish: () => setSavingMethod(false),
@@ -678,16 +678,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                                         <span className="sr-only">تغيير طريقة هذه الدفعة</span>
                                                     </Button>
                                                 )}
-                                                {payment.receiptUrl && (
-                                                    <a
-                                                        href={payment.receiptUrl}
-                                                        target="_blank"
-                                                        rel="noreferrer"
-                                                        className="text-primary inline-flex items-center gap-1 text-xs hover:underline"
-                                                    >
-                                                        <Paperclip className="size-3" /> الإيصال
-                                                    </a>
-                                                )}
+                                                <ReceiptLinks receipts={payment.receipts} />
                                                 {payment.notes && <span className="text-muted-foreground text-xs">{payment.notes}</span>}
                                             </div>
                                             <div className="flex items-center gap-3">
@@ -887,21 +878,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                                 صفحةَ Inertia، وLink يعترض النقرة ويطلبها طلبَ Inertia
                                 (ولا يحترم target) فلا يُفتح شيء — كرابط إيصال الدفعة
                                 في جدول الدفعات أعلاه. */}
-                            {invoice.receiptUrl && (
-                                <MetaRow
-                                    label="إيصال التحويل"
-                                    value={
-                                        <a
-                                            href={invoice.receiptUrl}
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                            className="text-primary inline-flex items-center gap-1 hover:underline"
-                                        >
-                                            <Paperclip className="size-3.5" /> عرض الإيصال
-                                        </a>
-                                    }
-                                />
-                            )}
+                            {invoice.receipts.length > 0 && <MetaRow label="إيصال التحويل" value={<ReceiptLinks receipts={invoice.receipts} />} />}
                             {/* تاسك 109: بيانات التوصيل — طلبٌ لكل كتلة (تاسك 170). */}
                             {invoice.shipments.map((shipment, i) => (
                                 <div key={shipment.id}>
@@ -1207,10 +1184,10 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                             {methodNeedsReceipt && (
                                 <ReceiptField
                                     id="method-receipt"
-                                    onChange={setMethodReceipt}
-                                    error={methodErrors.receipt}
+                                    onChange={setMethodReceipts}
+                                    error={receiptError(methodErrors)}
                                     disabled={savingMethod}
-                                    existingUrl={methodExistingReceipt}
+                                    existing={methodExistingReceipts}
                                 />
                             )}
                         </div>
@@ -1222,7 +1199,7 @@ export default function InvoiceShow({ invoice, paymentMethodOptions, paymentMeth
                         <Button
                             onClick={savePaymentMethod}
                             disabled={
-                                savingMethod || !methodId || methodReceiptMissing || (methodId === methodCurrentId && !methodReceipt)
+                                savingMethod || !methodId || methodReceiptMissing || (methodId === methodCurrentId && methodReceipts.length === 0)
                             }
                             title={methodReceiptMissing ? 'أرفق إيصال التحويل أولاً' : undefined}
                         >

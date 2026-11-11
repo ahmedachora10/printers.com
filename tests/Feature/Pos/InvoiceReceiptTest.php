@@ -67,7 +67,7 @@ describe('Invoice payment receipt', function () {
     it('requires a receipt when the method mandates an attachment', function () {
         $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
             'payment_method_id' => $this->transferMethod->id,
-        ]))->assertSessionHasErrors('receipt');
+        ]))->assertSessionHasErrors('receipts');
 
         expect(ServiceInvoice::count())->toBe(0);
     });
@@ -75,7 +75,7 @@ describe('Invoice payment receipt', function () {
     it('stores the receipt as media when a transfer method is used', function () {
         $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
             'payment_method_id' => $this->transferMethod->id,
-            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+            'receipts' => [UploadedFile::fake()->image('transfer.jpg')],
         ]))->assertRedirect(route('pos.service.create'));
 
         $invoice = ServiceInvoice::firstOrFail();
@@ -86,7 +86,7 @@ describe('Invoice payment receipt', function () {
     it('does not require a receipt for a non-attachment method', function () {
         $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
             'payment_method_id' => $this->cashMethod->id,
-        ]))->assertSessionDoesntHaveErrors('receipt');
+        ]))->assertSessionDoesntHaveErrors('receipts');
 
         expect(ServiceInvoice::firstOrFail()->hasReceipt())->toBeFalse();
     });
@@ -94,8 +94,8 @@ describe('Invoice payment receipt', function () {
     it('rejects a receipt with a disallowed mime type', function () {
         $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
             'payment_method_id' => $this->transferMethod->id,
-            'receipt' => UploadedFile::fake()->create('virus.exe', 10, 'application/octet-stream'),
-        ]))->assertSessionHasErrors('receipt');
+            'receipts' => [UploadedFile::fake()->create('virus.exe', 10, 'application/octet-stream')],
+        ]))->assertSessionHasErrors('receipts.0');
 
         expect(ServiceInvoice::count())->toBe(0);
     });
@@ -103,7 +103,7 @@ describe('Invoice payment receipt', function () {
     it('serves the stored receipt to the owning employee', function () {
         $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
             'payment_method_id' => $this->transferMethod->id,
-            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+            'receipts' => [UploadedFile::fake()->image('transfer.jpg')],
         ]));
 
         $invoice = ServiceInvoice::firstOrFail();
@@ -115,7 +115,7 @@ describe('Invoice payment receipt', function () {
     it('forbids an employee from another branch from viewing the receipt', function () {
         $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
             'payment_method_id' => $this->transferMethod->id,
-            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+            'receipts' => [UploadedFile::fake()->image('transfer.jpg')],
         ]));
 
         $invoice = ServiceInvoice::firstOrFail();
@@ -140,7 +140,7 @@ describe('Invoice payment receipt', function () {
 
         $this->actingAs($this->branchAdmin)
             ->post(route('invoices.service.receipt', $invoice), [
-                'receipt' => UploadedFile::fake()->image('transfer.png'),
+                'receipts' => [UploadedFile::fake()->image('transfer.png')],
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
@@ -164,7 +164,7 @@ describe('Invoice payment receipt', function () {
             ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $this->transferMethod->id,
             ])
-            ->assertSessionHasErrors('receipt');
+            ->assertSessionHasErrors('receipts');
 
         expect($invoice->refresh()->payment_method_id)->toBe($this->cashMethod->id);
     });
@@ -179,7 +179,7 @@ describe('Invoice payment receipt', function () {
         $this->actingAs($this->branchAdmin)
             ->patch(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 'payment_method_id' => $this->transferMethod->id,
-                'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+                'receipts' => [UploadedFile::fake()->image('transfer.jpg')],
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
@@ -205,7 +205,7 @@ describe('Invoice payment receipt', function () {
             ->post(route('invoices.update-payment-method', ['type' => 'service', 'id' => $invoice->id]), [
                 '_method' => 'patch',
                 'payment_method_id' => $this->transferMethod->id,
-                'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+                'receipts' => [UploadedFile::fake()->image('transfer.jpg')],
             ])
             ->assertRedirect()
             ->assertSessionHas('success');
@@ -219,7 +219,7 @@ describe('Invoice payment receipt', function () {
     it('does not ask again for a receipt the invoice already carries', function () {
         $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
             'payment_method_id' => $this->transferMethod->id,
-            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+            'receipts' => [UploadedFile::fake()->image('transfer.jpg')],
         ]));
 
         $invoice = ServiceInvoice::firstOrFail();
@@ -245,7 +245,7 @@ describe('Invoice payment receipt', function () {
 
         $this->actingAs($this->branchAdmin)
             ->patch(route('invoices.service.pay', $invoice))
-            ->assertSessionHasErrors('receipt');
+            ->assertSessionHasErrors('receipts');
 
         expect($invoice->refresh()->status->value)->toBe('due');
     });
@@ -253,7 +253,7 @@ describe('Invoice payment receipt', function () {
     it('approves once the receipt is attached', function () {
         $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
             'payment_method_id' => $this->transferMethod->id,
-            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+            'receipts' => [UploadedFile::fake()->image('transfer.jpg')],
         ]));
 
         $invoice = ServiceInvoice::firstOrFail();
@@ -263,5 +263,73 @@ describe('Invoice payment receipt', function () {
             ->assertSessionHasNoErrors();
 
         expect($invoice->refresh()->status->value)->toBe('paid');
+    });
+
+    // ── تاسك 229: حتى 5 إيصالات، الجديد يُضاف، والحذف للمدير وحده ────
+
+    it('stores several receipts, serves each by its id and adds new ones on top', function () {
+        $files = fn (int $n) => array_map(fn ($i) => UploadedFile::fake()->image("transfer-{$i}.jpg"), range(1, $n));
+
+        // ستة ⇒ مرفوض.
+        $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
+            'payment_method_id' => $this->transferMethod->id,
+            'receipts' => $files(6),
+        ]))->assertSessionHasErrors('receipts');
+
+        $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
+            'payment_method_id' => $this->transferMethod->id,
+            'receipts' => $files(2),
+        ]))->assertSessionHasNoErrors();
+
+        $invoice = ServiceInvoice::sole();
+        $urls = $invoice->receiptUrls();
+        expect($urls)->toHaveCount(2);
+        $this->get($urls[0]['url'])->assertOk();
+        $this->get($urls[1]['url'])->assertOk();
+
+        // معرّف إيصالٍ من فاتورةٍ أخرى لا يُخدَم من هذه.
+        $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
+            'payment_method_id' => $this->transferMethod->id,
+            'receipts' => $files(1),
+        ]));
+        $other = ServiceInvoice::latest('id')->firstOrFail();
+        $this->get(route('invoices.receipt', ['type' => 'service', 'id' => $other->id, 'media' => $urls[0]['id']]))
+            ->assertNotFound();
+
+        // الرفع أثناء المراجعة يُضيف ولا يستبدل، والمجموع لا يتجاوز الخمسة.
+        $this->actingAs($this->branchAdmin)
+            ->post(route('invoices.service.receipt', $invoice), ['receipts' => $files(3)])
+            ->assertSessionHasNoErrors();
+        expect($invoice->refresh()->getMedia('receipt'))->toHaveCount(5);
+
+        $this->post(route('invoices.service.receipt', $invoice), ['receipts' => $files(1)])
+            ->assertSessionHasErrors('receipts');
+        expect($invoice->refresh()->getMedia('receipt'))->toHaveCount(5);
+    });
+
+    it('lets only a branch admin of the invoice branch delete one receipt', function () {
+        $this->post(route('pos.service.store'), receiptPayload($this->service->id, [
+            'payment_method_id' => $this->transferMethod->id,
+            'receipts' => [UploadedFile::fake()->image('a.jpg'), UploadedFile::fake()->image('b.jpg')],
+        ]));
+        $invoice = ServiceInvoice::sole();
+        [$first, $second] = $invoice->getMedia('receipt')->all();
+
+        // الموظف صاحب الفاتورة لا يحذف.
+        $this->delete(route('invoices.receipts.destroy', $first))->assertForbidden();
+
+        // مدير فرعٍ آخر لا يرى الفاتورة فلا يحذف منها.
+        $stranger = User::factory()->create();
+        $stranger->addRole(Roles::BRANCH_ADMIN->value);
+        $strangerBranch = Branch::factory()->create(['owner_id' => $stranger->id]);
+        $stranger->update(['branch_id' => $strangerBranch->id]);
+        $this->actingAs($stranger)->delete(route('invoices.receipts.destroy', $first))->assertForbidden();
+
+        $this->actingAs($this->branchAdmin)
+            ->delete(route('invoices.receipts.destroy', $first))
+            ->assertSessionHas('success');
+
+        expect($invoice->refresh()->getMedia('receipt')->pluck('id')->all())->toBe([$second->id]);
+        $this->assertDatabaseHas('activity_log', ['description' => 'receipt deleted', 'subject_id' => $invoice->id]);
     });
 });

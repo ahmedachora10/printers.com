@@ -180,18 +180,19 @@ class SalesReportController extends Controller
 
             foreach ($events as $e) {
                 $invoice = $invoices[$e->invoice_id];
-                $media = $e->payment_id ? $payments[$e->payment_id]->receipt() : $invoice->receipt();
-
-                if ($media === null || ! is_file($media->getPath())) {
-                    continue;
-                }
-
-                $files[] = [$media, implode(' - ', [
+                $name = implode(' - ', [
                     $e->invoice_number,
                     $invoice->customer?->full_name ?? 'عميل نقدي',
                     $e->method_name ?? 'غير محدد',
                     Carbon::parse($e->realized_at)->format('Y-m-d'),
-                ])];
+                ]);
+
+                // تاسك 229: كل إيصالات الحدث — MediaZip يرقّم الأسماء المتكرّرة.
+                foreach (($e->payment_id ? $payments[$e->payment_id] : $invoice)->getMedia(InvoicePayment::RECEIPT_COLLECTION) as $media) {
+                    if (is_file($media->getPath())) {
+                        $files[] = [$media, $name];
+                    }
+                }
             }
         }
 

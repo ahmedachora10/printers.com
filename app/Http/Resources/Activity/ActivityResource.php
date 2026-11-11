@@ -69,6 +69,7 @@ class ActivityResource extends JsonResource
         'edited invoice message' => 'عدّل رسالةً على',
         'deleted invoice message' => 'حذف رسالةً من',
         'payment method changed' => 'غيّر طريقة الدفع على',
+        'receipt deleted' => 'حذف إيصالاً من',
     ];
 
     /** نوع السجلّ المتأثّر بالعربية. */

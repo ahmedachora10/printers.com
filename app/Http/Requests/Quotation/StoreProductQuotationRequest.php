@@ -9,7 +9,7 @@ use Illuminate\Support\Arr;
 class StoreProductQuotationRequest extends StoreProductInvoiceRequest
 {
     /** ما يخصّ الفاتورة وحدها — يُستوفى عند التحويل. */
-    public const NOT_QUOTED = ['payment_method_id', 'receipt', 'status', 'print', 'quick', 'redeem_points', 'internal_notes', 'quotation_id'];
+    public const NOT_QUOTED = ['payment_method_id', 'receipts', 'receipts.*', 'status', 'print', 'quick', 'redeem_points', 'internal_notes', 'quotation_id'];
 
     /** @return array<string, mixed> */
     public function rules(): array

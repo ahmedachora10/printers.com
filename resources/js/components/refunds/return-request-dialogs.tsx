@@ -29,7 +29,7 @@ export default function ReturnRequestDialogs({
     onClose: () => void;
 }) {
     const [methodId, setMethodId] = useState('');
-    const [receipt, setReceipt] = useState<File | null>(null);
+    const [receipts, setReceipts] = useState<File[]>([]);
     // null = لم يُعدَّل بعد ⇒ كامل المبلغ القابل للردّ.
     const [amount, setAmount] = useState<string | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
@@ -37,13 +37,13 @@ export default function ReturnRequestDialogs({
 
     function close() {
         setMethodId('');
-        setReceipt(null);
+        setReceipts([]);
         setAmount(null);
         setRejectionReason('');
         onClose();
     }
 
-    function submit(url: string, data: Record<string, string | File | null>, success: string) {
+    function submit(url: string, data: Record<string, string | File[] | null>, success: string) {
         setProcessing(true);
         router.post(url, data, {
             preserveScroll: true,
@@ -118,14 +118,14 @@ export default function ReturnRequestDialogs({
                             </Select>
                         </div>
                     )}
-                    {needsReceipt && <ReceiptField id="approve-receipt" onChange={setReceipt} disabled={processing} />}
+                    {needsReceipt && <ReceiptField id="approve-receipt" onChange={setReceipts} disabled={processing} />}
                     <DialogFooter>
                         <Button variant="outline" onClick={close} disabled={processing}>
                             تراجع
                         </Button>
                         <Button
                             className="bg-emerald-600 text-white hover:bg-emerald-700"
-                            disabled={processing || (needsMethod && !methodId) || (needsReceipt && !receipt) || !amountValid}
+                            disabled={processing || (needsMethod && !methodId) || (needsReceipt && receipts.length === 0) || !amountValid}
                             onClick={() =>
                                 approving &&
                                 submit(
@@ -133,7 +133,7 @@ export default function ReturnRequestDialogs({
                                     {
                                         payment_method_id: methodId || null,
                                         amount: isPartial ? amountText : null,
-                                        receipt: needsReceipt ? receipt : null,
+                                        receipts: needsReceipt ? receipts : [],
                                     },
                                     isPartial ? 'تم اعتماد الطلب وتسجيل مرتجع جزئي.' : 'تم اعتماد الطلب واسترجاع الفاتورة.',
                                 )

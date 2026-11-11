@@ -7,6 +7,7 @@ use App\Enums\LineAgentCommissionTypeEnum;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\PaymentMethod;
+use App\Models\ServiceInvoice;
 use App\Rules\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -53,10 +54,7 @@ class StoreServiceInvoiceRequest extends FormRequest
                 'integer', Rule::in($this->enabledPaymentMethodIds()),
             ],
             // A bank-transfer (requires-attachment) method must carry its proof.
-            'receipt' => [
-                $this->paymentMethodRequiresAttachment() ? 'required' : 'nullable',
-                'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120',
-            ],
+            ...ServiceInvoice::receiptRules($this->paymentMethodRequiresAttachment()),
             'status' => ['required', Rule::in($allowedStatuses)],
             'print' => ['nullable', 'boolean'],
             // تاسك 118: أُرسلت من الشاشة السريعة — فالرجوع إليها لا إلى الشاشة الكاملة.
@@ -160,9 +158,6 @@ class StoreServiceInvoiceRequest extends FormRequest
             'walkin_tax_number.digits' => 'الرقم الضريبي يجب أن يكون 15 رقماً.',
             'payment_method_id.required' => 'طريقة الدفع مطلوبة — اخترها قبل حفظ الفاتورة.',
             'payment_method_id.in' => 'طريقة الدفع غير متاحة لهذا الفرع.',
-            'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.',
-            'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
-            'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
             'status.in' => 'لا يمكنك إصدار فاتورة مدفوعة. يتم حفظ الفاتورة كمعلقة ليراجعها المحاسب.',
             'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',
             'internal_notes.max' => 'الملاحظات الداخلية يجب ألا تتجاوز 1000 حرف.',

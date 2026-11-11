@@ -286,10 +286,22 @@ describe('إيصال تحويل المرتجع (تاسك 213)', function () {
     it('requires the receipt when approving by a transfer method, and keeps the request pending without it', function () {
         $this->actingAs($this->accountant)
             ->post(route('refunds.requests.approve', $this->request), ['payment_method_id' => $this->transfer->id])
-            ->assertSessionHasErrors(['receipt' => 'يجب إرفاق إيصال التحويل للطريقة المحددة.']);
+            ->assertSessionHasErrors(['receipts' => 'يجب إرفاق إيصال التحويل للطريقة المحددة.']);
 
         expect($this->request->refresh()->status->value)->toBe('pending')
             ->and(Refund::count())->toBe(0);
+    });
+
+    it('attaches every receipt to the refund and lists them (task 229)', function () {
+        $this->actingAs($this->accountant)
+            ->post(route('refunds.requests.approve', $this->request), [
+                'payment_method_id' => $this->transfer->id,
+                'receipts' => [UploadedFile::fake()->image('one.jpg'), UploadedFile::fake()->image('two.jpg')],
+            ])
+            ->assertSessionHasNoErrors();
+
+        expect(Refund::sole()->getMedia(Refund::RECEIPT_COLLECTION))->toHaveCount(2);
+        $this->get(route('refunds.index'))->assertInertia(fn ($page) => $page->has('items.data.0.receipts', 2));
     });
 
     it('attaches the receipt to the refund of a full and of a partial approval', function (?float $amount) {
@@ -297,7 +309,7 @@ describe('إيصال تحويل المرتجع (تاسك 213)', function () {
             ->post(route('refunds.requests.approve', $this->request), array_filter([
                 'payment_method_id' => $this->transfer->id,
                 'amount' => $amount,
-                'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+                'receipts' => [UploadedFile::fake()->image('transfer.jpg')],
             ]))
             ->assertSessionHasNoErrors();
 
@@ -307,7 +319,7 @@ describe('إيصال تحويل المرتجع (تاسك 213)', function () {
 
         $this->get(route('refunds.receipt', $refund))->assertOk();
         $this->get(route('refunds.index'))
-            ->assertInertia(fn ($page) => $page->where('items.data.0.receiptUrl', route('refunds.receipt', $refund)));
+            ->assertInertia(fn ($page) => $page->where('items.data.0.receipts.0.url', $refund->receiptUrls()[0]['url']));
     })->with([
         'full' => [null],
         'partial' => [500.0],
@@ -330,10 +342,10 @@ describe('إيصال تحويل المرتجع (تاسك 213)', function () {
             'payment_method_id' => $this->transfer->id,
         ];
 
-        $this->actingAs($this->admin)->post(route('refunds.store'), $data)->assertSessionHasErrors('receipt');
+        $this->actingAs($this->admin)->post(route('refunds.store'), $data)->assertSessionHasErrors('receipts');
         expect(Refund::count())->toBe(0);
 
-        $this->post(route('refunds.store'), [...$data, 'receipt' => UploadedFile::fake()->image('transfer.png')])
+        $this->post(route('refunds.store'), [...$data, 'receipts' => [UploadedFile::fake()->image('transfer.png')]])
             ->assertSessionHasNoErrors();
 
         expect(Refund::sole()->getFirstMedia(Refund::RECEIPT_COLLECTION))->not->toBeNull();
@@ -342,7 +354,7 @@ describe('إيصال تحويل المرتجع (تاسك 213)', function () {
     it('keeps the receipt from another branch', function () {
         $this->actingAs($this->accountant)->post(route('refunds.requests.approve', $this->request), [
             'payment_method_id' => $this->transfer->id,
-            'receipt' => UploadedFile::fake()->image('transfer.jpg'),
+            'receipts' => [UploadedFile::fake()->image('transfer.jpg')],
         ]);
 
         $outsider = User::factory()->create(['branch_id' => Branch::factory()->create()->id]);

@@ -6,6 +6,7 @@ use App\Enums\InvoiceStatusEnum;
 use App\Models\Branch;
 use App\Models\Customer;
 use App\Models\PaymentMethod;
+use App\Models\ServiceInvoice;
 use App\Rules\PhoneNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -37,10 +38,7 @@ class StoreProductInvoiceRequest extends FormRequest
             // لاحقاً عند المحاسب. ولا تُقبل إلا طريقةٌ يراها فرع الفاتورة.
             'payment_method_id' => ['required', 'integer', Rule::in($this->enabledPaymentMethodIds())],
             // A bank-transfer (requires-attachment) method must carry its proof.
-            'receipt' => [
-                $this->paymentMethodRequiresAttachment() ? 'required' : 'nullable',
-                'file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:5120',
-            ],
+            ...ServiceInvoice::receiptRules($this->paymentMethodRequiresAttachment()),
             'status' => ['required', Rule::in([InvoiceStatusEnum::PAID->value, InvoiceStatusEnum::DUE->value])],
             'print' => ['nullable', 'boolean'],
             // تحويل عرض سعر معتمد إلى فاتورة — الصلاحية والحالة تُفحصان في المتحكّم والإجراء.
@@ -91,9 +89,6 @@ class StoreProductInvoiceRequest extends FormRequest
         return [
             'payment_method_id.required' => 'طريقة الدفع مطلوبة — اخترها قبل حفظ الفاتورة.',
             'payment_method_id.in' => 'طريقة الدفع غير متاحة لهذا الفرع.',
-            'receipt.required' => 'يجب إرفاق إيصال التحويل لطريقة الدفع المحددة.',
-            'receipt.mimes' => 'يجب أن يكون الإيصال صورة (jpg, png, webp) أو ملف PDF.',
-            'receipt.max' => 'حجم الإيصال يجب ألا يتجاوز 5 ميجابايت.',
             'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',
             'internal_notes.max' => 'الملاحظات الداخلية يجب ألا تتجاوز 1000 حرف.',
             'lines.required' => 'يجب إضافة منتج واحد على الأقل للفاتورة.',

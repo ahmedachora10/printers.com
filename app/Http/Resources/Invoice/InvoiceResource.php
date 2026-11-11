@@ -235,7 +235,8 @@ class InvoiceResource extends JsonResource
             // `thread` مستقلّ على شاشة الفاتورة)، فيبقى للمنتجات وحدها.
             'internalNotes' => ! $isServiceInvoice && $this->showsInternalCostsTo($request) ? $this->internal_notes : null,
             'canEditInternalNotes' => ! $isServiceInvoice && $this->canEditInternalNotes($request),
-            'receiptUrl' => $showsReceipts ? $this->receiptUrl() : null,
+            // تاسك 229: كل الإيصالات بروابطها المحميّة.
+            'receipts' => $showsReceipts ? $this->receiptUrls() : [],
             // تاسك 94: أرقام السطر الداخلية (تكلفة الخامات، عمولة الموظف،
             // الشريحة) تُحجب عمّن لا يملكها — قرارٌ واحد يُتخذ هنا ويُمرَّر
             // لكل سطر، فلا يقرأ كل سطر الفاتورة الأم من جديد.
@@ -281,7 +282,7 @@ class InvoiceResource extends JsonResource
                     'paymentMethodId' => $payment->payment_method_id,
                     'recordedByName' => $payment->recordedBy?->name,
                     'notes' => $payment->notes,
-                    'receiptUrl' => $showsReceipts ? $payment->receiptUrl() : null,
+                    'receipts' => $showsReceipts ? $payment->receiptUrls() : [],
                 ])->values()->all()),
             // تاسك 99: تعديل طريقة كل دفعة — المبلغ والتاريخ لا يُمسّان.
             'canEditPaymentRows' => $canChangePaymentMethod && $hasPaymentRows,

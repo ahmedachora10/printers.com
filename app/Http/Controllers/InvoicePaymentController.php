@@ -35,7 +35,7 @@ class InvoicePaymentController extends Controller
             $invoice,
             $request->validated(),
             Auth::user(),
-            $request->file('receipt'),
+            $request->file('receipts', []),
             $request->boolean('confirm_materials_shortage'),
         );
 

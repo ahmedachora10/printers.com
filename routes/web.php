@@ -521,6 +521,9 @@ Route::middleware(['auth'])->group(function () {
             // إيصال دفعة بعينها — الصلاحية مأخوذة من الفاتورة الأم داخل المتحكِّم.
             Route::get('payments/{payment}/receipt', [InvoiceReceiptController::class, 'payment'])
                 ->name('payments.receipt');
+            // تاسك 229: حذف إيصالٍ بعينه (فاتورة/دفعة/مرتجع) — الدور والصلاحية في المتحكّم.
+            Route::delete('receipts/{media}', [InvoiceReceiptController::class, 'destroy'])
+                ->whereNumber('media')->name('receipts.destroy');
         });
 
         Route::get('reports/commissions/export', [CommissionReportController::class, 'export'])
