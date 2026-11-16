@@ -37,7 +37,7 @@ class BulkUpsertBranchServicesAction
      */
     public function handle(ServiceTemplate $template, array $branchIds, array $groups, array $values): void
     {
-        $columns = array_merge(...array_values(Arr::only(self::GROUPS, $groups)) ?: [[]]);
+        $columns = Arr::flatten(Arr::only(self::GROUPS, $groups));
 
         DB::transaction(function () use ($template, $branchIds, $columns, $values): void {
             $existing = BranchService::where('service_template_id', $template->id)
@@ -47,9 +47,7 @@ class BulkUpsertBranchServicesAction
 
             foreach ($branchIds as $branchId) {
                 if ($service = $existing->get($branchId)) {
-                    if ($columns !== []) {
-                        $this->update->handle($service, Arr::only($values, $columns));
-                    }
+                    $this->update->handle($service, Arr::only($values, $columns));
 
                     continue;
                 }

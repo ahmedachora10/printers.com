@@ -134,9 +134,7 @@ export default function BranchServiceManageModal({
         const source = attachedServices[attachedServices.length - 1];
         cancelAction();
         setCopySourceId(source?.id ?? 0);
-        setGroups([]);
-        bulkForm.clearErrors();
-        bulkForm.setData({ ...termsFrom(source) });
+        bulkForm.setData(termsFrom(source));
         setBulkOpen(true);
     }
 
@@ -147,15 +145,18 @@ export default function BranchServiceManageModal({
         bulkForm.clearErrors();
     }
 
+    /** `into` بعد نسخ أعمدة المجموعات `of` من `from`. */
+    function copyCols(into: BranchServiceUpdateData, from: BranchServiceUpdateData, of: FieldGroup[]) {
+        const next = { ...into };
+        of.forEach((g) => FIELD_GROUPS[g].columns.forEach((c: string) => (next[c] = from[c])));
+        return next;
+    }
+
     /** مصدر القيم تغيّر: الحقول غير المختارة تُعاد منه، والمختارة تبقى على ما كتبه المستخدم. */
     function applyBulkSource(serviceId: number) {
         setCopySourceId(serviceId);
         const terms = termsFrom(attachedServices.find((bs) => bs.id === serviceId));
-        bulkForm.setData((current) => {
-            const next: BranchServiceUpdateData = { ...current, ...terms, note_examples: [...terms.note_examples] };
-            groups.forEach((g) => FIELD_GROUPS[g].columns.forEach((c: string) => (next[c] = current[c])));
-            return next;
-        });
+        bulkForm.setData((current) => copyCols(terms, current, groups));
     }
 
     /** إخفاء حقل يعيده إلى قيمة المصدر — فلا يتسرّب تعديلٌ مخفيّ إلى الفروع الجديدة. */
@@ -166,12 +167,7 @@ export default function BranchServiceManageModal({
         }
         setGroups(groups.filter((g) => g !== group));
         const terms = termsFrom(attachedServices.find((bs) => bs.id === copySourceId));
-        bulkForm.setData((current) => {
-            const next: BranchServiceUpdateData = { ...current };
-            const source: BranchServiceUpdateData = { ...terms, note_examples: [...terms.note_examples] };
-            FIELD_GROUPS[group].columns.forEach((c: string) => (next[c] = source[c]));
-            return next;
-        });
+        bulkForm.setData((current) => copyCols(current, terms, [group]));
     }
 
     function handleBulkSubmit(e: React.FormEvent) {
@@ -188,7 +184,7 @@ export default function BranchServiceManageModal({
     }
 
     function handleBulkDetach() {
-        if (!template || selectedLinked.length === 0) return;
+        if (!template) return;
         if (!window.confirm(`فصل الخدمة عن ${selectedLinked.length} فرع؟ تُحذف معها عمولات الموظفين والمناديب لهذه الفروع.`)) return;
         router.delete(bulkDestroy.url(template.id), {
             data: { ids: selectedLinked.map((id) => serviceOf(id)!.id) },
@@ -203,7 +199,7 @@ export default function BranchServiceManageModal({
      * بموظفي فرعٍ بعينه فلا معنى لنقلها، وتُدار من زرّ «العمولات» وحده.
      * و`is_active` تبدأ true دائماً مهما كانت حال المصدر.
      */
-    function termsFrom(source: BranchService | undefined) {
+    function termsFrom(source: BranchService | undefined): BranchServiceUpdateData {
         return {
             base_commission_pct: source?.baseCommissionPct ?? 0,
             max_discount_pct: source?.maxDiscountPct ?? 0,
@@ -216,7 +212,7 @@ export default function BranchServiceManageModal({
             has_materials: source?.hasMaterials ?? false,
             materials_cost: source?.materialsCost ?? 0,
             is_active: true,
-        } as const;
+        };
     }
 
     function startAttach(branchId: number) {
@@ -420,11 +416,7 @@ export default function BranchServiceManageModal({
                                 </div>
                             )}
 
-                            <InputError
-                                message={
-                                    bulkForm.errors.branch_ids ?? Object.entries(bulkForm.errors).find(([k]) => k.startsWith('branch_ids.'))?.[1]
-                                }
-                            />
+                            <InputError message={Object.entries(bulkForm.errors).find(([k]) => k.startsWith('branch_ids'))?.[1]} />
 
                             <div className="flex justify-end gap-2">
                                 <Button type="button" size="sm" variant="outline" onClick={closeBulk} disabled={bulkForm.processing}>
