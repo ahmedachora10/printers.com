@@ -1,6 +1,7 @@
 <?php
 
 use App\Console\Commands\ExpireLoyaltyPointsCommand;
+use App\Console\Commands\NotifyBranchSubscriptionExpiryCommand;
 use App\Console\Commands\NotifyUpcomingDeliveriesCommand;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -12,6 +13,10 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command(NotifyUpcomingDeliveriesCommand::class)
+    ->dailyAt('08:00')
+    ->withoutOverlapping();
+
+Schedule::command(NotifyBranchSubscriptionExpiryCommand::class)
     ->dailyAt('08:00')
     ->withoutOverlapping();
 

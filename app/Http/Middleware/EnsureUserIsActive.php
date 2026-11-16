@@ -11,14 +11,17 @@ use Symfony\Component\HttpFoundation\Response;
 class EnsureUserIsActive
 {
     /**
-     * Kick out a user who was deactivated while their session was still open.
-     * Logging in is blocked in LoginRequest; this closes the other half.
+     * Kick out a user who was deactivated (or whose branch was frozen, task 228)
+     * while their session was still open. Logging in is blocked in LoginRequest;
+     * this closes the other half.
      */
     public function handle(Request $request, Closure $next): Response
     {
         $user = $request->user();
 
-        if ($user === null || $user->is_active) {
+        $reason = $user?->accessDeniedReason();
+
+        if ($reason === null) {
             return $next($request);
         }
 
@@ -27,7 +30,7 @@ class EnsureUserIsActive
         if ($request->session()->has('impersonator_id')) {
             $admin = User::find($request->session()->pull('impersonator_id'));
 
-            if ($admin !== null && $admin->is_active) {
+            if ($admin !== null && $admin->accessDeniedReason() === null) {
                 Auth::login($admin);
 
                 return redirect()->route('users.index')
@@ -41,6 +44,6 @@ class EnsureUserIsActive
         $request->session()->regenerateToken();
 
         return redirect()->route('login')
-            ->withErrors(['username' => 'هذا الحساب معطّل، راجع الإدارة']);
+            ->withErrors(['username' => $reason]);
     }
 }

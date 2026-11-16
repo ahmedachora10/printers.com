@@ -1,4 +1,5 @@
 import { LucideIcon } from 'lucide-react';
+import { type SubscriptionState } from './branch';
 import { type NotificationsShared } from './notification';
 
 export interface Impersonating {
@@ -9,6 +10,13 @@ export interface Impersonating {
 export interface AuthBranch {
     name: string;
     logoUrl: string | null;
+    /** تاسك 228 — null بلا اشتراك محدَّد (وللمندوب). */
+    subscription: {
+        state: SubscriptionState;
+        endsAt: string;
+        graceUntil: string | null;
+        daysLeft: number;
+    } | null;
 }
 
 export interface Auth {

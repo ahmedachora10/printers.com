@@ -13,6 +13,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
+import { formatDateNumeric } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { type Branch, type BranchAdmin, type PaginatedBranch } from '@/types/branch';
 import { type City } from '@/types/city';
@@ -23,6 +24,29 @@ import { useMemo, useRef, useState } from 'react';
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'الفروع', href: '/branches' },
 ];
+
+/** تاسك 228: الأيام المتبقية بلون الاقتراب، أو المهلة، أو «منتهي». */
+function SubscriptionCell({ branch }: { branch: Branch }) {
+    const days = branch.subscriptionDaysLeft;
+
+    switch (branch.subscriptionState) {
+        case null:
+            return <span className="text-muted-foreground">—</span>;
+        case 'expired':
+            return <Badge variant="destructive">منتهي</Badge>;
+        case 'grace':
+            return <span className="text-sm font-medium text-red-600">مهلة حتى {formatDateNumeric(branch.subscriptionGraceUntil!)}</span>;
+        default:
+            return (
+                <span
+                    className={days! <= 7 ? 'font-medium text-red-600' : days! <= 30 ? 'font-medium text-amber-600' : 'text-muted-foreground'}
+                    title={`ينتهي ${formatDateNumeric(branch.subscriptionEndsAt!)}`}
+                >
+                    باقٍ {days} يوم
+                </span>
+            );
+    }
+}
 
 interface Props {
     branches: PaginatedBranch;
@@ -38,6 +62,7 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
     const [formOpen, setFormOpen] = useState(false);
     const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
     const [deletingBranch, setDeletingBranch] = useState<Branch | null>(null);
+    const [freezingBranch, setFreezingBranch] = useState<Branch | null>(null);
 
     function openCreate() {
         setEditingBranch(null);
@@ -50,7 +75,7 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
     }
 
     function handleToggleStatus(branch: Branch) {
-        router.patch(toggleStatus.url(branch), {}, { preserveScroll: true });
+        router.patch(toggleStatus.url(branch), {}, { preserveScroll: true, onFinish: () => setFreezingBranch(null) });
     }
 
     function handleDelete() {
@@ -98,10 +123,16 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
                 cell: (branch) => <span>{branch.vatRateOverride}%</span>,
             },
             {
+                key: 'subscription',
+                header: 'الاشتراك',
+                cell: (branch) => <SubscriptionCell branch={branch} />,
+            },
+            {
                 key: 'isActive',
                 header: 'الحالة',
                 cell: (branch) => (
-                    <button onClick={() => handleToggleStatus(branch)} className="cursor-pointer">
+                    // التجميد يطرد كل مستخدمي الفرع — يُؤكَّد؛ فكّه مباشر.
+                    <button onClick={() => (branch.isActive ? setFreezingBranch(branch) : handleToggleStatus(branch))} className="cursor-pointer">
                         {branch.isActive ? (
                             <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
                                 <span className="inline-block size-1.5 rounded-full bg-green-500" />
@@ -110,7 +141,7 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
                         ) : (
                             <Badge variant="outline" className="gap-1.5 border-border bg-muted/60 text-muted-foreground">
                                 <span className="inline-block size-1.5 rounded-full bg-muted-foreground/50" />
-                                غير نشط
+                                مجمَّد
                             </Badge>
                         )}
                     </button>
@@ -197,7 +228,7 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
                                 placeholder: 'الحالة',
                                 options: [
                                     { value: '1', label: 'نشط' },
-                                    { value: '0', label: 'غير نشط' },
+                                    { value: '0', label: 'مجمَّد' },
                                 ],
                             },
                         ]}
@@ -241,6 +272,26 @@ export default function BranchesIndex({ branches, cities, branchAdmins, filters 
                         </Button>
                         <Button variant="destructive" onClick={handleDelete}>
                             حذف
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Freeze confirmation dialog */}
+            <Dialog open={!!freezingBranch} onOpenChange={(open) => !open && setFreezingBranch(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>تجميد الفرع</DialogTitle>
+                        <DialogDescription>
+                            تجميد فرع "{freezingBranch?.name}" يمنع كل مستخدميه من الدخول ويُخرج من هو داخل النظام الآن، حتى يُعاد تفعيله.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setFreezingBranch(null)}>
+                            إلغاء
+                        </Button>
+                        <Button variant="destructive" onClick={() => freezingBranch && handleToggleStatus(freezingBranch)}>
+                            تجميد
                         </Button>
                     </DialogFooter>
                 </DialogContent>

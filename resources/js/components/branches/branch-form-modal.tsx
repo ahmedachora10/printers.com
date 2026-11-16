@@ -21,8 +21,16 @@ import {
 import { type Branch, type BranchAdmin, type BranchFormData } from '@/types/branch';
 import { type City } from '@/types/city';
 import { router, useForm } from '@inertiajs/react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import InputError from '../input-error';
+
+/** تاسك 228: النهاية = البداية + المدة − يوم (اشتراك سنة من 01/01 ينتهي 31/12). */
+function subscriptionEnd(start: string, months: number): string {
+    const d = new Date(`${start}T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() + months);
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+}
 
 interface Props {
     open: boolean;
@@ -45,9 +53,24 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
         tax_number: branch?.taxNumber ?? '',
         owner_id: branch?.ownerId ? String(branch.ownerId) : '',
         vat_rate_override: branch?.vatRateOverride ?? 15,
+        subscription_starts_at: branch?.subscriptionStartsAt ?? '',
+        subscription_ends_at: branch?.subscriptionEndsAt ?? '',
+        subscription_grace_until: branch?.subscriptionGraceUntil ?? '',
         is_active: branch?.isActive ?? true,
         logo: null,
     });
+
+    // المدة لا تُخزَّن — تملأ النهاية فقط، والنهاية تبقى قابلة للتعديل.
+    const [months, setMonths] = useState('');
+
+    function setStart(start: string) {
+        setData((d) => ({ ...d, subscription_starts_at: start, ...(start && months && { subscription_ends_at: subscriptionEnd(start, Number(months)) }) }));
+    }
+
+    function setDuration(value: string) {
+        setMonths(value);
+        if (data.subscription_starts_at) setData('subscription_ends_at', subscriptionEnd(data.subscription_starts_at, Number(value)));
+    }
 
     useEffect(() => {
         if (branch) {
@@ -61,6 +84,9 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
                 tax_number: branch.taxNumber ?? '',
                 owner_id: branch.ownerId ? String(branch.ownerId) : '',
                 vat_rate_override: branch.vatRateOverride ?? 15,
+                subscription_starts_at: branch.subscriptionStartsAt ?? '',
+                subscription_ends_at: branch.subscriptionEndsAt ?? '',
+                subscription_grace_until: branch.subscriptionGraceUntil ?? '',
                 is_active: branch.isActive ?? true,
                 logo: null,
             });
@@ -248,6 +274,61 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
                         <InputError message={errors.vat_rate_override} />
                     </div>
 
+                    {/* Subscription — task 228 */}
+                    <div className="space-y-3 rounded-lg border p-3">
+                        <p className="text-sm font-medium">الاشتراك</p>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                            <div className="space-y-1">
+                                <Label htmlFor="b-sub-start">تاريخ البداية</Label>
+                                <Input
+                                    id="b-sub-start"
+                                    type="date"
+                                    value={data.subscription_starts_at}
+                                    onChange={(e) => setStart(e.target.value)}
+                                    dir="ltr"
+                                />
+                                <InputError message={errors.subscription_starts_at} />
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="b-sub-duration">المدة</Label>
+                                <Select value={months} onValueChange={setDuration}>
+                                    <SelectTrigger id="b-sub-duration">
+                                        <SelectValue placeholder="اختر المدة" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="12">سنة</SelectItem>
+                                        <SelectItem value="24">سنتان</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                            <div className="space-y-1">
+                                <Label htmlFor="b-sub-end">تاريخ النهاية</Label>
+                                <Input
+                                    id="b-sub-end"
+                                    type="date"
+                                    value={data.subscription_ends_at}
+                                    onChange={(e) => setData('subscription_ends_at', e.target.value)}
+                                    dir="ltr"
+                                />
+                                <InputError message={errors.subscription_ends_at} />
+                            </div>
+                        </div>
+                        <div className="space-y-1 sm:w-1/3">
+                            <Label htmlFor="b-sub-grace">مهلة إضافية حتى</Label>
+                            <Input
+                                id="b-sub-grace"
+                                type="date"
+                                value={data.subscription_grace_until}
+                                onChange={(e) => setData('subscription_grace_until', e.target.value)}
+                                dir="ltr"
+                            />
+                            <InputError message={errors.subscription_grace_until} />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                            بعد النهاية (والمهلة إن وُجدت) يصير الفرع للقراءة فقط. اتركها فارغة لفرعٍ بلا اشتراك محدَّد.
+                        </p>
+                    </div>
+
                     {/* Is Active */}
                     <div className="flex items-center gap-2">
                         <Checkbox
@@ -255,7 +336,7 @@ export default function BranchFormModal({ open, onOpenChange, branch, cities, br
                             checked={data.is_active}
                             onCheckedChange={(checked) => setData('is_active', checked === true)}
                         />
-                        <Label htmlFor="b-active" className="cursor-pointer">نشط</Label>
+                        <Label htmlFor="b-active" className="cursor-pointer">نشط (إلغاؤه يجمّد الفرع ويمنع دخول كل مستخدميه)</Label>
                     </div>
                 </form>
 

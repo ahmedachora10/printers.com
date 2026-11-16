@@ -52,15 +52,15 @@ class LoginRequest extends FormRequest
 
         RateLimiter::clear($this->throttleKey());
 
-        // Credentials are valid, but a deactivated account must not hold a session.
-        if (! Auth::user()->is_active) {
+        // Credentials are valid, but a deactivated account (or frozen branch) must not hold a session.
+        if ($reason = Auth::user()->accessDeniedReason()) {
             Auth::guard('web')->logout();
 
             $this->session()->invalidate();
             $this->session()->regenerateToken();
 
             throw ValidationException::withMessages([
-                'username' => 'هذا الحساب معطّل، راجع الإدارة',
+                'username' => $reason,
             ]);
         }
     }

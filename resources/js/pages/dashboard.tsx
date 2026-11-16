@@ -7,8 +7,8 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useReportFilters } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
-import { formatCurrency, formatDate } from '@/lib/utils';
-import { type BreadcrumbItem } from '@/types';
+import { formatCurrency, formatDate, formatDateNumeric } from '@/lib/utils';
+import { type BreadcrumbItem, type SharedData } from '@/types';
 import {
     type DashboardDeductions,
     type DashboardIncentive,
@@ -20,8 +20,8 @@ import {
     type DashboardTopService,
     type DashboardTrendPoint,
 } from '@/types/dashboard';
-import { Head, Link } from '@inertiajs/react';
-import { AlertTriangle, CalendarDays, Minus, Package, Target, Wallet } from 'lucide-react';
+import { Head, Link, usePage } from '@inertiajs/react';
+import { AlertTriangle, CalendarClock, CalendarDays, Minus, Package, Target, Wallet } from 'lucide-react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'لوحة التحكم', href: '/dashboard' }];
 
@@ -66,6 +66,7 @@ const recentInvoiceColumns: ColumnDef<DashboardRecentInvoice>[] = [
 ];
 
 export default function Dashboard({ kpis, revenueTrend, salesByType, paymentMethods, topServices, recentInvoices, incentive, deductions, scope, branches, filters }: Props) {
+    const { auth } = usePage<SharedData>().props;
     const salesLabel = scope.isEmployee ? 'مبيعاتي' : 'المبيعات';
     const trendTitle = `${scope.isEmployee ? 'مبيعاتي' : 'المبيعات'} خلال آخر ${scope.trendDays} يومًا`;
 
@@ -90,6 +91,18 @@ export default function Dashboard({ kpis, revenueTrend, salesByType, paymentMeth
             icon: kpis.lowStockCount > 0 ? <AlertTriangle className="size-4 text-amber-600" /> : <Package className="size-4" />,
             valueClass: kpis.lowStockCount > 0 ? 'text-amber-600' : undefined,
         });
+
+    // تاسك 228: عدّاد الاشتراك لمدير الفرع وحده.
+    const subscription = auth.role === 'branch-admin' ? auth.branch?.subscription : null;
+    if (subscription) {
+        const days = subscription.daysLeft;
+        tiles.unshift({
+            label: `الاشتراك — ينتهي ${formatDateNumeric(subscription.endsAt)}`,
+            value: days >= 0 ? `${days.toLocaleString('ar')} يوم` : 'منتهي',
+            icon: <CalendarClock className="size-4" />,
+            valueClass: days <= 7 ? 'text-red-600' : days <= 30 ? 'text-amber-600' : undefined,
+        });
+    }
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>

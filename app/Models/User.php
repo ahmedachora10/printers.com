@@ -189,6 +189,25 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
     }
 
     /**
+     * Why this user may not hold a session, or null when they may. Read by the
+     * login request and EnsureUserIsActive (task 15). Task 228 adds the branch:
+     * a frozen branch (`branches.is_active` off) locks out all of its users.
+     * Agents span several branches, so their home branch does not lock them.
+     */
+    public function accessDeniedReason(): ?string
+    {
+        if (! $this->is_active) {
+            return 'هذا الحساب معطّل، راجع الإدارة';
+        }
+
+        if (! $this->roleName?->isAgent() && $this->workBranch()?->is_active === false) {
+            return 'هذا الفرع مجمَّد، راجع الإدارة';
+        }
+
+        return null;
+    }
+
+    /**
      * The branch this user works out of, resolved once and kept on the instance
      * for the rest of the request. The shared Inertia layout and whatever the
      * page itself needs from the branch then cost a single query between them
