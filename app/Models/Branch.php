@@ -44,13 +44,12 @@ class Branch extends Model implements HasMedia
         'is_active' => 'boolean',
     ];
 
-    /**
-     * تاسك 228: سجلّ التجديدات والتجميد هو سجلّ النشاط — لا جدول خاصّ.
-     * بقيّة الأعمدة يسجّلها UpdateBranchProfileAction يدوياً حين يعدّلها مدير الفرع.
-     */
-    /** التجديد والتجميد تعديلٌ دائماً — إنشاء الفرع ليس تجديداً. */
     protected static $recordEvents = ['updated'];
 
+    /**
+     * تاسك 228: سجلّ التجديدات والتجميد هو سجلّ النشاط — لا جدول خاصّ، وتعديلاتٌ فقط
+     * (إنشاء الفرع ليس تجديداً). بقيّة الأعمدة يسجّلها UpdateBranchProfileAction يدوياً.
+     */
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

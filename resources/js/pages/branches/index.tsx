@@ -13,7 +13,7 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import AppLayout from '@/layouts/app-layout';
-import { formatDateNumeric } from '@/lib/utils';
+import { formatDateNumeric, subscriptionTone } from '@/lib/utils';
 import { type BreadcrumbItem } from '@/types';
 import { type Branch, type BranchAdmin, type PaginatedBranch } from '@/types/branch';
 import { type City } from '@/types/city';
@@ -39,7 +39,7 @@ function SubscriptionCell({ branch }: { branch: Branch }) {
         default:
             return (
                 <span
-                    className={days! <= 7 ? 'font-medium text-red-600' : days! <= 30 ? 'font-medium text-amber-600' : 'text-muted-foreground'}
+                    className={subscriptionTone(days!) ?? 'text-muted-foreground'}
                     title={`ينتهي ${formatDateNumeric(branch.subscriptionEndsAt!)}`}
                 >
                     باقٍ {days} يوم

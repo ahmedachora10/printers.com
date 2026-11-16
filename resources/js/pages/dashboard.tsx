@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useReportFilters } from '@/hooks/use-report-filters';
 import AppLayout from '@/layouts/app-layout';
-import { formatCurrency, formatDate, formatDateNumeric } from '@/lib/utils';
+import { formatCurrency, formatDate, formatDateNumeric, subscriptionTone } from '@/lib/utils';
 import { type BreadcrumbItem, type SharedData } from '@/types';
 import {
     type DashboardDeductions,
@@ -100,7 +100,7 @@ export default function Dashboard({ kpis, revenueTrend, salesByType, paymentMeth
             label: `الاشتراك — ينتهي ${formatDateNumeric(subscription.endsAt)}`,
             value: days >= 0 ? `${days.toLocaleString('ar')} يوم` : 'منتهي',
             icon: <CalendarClock className="size-4" />,
-            valueClass: days <= 7 ? 'text-red-600' : days <= 30 ? 'text-amber-600' : undefined,
+            valueClass: subscriptionTone(days),
         });
     }
 

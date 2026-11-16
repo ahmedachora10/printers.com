@@ -8,6 +8,22 @@ use Illuminate\Validation\Rule;
 
 class StoreBranchRequest extends FormRequest
 {
+    /**
+     * تاسك 228 — يشاركها UpdateBranchRequest. المسار للسوبر أدمن وحده (role:super-admin)؛
+     * مدير الفرع يعدّل فرعه من UpdateBranchProfileRequest الذي لا يحمل هذه الحقول.
+     */
+    public const SUBSCRIPTION_RULES = [
+        'subscription_starts_at' => ['nullable', 'date', 'required_with:subscription_ends_at'],
+        'subscription_ends_at' => ['nullable', 'date', 'after:subscription_starts_at'],
+        'subscription_grace_until' => ['nullable', 'date', 'after:subscription_ends_at'],
+    ];
+
+    public const SUBSCRIPTION_MESSAGES = [
+        'subscription_starts_at.required_with' => 'حدّد تاريخ بداية الاشتراك.',
+        'subscription_ends_at.after' => 'نهاية الاشتراك يجب أن تكون بعد بدايته.',
+        'subscription_grace_until.after' => 'المهلة يجب أن تنتهي بعد نهاية الاشتراك.',
+    ];
+
     public function authorize(): bool
     {
         return true;
@@ -35,11 +51,7 @@ class StoreBranchRequest extends FormRequest
                     }
                 },
             ],
-            // تاسك 228: المسار للسوبر أدمن وحده (role:super-admin) — مدير الفرع يعدّل
-            // فرعه من UpdateBranchProfileRequest الذي لا يحمل هذه الحقول.
-            'subscription_starts_at' => ['nullable', 'date', 'required_with:subscription_ends_at'],
-            'subscription_ends_at' => ['nullable', 'date', 'after:subscription_starts_at'],
-            'subscription_grace_until' => ['nullable', 'date', 'after:subscription_ends_at'],
+            ...self::SUBSCRIPTION_RULES,
             'is_active' => ['boolean'],
             'logo' => ['nullable', 'image', 'max:2048'],
         ];
@@ -49,9 +61,7 @@ class StoreBranchRequest extends FormRequest
     {
         return [
             'owner_id.unique' => 'هذا المستخدم مسجل كمالك لفرع آخر.',
-            'subscription_starts_at.required_with' => 'حدّد تاريخ بداية الاشتراك.',
-            'subscription_ends_at.after' => 'نهاية الاشتراك يجب أن تكون بعد بدايته.',
-            'subscription_grace_until.after' => 'المهلة يجب أن تنتهي بعد نهاية الاشتراك.',
+            ...self::SUBSCRIPTION_MESSAGES,
         ];
     }
 }

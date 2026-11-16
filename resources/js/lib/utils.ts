@@ -79,3 +79,6 @@ export const shiftDay = (date: string, days: number): string => {
     d.setUTCDate(d.getUTCDate() + days);
     return d.toISOString().slice(0, 10);
 };
+
+/** تاسك 228: لون الأيام المتبقية من اشتراك الفرع — أحمر ≤ 7، كهرماني ≤ 30. */
+export const subscriptionTone = (days: number): string | undefined => (days <= 7 ? 'text-red-600' : days <= 30 ? 'text-amber-600' : undefined);

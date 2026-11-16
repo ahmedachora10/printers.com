@@ -15,7 +15,7 @@ use Illuminate\Notifications\DatabaseNotification;
  */
 class NotifyBranchSubscriptionExpiryCommand extends Command
 {
-    public const THRESHOLDS = [30, 15, 7];
+    private const THRESHOLDS = [30, 15, 7];
 
     protected $signature = 'branches:notify-subscription-expiry';
 
@@ -23,18 +23,17 @@ class NotifyBranchSubscriptionExpiryCommand extends Command
 
     public function handle(): int
     {
-        // نطاقٌ بـ whereDate لا whereIn: SQLite يخزّن التاريخ مع وقتٍ صفريّ فلا يطابقه تاريخٌ مجرّد.
-        $branches = Branch::query()
-            ->where('is_active', true)
-            ->whereDate('subscription_ends_at', '>=', today()->addDays(min(self::THRESHOLDS)))
-            ->whereDate('subscription_ends_at', '<=', today()->addDays(max(self::THRESHOLDS)))
-            ->get()
-            ->filter(fn (Branch $branch) => in_array($branch->subscriptionDaysLeft(), self::THRESHOLDS, true));
+        $branches = Branch::query()->where('is_active', true)->whereNotNull('subscription_ends_at')->get();
 
         $sent = 0;
 
         foreach ($branches as $branch) {
             $daysLeft = $branch->subscriptionDaysLeft();
+
+            if (! in_array($daysLeft, self::THRESHOLDS, true)) {
+                continue;
+            }
+
             $endsAt = $branch->subscription_ends_at->toDateString();
 
             $already = DatabaseNotification::query()
