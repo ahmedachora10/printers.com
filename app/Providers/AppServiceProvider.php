@@ -8,6 +8,7 @@ use App\Models\AgentPayment;
 use App\Models\BankAccount;
 use App\Models\Branch;
 use App\Models\BranchService;
+use App\Models\CardType;
 use App\Models\CatalogCategory;
 use App\Models\CatalogPrice;
 use App\Models\CatalogSubcategory;
@@ -43,6 +44,7 @@ use App\Policies\AgentPolicy;
 use App\Policies\BranchOwnedPolicy;
 use App\Policies\BranchPolicy;
 use App\Policies\BranchServicePolicy;
+use App\Policies\CardTypePolicy;
 use App\Policies\CatalogCategoryPolicy;
 use App\Policies\CatalogPricePolicy;
 use App\Policies\CatalogSubcategoryPolicy;
@@ -140,6 +142,7 @@ class AppServiceProvider extends ServiceProvider
     private function configureGates(): void
     {
         Gate::policy(City::class, CityPolicy::class);
+        Gate::policy(CardType::class, CardTypePolicy::class);
         Gate::policy(CatalogCategory::class, CatalogCategoryPolicy::class);
         Gate::policy(CatalogSubcategory::class, CatalogSubcategoryPolicy::class);
         Gate::policy(CatalogPrice::class, CatalogPricePolicy::class);

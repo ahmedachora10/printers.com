@@ -81,6 +81,7 @@ interface Props {
     /** تاسك 146 */
     networkDevices: NetworkDevice[];
     cardTypes: CardType[];
+    canCreateCardTypes: boolean;
     canManageNetworkDevices: boolean;
     /** تاسك 187 */
     bankAccounts: BankAccount[];
@@ -104,6 +105,7 @@ export default function AppSettingsIndex({
     canManagePaymentMethods,
     networkDevices,
     cardTypes,
+    canCreateCardTypes,
     canManageNetworkDevices,
     bankAccounts,
     canManageBankAccounts,
@@ -360,6 +362,7 @@ export default function AppSettingsIndex({
                             branches={loyaltyBranches}
                             isSuperAdmin={isSuperAdmin}
                             canManageDevices={canManageNetworkDevices}
+                            canCreateCardTypes={canCreateCardTypes}
                         />
                     </TabsContent>
 

@@ -89,7 +89,7 @@ class AccountReconciliationController extends Controller
                 ->get(['id', 'name', 'number', 'is_default'])
                 ->map(fn (NetworkDevice $d) => ['id' => $d->id, 'name' => $d->name, 'number' => $d->number, 'isDefault' => $d->is_default]),
             'cardTypes' => CardType::withTrashed()
-                ->where(fn ($q) => $q->whereNull('deleted_at')
+                ->where(fn ($q) => $q->where(fn ($live) => $live->whereNull('deleted_at')->visibleToBranch((int) $branchId))
                     ->orWhereIn('id', $reconciliation?->devices->pluck('card_type_id')->filter() ?? []))
                 ->orderBy('id')
                 ->get(['id', 'name']),
