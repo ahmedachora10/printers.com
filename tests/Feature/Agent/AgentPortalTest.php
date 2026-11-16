@@ -2,6 +2,7 @@
 
 use App\Enums\Roles;
 use App\Models\Agent;
+use App\Models\AgentPayment;
 use App\Models\Branch;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
@@ -168,6 +169,38 @@ describe('Agent Portal', function () {
             ->assertInertia(fn ($page) => $page
                 ->where('recentInvoices.0.employeeName', $this->branchAdmin->name)
                 ->where('recentInvoices.0.itemsLabel', 'طباعة لوحة و1 أخرى'));
+    });
+
+    // تاسك 235: إجمالي الفاتورة لا يصل المندوب، والمختوم جزئياً يُعرض «مستلمة جزئياً».
+    it('hides the invoice total and sends the stamped part of the commission', function () {
+        agentInvoice(ServiceInvoice::class, $this->branch->id, $this->agent->id, ['agent_rebate' => 30]);
+        $invoice = ServiceInvoice::query()->latest('id')->first();
+        $payment = AgentPayment::create([
+            'agent_id' => $this->agent->id,
+            'branch_id' => $this->branch->id,
+            'period_start' => now()->toDateString(),
+            'period_end' => now()->toDateString(),
+            'total_invoices' => 1,
+            'total_rebate' => 30,
+            'paid_by' => $this->branchAdmin->id,
+            'paid_at' => now(),
+        ]);
+        $invoice->agentCommissionEntries()->update(['agent_payment_id' => $payment->id]);
+        // دفعة تحصيل لاحقة أضافت 10 لم تُصرف بعد.
+        $invoice->agentCommissionEntries()->create([
+            'agent_id' => $this->agent->id,
+            'branch_id' => $this->branch->id,
+            'rebate_amount' => 10,
+            'earned_at' => now(),
+        ]);
+
+        $this->actingAs($this->agent);
+
+        $this->get(route('agent-portal.index'))
+            ->assertInertia(fn ($page) => $page
+                ->where('recentInvoices.0.amount', 40)
+                ->where('recentInvoices.0.paidAmount', 30)
+                ->missing('recentInvoices.0.invoiceTotal'));
     });
 
     it('redirects an agent to the portal on login', function () {

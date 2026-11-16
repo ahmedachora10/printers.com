@@ -7,6 +7,7 @@ use App\Models\AgentCommissionEntry;
 use App\Models\AgentPayment;
 use App\Models\Branch;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -47,7 +48,10 @@ class AgentPortalController extends Controller
             'rebateOutstanding' => round($earned - $paid, 2),
         ];
 
-        $recentInvoices = $perInvoice->take(20)->map(fn (AgentCommissionEntry $row) => $row->invoiceRow())->values();
+        // تاسك 235: إجمالي الفاتورة ليس من شأن المندوب — لا يُرسَل للبوابة أصلاً.
+        $recentInvoices = $perInvoice->take(20)
+            ->map(fn (AgentCommissionEntry $row) => Arr::except($row->invoiceRow(), 'invoiceTotal'))
+            ->values();
 
         $payments = AgentPayment::query()
             ->where('agent_id', $agent->id)

@@ -43,12 +43,13 @@ interface InvoiceRow {
     employeeName: string | null;
     /** First service/product on the invoice, plus a count of the rest. */
     itemsLabel: string | null;
-    invoiceTotal: number;
     rebate: number;
     lineCommission: number;
     discount: number;
-    /** تاسك 217: كل مستحقّ الفاتورة في الفترة مختوم بدفعة مندوب. */
-    isPaid: boolean;
+    /** rebate + lineCommission في الفترة. */
+    amount: number;
+    /** تاسك 235: المختوم منه بدفعة مندوب — صفرٌ = معلقة، أقلّ من amount = مستلمة جزئياً. */
+    paidAmount: number;
     /** آخر تحصيلٍ في الفترة (تاسك 217). */
     date: string;
 }
@@ -99,6 +100,8 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
     const hasDiscount = agent.branches.some((b) => b.discountMode === 'discount');
     // Per-line commissions can accrue to any agent, whatever their invoice-level mode.
     const hasLineCommission = recentInvoices.some((i) => i.lineCommission > 0);
+    // تاسك 235: مندوب «خصم على الفاتورة» قد تكون له عمولة بنود — فيرى عمولته وما استلمه ودفعاته.
+    const hasCommission = isRebate || summary.rebateEarned > 0 || payments.length > 0;
 
     const invoiceColumns = useMemo<ColumnDef<InvoiceRow>[]>(
         () => [
@@ -128,7 +131,6 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                     </span>
                 ),
             },
-            { key: 'total', header: 'إجمالي الفاتورة', cell: (i) => <span className="tabular-nums">{formatCurrency(i.invoiceTotal)}</span> },
             {
                 key: 'amount',
                 header: isRebate ? 'العمولة' : 'الخصم',
@@ -145,18 +147,21 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                       },
                   ]
                 : []),
-            ...(isRebate || hasLineCommission
+            ...(hasCommission
                 ? [
                       {
                           key: 'paid',
                           header: 'حالة العمولة',
                           cell: (i: InvoiceRow) =>
-                              i.rebate + i.lineCommission <= 0 ? (
+                              i.amount <= 0 ? (
                                   <span className="text-muted-foreground">—</span>
-                              ) : i.isPaid ? (
-                                  // «مستلمة» لا «مدفوعة»: المندوب يقرأ الحالة من طرفه هو
-                                  // (تاسك 41). تسمية واجهة فقط — isPaid كما هو.
+                              ) : i.paidAmount >= i.amount ? (
+                                  // «مستلمة» لا «مدفوعة»: المندوب يقرأ الحالة من طرفه هو (تاسك 41).
                                   <Badge variant="secondary">مستلمة</Badge>
+                              ) : i.paidAmount > 0 ? (
+                                  <Badge variant="outline" className="border-amber-500/50 text-amber-700 dark:text-amber-400">
+                                      مستلمة جزئياً
+                                  </Badge>
                               ) : (
                                   <Badge variant="outline" className="text-muted-foreground">
                                       معلقة
@@ -166,7 +171,7 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                   ]
                 : []),
         ],
-        [isRebate, hasLineCommission, isMultiBranch],
+        [isRebate, hasLineCommission, hasCommission, isMultiBranch],
     );
 
     const paymentColumns = useMemo<ColumnDef<PaymentRow>[]>(
@@ -238,7 +243,7 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                     <StatCard label="عدد الفواتير" value={String(summary.invoiceCount)} />
                     {/* Mixed terms across branches: show both sides rather than
                         letting one branch's mode hide the other's figures. */}
-                    {isRebate && (
+                    {hasCommission && (
                         <>
                             <StatCard label="إجمالي العمولة" value={formatCurrency(summary.rebateEarned)} />
                             <StatCard label="العمولة المستلمة" value={formatCurrency(summary.rebatePaid)} />
@@ -257,7 +262,7 @@ export default function AgentPortalIndex({ agent, summary, recentInvoices, payme
                     </CardContent>
                 </Card>
 
-                {isRebate && (
+                {hasCommission && (
                     <Card>
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base">سجل دفعات العمولة</CardTitle>

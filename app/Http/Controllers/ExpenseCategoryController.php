@@ -29,6 +29,8 @@ class ExpenseCategoryController extends Controller
         $items = ExpenseCategory::query()
             ->with('branch:id,name')
             ->visibleToBranch($isSuper ? null : $request->user()->branchId)
+            // تاسك 240: العامة المعطّلة ليست من شأن الفرع — لا يملك تفعيلها، ولا تظهر في قوائمه.
+            ->when(! $isSuper, fn ($q) => $q->where(fn ($w) => $w->where('is_active', true)->orWhere('branch_id', $request->user()->branchId)))
             ->when($isSuper && $request->filled('branch_id'), fn ($q) => $request->input('branch_id') === 'global'
                 ? $q->whereNull('branch_id')
                 : $q->where('branch_id', (int) $request->input('branch_id')))

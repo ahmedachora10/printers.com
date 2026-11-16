@@ -243,5 +243,21 @@ describe('ExpenseCategory Management', function () {
             $this->put(route('expenses.update', $expense), [...$payload, 'expense_category_id' => $theirs->id])
                 ->assertSessionHasErrors('expense_category_id');
         });
+
+        // تاسك 240: العامة المعطّلة تخصّ السوبر أدمن — مدير الفرع لا يراها، ويرى معطّلة فرعه.
+        it('hides inactive global categories from a branch admin only', function () {
+            $globalOff = ExpenseCategory::factory()->create(['name' => 'سحبيات', 'is_active' => false]);
+            $globalOn = ExpenseCategory::factory()->create(['name' => 'صيانة']);
+            $mineOff = ExpenseCategory::factory()->create(['name' => 'ضيافة', 'branch_id' => $this->branch->id, 'is_active' => false]);
+            $ids = fn ($page) => collect($page->toArray()['props']['items']['data'])->pluck('id')->sort()->values()->all();
+
+            $this->get(route('expense-categories.index'))
+                ->assertInertia(fn ($page) => expect($ids($page))->toBe(collect([$globalOn->id, $mineOff->id])->sort()->values()->all()));
+
+            $superAdmin = User::factory()->create();
+            $superAdmin->addRole('super-admin');
+            $this->actingAs($superAdmin)->get(route('expense-categories.index'))
+                ->assertInertia(fn ($page) => expect($ids($page))->toContain($globalOff->id, $globalOn->id, $mineOff->id));
+        });
     });
 });
