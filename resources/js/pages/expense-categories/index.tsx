@@ -69,10 +69,10 @@ export default function ExpenseCategoriesIndex({ items, branches, filters }: Pro
                 cell: (item) => (
                     <span className="flex items-center gap-2 font-medium">
                         {item.name}
-                        {/* مدير الفرع يرى الفئة العامة ولا يملكها. */}
-                        {!branches && item.branchId === null && (
+                        {/* مدير الفرع يرى الفئة العامة أو المشتركة ولا يملكها. */}
+                        {!branches && !item.canEdit && (
                             <Badge variant="outline" className="text-muted-foreground font-normal">
-                                عامة
+                                {item.branches?.length ? 'مشتركة' : 'عامة'}
                             </Badge>
                         )}
                     </span>
@@ -81,9 +81,9 @@ export default function ExpenseCategoriesIndex({ items, branches, filters }: Pro
             ...(branches
                 ? [
                       {
-                          key: 'branchName',
+                          key: 'branches',
                           header: 'النطاق',
-                          cell: (item: ExpenseCategory) => item.branchName ?? 'عامة',
+                          cell: (item: ExpenseCategory) => (item.branches?.length ? item.branches.map((b) => b.name).join('، ') : 'عامة'),
                       },
                   ]
                 : []),

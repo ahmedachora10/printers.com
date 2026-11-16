@@ -24,16 +24,15 @@ class ExpenseCategoryController extends Controller
 
         $isSuper = $request->user()->roleName->isSuperAdmin();
 
-        // تاسك 102: كل فرع يرى العامة + فئاته. السوبر أدمن يرى الكل، ويضيّق بالفرع
-        // («global» = العامة وحدها).
+        // تاسك 102/238: كل فرع يرى العامة + ما يشمله. السوبر أدمن يرى الكل، ويضيّق
+        // بالفرع («global» = العامة وحدها).
+        // تاسك 240: ولا يرى مدير الفرع المعطّلة إلا ما يملكه — لا يملك تفعيل غيرها.
         $items = ExpenseCategory::query()
-            ->with('branch:id,name')
-            ->visibleToBranch($isSuper ? null : $request->user()->branchId)
-            // تاسك 240: العامة المعطّلة ليست من شأن الفرع — لا يملك تفعيلها، ولا تظهر في قوائمه.
-            ->when(! $isSuper, fn ($q) => $q->where(fn ($w) => $w->where('is_active', true)->orWhere('branch_id', $request->user()->branchId)))
+            ->with('branches:id,name')
+            ->when(! $isSuper, fn ($q) => $q->managedListFor((int) $request->user()->branchId))
             ->when($isSuper && $request->filled('branch_id'), fn ($q) => $request->input('branch_id') === 'global'
-                ? $q->whereNull('branch_id')
-                : $q->where('branch_id', (int) $request->input('branch_id')))
+                ? $q->whereDoesntHave('branches')
+                : $q->whereHas('branches', fn ($b) => $b->whereKey((int) $request->input('branch_id'))))
             ->when($request->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$request->input('search').'%'))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', (bool) $request->input('status')))
             ->orderBy('name')

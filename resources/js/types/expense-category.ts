@@ -2,9 +2,8 @@ export interface ExpenseCategory {
     id: number;
     name: string;
     isActive: boolean;
-    /** null = فئة عامة يراها كل فرع (تاسك 102). */
-    branchId: number | null;
-    branchName?: string | null;
+    /** تاسك 238: فروع الفئة — فارغة = عامة يراها كل فرع. */
+    branches?: { id: number; name: string }[];
     canEdit: boolean;
 }
 

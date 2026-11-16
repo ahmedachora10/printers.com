@@ -17,4 +17,10 @@ class ExpenseCategoryFactory extends Factory
             'is_active' => true,
         ];
     }
+
+    /** تاسك 238: فئةٌ نطاقها هذه الفروع؛ بلا استدعاء = عامة. */
+    public function forBranches(int ...$branchIds): static
+    {
+        return $this->afterCreating(fn (ExpenseCategory $category) => $category->branches()->sync($branchIds));
+    }
 }

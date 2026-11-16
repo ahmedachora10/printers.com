@@ -22,8 +22,8 @@ import InputError from '../input-error';
 interface Category {
     id: number;
     name: string;
-    /** null = فئة عامة (تاسك 102). */
-    branchId: number | null;
+    /** تاسك 238: فروع الفئة — فارغة = عامة. */
+    branchIds: number[];
 }
 
 interface Branch {
@@ -142,7 +142,7 @@ export default function ExpenseFormModal({ open, onOpenChange, expense, categori
     }, [expense, open]);
 
     // السوبر أدمن يستلم فئات كل الفروع؛ يُعرض منها العام وما يخصّ الفرع المختار.
-    const branchCategories = isSuperAdmin ? categories.filter((c) => c.branchId === null || c.branchId.toString() === data.branch_id) : categories;
+    const branchCategories = isSuperAdmin ? categories.filter((c) => c.branchIds.length === 0 || c.branchIds.includes(Number(data.branch_id))) : categories;
     const branchAccounts = isSuperAdmin ? bankAccounts.filter((a) => a.branchId.toString() === data.branch_id) : bankAccounts;
 
     // فواتير خدمات فرع المصروف — السوبر أدمن يمرّر الفرع المختار في النافذة.

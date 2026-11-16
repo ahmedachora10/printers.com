@@ -41,9 +41,7 @@ class SettleDeliveryRequest extends FormRequest
             'paid_from' => ['required', Rule::enum(ExpenseSourceEnum::class)],
             // تاسك 187: التحويل من حساب الفرع البنكي.
             'bank_account_id' => StoreExpenseRequest::bankAccountRule($branchId),
-            // فئةٌ عامة أو فئة فرع الطلب (تاسك 102).
-            'expense_category_id' => ['required', 'integer', Rule::exists('expense_categories', 'id')
-                ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId))],
+            'expense_category_id' => StoreExpenseRequest::categoryRule($branchId),
         ];
     }
 }

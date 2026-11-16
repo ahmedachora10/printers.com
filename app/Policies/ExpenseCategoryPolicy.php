@@ -42,8 +42,7 @@ class ExpenseCategoryPolicy
             return true;
         }
 
-        return $user->roleName->isBranchAdmin()
-            && $expenseCategory->branch_id !== null
-            && $expenseCategory->branch_id === $user->branchId;
+        // تاسك 238: الفئة التي نطاقها فرعه وحده — لا العامة ولا المشتركة مع فروعٍ أخرى.
+        return $user->roleName->isBranchAdmin() && $expenseCategory->isOwnedBy($user->branchId);
     }
 }

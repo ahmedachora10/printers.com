@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { FilterMultiSelect } from '@/components/reports/filter-fields';
 import { type ExpenseCategory } from '@/types/expense-category';
 import { useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
@@ -20,9 +20,12 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     expenseCategory?: ExpenseCategory;
-    /** للسوبر أدمن وحده: يختار فرع الفئة أو يتركها عامة. */
+    /** للسوبر أدمن وحده: يختار فرعاً أو عدّة فروع، أو يتركها عامة (تاسك 238). */
     branches?: { id: number; name: string }[] | null;
 }
+
+/** فروع الفئة كما يقرؤها FilterMultiSelect: «3,7»، وفارغ = عامة. */
+const scopeOf = (category?: ExpenseCategory) => (category?.branches ?? []).map((b) => b.id).join(',');
 
 export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCategory, branches }: Props) {
     const isEdit = !!expenseCategory;
@@ -30,17 +33,18 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
     const { data, setData, post, put, processing, errors, reset, transform } = useForm({
         name: expenseCategory?.name ?? '',
         is_active: expenseCategory?.isActive ?? true,
-        branch_id: expenseCategory?.branchId?.toString() ?? 'global',
+        branch_ids: scopeOf(expenseCategory),
     });
 
-    transform((d) => ({ ...d, branch_id: d.branch_id === 'global' ? null : d.branch_id }));
+    // مدير الفرع لا يرسل الفروع أصلاً — الخادم يثبّته على فرعه.
+    transform((d) => ({ ...d, branch_ids: branches ? (d.branch_ids ? d.branch_ids.split(',') : []) : undefined }));
 
     useEffect(() => {
         if (expenseCategory) {
             setData({
                 name: expenseCategory.name ?? '',
                 is_active: expenseCategory.isActive ?? true,
-                branch_id: expenseCategory.branchId?.toString() ?? 'global',
+                branch_ids: scopeOf(expenseCategory),
             });
         } else {
             reset();
@@ -71,24 +75,18 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
                 </DialogHeader>
 
                 <form id="expense-category-form" onSubmit={handleSubmit} className="space-y-4 py-2">
-                    {/* تاسك 231: السوبر أدمن ينقل النطاق عند التعديل أيضاً. */}
+                    {/* تاسك 231/238: السوبر أدمن يحدّد الفروع عند الإنشاء والتعديل؛ لا شيء = عامة. */}
                     {branches && (
                         <div className="space-y-1">
-                            <Label htmlFor="ec-branch">النطاق</Label>
-                            <Select value={data.branch_id} onValueChange={(val) => setData('branch_id', val)}>
-                                <SelectTrigger id="ec-branch">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="global">عامة (كل الفروع)</SelectItem>
-                                    {branches.map((b) => (
-                                        <SelectItem key={b.id} value={b.id.toString()}>
-                                            {b.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <InputError message={errors.branch_id} />
+                            <FilterMultiSelect
+                                label="النطاق"
+                                value={data.branch_ids}
+                                onChange={(val) => setData('branch_ids', val)}
+                                options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                                allLabel="عامة (كل الفروع)"
+                                searchPlaceholder="ابحث عن فرع..."
+                            />
+                            <InputError message={errors.branch_ids} />
                         </div>
                     )}
 
