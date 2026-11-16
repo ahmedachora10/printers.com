@@ -123,7 +123,8 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:super-admin')->group(function () {
-        Route::resource('cities', CityController::class);
+        // تاسك 244: الإضافة لمدير الفرع أيضاً — في مجموعة branch-admin|super-admin أدناه.
+        Route::resource('cities', CityController::class)->except('store');
         Route::patch('cities/{city}/toggle-status', [CityController::class, 'toggleStatus'])
             ->name('cities.toggle-status');
 
@@ -155,6 +156,9 @@ Route::middleware(['auth'])->group(function () {
     // hand-rolled request cannot reach into the shared catalogue or another
     // branch.
     Route::middleware('role:branch-admin|super-admin')->group(function () {
+
+        // تاسك 244: مدير الفرع يضيف مدينةً ناقصة من «بيانات الفرع» (CityPolicy::create).
+        Route::post('cities', [CityController::class, 'store'])->name('cities.store');
 
         Route::resource('payment-methods', PaymentMethodController::class)
             ->parameters(['payment-methods' => 'paymentMethod'])
