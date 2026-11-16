@@ -169,7 +169,7 @@ describe('Max selling price cap', function () {
     // ── تعريف الخدمة ────────────────────────────────────────────────
 
     it('persists the cap from the branch service form and clears it when emptied', function () {
-        $template = ServiceTemplate::factory()->create();
+        $template = ServiceTemplate::factory()->create(['branch_id' => $this->branch->id]);
 
         $this->actingAs($this->branchAdmin)
             ->post(route('branch-services.store'), [
@@ -194,7 +194,7 @@ describe('Max selling price cap', function () {
     });
 
     it('rejects a negative cap', function () {
-        $template = ServiceTemplate::factory()->create();
+        $template = ServiceTemplate::factory()->create(['branch_id' => $this->branch->id]);
 
         $this->actingAs($this->branchAdmin)
             ->post(route('branch-services.store'), [
@@ -210,7 +210,7 @@ describe('Max selling price cap', function () {
     // الإلزام في نقطة البيع يخصّ التاسك 65؛ هنا الخانة وتحقّقها وحدهما.
 
     it('persists the floor from the branch service form and clears it when emptied', function () {
-        $template = ServiceTemplate::factory()->create();
+        $template = ServiceTemplate::factory()->create(['branch_id' => $this->branch->id]);
 
         $this->actingAs($this->branchAdmin)
             ->post(route('branch-services.store'), [
@@ -235,7 +235,7 @@ describe('Max selling price cap', function () {
     });
 
     it('rejects a floor above the cap — the service would be unsellable', function () {
-        $template = ServiceTemplate::factory()->create();
+        $template = ServiceTemplate::factory()->create(['branch_id' => $this->branch->id]);
 
         $this->actingAs($this->branchAdmin)
             ->post(route('branch-services.store'), [
@@ -251,7 +251,7 @@ describe('Max selling price cap', function () {
     });
 
     it('accepts a floor equal to the cap — one price exactly', function () {
-        $template = ServiceTemplate::factory()->create();
+        $template = ServiceTemplate::factory()->create(['branch_id' => $this->branch->id]);
 
         $this->actingAs($this->branchAdmin)
             ->post(route('branch-services.store'), [
@@ -265,7 +265,7 @@ describe('Max selling price cap', function () {
     });
 
     it('measures the floor against nothing when the cap is left open', function () {
-        $template = ServiceTemplate::factory()->create();
+        $template = ServiceTemplate::factory()->create(['branch_id' => $this->branch->id]);
 
         // بلا سقف لا معنى لمقارنة الأرضية به — ولا يُقرأ فراغه صفراً.
         $this->actingAs($this->branchAdmin)
@@ -282,7 +282,7 @@ describe('Max selling price cap', function () {
     });
 
     it('rejects a negative floor', function () {
-        $template = ServiceTemplate::factory()->create();
+        $template = ServiceTemplate::factory()->create(['branch_id' => $this->branch->id]);
 
         $this->actingAs($this->branchAdmin)
             ->post(route('branch-services.store'), [
