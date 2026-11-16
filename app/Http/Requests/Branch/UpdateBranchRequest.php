@@ -35,6 +35,7 @@ class UpdateBranchRequest extends FormRequest
                     }
                 },
             ],
+            ...StoreBranchRequest::SUBSCRIPTION_RULES,
             'is_active' => ['boolean'],
             'logo' => ['nullable', 'image', 'max:2048'],
         ];
@@ -44,6 +45,7 @@ class UpdateBranchRequest extends FormRequest
     {
         return [
             'owner_id.unique' => 'هذا المستخدم مسجل كمالك لفرع آخر.',
+            ...StoreBranchRequest::SUBSCRIPTION_MESSAGES,
         ];
     }
 }

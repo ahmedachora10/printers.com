@@ -10,13 +10,15 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\MediaLibrary\HasMedia;
 use Spatie\MediaLibrary\InteractsWithMedia;
 
 class Branch extends Model implements HasMedia
 {
     /** @use HasFactory<BranchFactory> */
-    use HasFactory, InteractsWithMedia, SoftDeletes;
+    use HasFactory, InteractsWithMedia, LogsActivity, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -28,13 +30,64 @@ class Branch extends Model implements HasMedia
         'commercial_reg_no',
         'tax_number',
         'vat_rate_override',
+        'subscription_starts_at',
+        'subscription_ends_at',
+        'subscription_grace_until',
         'is_active',
     ];
 
     protected $casts = [
         'vat_rate_override' => 'decimal:2',
+        'subscription_starts_at' => 'date',
+        'subscription_ends_at' => 'date',
+        'subscription_grace_until' => 'date',
         'is_active' => 'boolean',
     ];
+
+    protected static $recordEvents = ['updated'];
+
+    /**
+     * تاسك 228: سجلّ التجديدات والتجميد هو سجلّ النشاط — لا جدول خاصّ، وتعديلاتٌ فقط
+     * (إنشاء الفرع ليس تجديداً). بقيّة الأعمدة يسجّلها UpdateBranchProfileAction يدوياً.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['subscription_starts_at', 'subscription_ends_at', 'subscription_grace_until', 'is_active'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('branches');
+    }
+
+    /**
+     * تاسك 228: الأيام من اليوم إلى نهاية الاشتراك — تُحسب عند كل طلب، فالعدّاد
+     * «يتحدّث يومياً» بلا عمود ولا أمر. سالبٌ بعد الانتهاء، null بلا اشتراك محدَّد.
+     */
+    public function subscriptionDaysLeft(): ?int
+    {
+        return $this->subscription_ends_at
+            ? (int) today()->diffInDays($this->subscription_ends_at, false)
+            : null;
+    }
+
+    /**
+     * تاسك 228: المصدر الوحيد لحالة الاشتراك — يقرؤه الوسيط والواجهة والتنبيه.
+     * يوم النهاية نفسه ما زال ضمن الاشتراك، ويوم نهاية المهلة كذلك.
+     *
+     * @return 'active'|'expiring'|'grace'|'expired'|null
+     */
+    public function subscriptionState(): ?string
+    {
+        $days = $this->subscriptionDaysLeft();
+
+        return match (true) {
+            $days === null => null,
+            $days > 30 => 'active',
+            $days >= 0 => 'expiring',
+            $this->subscription_grace_until?->gte(today()) === true => 'grace',
+            default => 'expired',
+        };
+    }
 
     public function registerMediaCollections(): void
     {

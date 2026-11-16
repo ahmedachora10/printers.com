@@ -5,6 +5,8 @@ export interface BranchAdmin {
     name: string;
 }
 
+export type SubscriptionState = 'active' | 'expiring' | 'grace' | 'expired';
+
 export interface Branch {
     id: number;
     name: string;
@@ -19,6 +21,12 @@ export interface Branch {
     taxNumber: string | null;
     vatRateOverride: number;
     isActive: boolean;
+    /** تاسك 228 — تواريخ Y-m-d، null بلا اشتراك محدَّد. */
+    subscriptionStartsAt: string | null;
+    subscriptionEndsAt: string | null;
+    subscriptionGraceUntil: string | null;
+    subscriptionState: SubscriptionState | null;
+    subscriptionDaysLeft: number | null;
     logoUrl: string | null;
     createdAt: string;
     updatedAt: string;
@@ -34,6 +42,9 @@ export interface BranchFormData {
     tax_number: string;
     owner_id: string;
     vat_rate_override: number;
+    subscription_starts_at: string;
+    subscription_ends_at: string;
+    subscription_grace_until: string;
     is_active: boolean;
     logo: File | null;
     [key: string]: string | number | boolean | File | null;

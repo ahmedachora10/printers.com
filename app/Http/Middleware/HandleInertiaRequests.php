@@ -77,7 +77,10 @@ class HandleInertiaRequests extends Middleware
      * instead of the generic one. Null for a super-admin, who belongs to no
      * single branch, and for a branch that never uploaded a logo.
      *
-     * @return array{name: string, logoUrl: string|null}|null
+     * `subscription` (task 228) feeds the expiry banner for every branch user and
+     * the branch-admin's dashboard counter; null when no end date is set.
+     *
+     * @return array{name: string, logoUrl: string|null, subscription: array<string, mixed>|null}|null
      */
     private function branch(Request $request): ?array
     {
@@ -93,6 +96,13 @@ class HandleInertiaRequests extends Middleware
         return [
             'name' => $branch->name,
             'logoUrl' => $branch->logoUrl(),
+            // Agents span branches and are never restricted (see EnsureBranchSubscriptionActive).
+            'subscription' => $branch->subscription_ends_at && ! $request->user()->roleName?->isAgent() ? [
+                'state' => $branch->subscriptionState(),
+                'endsAt' => $branch->subscription_ends_at->toDateString(),
+                'graceUntil' => $branch->subscription_grace_until?->toDateString(),
+                'daysLeft' => $branch->subscriptionDaysLeft(),
+            ] : null,
         ];
     }
 
