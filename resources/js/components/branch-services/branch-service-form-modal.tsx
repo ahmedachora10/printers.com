@@ -17,8 +17,6 @@ import NoteExamplesField from './note-examples-field';
 interface ServiceTemplateOption {
     id: number;
     name: string;
-    /** خدمة أنشأها هذا الفرع لنفسه، لا خدمة عامة (تاسك 45) */
-    isOwn?: boolean;
 }
 
 interface BranchOption {
@@ -190,11 +188,14 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                                         {serviceTemplates.map((t) => (
                                             <SelectItem key={t.id} value={String(t.id)}>
                                                 {t.name}
-                                                {t.isOwn && <span className="text-muted-foreground text-xs"> — خاصة بالفرع</span>}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
+                                {/* تاسك 236: الفرع لا يرى الخدمات العامة — يُنشئ خدمته أو يستورد ملفاً. */}
+                                {serviceTemplates.length === 0 && !addingTemplate && (
+                                    <p className="text-muted-foreground text-xs">لا توجد خدمات — أضف خدمة جديدة أو استورد ملف خدمات من فرعٍ قائم.</p>
+                                )}
 
                                 {addingTemplate ? (
                                     <div className="bg-muted/40 mt-2 space-y-2 rounded-md border p-3">

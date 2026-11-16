@@ -28,12 +28,14 @@ class StoreBranchServiceRequest extends FormRequest
     {
         return [
             ...$this->noteExampleRules(),
-            // خدمة عامة أو مملوكة لهذا الفرع بعينه — لا تُربط خدمةُ فرعٍ آخر
-            // بفرعنا مهما كان دور الرابط (تاسك 45).
+            // خدمة مملوكة لهذا الفرع بعينه — لا تُربط خدمةُ فرعٍ آخر بفرعنا (تاسك 45).
+            // تاسك 236: والعامة يربطها السوبر أدمن وحده؛ مدير الفرع يحصل عليها بالاستيراد.
             'service_template_id' => [
                 'required',
                 Rule::exists('service_templates', 'id')
-                    ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $this->input('branch_id'))),
+                    ->where(fn ($q) => $this->user()?->roleName->isSuperAdmin()
+                        ? $q->where(fn ($w) => $w->whereNull('branch_id')->orWhere('branch_id', $this->input('branch_id')))
+                        : $q->where('branch_id', $this->input('branch_id'))),
             ],
             'branch_id' => [
                 'required',

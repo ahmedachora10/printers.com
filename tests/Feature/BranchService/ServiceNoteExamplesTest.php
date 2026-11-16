@@ -28,6 +28,8 @@ describe('Service note examples', function () {
             'owner_id' => $this->branchAdmin->id,
         ]);
         $this->branchAdmin->update(['branch_id' => $this->branch->id]);
+        // تاسك 236: مدير الفرع يربط خدمات فرعه وحدها.
+        $this->template->update(['branch_id' => $this->branch->id]);
 
         $this->actingAs($this->branchAdmin);
     });

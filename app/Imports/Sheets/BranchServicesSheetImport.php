@@ -150,8 +150,12 @@ class BranchServicesSheetImport implements ToCollection, WithHeadingRow
             return;
         }
 
+        // تاسك 236: المطابقة بين خدمات الفرع وحدها — ما يملكه أو ما رُبط به
+        // (فإعادة استيراد ملفّ الفرع نفسه تحدّث ولا تكرّر). ملفٌّ مصدَّر من فرعٍ
+        // آخر يُنشئ للفرع المستورِد نسخاً خاصة به لا يربطه بالعامة.
         $template = ServiceTemplate::query()
-            ->availableToBranch($this->branchId)
+            ->where(fn ($q) => $q->where('branch_id', $this->branchId)
+                ->orWhereIn('id', BranchService::query()->where('branch_id', $this->branchId)->select('service_template_id')))
             ->where('name', $name)
             ->first();
 

@@ -232,20 +232,34 @@ describe('export', function () {
 });
 
 describe('import', function () {
-    it('attaches a general service template the sheet names', function () {
-        $template = ServiceTemplate::factory()->create(['name' => 'تغليف حراري']);
+    // تاسك 236: ملفٌّ من فرعٍ آخر يُنشئ نسخاً خاصة بالفرع المستورِد، لا يربطه بالعامة.
+    it('creates its own copy of a general service the sheet names', function () {
+        $general = ServiceTemplate::factory()->create(['name' => 'تغليف حراري']);
 
         $response = $this->post(route('branch-services.import'), [
             'file' => branchServicesSheet([serviceRow('تغليف حراري', [1 => '8.00', 2 => '3.00'])]),
         ])->assertOk();
 
         expect($response->json('totalRows'))->toBe(1);
+        $copy = ServiceTemplate::query()->where('name', 'تغليف حراري')->where('branch_id', $this->branch->id)->firstOrFail();
         $this->assertDatabaseHas('branch_services', [
             'branch_id' => $this->branch->id,
-            'service_template_id' => $template->id,
+            'service_template_id' => $copy->id,
             'base_commission_pct' => 8.00,
             'max_discount_pct' => 3.00,
         ]);
+        $this->assertDatabaseMissing('branch_services', ['service_template_id' => $general->id]);
+    });
+
+    it('updates a general service already linked to the branch instead of copying it', function () {
+        $service = attachedService($this->branch, 'تغليف حراري', ['base_commission_pct' => 5, 'max_discount_pct' => 0]);
+
+        $this->post(route('branch-services.import'), [
+            'file' => branchServicesSheet([serviceRow('تغليف حراري', [1 => '8.00', 2 => '3.00'])]),
+        ])->assertOk();
+
+        expect(ServiceTemplate::where('name', 'تغليف حراري')->count())->toBe(1)
+            ->and((float) $service->fresh()->base_commission_pct)->toBe(8.0);
     });
 
     it('creates a branch-owned template for a name nobody defined yet', function () {
