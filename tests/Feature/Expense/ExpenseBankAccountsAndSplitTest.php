@@ -158,8 +158,8 @@ describe('Expense bank accounts, attachments & invoice split', function () {
     });
 
     it('links a bank account to a payment method of its own branch only (task 234)', function () {
-        $mine = PaymentMethod::factory()->create(['branch_id' => $this->branch->id]);
-        $theirs = PaymentMethod::factory()->create(['branch_id' => Branch::factory()->create()->id]);
+        $mine = PaymentMethod::factory()->forBranches($this->branch->id)->create();
+        $theirs = PaymentMethod::factory()->forBranches(Branch::factory()->create()->id)->create();
 
         $this->actingAs($this->admin)
             ->put(route('bank-accounts.update', $this->account), ['name' => 'الرئيسي', 'payment_method_id' => $theirs->id])

@@ -2,11 +2,10 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\ScopedToBranches;
 use Database\Factories\PaymentMethodFactory;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -16,8 +15,13 @@ class PaymentMethod extends Model
     /** @use HasFactory<PaymentMethodFactory> */
     use HasFactory, SoftDeletes;
 
+    /**
+     * تاسك 59/242: فرعٌ أو عدّة فروع، وبلا فروع = عامة يراها كل فرع. طريقة فرعٍ آخر لا
+     * تظهر ولا تُختار — وإلا تسرّبت أسماء فروع بعضها إلى بعض في منتقي نقطة البيع.
+     */
+    use ScopedToBranches;
+
     protected $fillable = [
-        'branch_id',
         'name',
         'is_active',
         'requires_attachment',
@@ -31,29 +35,6 @@ class PaymentMethod extends Model
         'is_cash' => 'boolean',
         'is_network' => 'boolean',
     ];
-
-    /** الفرع المالك — null = طريقة عامة يراها كل فرع (تاسك 59). */
-    public function branch(): BelongsTo
-    {
-        return $this->belongsTo(Branch::class);
-    }
-
-    /**
-     * ما يراه فرعٌ بعينه: الطرق العامة + ما أضافه هو. طريقة فرعٍ آخر لا تظهر
-     * ولا تُختار — وإلا تسرّبت أسماء فروع بعضها إلى بعض في منتقي نقطة البيع.
-     *
-     * `$branchId === null` (السوبر أدمن) يعني الكل بلا تقييد.
-     *
-     * @param  Builder<PaymentMethod>  $query
-     */
-    public function scopeVisibleToBranch($query, ?int $branchId)
-    {
-        if ($branchId === null) {
-            return $query;
-        }
-
-        return $query->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId));
-    }
 
     public function scopeIsNetwork($query)
     {
@@ -69,6 +50,19 @@ class PaymentMethod extends Model
         }
 
         return false;
+    }
+
+    /**
+     * الفروع التي استعملت الطريقة: فواتيرها ودفعاتها ومرتجعاتها — فلا تُحصر خارجها.
+     *
+     * @return list<int>
+     */
+    public function usedInBranchIds(): array
+    {
+        $ids = collect(['service_invoices', 'product_invoices', 'invoice_payments', 'refunds'])
+            ->flatMap(fn (string $table) => DB::table($table)->where('payment_method_id', $this->id)->distinct()->pluck('branch_id'));
+
+        return $ids->unique()->map(fn ($id) => (int) $id)->values()->all();
     }
 
     /** هل تشترط الطريقة المختارة إيصالاً مرفقاً (تحويل بنكي…)؟ */

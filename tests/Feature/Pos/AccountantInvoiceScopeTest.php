@@ -36,7 +36,7 @@ describe('Accountant scope on an employee invoice', function () {
         $this->employee = User::factory()->create(['branch_id' => $this->branch->id]);
         $this->employee->addRole(Roles::EMPLOYEE->value);
 
-        $this->cash = PaymentMethod::factory()->create(['name' => 'نقد', 'branch_id' => null]);
+        $this->cash = PaymentMethod::factory()->create(['name' => 'نقد']);
 
         $template = ServiceTemplate::factory()->create();
         BranchService::create([
@@ -131,10 +131,7 @@ describe('Accountant scope on an employee invoice', function () {
     });
 
     it('still holds him to a method his branch can see', function () {
-        $foreign = PaymentMethod::factory()->create([
-            'name' => 'طريقة فرع آخر',
-            'branch_id' => Branch::factory()->create()->id,
-        ]);
+        $foreign = PaymentMethod::factory()->forBranches(Branch::factory()->create()->id)->create(['name' => 'طريقة فرع آخر']);
 
         $this->actingAs($this->accountant)
             ->from($this->showUrl)

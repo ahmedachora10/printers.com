@@ -53,7 +53,9 @@ export default function NetworkDevicesTab({ devices, cardTypes, paymentMethods, 
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
                     <div>
                         <h2 className="text-lg font-semibold">أجهزة الشبكة</h2>
-                        <p className="text-muted-foreground text-sm">تُختار في مطابقة الحسابات؛ الجهاز الافتراضي يظهر تلقائياً عند فتح مطابقة جديدة.</p>
+                        <p className="text-muted-foreground text-sm">
+                            تُختار في مطابقة الحسابات؛ الجهاز الافتراضي يظهر تلقائياً عند فتح مطابقة جديدة.
+                        </p>
                     </div>
                     {canManageDevices && (
                         <Button size="sm" onClick={() => setDevice('new')}>
@@ -111,7 +113,9 @@ export default function NetworkDevicesTab({ devices, cardTypes, paymentMethods, 
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
                     <div>
                         <h2 className="text-lg font-semibold">أنواع البطاقات</h2>
-                        <p className="text-muted-foreground text-sm">تظهر لكل جهاز في المطابقة بحقل مبلغٍ لكل نوع. {!isSuperAdmin && 'يديرها المدير العام.'}</p>
+                        <p className="text-muted-foreground text-sm">
+                            تظهر لكل جهاز في المطابقة بحقل مبلغٍ لكل نوع. {!isSuperAdmin && 'يديرها المدير العام.'}
+                        </p>
                     </div>
                     {isSuperAdmin && (
                         <Button size="sm" onClick={() => setCardType('new')}>
@@ -180,7 +184,9 @@ function DeviceDialog({
     });
 
     // طرق «شبكة» يراها فرع الجهاز: العامة + ما يخصّه.
-    const methods = paymentMethods.filter((m) => m.isNetwork && (m.branchId === null || !isSuperAdmin || m.branchId === form.data.branch_id));
+    const methods = paymentMethods.filter(
+        (m) => m.isNetwork && (!m.branches?.length || !isSuperAdmin || m.branches.some((b) => b.id === form.data.branch_id)),
+    );
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -219,17 +225,32 @@ function DeviceDialog({
                     )}
                     <div className="space-y-1">
                         <Label htmlFor="nd-name">اسم الجهاز</Label>
-                        <Input id="nd-name" value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} placeholder="مثال: جهاز الشبكة 1" autoFocus />
+                        <Input
+                            id="nd-name"
+                            value={form.data.name}
+                            onChange={(e) => form.setData('name', e.target.value)}
+                            placeholder="مثال: جهاز الشبكة 1"
+                            autoFocus
+                        />
                         <InputError message={form.errors.name} />
                     </div>
                     <div className="space-y-1">
                         <Label htmlFor="nd-number">رقم الجهاز</Label>
-                        <Input id="nd-number" dir="ltr" value={form.data.number} onChange={(e) => form.setData('number', e.target.value)} placeholder="123456" />
+                        <Input
+                            id="nd-number"
+                            dir="ltr"
+                            value={form.data.number}
+                            onChange={(e) => form.setData('number', e.target.value)}
+                            placeholder="123456"
+                        />
                         <InputError message={form.errors.number} />
                     </div>
                     <div className="space-y-1">
                         <Label>طريقة الدفع (شبكة)</Label>
-                        <Select value={form.data.payment_method_id ? String(form.data.payment_method_id) : ''} onValueChange={(v) => form.setData('payment_method_id', Number(v))}>
+                        <Select
+                            value={form.data.payment_method_id ? String(form.data.payment_method_id) : ''}
+                            onValueChange={(v) => form.setData('payment_method_id', Number(v))}
+                        >
                             <SelectTrigger>
                                 <SelectValue placeholder="اختر الطريقة" />
                             </SelectTrigger>
@@ -241,7 +262,9 @@ function DeviceDialog({
                                 ))}
                             </SelectContent>
                         </Select>
-                        {methods.length === 0 && <p className="text-muted-foreground text-xs">لا توجد طرق دفع معلَّمة «شبكة» — فعّلها من تبويب طرق الدفع.</p>}
+                        {methods.length === 0 && (
+                            <p className="text-muted-foreground text-xs">لا توجد طرق دفع معلَّمة «شبكة» — فعّلها من تبويب طرق الدفع.</p>
+                        )}
                         <InputError message={form.errors.payment_method_id} />
                     </div>
                     <div className="flex items-center gap-2">
@@ -283,7 +306,13 @@ function CardTypeDialog({ cardType, onClose }: { cardType: CardType | null; onCl
                 <form id="card-type-form" onSubmit={submit} className="space-y-4 py-2">
                     <div className="space-y-1">
                         <Label htmlFor="ct-name">الاسم</Label>
-                        <Input id="ct-name" value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} placeholder="مثال: أمريكان إكسبريس" autoFocus />
+                        <Input
+                            id="ct-name"
+                            value={form.data.name}
+                            onChange={(e) => form.setData('name', e.target.value)}
+                            placeholder="مثال: أمريكان إكسبريس"
+                            autoFocus
+                        />
                         <InputError message={form.errors.name} />
                     </div>
                 </form>

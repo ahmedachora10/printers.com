@@ -513,7 +513,7 @@ describe('Service invoice review', function () {
     it('refuses to approve with a payment method the branch cannot use', function () {
         // طريقة تخصّ فرعاً آخر: لا يجوز أن تُعتمد بها فاتورة هذا الفرع.
         $otherBranch = Branch::factory()->create();
-        $foreign = PaymentMethod::factory()->create(['name' => 'شبكة فرع آخر', 'branch_id' => $otherBranch->id]);
+        $foreign = PaymentMethod::factory()->forBranches($otherBranch->id)->create(['name' => 'شبكة فرع آخر']);
 
         $invoice = makeDueInvoice(['payment_method_id' => $foreign->id]);
 

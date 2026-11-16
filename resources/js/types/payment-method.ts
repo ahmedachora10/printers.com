@@ -1,4 +1,7 @@
-export interface PaymentMethod {
+import { type BranchScoped } from '@/components/branch-scope-field';
+
+/** تاسك 59/242: branches فارغة = طريقة عامة يرثها كل فرع. */
+export interface PaymentMethod extends BranchScoped {
     id: number;
     name: string;
     isActive: boolean;
@@ -7,9 +10,6 @@ export interface PaymentMethod {
     isCash: boolean;
     /** طريقة شبكة — موازنتها تُدخَل يدوياً لكل جهاز في مطابقة الحسابات (تاسك 121) */
     isNetwork: boolean;
-    /** null = طريقة عامة يرثها كل فرع؛ وإلا فهي ملك فرعها (تاسك 59). */
-    branchId: number | null;
-    branchName: string | null;
     /** هل يملك المستخدم الحالي تحريرها — يقرّره الخادم لا الدور في الواجهة. */
     canEdit: boolean;
 }

@@ -40,10 +40,11 @@ class AppSettingController extends Controller
         $branchId = $user->branchId;
         $branch = $branchId ? Branch::find($branchId) : null;
 
-        // تاسك 59: الفرع يرى الطرق العامة + ما أضافه هو؛ والسوبر أدمن يرى الكل.
+        // تاسك 59/242: الفرع يرى الطرق العامة النشطة + ما يشمله (ومعطّلات فرعه — تاسك 240)؛
+        // والسوبر أدمن يرى الكل.
         $paymentMethods = PaymentMethod::query()
-            ->with('branch:id,name')
-            ->visibleToBranch($user->roleName->isSuperAdmin() ? null : $branchId)
+            ->with('branches:id,name')
+            ->when(! $user->roleName->isSuperAdmin(), fn ($q) => $q->managedListFor((int) $branchId))
             ->orderBy('name')
             ->get();
 

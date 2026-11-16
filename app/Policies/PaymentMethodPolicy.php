@@ -40,15 +40,13 @@ class PaymentMethodPolicy
         return $this->owns($user, $paymentMethod);
     }
 
-    /** الصفّ العام ملكٌ للسوبر أدمن وحده؛ وصفّ الفرع لمديره. */
+    /** العامة والمشتركة بين فروع للسوبر أدمن وحده؛ وطريقة الفرع وحده لمديره (تاسك 242). */
     private function owns(User $user, PaymentMethod $paymentMethod): bool
     {
         if ($user->roleName->isSuperAdmin()) {
             return true;
         }
 
-        return $user->roleName->isBranchAdmin()
-            && $paymentMethod->branch_id !== null
-            && $paymentMethod->branch_id === $user->branchId;
+        return $user->roleName->isBranchAdmin() && $paymentMethod->isOwnedBy($user->branchId);
     }
 }

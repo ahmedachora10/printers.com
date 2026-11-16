@@ -2,47 +2,35 @@
 
 namespace App\Http\Requests\PaymentMethod;
 
+use App\Http\Requests\Concerns\ValidatesBranchScope;
+use App\Models\PaymentMethod;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
+/**
+ * تاسك 59/242: مدير الفرع يكتب لفرعه وحده؛ السوبر أدمن يختار فرعاً أو عدّة فروع،
+ * أو لا شيء فتكون الطريقة عامة. الاسم فريد بين ما يراه أيّ فرعٍ من النطاق.
+ */
 class StorePaymentMethodRequest extends FormRequest
 {
+    use ValidatesBranchScope;
+
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * `branch_id` يُثبَّت من المستخدم لا من الطلب (تاسك 59): مدير الفرع يكتب
-     * لفرعه وحده، والسوبر أدمن يكتب صفّاً عاماً يرثه كل فرع. إرساله في الطلب
-     * يُتجاهَل تماماً فلا يُلتفّ على السياسة.
-     */
     protected function prepareForValidation(): void
     {
-        $user = $this->user();
-
-        $this->merge([
-            'branch_id' => $user?->roleName->isSuperAdmin() ? null : $user?->branchId,
-        ]);
+        $this->prepareBranchScope();
     }
 
     /** @return array<string, mixed> */
     public function rules(): array
     {
         return [
-            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                // التفرّد داخل النطاق: يجوز أن يسمّي فرعٌ طريقته باسم طريقة فرع
-                // آخر، ولا يجوز أن يكرّر اسماً **يراه** (العام أو ما أضافه هو).
-                Rule::unique('payment_methods', 'name')
-                    ->whereNull('deleted_at')
-                    ->where(fn ($q) => $this->input('branch_id') === null
-                        ? $q->whereNull('branch_id')
-                        : $q->where(fn ($w) => $w->whereNull('branch_id')->orWhere('branch_id', $this->input('branch_id')))),
-            ],
+            ...$this->branchScopeRules(),
+            'name' => ['required', 'string', 'max:255', $this->uniqueNameInScope('يوجد طريقة دفع بهذا الاسم متاحة لفرعك بالفعل.')],
             'is_active' => ['boolean'],
             'requires_attachment' => ['boolean'],
             'is_cash' => ['boolean'],
@@ -50,11 +38,13 @@ class StorePaymentMethodRequest extends FormRequest
         ];
     }
 
-    /** @return array<string, string> */
-    public function messages(): array
+    protected function scopedRecord(): ?Model
     {
-        return [
-            'name.unique' => 'يوجد طريقة دفع بهذا الاسم متاحة لفرعك بالفعل.',
-        ];
+        return $this->route('paymentMethod');
+    }
+
+    protected function scopedModel(): string
+    {
+        return PaymentMethod::class;
     }
 }

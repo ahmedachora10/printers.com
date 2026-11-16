@@ -21,8 +21,8 @@ export interface BankAccount {
     paymentMethodId: number | null;
 }
 
-/** طريقة دفع للربط: العامة (branchId = null) أو طريقة فرع الحساب. */
-type MethodOption = { id: number; name: string; branchId: number | null };
+/** طريقة دفع للربط: العامة (بلا فروع) أو طريقة تشمل فرع الحساب (تاسك 242). */
+type MethodOption = { id: number; name: string; branches?: { id: number }[] };
 
 interface Props {
     accounts: BankAccount[];
@@ -88,7 +88,13 @@ export default function BankAccountsTab({ accounts, branches, paymentMethods, is
                                     <Button variant="outline" size="sm" aria-label="تعديل" onClick={() => setEditing(a)}>
                                         <Pencil className="h-3.5 w-3.5" />
                                     </Button>
-                                    <Button variant="outline" size="sm" aria-label="حذف" className="text-destructive hover:text-destructive" onClick={() => remove(a)}>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        aria-label="حذف"
+                                        className="text-destructive hover:text-destructive"
+                                        onClick={() => remove(a)}
+                                    >
                                         <Trash2 className="h-3.5 w-3.5" />
                                     </Button>
                                 </div>
@@ -132,7 +138,9 @@ function AccountDialog({
         payment_method_id: account?.paymentMethodId ?? null,
     });
     // غير المدير العام يرى طرق فرعه والعامة وحدها أصلاً (branch_id فارغ عنده).
-    const methodOptions = paymentMethods.filter((m) => m.branchId === null || form.data.branch_id === null || m.branchId === form.data.branch_id);
+    const methodOptions = paymentMethods.filter(
+        (m) => !m.branches?.length || form.data.branch_id === null || m.branches.some((b) => b.id === form.data.branch_id),
+    );
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -151,7 +159,10 @@ function AccountDialog({
                     {isSuperAdmin && (
                         <div className="space-y-1">
                             <Label>الفرع</Label>
-                            <Select value={form.data.branch_id ? String(form.data.branch_id) : ''} onValueChange={(v) => form.setData('branch_id', Number(v))}>
+                            <Select
+                                value={form.data.branch_id ? String(form.data.branch_id) : ''}
+                                onValueChange={(v) => form.setData('branch_id', Number(v))}
+                            >
                                 <SelectTrigger>
                                     <SelectValue placeholder="اختر الفرع" />
                                 </SelectTrigger>
@@ -168,12 +179,23 @@ function AccountDialog({
                     )}
                     <div className="space-y-1">
                         <Label htmlFor="ba-name">اسم الحساب</Label>
-                        <Input id="ba-name" value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} placeholder="مثال: الحساب الرئيسي" autoFocus />
+                        <Input
+                            id="ba-name"
+                            value={form.data.name}
+                            onChange={(e) => form.setData('name', e.target.value)}
+                            placeholder="مثال: الحساب الرئيسي"
+                            autoFocus
+                        />
                         <InputError message={form.errors.name} />
                     </div>
                     <div className="space-y-1">
                         <Label htmlFor="ba-bank">البنك</Label>
-                        <Input id="ba-bank" value={form.data.bank_name} onChange={(e) => form.setData('bank_name', e.target.value)} placeholder="اختياري — مثال: الراجحي" />
+                        <Input
+                            id="ba-bank"
+                            value={form.data.bank_name}
+                            onChange={(e) => form.setData('bank_name', e.target.value)}
+                            placeholder="اختياري — مثال: الراجحي"
+                        />
                         <InputError message={form.errors.bank_name} />
                     </div>
                     <div className="space-y-1">

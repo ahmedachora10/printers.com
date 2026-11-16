@@ -12,6 +12,7 @@ import BranchProfileTab from '@/components/app-settings/branch-profile-tab';
 import LoyaltyTab from '@/components/app-settings/loyalty-tab';
 import NetworkDevicesTab, { type CardType, type NetworkDevice } from '@/components/app-settings/network-devices-tab';
 import PaymentMethodFormModal from '@/components/app-settings/payment-method-form-modal';
+import { scopeLabel } from '@/components/branch-scope-field';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -256,7 +257,7 @@ export default function AppSettingsIndex({
                                     <h2 className="text-lg font-semibold">طرق الدفع</h2>
                                     <p className="text-muted-foreground text-sm">
                                         {isSuperAdmin
-                                            ? 'إدارة القائمة العامة لطرق الدفع المتاحة لجميع الفروع.'
+                                            ? 'حدّد لكل طريقة فرعاً أو عدّة فروع، أو اتركها عامة لكل الفروع.'
                                             : 'الطرق العامة متاحة لكل الفروع، وما تضيفه هنا يخصّ فرعك وحده. المفتاح يتحكم بظهورها عند إنشاء الفواتير.'}
                                     </p>
                                 </div>
@@ -276,9 +277,9 @@ export default function AppSettingsIndex({
                                             <div className="flex min-w-0 flex-wrap items-center gap-2">
                                                 <CreditCard className="text-muted-foreground size-4 shrink-0" />
                                                 <span className="font-medium">{pm.name}</span>
-                                                {/* النطاق: طريقة عامة يرثها كل فرع، أو طريقة فرع بعينه. */}
+                                                {/* النطاق: طريقة عامة يرثها كل فرع، أو فرعٌ أو عدّة فروع (تاسك 242). */}
                                                 <Badge variant="outline" className="text-muted-foreground">
-                                                    {pm.branchId === null ? 'عامة' : (pm.branchName ?? 'فرعي')}
+                                                    {scopeLabel(pm)}
                                                 </Badge>
                                                 {isSuperAdmin && (
                                                     <button onClick={() => handleAdminToggle(pm)} className="cursor-pointer">
@@ -440,6 +441,7 @@ export default function AppSettingsIndex({
                 key={editing?.id ?? 'create'}
                 open={pmFormOpen}
                 onOpenChange={setPmFormOpen}
+                branches={isSuperAdmin ? loyaltyBranches : null}
                 paymentMethod={editing ?? undefined}
             />
         </AppLayout>
