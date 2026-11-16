@@ -1,16 +1,10 @@
 import { store, update } from '@/actions/App/Http/Controllers/ExpenseCategoryController';
+import { BranchScopeField, scopeIds, scopeValue } from '@/components/branch-scope-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { FilterMultiSelect } from '@/components/reports/filter-fields';
 import { type ExpenseCategory } from '@/types/expense-category';
 import { useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
@@ -24,27 +18,24 @@ interface Props {
     branches?: { id: number; name: string }[] | null;
 }
 
-/** فروع الفئة كما يقرؤها FilterMultiSelect: «3,7»، وفارغ = عامة. */
-const scopeOf = (category?: ExpenseCategory) => (category?.branches ?? []).map((b) => b.id).join(',');
-
 export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCategory, branches }: Props) {
     const isEdit = !!expenseCategory;
 
     const { data, setData, post, put, processing, errors, reset, transform } = useForm({
         name: expenseCategory?.name ?? '',
         is_active: expenseCategory?.isActive ?? true,
-        branch_ids: scopeOf(expenseCategory),
+        branch_ids: scopeValue(expenseCategory),
     });
 
     // مدير الفرع لا يرسل الفروع أصلاً — الخادم يثبّته على فرعه.
-    transform((d) => ({ ...d, branch_ids: branches ? (d.branch_ids ? d.branch_ids.split(',') : []) : undefined }));
+    transform((d) => ({ ...d, branch_ids: branches ? scopeIds(d.branch_ids) : undefined }));
 
     useEffect(() => {
         if (expenseCategory) {
             setData({
                 name: expenseCategory.name ?? '',
                 is_active: expenseCategory.isActive ?? true,
-                branch_ids: scopeOf(expenseCategory),
+                branch_ids: scopeValue(expenseCategory),
             });
         } else {
             reset();
@@ -57,12 +48,18 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
         if (isEdit) {
             put(update.url(expenseCategory), {
                 preserveScroll: true,
-                onSuccess: () => { onOpenChange(false); reset(); },
+                onSuccess: () => {
+                    onOpenChange(false);
+                    reset();
+                },
             });
         } else {
             post(store.url(), {
                 preserveScroll: true,
-                onSuccess: () => { onOpenChange(false); reset(); },
+                onSuccess: () => {
+                    onOpenChange(false);
+                    reset();
+                },
             });
         }
     }
@@ -77,17 +74,12 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
                 <form id="expense-category-form" onSubmit={handleSubmit} className="space-y-4 py-2">
                     {/* تاسك 231/238: السوبر أدمن يحدّد الفروع عند الإنشاء والتعديل؛ لا شيء = عامة. */}
                     {branches && (
-                        <div className="space-y-1">
-                            <FilterMultiSelect
-                                label="النطاق"
-                                value={data.branch_ids}
-                                onChange={(val) => setData('branch_ids', val)}
-                                options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
-                                allLabel="عامة (كل الفروع)"
-                                searchPlaceholder="ابحث عن فرع..."
-                            />
-                            <InputError message={errors.branch_ids} />
-                        </div>
+                        <BranchScopeField
+                            value={data.branch_ids}
+                            onChange={(val) => setData('branch_ids', val)}
+                            branches={branches}
+                            error={errors.branch_ids}
+                        />
                     )}
 
                     <div className="space-y-1">
@@ -103,11 +95,7 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <Checkbox
-                            id="ec-is-active"
-                            checked={data.is_active}
-                            onCheckedChange={(checked) => setData('is_active', checked === true)}
-                        />
+                        <Checkbox id="ec-is-active" checked={data.is_active} onCheckedChange={(checked) => setData('is_active', checked === true)} />
                         <Label htmlFor="ec-is-active" className="cursor-pointer">
                             نشطة
                         </Label>
@@ -115,20 +103,11 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
                 </form>
 
                 <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={processing}
-                    >
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={processing}>
                         إلغاء
                     </Button>
                     <Button type="submit" form="expense-category-form" disabled={processing}>
-                        {processing
-                            ? 'جاري الحفظ...'
-                            : isEdit
-                                ? 'حفظ التعديلات'
-                                : 'إضافة'}
+                        {processing ? 'جاري الحفظ...' : isEdit ? 'حفظ التعديلات' : 'إضافة'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

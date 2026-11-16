@@ -18,6 +18,9 @@ class ProductCategoryResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'isActive' => $this->is_active,
+            // تاسك 237: فارغة = فئة عامة.
+            'branches' => $this->whenLoaded('branches', fn () => $this->branches->map(fn ($b) => ['id' => $b->id, 'name' => $b->name])->values()),
+            'canEdit' => $request->user()?->can('update', $this->resource) ?? false,
         ];
     }
 }

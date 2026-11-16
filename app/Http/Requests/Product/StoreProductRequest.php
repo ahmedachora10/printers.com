@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Product;
 
+use App\Models\ProductCategory;
+use App\Rules\VisibleToBranch;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -24,7 +26,8 @@ class StoreProductRequest extends FormRequest
                     ->where('branch_id', auth()->user()->branchId),
             ],
             'name' => ['required', 'string', 'max:255'],
-            'category_id' => ['required', 'integer', 'exists:product_categories,id'],
+            // تاسك 237: فئةٌ يراها فرع المنتج (عامة أو تشمله).
+            'category_id' => ['required', 'integer', new VisibleToBranch(ProductCategory::class, auth()->user()->branchId)],
             'unit_id' => ['required', 'integer', 'exists:product_units,id'],
             // تاسك 51: منتج يُباع بالمتر المربع — سعره سعرُ المتر، ونقطة البيع
             // تطلب مقاسه لتشتقّ الكمية التي تُخصم من المخزون.

@@ -29,7 +29,8 @@ class ProductCategoriesImport implements ToCollection, WithHeadingRow
 
     public readonly ImportReport $report;
 
-    public function __construct(bool $dryRun = false)
+    /** @param  ?int  $branchId  فرع مدير الفرع المستورِد، أو null للسوبر أدمن (تاسك 237) */
+    public function __construct(bool $dryRun = false, private readonly ?int $branchId = null)
     {
         $this->report = (new ImportReport($dryRun))
             ->declareCounter('categoriesCreated', 'فئات جديدة', 'success')
@@ -62,12 +63,25 @@ class ProductCategoriesImport implements ToCollection, WithHeadingRow
             return;
         }
 
-        $category = ProductCategory::query()->firstOrNew(['name' => $name]);
+        // تاسك 237: المطابقة بين ما يراه المستورِد. مدير الفرع يحدّث فئات فرعه وحدها،
+        // والجديدة تُنشأ لفرعه؛ وجديدة السوبر أدمن عامة.
+        $category = ProductCategory::query()->visibleToBranch($this->branchId)->where('name', $name)->first()
+            ?? new ProductCategory(['name' => $name]);
         $existed = $category->exists;
+
+        if ($existed && $this->branchId !== null && ! $category->isOwnedBy($this->branchId)) {
+            $this->report->skip($number, $name, 'فئة عامة أو مشتركة — يعدّلها مدير النظام');
+
+            return;
+        }
 
         $category->fill([
             'is_active' => $this->bool($row, self::ACTIVE, $existed ? (bool) $category->is_active : true),
         ])->save();
+
+        if (! $existed && $this->branchId !== null) {
+            $category->branches()->sync([$this->branchId]);
+        }
 
         $this->report->count($existed ? 'categoriesUpdated' : 'categoriesCreated');
         $this->report->row($number, $name, $existed ? 'update' : 'create');

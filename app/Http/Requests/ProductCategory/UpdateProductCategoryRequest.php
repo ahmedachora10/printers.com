@@ -2,21 +2,15 @@
 
 namespace App\Http\Requests\ProductCategory;
 
-use Illuminate\Foundation\Http\FormRequest;
-
-class UpdateProductCategoryRequest extends FormRequest
+/**
+ * قواعد الإنشاء نفسها؛ طلبٌ بلا branch_ids لا يغيّر النطاق، والحصر يُرفض إن كانت للفئة
+ * منتجات في فرعٍ خارج النطاق الجديد (تاسك 237).
+ */
+class UpdateProductCategoryRequest extends StoreProductCategoryRequest
 {
-    public function authorize(): bool
+    /** @return array<int, callable> */
+    public function after(): array
     {
-        return true;
-    }
-
-    /** @return array<string, mixed> */
-    public function rules(): array
-    {
-        return [
-            'name' => ['required', 'string', 'max:255', 'unique:product_categories,name,'.$this->route('productCategory')->id],
-            'is_active' => ['boolean'],
-        ];
+        return $this->narrowingCheck('منتجات');
     }
 }

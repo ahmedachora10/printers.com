@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\ExpenseCategory;
+use Database\Factories\Concerns\ForBranches;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -10,17 +11,13 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class ExpenseCategoryFactory extends Factory
 {
+    use ForBranches;
+
     public function definition(): array
     {
         return [
             'name' => fake()->words(2, true),
             'is_active' => true,
         ];
-    }
-
-    /** تاسك 238: فئةٌ نطاقها هذه الفروع؛ بلا استدعاء = عامة. */
-    public function forBranches(int ...$branchIds): static
-    {
-        return $this->afterCreating(fn (ExpenseCategory $category) => $category->branches()->sync($branchIds));
     }
 }

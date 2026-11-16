@@ -1,6 +1,7 @@
 import { destroy, index, toggleStatus } from '@/actions/App/Http/Controllers/ExpenseCategoryController';
 import ExpenseCategoryFormModal from '@/components/expense-categories/expense-category-form-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
+import { scopeLabel } from '@/components/branch-scope-field';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -83,7 +84,7 @@ export default function ExpenseCategoriesIndex({ items, branches, filters }: Pro
                       {
                           key: 'branches',
                           header: 'النطاق',
-                          cell: (item: ExpenseCategory) => (item.branches?.length ? item.branches.map((b) => b.name).join('، ') : 'عامة'),
+                          cell: (item: ExpenseCategory) => scopeLabel(item),
                       },
                   ]
                 : []),

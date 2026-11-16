@@ -13,13 +13,13 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 /**
  * تاسك 72: فئات المنتجات كاملةً في ورقةٍ واحدة، تعود بالاستيراد كما خرجت.
  *
- * وبخلاف دليل الخدمات (تاسك 47) لا عمود «فرع» هنا: `product_categories` جدولٌ
- * عامّ بلا `branch_id` أصلاً — الفئة الواحدة يراها كل فرع، فلا نطاق يُصدَّر.
+ * تاسك 237: الورقة ما يراه المستخدم — كل الفئات للسوبر أدمن، والعامة + ما يشمل
+ * فرعه لمدير الفرع. لا عمود «فروع»: النطاق يُحدَّد من الشاشة لا من الملف.
  */
 class ProductCategoriesExport implements FromCollection, ShouldAutoSize, WithHeadings, WithStyles
 {
     /** @param  array<string, mixed>  $filters  فلاتر الشاشة — ProductCategory::scopeFilteredBy() */
-    public function __construct(private readonly array $filters = []) {}
+    public function __construct(private readonly array $filters = [], private readonly ?int $branchId = null) {}
 
     /** @return array<int, string> */
     public function headings(): array
@@ -31,6 +31,7 @@ class ProductCategoriesExport implements FromCollection, ShouldAutoSize, WithHea
     public function collection(): Collection
     {
         return ProductCategory::query()
+            ->visibleToBranch($this->branchId)
             ->filteredBy($this->filters)
             ->orderBy('name')
             ->get()

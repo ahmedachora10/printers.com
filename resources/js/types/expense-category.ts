@@ -1,9 +1,10 @@
-export interface ExpenseCategory {
+import { type BranchScoped } from '@/components/branch-scope-field';
+
+/** تاسك 238: branches فارغة = فئة عامة يراها كل فرع. */
+export interface ExpenseCategory extends BranchScoped {
     id: number;
     name: string;
     isActive: boolean;
-    /** تاسك 238: فروع الفئة — فارغة = عامة يراها كل فرع. */
-    branches?: { id: number; name: string }[];
     canEdit: boolean;
 }
 
