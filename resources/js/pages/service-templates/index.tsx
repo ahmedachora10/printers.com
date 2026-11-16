@@ -14,6 +14,7 @@ import { type PaginatedServiceTemplate, type ServiceTemplate } from '@/types/ser
 import { router } from '@inertiajs/react';
 import { ArrowDown, ArrowUp, Copy, Network, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'قوالب الخدمات', href: '/service-templates' }];
 
@@ -107,6 +108,8 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
     function handleDelete() {
         if (!deletingTemplateId) return;
         router.delete(destroy.url({ id: deletingTemplateId }), {
+            preserveScroll: true,
+            onError: (errors) => toast.error(Object.values(errors)[0] ?? 'تعذّر حذف القالب'),
             onFinish: () => setDeletingTemplateId(null),
         });
     }
