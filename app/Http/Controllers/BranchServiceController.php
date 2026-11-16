@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Actions\AgentService\SyncAgentServiceCommissionsAction;
 use App\Actions\BranchService\AttachBranchServiceAction;
+use App\Actions\BranchService\BulkUpsertBranchServicesAction;
 use App\Actions\BranchService\DetachBranchServiceAction;
 use App\Actions\BranchService\SyncBranchServiceMaterialsAction;
 use App\Actions\BranchService\UpdateBranchServiceAction;
@@ -12,6 +13,7 @@ use App\Enums\Roles;
 use App\Exports\BranchServicesExport;
 use App\Exports\BranchServicesTemplateExport;
 use App\Http\Controllers\Concerns\RunsExcelImports;
+use App\Http\Requests\BranchService\BulkUpsertBranchServicesRequest;
 use App\Http\Requests\BranchService\StoreBranchServiceRequest;
 use App\Http\Requests\BranchService\UpdateAgentCommissionsRequest;
 use App\Http\Requests\BranchService\UpdateBranchServiceMaterialsRequest;
@@ -30,7 +32,9 @@ use App\Models\UserService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -166,6 +170,36 @@ class BranchServiceController extends Controller
         $action->handle($branchService);
 
         return back(fallback: route($this->redirectRoute()));
+    }
+
+    /** ربط/تعديل القالب على عدّة فروع من نافذة «إدارة فروع القالب» (سوبر أدمن). */
+    public function bulkUpsert(BulkUpsertBranchServicesRequest $request, ServiceTemplate $serviceTemplate, BulkUpsertBranchServicesAction $action): RedirectResponse
+    {
+        Gate::authorize('create', BranchService::class);
+
+        $action->handle(
+            $serviceTemplate,
+            array_map('intval', $request->validated('branch_ids')),
+            $request->validated('fields'),
+            Arr::except($request->validated(), ['branch_ids', 'fields']),
+        );
+
+        return back()->with('success', 'تم تطبيق الشروط على الفروع المحدّدة');
+    }
+
+    /** فصل القالب عن عدّة فروع دفعةً واحدة — بنفس قاعدة الفصل الفردي. */
+    public function bulkDestroy(Request $request, ServiceTemplate $serviceTemplate, DetachBranchServiceAction $action): RedirectResponse
+    {
+        $ids = $request->validate(['ids' => ['required', 'array', 'min:1'], 'ids.*' => ['integer']])['ids'];
+
+        DB::transaction(function () use ($serviceTemplate, $ids, $action): void {
+            foreach (BranchService::where('service_template_id', $serviceTemplate->id)->whereIn('id', $ids)->get() as $service) {
+                Gate::authorize('delete', $service);
+                $action->handle($service);
+            }
+        });
+
+        return back()->with('success', 'تم فصل الفروع المحدّدة');
     }
 
     /**

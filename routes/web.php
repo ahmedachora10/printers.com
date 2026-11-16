@@ -138,6 +138,12 @@ Route::middleware(['auth'])->group(function () {
         Route::post('service-templates/{serviceTemplate}/duplicate', [ServiceTemplateController::class, 'duplicate'])
             ->name('service-templates.duplicate');
 
+        // ربط/تعديل/فصل القالب على عدّة فروع دفعةً واحدة.
+        Route::post('service-templates/{serviceTemplate}/branches/bulk', [BranchServiceController::class, 'bulkUpsert'])
+            ->name('service-templates.branches.bulk-upsert');
+        Route::delete('service-templates/{serviceTemplate}/branches/bulk', [BranchServiceController::class, 'bulkDestroy'])
+            ->name('service-templates.branches.bulk-destroy');
+
         Route::resource('service-templates', ServiceTemplateController::class)
             ->except(['create', 'edit', 'store']);
     });
