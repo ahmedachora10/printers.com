@@ -315,7 +315,7 @@ export default function ServiceTemplatesIndex({ templates, branches, branchEmplo
                     <DialogHeader>
                         <DialogTitle>تأكيد الحذف</DialogTitle>
                         <DialogDescription>
-                            هل أنت متأكد من حذف قالب "{deletingTemplate?.name}"؟ لا يمكن حذف القالب إذا كان مرتبطاً بفروع.
+                            هل أنت متأكد من حذف قالب "{deletingTemplate?.name}"؟ سيُحذف من كل الفروع المرتبطة به، ولا يمكن حذفه إذا كان مستخدماً في فواتير.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

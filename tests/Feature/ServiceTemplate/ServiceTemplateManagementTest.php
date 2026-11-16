@@ -2,6 +2,8 @@
 
 use App\Models\Branch;
 use App\Models\City;
+use App\Models\ServiceInvoice;
+use App\Models\ServiceInvoiceLine;
 use App\Models\ServiceTemplate;
 use App\Models\User;
 use Database\Seeders\RolesAndPermissionsSeeder;
@@ -152,20 +154,38 @@ describe('ServiceTemplate Management', function () {
         $this->assertDatabaseMissing('service_templates', ['id' => $template->id]);
     });
 
-    it('prevents deletion of a service template linked to branch services', function () {
-        $city = City::factory()->create();
-        $branch = Branch::factory()->create(['city_id' => $city->id]);
+    it('deletes a template linked to branches when no invoice uses it, with its branch links', function () {
+        $branch = Branch::factory()->create(['city_id' => City::factory()->create()->id]);
         $template = ServiceTemplate::factory()->create();
-        $template->branches()->attach($branch->id, [
-            'base_commission_pct' => 10,
-            'max_discount_pct' => 5,
-            'is_active' => true,
+        $template->branches()->attach($branch->id, ['base_commission_pct' => 10, 'max_discount_pct' => 5, 'is_active' => true]);
+
+        $this->delete(route('service-templates.destroy', $template))
+            ->assertSessionHasNoErrors();
+
+        $this->assertDatabaseMissing('service_templates', ['id' => $template->id]);
+        $this->assertDatabaseMissing('branch_services', ['service_template_id' => $template->id]);
+    });
+
+    it('prevents deletion of a service template used on an invoice', function () {
+        $branch = Branch::factory()->create(['city_id' => City::factory()->create()->id]);
+        $template = ServiceTemplate::factory()->create();
+        $template->branches()->attach($branch->id, ['base_commission_pct' => 10, 'max_discount_pct' => 5, 'is_active' => true]);
+
+        $invoice = ServiceInvoice::create([
+            'invoice_number' => 'SINV-T-1', 'branch_id' => $branch->id, 'user_id' => $this->superAdmin->id,
+            'subtotal' => 100, 'vat_pct' => 15, 'vat_amount' => 15, 'total_amount' => 115,
+            'employee_commission' => 0, 'status' => 'due',
+        ]);
+        ServiceInvoiceLine::create([
+            'invoice_id' => $invoice->id, 'branch_service_id' => $template->branches()->first()->pivot->id,
+            'service_name' => $template->name, 'qty' => 1, 'unit_price' => 100, 'subtotal' => 100,
         ]);
 
         $this->delete(route('service-templates.destroy', $template))
-            ->assertSessionHasErrors();
+            ->assertSessionHasErrors('service_template');
 
         $this->assertDatabaseHas('service_templates', ['id' => $template->id]);
+        $this->assertDatabaseHas('branch_services', ['service_template_id' => $template->id]);
     });
 
     it('prevents employee from deleting service templates', function () {
