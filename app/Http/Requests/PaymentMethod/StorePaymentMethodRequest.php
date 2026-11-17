@@ -4,25 +4,21 @@ namespace App\Http\Requests\PaymentMethod;
 
 use App\Http\Requests\Concerns\ValidatesBranchScope;
 use App\Models\PaymentMethod;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * تاسك 59/242: مدير الفرع يكتب لفرعه وحده؛ السوبر أدمن يختار فرعاً أو عدّة فروع،
- * أو لا شيء فتكون الطريقة عامة. الاسم فريد بين ما يراه أيّ فرعٍ من النطاق.
+ * إنشاء طريقة الدفع وتعديلها (تاسك 59/242): مدير الفرع لفرعه وحده؛ السوبر أدمن فرعٌ أو
+ * عدّة فروع أو عامة. الحصر يُرفض إن استُعملت الطريقة في فرعٍ خارج النطاق الجديد.
  */
 class StorePaymentMethodRequest extends FormRequest
 {
     use ValidatesBranchScope;
 
+    protected string $scopedModel = PaymentMethod::class;
+
     public function authorize(): bool
     {
         return true;
-    }
-
-    protected function prepareForValidation(): void
-    {
-        $this->prepareBranchScope();
     }
 
     /** @return array<string, mixed> */
@@ -38,13 +34,9 @@ class StorePaymentMethodRequest extends FormRequest
         ];
     }
 
-    protected function scopedRecord(): ?Model
+    /** @return array<int, callable> */
+    public function after(): array
     {
-        return $this->route('paymentMethod');
-    }
-
-    protected function scopedModel(): string
-    {
-        return PaymentMethod::class;
+        return $this->narrowingCheck('فواتير أو دفعات');
     }
 }

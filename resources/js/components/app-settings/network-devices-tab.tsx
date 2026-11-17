@@ -322,7 +322,7 @@ function CardTypeDialog({
     onClose: () => void;
 }) {
     const form = useForm({ name: cardType?.name ?? '', branch_ids: scopeValue(cardType) });
-    form.transform((d) => ({ ...d, branch_ids: branches ? scopeIds(d.branch_ids) : undefined }));
+    form.transform((d) => ({ ...d, branch_ids: scopeIds(d.branch_ids, branches) }));
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();

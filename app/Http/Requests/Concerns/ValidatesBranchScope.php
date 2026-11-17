@@ -7,25 +7,23 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Validator;
 
 /**
- * تاسك 238 — طلبات إنشاء/تعديل سجلٍّ ScopedToBranches.
+ * تاسك 238 — طلب إنشاء/تعديل سجلٍّ ScopedToBranches. الصنف يعرّف
+ * `protected string $scopedModel`، والسجلّ المعدَّل يُقرأ من معاملات المسار.
  *
  * السوبر أدمن يرسل branch_ids[] (فارغ = عامة)؛ طلبٌ بلا branch_ids لا يغيّر نطاق
- * سجلٍّ قائم. غيره يُثبَّت على [فرعه] مهما أرسل.
+ * سجلٍّ قائم. غيره يُثبَّت على [فرعه] مهما أرسل. والحصر يُرفض إن استُعمل السجلّ في
+ * فرعٍ خارج النطاق الجديد (لا شيء يُفحص عند الإنشاء).
  */
 trait ValidatesBranchScope
 {
-    /** السجلّ المعدَّل، أو null عند الإنشاء. */
-    abstract protected function scopedRecord(): ?Model;
-
-    protected function prepareBranchScope(): void
+    protected function prepareForValidation(): void
     {
         $user = $this->user();
-        $record = $this->scopedRecord();
 
         $branchIds = match (true) {
             ! $user?->roleName->isSuperAdmin() => [$user?->branchId],
             $this->has('branch_ids') => (array) $this->input('branch_ids'),
-            default => $record?->branchIds() ?? [],
+            default => $this->scopedRecord()?->branchIds() ?? [],
         };
 
         $this->merge(['branch_ids' => array_values(array_unique(array_map('intval', array_filter($branchIds))))]);
@@ -48,12 +46,11 @@ trait ValidatesBranchScope
     {
         return function (string $attribute, mixed $value, Closure $fail) use ($message) {
             $record = $this->scopedRecord();
-            $model = $record ? $record::class : $this->scopedModel();
 
-            $taken = $model::query()
+            $taken = $this->scopedModel::query()
                 ->where('name', $value)
                 ->when($record, fn ($q) => $q->whereKeyNot($record->getKey()))
-                ->overlappingBranches($this->input('branch_ids', []))
+                ->visibleToBranch($this->input('branch_ids', []))
                 ->exists();
 
             if ($taken) {
@@ -61,9 +58,6 @@ trait ValidatesBranchScope
             }
         };
     }
-
-    /** @return class-string<Model> */
-    abstract protected function scopedModel(): string;
 
     /**
      * حصر سجلٍّ مستعمَلٍ في فروعٍ خارج النطاق الجديد يتركها على سجلٍّ لا تراه.
@@ -79,5 +73,11 @@ trait ValidatesBranchScope
                 $validator->errors()->add('branch_ids', "لها {$usedBy} في: ".implode('، ', $outside).' — أضِفها إلى النطاق أو اتركها عامة.');
             }
         }];
+    }
+
+    /** السجلّ المعدَّل من معاملات المسار، أو null عند الإنشاء. */
+    private function scopedRecord(): ?Model
+    {
+        return collect($this->route()?->parameters() ?? [])->first(fn ($p) => $p instanceof $this->scopedModel);
     }
 }

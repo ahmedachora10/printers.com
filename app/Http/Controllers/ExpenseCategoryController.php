@@ -6,7 +6,6 @@ use App\Actions\ExpenseCategory\CreateExpenseCategoryAction;
 use App\Actions\ExpenseCategory\DeleteExpenseCategoryAction;
 use App\Actions\ExpenseCategory\UpdateExpenseCategoryAction;
 use App\Http\Requests\ExpenseCategory\StoreExpenseCategoryRequest;
-use App\Http\Requests\ExpenseCategory\UpdateExpenseCategoryRequest;
 use App\Http\Resources\ExpenseCategory\ExpenseCategoryResource;
 use App\Models\Branch;
 use App\Models\ExpenseCategory;
@@ -30,9 +29,7 @@ class ExpenseCategoryController extends Controller
         $items = ExpenseCategory::query()
             ->with('branches:id,name')
             ->when(! $isSuper, fn ($q) => $q->managedListFor((int) $request->user()->branchId))
-            ->when($isSuper && $request->filled('branch_id'), fn ($q) => $request->input('branch_id') === 'global'
-                ? $q->whereDoesntHave('branches')
-                : $q->whereHas('branches', fn ($b) => $b->whereKey((int) $request->input('branch_id'))))
+            ->when($isSuper, fn ($q) => $q->inBranchFilter($request->input('branch_id')))
             ->when($request->filled('search'), fn ($q) => $q->where('name', 'like', '%'.$request->input('search').'%'))
             ->when($request->filled('status'), fn ($q) => $q->where('is_active', (bool) $request->input('status')))
             ->orderBy('name')
@@ -59,7 +56,7 @@ class ExpenseCategoryController extends Controller
         return back(fallback: route('expense-categories.index'))->with('success', 'تم إنشاء فئة المصروف بنجاح');
     }
 
-    public function update(UpdateExpenseCategoryRequest $request, ExpenseCategory $expenseCategory, UpdateExpenseCategoryAction $action): RedirectResponse
+    public function update(StoreExpenseCategoryRequest $request, ExpenseCategory $expenseCategory, UpdateExpenseCategoryAction $action): RedirectResponse
     {
         Gate::authorize('update', $expenseCategory);
 

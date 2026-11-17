@@ -24,31 +24,15 @@ trait ScopedToBranches
     }
 
     /**
-     * العامة + ما يشمل الفرع. `$branchId === null` (السوبر أدمن) = الكل.
+     * العامة + ما يشمل الفرع (أو أيّ فرعٍ من القائمة — يقيس به الطلبُ تعارضَ الأسماء).
+     * null أو [] = الكل بلا تقييد (السوبر أدمن، أو نطاقٌ عامّ يصادم كل سجل).
      *
      * @param  Builder<$this>  $query
+     * @param  int|list<int>|null  $branchIds
      */
-    public function scopeVisibleToBranch(Builder $query, ?int $branchId): void
+    public function scopeVisibleToBranch(Builder $query, int|array|null $branchIds): void
     {
-        if ($branchId === null) {
-            return;
-        }
-
-        $query->where(fn (Builder $q) => $q
-            ->whereDoesntHave('branches')
-            ->orWhereHas('branches', fn (Builder $b) => $b->whereKey($branchId)));
-    }
-
-    /**
-     * ما قد يتعارض مع سجلٍّ نطاقه $branchIds: العامة وما يشارك أيّ فرعٍ منه؛
-     * وإن كان النطاق عامّاً فكلّ سجل.
-     *
-     * @param  Builder<$this>  $query
-     * @param  list<int>  $branchIds
-     */
-    public function scopeOverlappingBranches(Builder $query, array $branchIds): void
-    {
-        if ($branchIds === []) {
+        if ($branchIds === null || $branchIds === []) {
             return;
         }
 
@@ -58,7 +42,7 @@ trait ScopedToBranches
     }
 
     /**
-     * العامة النشطة + كل ما يملكه الفرع (نشطاً أو معطّلاً) — شاشة إدارة مدير الفرع (تاسك 240).
+     * العامة النشطة + كل ما نطاقه الفرع وحده (نشطاً أو معطّلاً) — شاشة إدارة مدير الفرع (تاسك 240).
      *
      * @param  Builder<$this>  $query
      */
@@ -66,18 +50,21 @@ trait ScopedToBranches
     {
         $query->visibleToBranch($branchId)
             ->where(fn (Builder $q) => $q->where('is_active', true)
-                ->orWhere(fn (Builder $own) => $own->ownedBy($branchId)));
+                ->orWhere(fn (Builder $own) => $own
+                    ->whereHas('branches', fn (Builder $b) => $b->whereKey($branchId))
+                    ->whereDoesntHave('branches', fn (Builder $b) => $b->whereKeyNot($branchId))));
     }
 
     /**
-     * ما نطاقه هذا الفرع وحده.
+     * فلتر «النطاق» في شاشات السوبر أدمن: «global» = العامة وحدها، ورقمٌ = ما يشمل ذلك الفرع.
      *
      * @param  Builder<$this>  $query
      */
-    public function scopeOwnedBy(Builder $query, int $branchId): void
+    public function scopeInBranchFilter(Builder $query, ?string $filter): void
     {
-        $query->whereHas('branches', fn (Builder $b) => $b->whereKey($branchId))
-            ->whereDoesntHave('branches', fn (Builder $b) => $b->whereKeyNot($branchId));
+        $query->when(filled($filter), fn (Builder $q) => $filter === 'global'
+            ? $q->whereDoesntHave('branches')
+            : $q->whereHas('branches', fn (Builder $b) => $b->whereKey((int) $filter)));
     }
 
     /** نطاقه هذا الفرع وحده — فيملكه مدير ذلك الفرع. */
@@ -100,7 +87,7 @@ trait ScopedToBranches
      */
     public function usedOutside(array $branchIds): array
     {
-        if ($branchIds === [] || ! $this->exists) {
+        if ($branchIds === []) {
             return [];
         }
 

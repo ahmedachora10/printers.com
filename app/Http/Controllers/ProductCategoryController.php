@@ -9,7 +9,6 @@ use App\Exports\ImportTemplateExport;
 use App\Exports\ProductCategoriesExport;
 use App\Http\Controllers\Concerns\RunsExcelImports;
 use App\Http\Requests\ProductCategory\StoreProductCategoryRequest;
-use App\Http\Requests\ProductCategory\UpdateProductCategoryRequest;
 use App\Http\Resources\ProductCategory\ProductCategoryResource;
 use App\Imports\ProductCategoriesImport;
 use App\Models\Branch;
@@ -38,9 +37,7 @@ class ProductCategoryController extends Controller
         $items = ProductCategory::query()
             ->with('branches:id,name')
             ->when(! $isSuper, fn ($q) => $q->managedListFor((int) $request->user()->branchId))
-            ->when($isSuper && $request->filled('branch_id'), fn ($q) => $request->input('branch_id') === 'global'
-                ? $q->whereDoesntHave('branches')
-                : $q->whereHas('branches', fn ($b) => $b->whereKey((int) $request->input('branch_id'))))
+            ->when($isSuper, fn ($q) => $q->inBranchFilter($request->input('branch_id')))
             ->filteredBy($request->only(['search', 'status']))
             ->orderBy('name')
             ->paginate(15)
@@ -66,7 +63,7 @@ class ProductCategoryController extends Controller
         return back(fallback: route('product-categories.index'))->with('success', 'تم إنشاء فئة المنتج بنجاح');
     }
 
-    public function update(UpdateProductCategoryRequest $request, ProductCategory $productCategory, UpdateProductCategoryAction $action): RedirectResponse
+    public function update(StoreProductCategoryRequest $request, ProductCategory $productCategory, UpdateProductCategoryAction $action): RedirectResponse
     {
         Gate::authorize('update', $productCategory);
 

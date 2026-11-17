@@ -73,9 +73,7 @@ class BranchServiceController extends Controller
             ->where('is_active', true)
             ->where('branch_id', $branchId)
             ->ordered()
-            ->get(['id', 'name'])
-            ->map(fn (ServiceTemplate $t) => ['id' => $t->id, 'name' => $t->name])
-            ->values();
+            ->get(['id', 'name']);
 
         // Branch employees who can earn service commission, plus the per-employee
         // rates already set for the services on this page — so the service-side

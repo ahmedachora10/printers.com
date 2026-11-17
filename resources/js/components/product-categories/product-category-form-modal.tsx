@@ -27,8 +27,7 @@ export default function ProductCategoryFormModal({ open, onOpenChange, productCa
         branch_ids: scopeValue(productCategory),
     });
 
-    // مدير الفرع لا يرسل الفروع — الخادم يثبّته على فرعه.
-    transform((d) => ({ ...d, branch_ids: branches ? scopeIds(d.branch_ids) : undefined }));
+    transform((d) => ({ ...d, branch_ids: scopeIds(d.branch_ids, branches) }));
 
     useEffect(() => {
         if (productCategory) {

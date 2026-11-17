@@ -4,25 +4,21 @@ namespace App\Http\Requests\ProductCategory;
 
 use App\Http\Requests\Concerns\ValidatesBranchScope;
 use App\Models\ProductCategory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * تاسك 237 — قاعدة فئات المصروفات (238): مدير الفرع يكتب لفرعه وحده؛ السوبر أدمن يختار
- * فرعاً أو عدّة فروع، أو لا شيء فتكون الفئة عامة. والاسم فريد بين ما يراه أيّ فرعٍ من النطاق.
+ * إنشاء فئة المنتج وتعديلها (تاسك 237) — قاعدة فئات المصروفات: مدير الفرع لفرعه وحده؛
+ * السوبر أدمن فرعٌ أو عدّة فروع أو عامة. الحصر يُرفض إن كانت للفئة منتجات خارج النطاق.
  */
 class StoreProductCategoryRequest extends FormRequest
 {
     use ValidatesBranchScope;
 
+    protected string $scopedModel = ProductCategory::class;
+
     public function authorize(): bool
     {
         return true;
-    }
-
-    protected function prepareForValidation(): void
-    {
-        $this->prepareBranchScope();
     }
 
     /** @return array<string, mixed> */
@@ -35,13 +31,9 @@ class StoreProductCategoryRequest extends FormRequest
         ];
     }
 
-    protected function scopedRecord(): ?Model
+    /** @return array<int, callable> */
+    public function after(): array
     {
-        return $this->route('productCategory');
-    }
-
-    protected function scopedModel(): string
-    {
-        return ProductCategory::class;
+        return $this->narrowingCheck('منتجات');
     }
 }

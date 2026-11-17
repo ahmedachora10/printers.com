@@ -4,7 +4,6 @@ namespace App\Http\Requests\CardType;
 
 use App\Http\Requests\Concerns\ValidatesBranchScope;
 use App\Models\CardType;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
@@ -15,10 +14,7 @@ class SaveCardTypeRequest extends FormRequest
 {
     use ValidatesBranchScope;
 
-    protected function prepareForValidation(): void
-    {
-        $this->prepareBranchScope();
-    }
+    protected string $scopedModel = CardType::class;
 
     /** @return array<string, mixed> */
     public function rules(): array
@@ -33,15 +29,5 @@ class SaveCardTypeRequest extends FormRequest
     public function after(): array
     {
         return $this->narrowingCheck('مطابقات');
-    }
-
-    protected function scopedRecord(): ?Model
-    {
-        return $this->route('cardType');
-    }
-
-    protected function scopedModel(): string
-    {
-        return CardType::class;
     }
 }

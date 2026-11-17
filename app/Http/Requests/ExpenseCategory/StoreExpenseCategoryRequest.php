@@ -4,25 +4,22 @@ namespace App\Http\Requests\ExpenseCategory;
 
 use App\Http\Requests\Concerns\ValidatesBranchScope;
 use App\Models\ExpenseCategory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * تاسك 102/238: مدير الفرع يكتب لفرعه وحده؛ السوبر أدمن يختار فرعاً أو عدّة فروع،
- * أو لا شيء فتكون الفئة عامة. التعديل يرث القواعد ويستثني فئته (تاسك 231).
+ * إنشاء فئة المصروف وتعديلها (تاسك 102/231/238): مدير الفرع يكتب لفرعه وحده؛ السوبر
+ * أدمن يختار فرعاً أو عدّة فروع، أو لا شيء فتكون عامة. الحصر يُرفض إن كانت للفئة
+ * مصروفات في فرعٍ خارج النطاق الجديد.
  */
 class StoreExpenseCategoryRequest extends FormRequest
 {
     use ValidatesBranchScope;
 
+    protected string $scopedModel = ExpenseCategory::class;
+
     public function authorize(): bool
     {
         return true;
-    }
-
-    protected function prepareForValidation(): void
-    {
-        $this->prepareBranchScope();
     }
 
     /** @return array<string, mixed> */
@@ -36,13 +33,9 @@ class StoreExpenseCategoryRequest extends FormRequest
         ];
     }
 
-    protected function scopedRecord(): ?Model
+    /** @return array<int, callable> */
+    public function after(): array
     {
-        return $this->route('expenseCategory');
-    }
-
-    protected function scopedModel(): string
-    {
-        return ExpenseCategory::class;
+        return $this->narrowingCheck('مصروفات');
     }
 }

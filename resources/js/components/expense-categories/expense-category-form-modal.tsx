@@ -27,8 +27,7 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
         branch_ids: scopeValue(expenseCategory),
     });
 
-    // مدير الفرع لا يرسل الفروع أصلاً — الخادم يثبّته على فرعه.
-    transform((d) => ({ ...d, branch_ids: branches ? scopeIds(d.branch_ids) : undefined }));
+    transform((d) => ({ ...d, branch_ids: scopeIds(d.branch_ids, branches) }));
 
     useEffect(() => {
         if (expenseCategory) {
