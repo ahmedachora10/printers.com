@@ -66,8 +66,6 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
     const [importOpen, setImportOpen] = useState(false);
     const [sellingAsService, setSellingAsService] = useState<Product | null>(null);
     const sellForm = useForm({ commission_pct: '' });
-    const [stoppingService, setStoppingService] = useState<Product | null>(null);
-
     function handleSellAsService() {
         if (!sellingAsService) return;
         sellForm.post(productRoutes.sellAsService.url(sellingAsService.id), {
@@ -83,14 +81,6 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
     function openSellAsService(item: Product) {
         sellForm.setData('commission_pct', item.serviceCommissionPct != null ? String(item.serviceCommissionPct) : '');
         setSellingAsService(item);
-    }
-
-    function handleStopService() {
-        if (!stoppingService) return;
-        router.delete(productRoutes.stopSellingAsService.url(stoppingService.id), {
-            preserveScroll: true,
-            onFinish: () => setStoppingService(null),
-        });
     }
 
     function openCreate() {
@@ -217,7 +207,12 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                 cell: (item) => (
                     <div className="flex items-center gap-2">
                         {item.soldAsService ? (
-                            <Button variant="outline" size="sm" title="إيقاف البيع كخدمة" onClick={() => setStoppingService(item)}>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                title="إيقاف البيع كخدمة"
+                                onClick={() => router.delete(productRoutes.stopSellingAsService.url(item.id), { preserveScroll: true })}
+                            >
                                 <Undo2 className="h-3.5 w-3.5" />
                             </Button>
                         ) : (
@@ -439,25 +434,6 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                         </Button>
                         <Button onClick={handleSellAsService} disabled={sellForm.processing}>
                             تفعيل
-                        </Button>
-                    </DialogFooter>
-                </DialogContent>
-            </Dialog>
-
-            <Dialog open={!!stoppingService} onOpenChange={(open) => !open && setStoppingService(null)}>
-                <DialogContent>
-                    <DialogHeader>
-                        <DialogTitle>إيقاف بيع "{stoppingService?.name}" كخدمة</DialogTitle>
-                        <DialogDescription>
-                            يعود منتجاً فقط ويختفي من شاشة بيع الخدمات. الفواتير المفتوحة عليه تكمل طبيعياً، ويمكنك تحويله إلى خدمة مرة أخرى في أي وقت.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setStoppingService(null)}>
-                            إلغاء
-                        </Button>
-                        <Button variant="destructive" onClick={handleStopService}>
-                            إيقاف
                         </Button>
                     </DialogFooter>
                 </DialogContent>

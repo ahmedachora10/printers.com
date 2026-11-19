@@ -33,7 +33,6 @@ class BranchService extends Pivot
     ];
 
     protected $casts = [
-        'product_sale_stopped_at' => 'datetime',
         'base_commission_pct' => 'decimal:2',
         'max_discount_pct' => 'decimal:2',
         'max_selling_price' => 'decimal:2',
