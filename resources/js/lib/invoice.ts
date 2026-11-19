@@ -69,6 +69,31 @@ export function formatLineSize(line: {
 }
 
 /** ألوان بادج الحالة — مصدر واحد لقائمة الفواتير وشاشة عرضها. */
+/**
+ * تاسك 241 — شريحة سعر حسب الكمية، كما تُخزَّن على الخدمة والمنتج. «إلى» null = «أكثر من».
+ * الشريحة تبدأ مباشرة بعد «إلى» السابقة، ولا «من» مخزَّنة.
+ */
+export type PriceTier = {
+    to: number | null;
+    price: number;
+    min_price: number | null;
+    max_price: number | null;
+};
+
+/** الشريحة التي تقع فيها الكمية: أول «إلى» ≥ الكمية، وما فوق آخرها يأخذ آخرها. نظير PriceTiers::tierFor(). */
+export function tierFor(tiers: PriceTier[] | null | undefined, quantity: number): PriceTier | null {
+    if (!tiers?.length) return null;
+    return tiers.find((t) => t.to === null || quantity <= t.to) ?? tiers[tiers.length - 1];
+}
+
+/** «حتى 10» / «أكثر من 10 حتى 20» / «أكثر من 20» — «من» محسوبة من «إلى» السابقة. */
+export function tierRangeLabel(tiers: PriceTier[], index: number): string {
+    const from = index > 0 ? tiers[index - 1].to : null;
+    const to = tiers[index].to;
+    if (from === null) return to === null ? 'كل الكميات' : `حتى ${to}`;
+    return to === null ? `أكثر من ${from}` : `أكثر من ${from} حتى ${to}`;
+}
+
 export const INVOICE_STATUS_COLORS: Record<string, string> = {
     paid: 'border-green-200 bg-green-50 text-green-700',
     partially_paid: 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-300',

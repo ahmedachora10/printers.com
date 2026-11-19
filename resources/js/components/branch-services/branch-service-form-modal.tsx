@@ -12,6 +12,7 @@ import { router, useForm } from '@inertiajs/react';
 import { Plus } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import InputError from '../input-error';
+import PriceTiersField from '@/components/price-tiers-field';
 import NoteExamplesField from './note-examples-field';
 
 interface ServiceTemplateOption {
@@ -44,6 +45,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
         min_selling_price: branchService?.minSellingPrice ?? null,
         pricing_type: branchService?.pricingType ?? 'unit',
         price_per_sqm: branchService?.pricePerSqm ?? 0,
+        price_tiers: branchService?.priceTiers ?? [],
         agent_commission_per_sqm: branchService?.agentCommissionPerSqm ?? 0,
         note_examples: branchService?.noteExamples ?? [],
         has_materials: branchService?.hasMaterials ?? false,
@@ -62,6 +64,7 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                 min_selling_price: branchService.minSellingPrice ?? null,
                 pricing_type: branchService.pricingType ?? 'unit',
                 price_per_sqm: branchService.pricePerSqm ?? 0,
+                price_tiers: branchService.priceTiers ?? [],
                 agent_commission_per_sqm: branchService.agentCommissionPerSqm ?? 0,
                 note_examples: branchService.noteExamples ?? [],
                 has_materials: branchService.hasMaterials ?? false,
@@ -381,6 +384,15 @@ export default function BranchServiceFormModal({ open, onOpenChange, userBranch,
                         </p>
                         <InputError message={errors.min_selling_price} />
                     </div>
+
+                    {/* تاسك 241: شرائح السعر حسب الكمية — بوحدة تسعير الخدمة. */}
+                    <PriceTiersField
+                        value={data.price_tiers ?? []}
+                        onChange={(next) => setData('price_tiers', next)}
+                        unit={data.pricing_type === 'sqm' ? 'م²' : data.pricing_type === 'linear' ? 'م' : 'قطعة'}
+                        errors={errors}
+                        showBounds
+                    />
 
                     {/* Ready-made detail phrases — become the POS placeholder */}
                     <NoteExamplesField value={data.note_examples} onChange={(next) => setData('note_examples', next)} error={errors.note_examples} />

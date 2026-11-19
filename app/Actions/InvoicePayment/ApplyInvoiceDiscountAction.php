@@ -12,6 +12,7 @@ use App\Enums\AgentDiscountModeEnum;
 use App\Enums\InvoiceStatusEnum;
 use App\Models\ProductInvoice;
 use App\Models\ServiceInvoice;
+use App\Support\PriceTiers;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -83,6 +84,7 @@ class ApplyInvoiceDiscountAction
 
             $invoice->lines()->with('branchService.serviceTemplate')->get()->filter->branchService->each(fn ($line) => $this->serviceCalculator->assertPriceAboveFloor(
                 $line->branchService, (float) $line->unit_price * $share, (float) $line->discount_pct, (float) $line->materials_cost, $vatPct,
+                PriceTiers::tierFor($line->branchService->price_tiers, $line->billableQty()),
             ));
         }
 

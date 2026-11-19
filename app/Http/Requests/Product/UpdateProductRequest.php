@@ -2,13 +2,17 @@
 
 namespace App\Http\Requests\Product;
 
+use App\Http\Requests\Concerns\ValidatesPriceTiers;
 use App\Models\ProductCategory;
 use App\Rules\VisibleToBranch;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdateProductRequest extends FormRequest
 {
+    use ValidatesPriceTiers;
+
     public function authorize(): bool
     {
         return true;
@@ -35,9 +39,22 @@ class UpdateProductRequest extends FormRequest
             'is_sqm' => ['boolean'],
             'cost_price' => ['required', 'numeric', 'min:0'],
             'selling_price' => ['required', 'numeric', 'min:0'],
+            // تاسك 241: شرائح السعر حسب الكمية.
+            ...$this->priceTierRules(),
             'min_stock_level' => ['nullable', 'numeric', 'min:0'],
             'barcode' => ['nullable', 'string', 'max:100'],
             'is_active' => ['boolean'],
         ];
+    }
+
+    protected function prepareForValidation(): void
+    {
+        $this->normalizePriceTiers();
+    }
+
+    /** @return array<int, callable> */
+    public function after(): array
+    {
+        return [fn (Validator $v) => $this->priceTierCheck($v)];
     }
 }

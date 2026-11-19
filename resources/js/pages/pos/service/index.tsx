@@ -33,7 +33,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
-import { invoiceTotals } from '@/lib/invoice';
+import { invoiceTotals, tierFor, tierRangeLabel } from '@/lib/invoice';
 import { isMeasured, meterLabel, pricingTypeLabel, unitSuffix } from '@/lib/service-pricing';
 import { cn, formatCurrency, formatDateTimeNumeric, formatQty } from '@/lib/utils';
 import serviceInvoice from '@/routes/invoices/service';
@@ -360,7 +360,7 @@ export default function ServicePos({
     const [cart, setCart] = useState<ServiceCartLine[]>(() =>
         (invoice?.lines ?? []).map((l) => {
             lineSeq.current += 1;
-            return {
+            return applyTier({
                 key: `e-${l.branchServiceId}-${lineSeq.current}`,
                 branchServiceId: l.branchServiceId,
                 name: l.name,
@@ -382,13 +382,16 @@ export default function ServicePos({
                 isManual: false,
                 pricingType: l.pricingType ?? 'unit',
                 pricePerSqm: l.pricePerSqm ?? 0,
+                // السعر المحفوظ يبقى — فتح فاتورةٍ لا يعيد تسعيرها (تاسك 241).
+                priceTiers: l.priceTiers ?? [],
+                tierPriced: false,
                 agentCommissionPerSqm: l.agentCommissionPerSqm ?? 0,
                 widthCm: l.widthCm,
                 heightCm: l.heightCm,
                 agentId: l.agentId,
                 agentCommissionType: l.agentCommissionType,
                 agentCommissionValue: l.agentCommissionValue ?? 0,
-            };
+            });
         }),
     );
     // The chosen customer is held in full (fetched on demand) rather than looked up
@@ -657,12 +660,12 @@ export default function ServicePos({
         setCart((prev) => {
             const existing = prev.find((l) => l.branchServiceId === s.id);
             if (existing) {
-                return prev.map((l) => (l.key === existing.key ? { ...l, qty: l.qty + 1 } : l));
+                return prev.map((l) => (l.key === existing.key ? applyTier({ ...l, qty: l.qty + 1 }) : l));
             }
             lineSeq.current += 1;
             return [
                 ...prev,
-                {
+                applyTier({
                     key: `s-${s.id}-${lineSeq.current}`,
                     branchServiceId: s.id,
                     name: s.name,
@@ -683,13 +686,15 @@ export default function ServicePos({
                     isManual: false,
                     pricingType: s.pricingType,
                     pricePerSqm: s.pricePerSqm,
+                    priceTiers: s.priceTiers ?? [],
+                    tierPriced: true,
                     agentCommissionPerSqm: s.agentCommissionPerSqm,
                     widthCm: null,
                     heightCm: null,
                     agentId: null,
                     agentCommissionType: null,
                     agentCommissionValue: 0,
-                },
+                }),
             ];
         });
         setSearch('');
@@ -774,6 +779,8 @@ export default function ServicePos({
                 isManual: true,
                 pricingType: 'unit',
                 pricePerSqm: 0,
+                priceTiers: [],
+                tierPriced: false,
                 agentCommissionPerSqm: 0,
                 widthCm: null,
                 heightCm: null,
@@ -784,8 +791,26 @@ export default function ServicePos({
         ]);
     }
 
+    /**
+     * تاسك 241: شريحة وحدات السطر تملأ سعره — ما لم يكتبه الكاشير — وتضع حدّيها مكان حدّي
+     * الخدمة (الفارغ منهما يرث حدّ الخدمة). نظير ما يفعله الخادم بالأرقام نفسها.
+     */
+    function applyTier(line: ServiceCartLine): ServiceCartLine {
+        const tier = tierFor(line.priceTiers, lineUnits(line));
+        if (!tier) return line;
+        const service = services.find((s) => s.id === line.branchServiceId);
+        return {
+            ...line,
+            unitPrice: line.tierPriced ? tier.price : line.unitPrice,
+            maxSellingPrice: tier.max_price ?? service?.maxSellingPrice ?? null,
+            minSellingPrice: tier.min_price ?? service?.minSellingPrice ?? null,
+        };
+    }
+
     function updateLine(key: string, patch: Partial<ServiceCartLine>) {
-        setCart((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+        // سعرٌ يكتبه الكاشير يوقف ملء الشريحة؛ وتغيّر الكمية أو المقاس يعيد حسابها.
+        const tierPriced = (l: ServiceCartLine) => patch.tierPriced ?? ('unitPrice' in patch ? false : l.tierPriced);
+        setCart((prev) => prev.map((l) => (l.key === key ? applyTier({ ...l, ...patch, tierPriced: tierPriced(l) }) : l)));
     }
 
     function selectLineService(line: ServiceCartLine, branchServiceId: number) {
@@ -809,6 +834,8 @@ export default function ServicePos({
             discountPct: Math.min(cap, line.discountPct),
             pricingType: s.pricingType,
             pricePerSqm: s.pricePerSqm,
+            priceTiers: s.priceTiers ?? [],
+            tierPriced: true,
             agentCommissionPerSqm: s.agentCommissionPerSqm,
             // سعر سطر المتر هو سعر متر الخدمة؛ والمقاس يُفرَّغ ليُدخَل من جديد.
             ...(isMeasured(s.pricingType) ? { unitPrice: s.pricePerSqm, widthCm: null, heightCm: null } : { widthCm: null, heightCm: null }),
@@ -1865,6 +1892,12 @@ export default function ServicePos({
 
                                     if (isMeasured(line.pricingType)) parts.push(pricingTypeLabel(line.pricingType));
 
+                                    // تاسك 241: الشريحة التي بلغتها الكمية وسعرها.
+                                    const tier = tierFor(line.priceTiers, lineUnits(line));
+                                    if (tier) {
+                                        parts.push(`شريحة ${tierRangeLabel(line.priceTiers, line.priceTiers.indexOf(tier))}: ${formatCurrency(tier.price)}`);
+                                    }
+
                                     // الموظف وحده مقيَّد بالحدَّين، فلا يُعرضان على غيره.
                                     if (isEmployee) {
                                         const unit = isMeasured(line.pricingType) ? ' للمتر' : '';
@@ -2060,12 +2093,14 @@ export default function ServicePos({
                                                                 </>
                                                             )}
                                                             .
-                                                            {line.pricePerSqm > 0 && round2(line.unitPrice) !== round2(line.pricePerSqm) && (
+                                                            {(line.priceTiers.length > 0 ? !line.tierPriced : line.pricePerSqm > 0 && round2(line.unitPrice) !== round2(line.pricePerSqm)) && (
                                                                 <>
                                                                     {' '}
                                                                     <button
                                                                         type="button"
-                                                                        onClick={() => updateLine(line.key, { unitPrice: line.pricePerSqm })}
+                                                                        onClick={() =>
+                                                                            updateLine(line.key, line.priceTiers.length > 0 ? { tierPriced: true } : { unitPrice: line.pricePerSqm })
+                                                                        }
                                                                         className="text-primary underline underline-offset-2"
                                                                     >
                                                                         استعادة سعر الخدمة

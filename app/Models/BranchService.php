@@ -21,6 +21,7 @@ class BranchService extends Pivot
         'min_selling_price',
         'pricing_type',
         'price_per_sqm',
+        'price_tiers',
         'agent_commission_per_sqm',
         'note_examples',
         'is_tahazir',
@@ -38,6 +39,8 @@ class BranchService extends Pivot
         'price_per_sqm' => 'decimal:2',
         'agent_commission_per_sqm' => 'decimal:2',
         'note_examples' => 'array',
+        // تاسك 241: [{to, price, min_price, max_price}] — App\Support\PriceTiers.
+        'price_tiers' => 'array',
         'is_tahazir' => 'boolean',
         'has_materials' => 'boolean',
         'materials_cost' => 'decimal:2',

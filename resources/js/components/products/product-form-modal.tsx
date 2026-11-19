@@ -1,4 +1,5 @@
 import { store, update } from '@/actions/App/Http/Controllers/ProductController';
+import PriceTiersField from '@/components/price-tiers-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -41,6 +42,7 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
         is_sqm:          product?.isSqm ?? false,
         cost_price:      product?.costPrice?.toString() ?? '',
         selling_price:   product?.sellingPrice?.toString() ?? '',
+        price_tiers:     product?.priceTiers ?? [],
         min_stock_level: product?.minStockLevel?.toString() ?? '0',
         barcode:         product?.barcode ?? '',
         is_active:       product?.isActive ?? true,
@@ -56,6 +58,7 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
                 is_sqm:          product.isSqm ?? false,
                 cost_price:      product.costPrice?.toString() ?? '',
                 selling_price:   product.sellingPrice?.toString() ?? '',
+                price_tiers:     product.priceTiers ?? [],
                 min_stock_level: product.minStockLevel?.toString() ?? '0',
                 barcode:         product.barcode ?? '',
                 is_active:       product.isActive ?? true,
@@ -222,6 +225,14 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
                             <InputError message={errors.selling_price} />
                         </div>
                     </div>
+
+                    {/* تاسك 241: شرائح السعر حسب الكمية — اقتراحٌ للمحاسب لا قيد. */}
+                    <PriceTiersField
+                        value={data.price_tiers}
+                        onChange={(next) => setData('price_tiers', next)}
+                        unit={data.is_sqm ? 'م²' : 'قطعة'}
+                        errors={errors}
+                    />
 
                     <div className="space-y-1">
                         <Label htmlFor="prod-min-stock">الحد الأدنى للمخزون {data.is_sqm && '(م²)'}</Label>

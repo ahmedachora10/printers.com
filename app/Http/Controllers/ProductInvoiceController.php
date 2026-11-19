@@ -278,12 +278,14 @@ class ProductInvoiceController extends Controller
             ->where('branch_id', $branchId)
             ->where('is_active', true)
             ->orderBy('name')
-            ->get(['id', 'name', 'sku', 'selling_price', 'current_stock', 'unit_id', 'is_sqm'])
+            ->get(['id', 'name', 'sku', 'selling_price', 'price_tiers', 'current_stock', 'unit_id', 'is_sqm'])
             ->map(fn (Product $product) => [
                 'id' => $product->id,
                 'name' => $product->name,
                 'sku' => $product->sku,
                 'sellingPrice' => (float) $product->selling_price,
+                // تاسك 241: شرائح السعر حسب الكمية.
+                'priceTiers' => $product->price_tiers ?? [],
                 'currentStock' => round((float) $product->current_stock + ($heldQty[$product->id] ?? 0), 2),
                 'unitName' => $product->unit?->name,
                 // منتج بالمتر المربع: السعر أعلاه سعرُ المتر، والكاشير يُدخل المقاس.

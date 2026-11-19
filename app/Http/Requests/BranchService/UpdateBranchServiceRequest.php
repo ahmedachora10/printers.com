@@ -5,6 +5,7 @@ namespace App\Http\Requests\BranchService;
 use App\Enums\ServicePricingTypeEnum;
 use App\Http\Requests\BranchService\Concerns\HandlesNoteExamples;
 use App\Http\Requests\BranchService\Concerns\ValidatesSellingPriceBounds;
+use App\Http\Requests\Concerns\ValidatesPriceTiers;
 use App\Models\BranchService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -13,6 +14,7 @@ use Illuminate\Validation\Validator;
 class UpdateBranchServiceRequest extends FormRequest
 {
     use HandlesNoteExamples;
+    use ValidatesPriceTiers;
     use ValidatesSellingPriceBounds;
 
     public function authorize(): bool
@@ -23,6 +25,7 @@ class UpdateBranchServiceRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->normalizeNoteExamples();
+        $this->normalizePriceTiers();
     }
 
     /** @return array<string, mixed> */
@@ -30,6 +33,8 @@ class UpdateBranchServiceRequest extends FormRequest
     {
         return [
             ...$this->noteExampleRules(),
+            // تاسك 241: شرائح السعر حسب الكمية.
+            ...$this->priceTierRules(),
             'base_commission_pct' => ['required', 'numeric', 'min:0', 'max:100'],
             'max_discount_pct' => ['required', 'numeric', 'min:0', 'max:100'],
             // سقف سعر البيع وأرضيته (اختياريان): فارغٌ = مفتوح من تلك الجهة.
@@ -68,6 +73,12 @@ class UpdateBranchServiceRequest extends FormRequest
                 $validator->errors()->add('is_active', 'الخدمة معطَّلة من الإدارة على مستوى النظام، فلا تُفعَّل في الفرع.');
             }
         });
+    }
+
+    /** @return array<int, callable> */
+    public function after(): array
+    {
+        return [fn (Validator $v) => $this->priceTierCheck($v, $this->float('min_selling_price'), $this->float('max_selling_price'))];
     }
 
     public function messages(): array

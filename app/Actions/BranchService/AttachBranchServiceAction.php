@@ -29,6 +29,7 @@ class AttachBranchServiceAction
                 'min_selling_price' => $data['min_selling_price'] ?? null,
                 'pricing_type' => $data['pricing_type'] ?? 'unit',
                 'price_per_sqm' => $data['price_per_sqm'] ?? 0,
+                'price_tiers' => $data['price_tiers'] ?? null,
                 'agent_commission_per_sqm' => $data['agent_commission_per_sqm'] ?? 0,
                 // Cast to JSON by the BranchService pivot model — attach() fills it
                 // through `using()`, so the array cast applies here too.
