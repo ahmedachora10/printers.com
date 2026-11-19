@@ -25,8 +25,8 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('expense_categories', function (Blueprint $table) {
-            $table->dropUnique(['branch_id', 'name']);
             $table->dropForeign(['branch_id']);
+            $table->dropUnique(['branch_id', 'name']);
             $table->dropColumn(['branch_id', 'created_at', 'updated_at']);
         });
     }

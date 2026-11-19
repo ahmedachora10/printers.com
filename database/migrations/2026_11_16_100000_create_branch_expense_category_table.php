@@ -13,6 +13,9 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // بقايا تشغيلٍ سابق فشل في منتصفه على MySQL (DDL لا يُتراجع عنه) — يُعاد بناؤه من branch_id الذي لم يُحذف بعد.
+        Schema::dropIfExists('branch_expense_category');
+
         Schema::create('branch_expense_category', function (Blueprint $table) {
             $table->foreignId('expense_category_id')->constrained()->cascadeOnDelete();
             $table->foreignId('branch_id')->constrained()->cascadeOnDelete();
@@ -25,8 +28,9 @@ return new class extends Migration
         );
 
         Schema::table('expense_categories', function (Blueprint $table) {
-            $table->dropUnique(['branch_id', 'name']);
+            // المفتاح الأجنبي أولاً: على MySQL الفهرس الفريد (branch_id, name) هو ما يسنده، فلا يُحذف قبله (1553).
             $table->dropForeign(['branch_id']);
+            $table->dropUnique(['branch_id', 'name']);
             $table->dropColumn('branch_id');
         });
     }
