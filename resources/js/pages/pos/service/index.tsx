@@ -480,7 +480,9 @@ export default function ServicePos({
 
     // المفضّلة أولاً، ثم ترتيب الخادم (sort_order ثم الاسم — تاسك 82).
     const favoriteServices = useMemo(() => services.filter((s) => favoriteIds.includes(s.id)), [services, favoriteIds]);
-    const otherServices = useMemo(() => services.filter((s) => !favoriteIds.includes(s.id)), [services, favoriteIds]);
+    const otherServices = useMemo(() => services.filter((s) => !favoriteIds.includes(s.id) && !s.productId), [services, favoriteIds]);
+    // المنتجات المبيعة كخدمة في قسمها الخاص؛ المُميَّز منها يبقى في المفضّلة وحدها.
+    const productServices = useMemo(() => services.filter((s) => !favoriteIds.includes(s.id) && !!s.productId), [services, favoriteIds]);
 
     const filteredServices = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -1847,9 +1849,28 @@ export default function ServicePos({
 
                                 {otherServices.length > 0 && (
                                     <div className="space-y-2">
-                                        {favoriteServices.length > 0 && <p className="text-muted-foreground text-xs font-medium">كل الخدمات</p>}
+                                        {(favoriteServices.length > 0 || productServices.length > 0) && (
+                                            <p className="text-muted-foreground text-xs font-medium">كل الخدمات</p>
+                                        )}
                                         <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
                                             {otherServices.map((s) => (
+                                                <ServiceTile
+                                                    key={s.id}
+                                                    service={s}
+                                                    isFavorite={false}
+                                                    onPick={() => addService(s)}
+                                                    onToggleFavorite={() => toggleFavorite(s.id)}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {productServices.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-muted-foreground text-xs font-medium">المنتجات كخدمة</p>
+                                        <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+                                            {productServices.map((s) => (
                                                 <ServiceTile
                                                     key={s.id}
                                                     service={s}
