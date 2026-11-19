@@ -82,6 +82,8 @@ class SellProductAsServiceAction
             'pricing_type' => $product->is_sqm ? ServicePricingTypeEnum::Sqm->value : ServicePricingTypeEnum::Unit->value,
             // «سعر وحدة القياس»: سعر القطعة أو سعر المتر، يملأ السطر في نقطة البيع.
             'price_per_sqm' => $product->selling_price,
+            // تاسك 241: شرائح الكمية بالشكل نفسه — يبيع الموظف بشرائح المنتج وحدودها.
+            'price_tiers' => $product->price_tiers,
             'has_materials' => true,
             'materials_cost' => $product->cost_price,
             'is_active' => $product->is_active && ! $product->trashed(),

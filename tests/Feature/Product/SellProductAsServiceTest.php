@@ -115,11 +115,13 @@ it('creates one linked service mirroring the product, with the product as its x1
 it('follows the product on every save and deactivates on delete', function () {
     $service = sellAsService();
 
-    $this->product->update(['name' => 'ورق A3', 'selling_price' => 30, 'cost_price' => 18]);
+    $tiers = [['to' => 9, 'price' => 30, 'min_price' => null, 'max_price' => null], ['to' => null, 'price' => 26, 'min_price' => 25, 'max_price' => null]];
+    $this->product->update(['name' => 'ورق A3', 'selling_price' => 30, 'cost_price' => 18, 'price_tiers' => $tiers]);
     $service->refresh();
     expect($service->serviceTemplate->name)->toBe('ورق A3')
         ->and((float) $service->price_per_sqm)->toBe(30.0)
-        ->and((float) $service->materials_cost)->toBe(18.0);
+        ->and((float) $service->materials_cost)->toBe(18.0)
+        ->and($service->price_tiers)->toBe($tiers);
 
     $this->actingAs($this->branchAdmin)->patch(route('inventory.products.toggle-status', $this->product));
     expect($service->refresh()->is_active)->toBeFalse();

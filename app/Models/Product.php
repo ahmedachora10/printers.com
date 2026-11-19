@@ -25,7 +25,7 @@ class Product extends Model
     {
         // لا عند كل حركة مخزون: recalculateStock() يحفظ المنتج أيضاً.
         static::saved(function (Product $product): void {
-            if ($product->wasChanged(['name', 'is_sqm', 'selling_price', 'cost_price', 'is_active', 'deleted_at'])) {
+            if ($product->wasChanged(['name', 'is_sqm', 'selling_price', 'price_tiers', 'cost_price', 'is_active', 'deleted_at'])) {
                 app(SellProductAsServiceAction::class)->sync($product);
             }
         });
