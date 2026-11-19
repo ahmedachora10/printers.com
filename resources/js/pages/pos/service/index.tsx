@@ -26,6 +26,7 @@ import { AsyncCombobox, type AsyncOption } from '@/components/ui/async-combobox'
 import { Combobox } from '@/components/ui/combobox';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -483,6 +484,13 @@ export default function ServicePos({
     const otherServices = useMemo(() => services.filter((s) => !favoriteIds.includes(s.id) && !s.productId), [services, favoriteIds]);
     // المنتجات المبيعة كخدمة في قسمها الخاص؛ المُميَّز منها يبقى في المفضّلة وحدها.
     const productServices = useMemo(() => services.filter((s) => !favoriteIds.includes(s.id) && !!s.productId), [services, favoriteIds]);
+    const renderTiles = (list: typeof services) => (
+        <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+            {list.map((s) => (
+                <ServiceTile key={s.id} service={s} isFavorite={false} onPick={() => addService(s)} onToggleFavorite={() => toggleFavorite(s.id)} />
+            ))}
+        </div>
+    );
 
     const filteredServices = useMemo(() => {
         const term = search.trim().toLowerCase();
@@ -1847,40 +1855,23 @@ export default function ServicePos({
                                     </div>
                                 )}
 
-                                {otherServices.length > 0 && (
-                                    <div className="space-y-2">
-                                        {(favoriteServices.length > 0 || productServices.length > 0) && (
-                                            <p className="text-muted-foreground text-xs font-medium">كل الخدمات</p>
-                                        )}
-                                        <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
-                                            {otherServices.map((s) => (
-                                                <ServiceTile
-                                                    key={s.id}
-                                                    service={s}
-                                                    isFavorite={false}
-                                                    onPick={() => addService(s)}
-                                                    onToggleFavorite={() => toggleFavorite(s.id)}
-                                                />
-                                            ))}
+                                {/* المنتجات المبيعة كخدمة في تبويب خاص؛ بلا منتجات تبقى الشبكة كما كانت. */}
+                                {productServices.length > 0 ? (
+                                    <Tabs defaultValue="services">
+                                        <TabsList>
+                                            <TabsTrigger value="services">الخدمات</TabsTrigger>
+                                            <TabsTrigger value="products">المنتجات كخدمة</TabsTrigger>
+                                        </TabsList>
+                                        <TabsContent value="services">{renderTiles(otherServices)}</TabsContent>
+                                        <TabsContent value="products">{renderTiles(productServices)}</TabsContent>
+                                    </Tabs>
+                                ) : (
+                                    otherServices.length > 0 && (
+                                        <div className="space-y-2">
+                                            {favoriteServices.length > 0 && <p className="text-muted-foreground text-xs font-medium">كل الخدمات</p>}
+                                            {renderTiles(otherServices)}
                                         </div>
-                                    </div>
-                                )}
-
-                                {productServices.length > 0 && (
-                                    <div className="space-y-2">
-                                        <p className="text-muted-foreground text-xs font-medium">المنتجات كخدمة</p>
-                                        <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
-                                            {productServices.map((s) => (
-                                                <ServiceTile
-                                                    key={s.id}
-                                                    service={s}
-                                                    isFavorite={false}
-                                                    onPick={() => addService(s)}
-                                                    onToggleFavorite={() => toggleFavorite(s.id)}
-                                                />
-                                            ))}
-                                        </div>
-                                    </div>
+                                    )
                                 )}
                             </CardContent>
                         </Card>
