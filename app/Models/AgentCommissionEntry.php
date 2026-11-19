@@ -96,6 +96,8 @@ class AgentCommissionEntry extends Model
             'rebate' => round((float) $this->rebate, 2),
             'lineCommission' => round((float) $this->line_commission, 2),
             'amount' => round((float) $this->rebate + (float) $this->line_commission, 2),
+            // تاسك 235: المختوم بدفعة مندوب — تقرأ منه البوابة «مستلمة جزئياً».
+            'paidAmount' => round((float) $this->paid, 2),
             'isPaid' => (float) $this->paid > 0 && (float) $this->paid >= round((float) $this->rebate + (float) $this->line_commission, 2),
             'date' => Carbon::parse($this->last_earned_at)->toDateString(),
         ];

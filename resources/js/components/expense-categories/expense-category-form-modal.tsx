@@ -1,16 +1,10 @@
 import { store, update } from '@/actions/App/Http/Controllers/ExpenseCategoryController';
+import { BranchScopeField, scopeIds, scopeValue } from '@/components/branch-scope-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { type ExpenseCategory } from '@/types/expense-category';
 import { useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
@@ -20,7 +14,7 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     expenseCategory?: ExpenseCategory;
-    /** للسوبر أدمن وحده: يختار فرع الفئة أو يتركها عامة. */
+    /** للسوبر أدمن وحده: يختار فرعاً أو عدّة فروع، أو يتركها عامة (تاسك 238). */
     branches?: { id: number; name: string }[] | null;
 }
 
@@ -30,17 +24,17 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
     const { data, setData, post, put, processing, errors, reset, transform } = useForm({
         name: expenseCategory?.name ?? '',
         is_active: expenseCategory?.isActive ?? true,
-        branch_id: expenseCategory?.branchId?.toString() ?? 'global',
+        branch_ids: scopeValue(expenseCategory),
     });
 
-    transform((d) => ({ ...d, branch_id: d.branch_id === 'global' ? null : d.branch_id }));
+    transform((d) => ({ ...d, branch_ids: scopeIds(d.branch_ids, branches) }));
 
     useEffect(() => {
         if (expenseCategory) {
             setData({
                 name: expenseCategory.name ?? '',
                 is_active: expenseCategory.isActive ?? true,
-                branch_id: expenseCategory.branchId?.toString() ?? 'global',
+                branch_ids: scopeValue(expenseCategory),
             });
         } else {
             reset();
@@ -53,12 +47,18 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
         if (isEdit) {
             put(update.url(expenseCategory), {
                 preserveScroll: true,
-                onSuccess: () => { onOpenChange(false); reset(); },
+                onSuccess: () => {
+                    onOpenChange(false);
+                    reset();
+                },
             });
         } else {
             post(store.url(), {
                 preserveScroll: true,
-                onSuccess: () => { onOpenChange(false); reset(); },
+                onSuccess: () => {
+                    onOpenChange(false);
+                    reset();
+                },
             });
         }
     }
@@ -71,25 +71,14 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
                 </DialogHeader>
 
                 <form id="expense-category-form" onSubmit={handleSubmit} className="space-y-4 py-2">
-                    {/* تاسك 231: السوبر أدمن ينقل النطاق عند التعديل أيضاً. */}
+                    {/* تاسك 231/238: السوبر أدمن يحدّد الفروع عند الإنشاء والتعديل؛ لا شيء = عامة. */}
                     {branches && (
-                        <div className="space-y-1">
-                            <Label htmlFor="ec-branch">النطاق</Label>
-                            <Select value={data.branch_id} onValueChange={(val) => setData('branch_id', val)}>
-                                <SelectTrigger id="ec-branch">
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="global">عامة (كل الفروع)</SelectItem>
-                                    {branches.map((b) => (
-                                        <SelectItem key={b.id} value={b.id.toString()}>
-                                            {b.name}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <InputError message={errors.branch_id} />
-                        </div>
+                        <BranchScopeField
+                            value={data.branch_ids}
+                            onChange={(val) => setData('branch_ids', val)}
+                            branches={branches}
+                            error={errors.branch_ids}
+                        />
                     )}
 
                     <div className="space-y-1">
@@ -105,11 +94,7 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <Checkbox
-                            id="ec-is-active"
-                            checked={data.is_active}
-                            onCheckedChange={(checked) => setData('is_active', checked === true)}
-                        />
+                        <Checkbox id="ec-is-active" checked={data.is_active} onCheckedChange={(checked) => setData('is_active', checked === true)} />
                         <Label htmlFor="ec-is-active" className="cursor-pointer">
                             نشطة
                         </Label>
@@ -117,20 +102,11 @@ export default function ExpenseCategoryFormModal({ open, onOpenChange, expenseCa
                 </form>
 
                 <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={processing}
-                    >
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={processing}>
                         إلغاء
                     </Button>
                     <Button type="submit" form="expense-category-form" disabled={processing}>
-                        {processing
-                            ? 'جاري الحفظ...'
-                            : isEdit
-                                ? 'حفظ التعديلات'
-                                : 'إضافة'}
+                        {processing ? 'جاري الحفظ...' : isEdit ? 'حفظ التعديلات' : 'إضافة'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

@@ -26,9 +26,7 @@ class UpdateExpenseRequest extends FormRequest
             'delivery_provider_id' => $expense->delivery_provider_id === null ? ['prohibited'] : ['required', 'integer',
                 Rule::exists('delivery_providers', 'id')->where('branch_id', $branchId)
                     ->where(fn ($q) => $q->where('is_active', true)->orWhere('id', $expense->delivery_provider_id))],
-            // تاسك 102: فئةٌ عامة أو فئة فرع المصروف.
-            'expense_category_id' => ['required', 'integer', Rule::exists('expense_categories', 'id')
-                ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId))],
+            'expense_category_id' => self::categoryRule($branchId),
             'qty' => ['required', 'numeric', 'min:0.01'],
             'unit_price' => ['required', 'numeric', 'min:0'],
             // تاسك 110: إلزاميّ — النقدي وحده يُطرح من «المتبقي من النقد».

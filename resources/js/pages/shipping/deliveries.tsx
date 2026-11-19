@@ -35,7 +35,7 @@ interface Props {
     totals: DeliveryLogTotals;
     providers: { id: number; name: string }[];
     /** تاسك 111 — فئة مصروف التسوية؛ branchId null = عامة */
-    expenseCategories: { id: number; name: string; branchId: number | null }[];
+    expenseCategories: { id: number; name: string; branchIds: number[] }[];
     /** تاسك 187 */
     bankAccounts: BankAccountOption[];
     branches: { id: number; name: string }[];
@@ -288,7 +288,7 @@ export default function DeliveriesIndex({
             {settling && (
                 <SettleDeliveryDialog
                     row={settling}
-                    categories={expenseCategories.filter((c) => c.branchId === null || c.branchId === settling.branchId)}
+                    categories={expenseCategories.filter((c) => c.branchIds.length === 0 || c.branchIds.includes(settling.branchId))}
                     bankAccounts={bankAccounts.filter((a) => a.branchId === settling.branchId)}
                     onClose={() => setSettling(null)}
                 />

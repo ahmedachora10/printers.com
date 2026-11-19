@@ -104,12 +104,26 @@ describe('product categories', function () {
     });
 
     it('updates a category of the same name instead of duplicating it', function () {
+        // تاسك 237: مدير الفرع يحدّث فئات فرعه وحدها.
+        $this->category->branches()->sync([$this->branch->id]);
+
         $this->post(route('product-categories.import'), [
             'file' => exportedCategoriesSheet([['قرطاسية', 0]]),
         ])->assertOk();
 
         expect(ProductCategory::where('name', 'قرطاسية')->count())->toBe(1)
             ->and($this->category->refresh()->is_active)->toBeFalse();
+    });
+
+    // تاسك 237: الجديدة لفرع المستورِد، والعامة لا يعدّلها مدير الفرع.
+    it('creates new categories for the importing branch and skips general ones', function () {
+        $response = $this->post(route('product-categories.import'), [
+            'file' => exportedCategoriesSheet([['قرطاسية', 0], ['ورق', 1]]),
+        ])->assertOk();
+
+        expect($this->category->refresh()->is_active)->toBeTrue()
+            ->and(ProductCategory::firstWhere('name', 'ورق')->branchIds())->toBe([$this->branch->id])
+            ->and($response->json('skipped.0.reason'))->toContain('مدير النظام');
     });
 
     it('previews without writing a row', function () {

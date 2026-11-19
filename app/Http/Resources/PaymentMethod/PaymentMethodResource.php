@@ -22,9 +22,8 @@ class PaymentMethodResource extends JsonResource
             // تاسك 97: تقرير المبيعات يطرح المصروفات من هذه الطرق وحدها.
             'isCash' => $this->is_cash,
             'isNetwork' => $this->is_network,
-            // النطاق: null = طريقة عامة يرثها كل فرع، وإلا فهي ملك فرعها (تاسك 59).
-            'branchId' => $this->branch_id,
-            'branchName' => $this->branch?->name,
+            // تاسك 242: فروع الطريقة — فارغة = عامة يرثها كل فرع.
+            'branches' => $this->whenLoaded('branches', fn () => $this->branches->map(fn ($b) => ['id' => $b->id, 'name' => $b->name])->values()),
             // هل يملك المستخدم الحالي تحريرها؟ الواجهة تُخفي أزرار ما لا يملكه.
             'canEdit' => $request->user()?->can('update', $this->resource) ?? false,
         ];

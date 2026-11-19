@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\ExpenseCategory;
+use Database\Factories\Concerns\ForBranches;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -10,6 +11,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class ExpenseCategoryFactory extends Factory
 {
+    use ForBranches;
+
     public function definition(): array
     {
         return [

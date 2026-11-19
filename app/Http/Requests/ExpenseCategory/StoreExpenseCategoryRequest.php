@@ -2,55 +2,40 @@
 
 namespace App\Http\Requests\ExpenseCategory;
 
+use App\Http\Requests\Concerns\ValidatesBranchScope;
+use App\Models\ExpenseCategory;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
+/**
+ * إنشاء فئة المصروف وتعديلها (تاسك 102/231/238): مدير الفرع يكتب لفرعه وحده؛ السوبر
+ * أدمن يختار فرعاً أو عدّة فروع، أو لا شيء فتكون عامة. الحصر يُرفض إن كانت للفئة
+ * مصروفات في فرعٍ خارج النطاق الجديد.
+ */
 class StoreExpenseCategoryRequest extends FormRequest
 {
+    use ValidatesBranchScope;
+
+    protected string $scopedModel = ExpenseCategory::class;
+
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * تاسك 102: مدير الفرع يكتب لفرعه وحده — `branch_id` يُثبَّت من المستخدم ولا
-     * يُقرأ من الطلب. السوبر أدمن يختار فرعاً أو يتركه فارغاً فتكون الفئة عامة.
-     */
-    protected function prepareForValidation(): void
-    {
-        $user = $this->user();
-
-        $this->merge([
-            'branch_id' => $user?->roleName->isSuperAdmin() ? ($this->input('branch_id') ?: null) : $user?->branchId,
-        ]);
-    }
-
     /** @return array<string, mixed> */
     public function rules(): array
     {
-        $branchId = $this->input('branch_id');
-
         return [
-            'branch_id' => ['nullable', 'integer', 'exists:branches,id'],
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-                // فريد بين ما يراه الفرع: العامة + فئاته. فرعان يسمّيان «كهرباء» معاً.
-                // التعديل يرث القاعدة نفسها ويستثني فئته (تاسك 231).
-                Rule::unique('expense_categories', 'name')->ignore($this->route('expenseCategory')?->id)->where(fn ($q) => $branchId === null
-                    ? $q->whereNull('branch_id')
-                    : $q->where(fn ($w) => $w->whereNull('branch_id')->orWhere('branch_id', $branchId))),
-            ],
+            ...$this->branchScopeRules(),
+            // فريد بين ما يراه أيّ فرعٍ من النطاق. فرعان منفصلان يسمّيان «كهرباء» معاً.
+            'name' => ['required', 'string', 'max:255', $this->uniqueNameInScope('يوجد فئة مصروف بهذا الاسم متاحة لهذا الفرع بالفعل.')],
             'is_active' => ['boolean'],
         ];
     }
 
-    /** @return array<string, string> */
-    public function messages(): array
+    /** @return array<int, callable> */
+    public function after(): array
     {
-        return [
-            'name.unique' => 'يوجد فئة مصروف بهذا الاسم متاحة لهذا الفرع بالفعل.',
-        ];
+        return $this->narrowingCheck('مصروفات');
     }
 }

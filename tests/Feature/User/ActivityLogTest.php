@@ -135,8 +135,8 @@ describe('Activity log', function () {
     });
 
     it('reads the flat old/new pair a manual log writes', function () {
-        $cash = PaymentMethod::create(['name' => 'نقد', 'branch_id' => $this->branch->id, 'is_active' => true]);
-        $card = PaymentMethod::create(['name' => 'شبكة', 'branch_id' => $this->branch->id, 'is_active' => true]);
+        $cash = tap(PaymentMethod::create(['name' => 'نقد', 'is_active' => true]), fn ($m) => $m->branches()->sync([$this->branch->id]));
+        $card = tap(PaymentMethod::create(['name' => 'شبكة', 'is_active' => true]), fn ($m) => $m->branches()->sync([$this->branch->id]));
 
         activity('invoices')
             ->causedBy($this->employee)
@@ -173,7 +173,7 @@ describe('Activity log', function () {
     });
 
     it('resolves ids in a model diff to names', function () {
-        $method = PaymentMethod::create(['name' => 'تحويل بنكي', 'branch_id' => $this->branch->id, 'is_active' => true]);
+        $method = tap(PaymentMethod::create(['name' => 'تحويل بنكي', 'is_active' => true]), fn ($m) => $m->branches()->sync([$this->branch->id]));
 
         $invoice = ServiceInvoice::create([
             'invoice_number' => 'SINV-TST-2',

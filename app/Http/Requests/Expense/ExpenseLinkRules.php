@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Expense;
 
 use App\Enums\ExpenseSourceEnum;
+use App\Models\ExpenseCategory;
+use App\Rules\VisibleToBranch;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -23,6 +25,17 @@ trait ExpenseLinkRules
 
         return ['nullable', "required_if:paid_from,{$transfer}", "prohibited_unless:paid_from,{$transfer}", 'integer',
             Rule::exists('bank_accounts', 'id')->where('branch_id', $branchId)->whereNull('deleted_at')];
+    }
+
+    /**
+     * تاسك 102/238: فئةٌ عامة أو تشمل فرع المصروف — لا فئةَ فرعٍ آخر ولو أُرسل معرّفها.
+     * يقرؤه أيضاً «تسليم مبلغ التوصيل».
+     *
+     * @return array<int, mixed>
+     */
+    public static function categoryRule(?int $branchId): array
+    {
+        return ['required', 'integer', new VisibleToBranch(ExpenseCategory::class, $branchId ?? 0)];
     }
 
     /** @return array<string, mixed> */

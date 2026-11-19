@@ -39,9 +39,7 @@ class StoreExpenseRequest extends FormRequest
     {
         return [
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
-            // تاسك 102: فئةٌ عامة أو فئة فرع المصروف — لا فئةَ فرعٍ آخر ولو أُرسل معرّفها.
-            'expense_category_id' => ['required', 'integer', Rule::exists('expense_categories', 'id')
-                ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $this->input('branch_id')))],
+            'expense_category_id' => self::categoryRule($this->integer('branch_id')),
             'qty' => ['required', 'numeric', 'min:0.01'],
             'unit_price' => ['required', 'numeric', 'min:0'],
             // تاسك 110: إلزاميّ — النقدي وحده يُطرح من «المتبقي من النقد».

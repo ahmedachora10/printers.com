@@ -82,7 +82,8 @@ describe('Branch-owned service templates', function () {
         expect(ServiceTemplate::count())->toBe(0);
     });
 
-    it('offers a branch its own services and the global ones, never another branch\'s', function () {
+    // تاسك 236: الفرع الجديد لا يرى الخدمات العامة — يستوردها أو يربطها السوبر أدمن.
+    it('offers a branch its own services only', function () {
         $global = ServiceTemplate::factory()->create(['name' => 'خدمة عامة', 'is_active' => true]);
         $mine = ServiceTemplate::factory()->create([
             'name' => 'خدمة فرعي', 'is_active' => true, 'branch_id' => $this->branch->id,
@@ -96,7 +97,7 @@ describe('Branch-owned service templates', function () {
             ->assertInertia(function ($page) use ($global, $mine, $theirs) {
                 $ids = collect($page->toArray()['props']['serviceTemplates'])->pluck('id')->all();
 
-                expect($ids)->toContain($global->id)
+                expect($ids)->not->toContain($global->id)
                     ->toContain($mine->id)
                     ->not->toContain($theirs->id);
             });

@@ -1,4 +1,5 @@
 import { updateBranchProfile } from '@/actions/App/Http/Controllers/AppSettingController';
+import { store as storeCity } from '@/actions/App/Http/Controllers/CityController';
 import InputError from '@/components/input-error';
 import { Button } from '@/components/ui/button';
 import { ImageUpload } from '@/components/ui/image-upload';
@@ -8,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { type Branch, type BranchProfileFormData } from '@/types/branch';
 import { type City } from '@/types/city';
 import { router, useForm } from '@inertiajs/react';
+import { Plus } from 'lucide-react';
+import { useState } from 'react';
 
 interface Props {
     branch: Branch;
@@ -26,6 +29,29 @@ export default function BranchProfileTab({ branch, cities }: Props) {
         vat_rate_override: branch.vatRateOverride ?? 15,
         logo: null,
     });
+
+    // تاسك 244: مدينةٌ ناقصة تُضاف من هنا وتُختار مباشرة — القائمة مشتركة بين الفروع.
+    const [newCity, setNewCity] = useState<string | null>(null);
+    const [cityError, setCityError] = useState<string | undefined>();
+
+    function addCity() {
+        const name = (newCity ?? '').trim();
+        router.post(
+            storeCity.url(),
+            { name, is_active: true },
+            {
+                preserveScroll: true,
+                preserveState: true,
+                onSuccess: (page) => {
+                    const created = (page.props.cities as City[]).find((c) => c.name === name);
+                    if (created) setData('city_id', String(created.id));
+                    setNewCity(null);
+                    setCityError(undefined);
+                },
+                onError: (errs) => setCityError(errs.name),
+            },
+        );
+    }
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -84,9 +110,16 @@ export default function BranchProfileTab({ branch, cities }: Props) {
                     </div>
 
                     <div className="space-y-1">
-                        <Label htmlFor="bp-city">
-                            المدينة <span className="text-destructive">*</span>
-                        </Label>
+                        <div className="flex items-center justify-between gap-2">
+                            <Label htmlFor="bp-city">
+                                المدينة <span className="text-destructive">*</span>
+                            </Label>
+                            {newCity === null && (
+                                <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs" onClick={() => setNewCity('')}>
+                                    <Plus className="size-3" /> مدينة جديدة
+                                </Button>
+                            )}
+                        </div>
                         <Select value={data.city_id} onValueChange={(val) => setData('city_id', val)}>
                             <SelectTrigger id="bp-city">
                                 <SelectValue placeholder="اختر المدينة" />
@@ -100,6 +133,30 @@ export default function BranchProfileTab({ branch, cities }: Props) {
                             </SelectContent>
                         </Select>
                         <InputError message={errors.city_id} />
+                        {newCity !== null && (
+                            <div className="flex gap-2 pt-1">
+                                <Input
+                                    value={newCity}
+                                    onChange={(e) => setNewCity(e.target.value)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') {
+                                            e.preventDefault();
+                                            addCity();
+                                        }
+                                    }}
+                                    placeholder="اسم المدينة"
+                                    aria-label="اسم المدينة الجديدة"
+                                    autoFocus
+                                />
+                                <Button type="button" variant="outline" onClick={addCity} disabled={!newCity.trim()}>
+                                    إضافة
+                                </Button>
+                                <Button type="button" variant="ghost" onClick={() => setNewCity(null)}>
+                                    إلغاء
+                                </Button>
+                            </div>
+                        )}
+                        <InputError message={cityError} />
                     </div>
                 </div>
 

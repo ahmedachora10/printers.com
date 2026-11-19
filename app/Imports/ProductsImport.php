@@ -109,7 +109,8 @@ class ProductsImport implements ToCollection, WithHeadingRow
         }
 
         $categoryId = $this->resolveReference($row, self::CATEGORY, $this->categoryCache,
-            fn (string $value) => ProductCategory::query()->where('name', $value)->value('id'));
+            // تاسك 237: فئةٌ يراها فرع الاستيراد — لا فئةَ فرعٍ آخر بالاسم نفسه.
+            fn (string $value) => ProductCategory::query()->visibleToBranch($this->branchId)->where('name', $value)->value('id'));
 
         if ($categoryId === false) {
             $this->report->skip($number, $label, 'فئة غير معروفة: '.$this->cell($row, self::CATEGORY));

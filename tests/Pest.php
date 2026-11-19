@@ -97,7 +97,7 @@ function paymentMethodId(?int $branchId = null): int
     $method = PaymentMethod::query()
         ->where('is_active', true)
         ->when($branchId !== null, fn ($query) => $query->visibleToBranch($branchId))
-        ->first() ?? PaymentMethod::factory()->create(['name' => 'نقد اختبارات', 'branch_id' => null]);
+        ->first() ?? PaymentMethod::factory()->create(['name' => 'نقد اختبارات']);
 
     return (int) $method->id;
 }
@@ -123,7 +123,7 @@ function payable(ServiceInvoice $invoice): ServiceInvoice
     $method = PaymentMethod::query()
         ->where('is_active', true)
         ->visibleToBranch($invoice->branch_id)
-        ->first() ?? PaymentMethod::factory()->create(['name' => 'نقد اختبارات', 'branch_id' => null]);
+        ->first() ?? PaymentMethod::factory()->create(['name' => 'نقد اختبارات']);
 
     $invoice->forceFill(['payment_method_id' => $method->id])->save();
 

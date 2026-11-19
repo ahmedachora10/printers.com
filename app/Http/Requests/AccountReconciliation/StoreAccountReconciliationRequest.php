@@ -3,6 +3,8 @@
 namespace App\Http\Requests\AccountReconciliation;
 
 use App\Models\AccountReconciliation;
+use App\Models\CardType;
+use App\Rules\VisibleToBranch;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -29,7 +31,8 @@ class StoreAccountReconciliationRequest extends FormRequest
             'devices.*.network_device_id' => ['required', 'integer', Rule::exists('network_devices', 'id')
                 ->where('branch_id', $this->branchId())
                 ->whereNull('deleted_at')],
-            'devices.*.card_type_id' => ['required', 'integer', Rule::exists('card_types', 'id')->whereNull('deleted_at')],
+            // تاسك 243: نوعٌ يراه فرع المطابقة.
+            'devices.*.card_type_id' => ['required', 'integer', new VisibleToBranch(CardType::class, $this->branchId() ?? 0)],
             'devices.*.amount' => ['required', 'numeric', 'min:0', 'max:9999999999.99'],
             'notes' => ['nullable', 'string', 'max:1000'],
         ];

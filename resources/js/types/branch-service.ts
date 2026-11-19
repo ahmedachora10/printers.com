@@ -1,3 +1,5 @@
+import { type PriceTier } from '@/lib/invoice';
+
 /** تاسك 80: التسعير بالوحدة، أو بمقاسٍ — مترٌ مربع (بُعدان) أو طولي (بُعد). */
 export type ServicePricingType = 'unit' | 'sqm' | 'linear';
 
@@ -35,6 +37,8 @@ export interface BranchService {
     minSellingPrice: number | null;
     pricingType: ServicePricingType;
     pricePerSqm: number;
+    /** تاسك 241: شرائح السعر حسب الكمية */
+    priceTiers: PriceTier[];
     agentCommissionPerSqm: number;
     /** ready-made detail phrases shown as the POS placeholder for this service */
     noteExamples: string[];
@@ -59,12 +63,14 @@ export interface BranchServiceFormData {
     min_selling_price: number | null;
     pricing_type: ServicePricingType;
     price_per_sqm: number;
+    /** تاسك 241 — غائبة في نافذة السوبر أدمن: الخادم لا يمسّ الشرائح بلا الحقل. */
+    price_tiers?: PriceTier[];
     agent_commission_per_sqm: number;
     note_examples: string[];
     has_materials: boolean;
     materials_cost: number;
     is_active: boolean;
-    [key: string]: number | boolean | ServicePricingType | string[] | null;
+    [key: string]: number | boolean | ServicePricingType | string[] | PriceTier[] | null | undefined;
 }
 
 export interface BranchServiceUpdateData {

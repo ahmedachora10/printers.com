@@ -274,8 +274,8 @@ describe('إيصال تحويل المرتجع (تاسك 213)', function () {
         $this->accountant->addRole(Roles::ACCOUNTANT->value);
 
         $this->invoice = paidInvoiceForReturnRequest($this->branch, $this->employee);
-        $this->cash = PaymentMethod::factory()->create(['is_active' => true, 'requires_attachment' => false, 'branch_id' => null]);
-        $this->transfer = PaymentMethod::factory()->create(['is_active' => true, 'requires_attachment' => true, 'branch_id' => null]);
+        $this->cash = PaymentMethod::factory()->create(['is_active' => true, 'requires_attachment' => false]);
+        $this->transfer = PaymentMethod::factory()->create(['is_active' => true, 'requires_attachment' => true]);
 
         $this->actingAs($this->employee)
             ->post(route('pos.service.return', $this->invoice), ['reason' => 'العميل غيّر رأيه'])

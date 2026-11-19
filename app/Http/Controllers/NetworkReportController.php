@@ -48,7 +48,7 @@ class NetworkReportController extends Controller
                 ->orderBy('name')
                 ->get(['id', 'name', 'number'])
                 ->map(fn (NetworkDevice $d) => ['id' => $d->id, 'name' => "{$d->name} — {$d->number}"]),
-            'cardTypes' => CardType::withTrashed()->orderBy('id')->get(['id', 'name']),
+            'cardTypes' => CardType::withTrashed()->visibleToBranch($scope['branchId'])->orderBy('id')->get(['id', 'name']),
             'isSuperAdmin' => $scope['isSuper'],
         ]);
     }

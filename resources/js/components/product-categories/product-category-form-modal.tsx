@@ -1,13 +1,8 @@
 import { store, update } from '@/actions/App/Http/Controllers/ProductCategoryController';
+import { BranchScopeField, scopeIds, scopeValue } from '@/components/branch-scope-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type ProductCategory } from '@/types/product-category';
@@ -19,21 +14,27 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     productCategory?: ProductCategory;
+    /** للسوبر أدمن وحده: فرعٌ أو عدّة فروع، أو لا شيء فتكون عامة (تاسك 237). */
+    branches?: { id: number; name: string }[] | null;
 }
 
-export default function ProductCategoryFormModal({ open, onOpenChange, productCategory }: Props) {
+export default function ProductCategoryFormModal({ open, onOpenChange, productCategory, branches }: Props) {
     const isEdit = !!productCategory;
 
-    const { data, setData, post, put, processing, errors, reset } = useForm({
+    const { data, setData, post, put, processing, errors, reset, transform } = useForm({
         name: productCategory?.name ?? '',
         is_active: productCategory?.isActive ?? true,
+        branch_ids: scopeValue(productCategory),
     });
+
+    transform((d) => ({ ...d, branch_ids: scopeIds(d.branch_ids, branches) }));
 
     useEffect(() => {
         if (productCategory) {
             setData({
                 name: productCategory.name ?? '',
                 is_active: productCategory.isActive ?? true,
+                branch_ids: scopeValue(productCategory),
             });
         } else {
             reset();
@@ -46,12 +47,18 @@ export default function ProductCategoryFormModal({ open, onOpenChange, productCa
         if (isEdit) {
             put(update.url(productCategory), {
                 preserveScroll: true,
-                onSuccess: () => { onOpenChange(false); reset(); },
+                onSuccess: () => {
+                    onOpenChange(false);
+                    reset();
+                },
             });
         } else {
             post(store.url(), {
                 preserveScroll: true,
-                onSuccess: () => { onOpenChange(false); reset(); },
+                onSuccess: () => {
+                    onOpenChange(false);
+                    reset();
+                },
             });
         }
     }
@@ -64,6 +71,15 @@ export default function ProductCategoryFormModal({ open, onOpenChange, productCa
                 </DialogHeader>
 
                 <form id="product-category-form" onSubmit={handleSubmit} className="space-y-4 py-2">
+                    {branches && (
+                        <BranchScopeField
+                            value={data.branch_ids}
+                            onChange={(val) => setData('branch_ids', val)}
+                            branches={branches}
+                            error={errors.branch_ids}
+                        />
+                    )}
+
                     <div className="space-y-1">
                         <Label htmlFor="pc-name">اسم الفئة</Label>
                         <Input
@@ -77,11 +93,7 @@ export default function ProductCategoryFormModal({ open, onOpenChange, productCa
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <Checkbox
-                            id="pc-is-active"
-                            checked={data.is_active}
-                            onCheckedChange={(checked) => setData('is_active', checked === true)}
-                        />
+                        <Checkbox id="pc-is-active" checked={data.is_active} onCheckedChange={(checked) => setData('is_active', checked === true)} />
                         <Label htmlFor="pc-is-active" className="cursor-pointer">
                             نشطة
                         </Label>
@@ -89,20 +101,11 @@ export default function ProductCategoryFormModal({ open, onOpenChange, productCa
                 </form>
 
                 <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={processing}
-                    >
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={processing}>
                         إلغاء
                     </Button>
                     <Button type="submit" form="product-category-form" disabled={processing}>
-                        {processing
-                            ? 'جاري الحفظ...'
-                            : isEdit
-                                ? 'حفظ التعديلات'
-                                : 'إضافة'}
+                        {processing ? 'جاري الحفظ...' : isEdit ? 'حفظ التعديلات' : 'إضافة'}
                     </Button>
                 </DialogFooter>
             </DialogContent>

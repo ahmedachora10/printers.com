@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Toaster } from '@/components/ui/sonner';
 import AppLayout from '@/layouts/app-layout';
-import { invoiceTotals } from '@/lib/invoice';
+import { invoiceTotals, tierFor, tierRangeLabel } from '@/lib/invoice';
 import { formatCurrency, formatQty } from '@/lib/utils';
 import product from '@/routes/pos/product';
 import quotations from '@/routes/quotations';
@@ -231,17 +231,17 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                         toast.error(`الكمية القصوى المتاحة من "${p.name}" هي ${formatQty(p.currentStock)} م²`);
                         return prev;
                     }
-                    return prev.map((l) => (l.productId === p.id ? { ...next, qty: derivedQty(next) } : l));
+                    return prev.map((l) => (l.productId === p.id ? applyTier({ ...next, qty: derivedQty(next) }) : l));
                 }
                 if (existing.qty >= p.currentStock) {
                     toast.error(`الكمية القصوى المتاحة من "${p.name}" هي ${formatQty(p.currentStock)}`);
                     return prev;
                 }
-                return prev.map((l) => (l.productId === p.id ? { ...l, qty: l.qty + 1 } : l));
+                return prev.map((l) => (l.productId === p.id ? applyTier({ ...l, qty: l.qty + 1 }) : l));
             }
             return [
                 ...prev,
-                {
+                applyTier({
                     key: `p-${p.id}`,
                     productId: p.id,
                     name: p.name,
@@ -257,7 +257,8 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                     widthCm: null,
                     heightCm: null,
                     pieces: 1,
-                },
+                    tierPriced: true,
+                }),
             ];
         });
         setSearch('');
@@ -286,8 +287,23 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
         ]);
     }
 
+    /** تاسك 241: شريحة كمية السطر تملأ سعره ما لم يكتبه الكاشير — اقتراحٌ لا قيد على المحاسب. */
+    function applyTier(line: CartLine): CartLine {
+        const tier = line.tierPriced ? tierFor(products.find((p) => p.id === line.productId)?.priceTiers, line.qty) : null;
+        return tier ? { ...line, unitPrice: tier.price } : line;
+    }
+
     function updateLine(key: string, patch: Partial<CartLine>) {
-        setCart((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+        // سعرٌ يكتبه الكاشير يوقف ملء الشريحة؛ وتغيّر الكمية أو المقاس يعيد حسابها.
+        const tierPriced = (l: CartLine) => patch.tierPriced ?? ('unitPrice' in patch ? false : l.tierPriced);
+        setCart((prev) => prev.map((l) => (l.key === key ? applyTier({ ...l, ...patch, tierPriced: tierPriced(l) }) : l)));
+    }
+
+    /** «شريحة حتى 10: 8.00 ر.س» تحت اسم المنتج متى كانت له شرائح. */
+    function tierMeta(line: CartLine): string | null {
+        const tiers = products.find((p) => p.id === line.productId)?.priceTiers ?? [];
+        const tier = tierFor(tiers, line.qty);
+        return tier ? `شريحة ${tierRangeLabel(tiers, tiers.indexOf(tier))}: ${formatCurrency(tier.price)}` : null;
     }
 
     function selectLineProduct(line: CartLine, productId: number) {
@@ -298,6 +314,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
             name: p.name,
             sku: p.sku,
             unitPrice: p.sellingPrice,
+            tierPriced: true,
             maxStock: stockCap(p),
             unitName: p.unitName,
             isSqm: p.isSqm,
@@ -885,7 +902,7 @@ export default function ProductPos({ products, agents, paymentMethods, vatPct, l
                                         </SelectContent>
                                     </Select>
                                 )}
-                                renderLineMeta={(line) => (line.isSqm ? `${line.sku} • بالمتر المربع` : line.sku)}
+                                renderLineMeta={(line) => [line.sku, line.isSqm && 'بالمتر المربع', tierMeta(line)].filter(Boolean).join(' • ')}
                                 isPriceEditable={(line) => isEditing || line.isManual}
                                 getMaxDiscount={() => 100}
                                 getLineTotal={lineTotal}

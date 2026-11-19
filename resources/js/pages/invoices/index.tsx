@@ -59,8 +59,10 @@ const MESSAGES_OPTIONS = [{ value: 'any', label: 'عليها ملاحظات' }];
 interface NamedOption {
     id: number;
     name: string;
-    /** null = عامّ لكل الفروع (طرق الدفع) أو بلا فرع (السوبر أدمن). */
-    branchId: number | null;
+    /** null = بلا فرع (السوبر أدمن). */
+    branchId?: number | null;
+    /** تاسك 242 — طرق الدفع: فروعها، وفارغة = عامة لكل الفروع. */
+    branchIds?: number[];
 }
 
 interface Props {
@@ -126,7 +128,8 @@ export default function InvoicesIndex({ items, isSuperAdmin, availableTypes, bra
     // اختيار السوبر أدمن فرعاً يُضيّق الموظفين والخدمات وطرق الدفع على ذلك الفرع —
     // كما يراها مدير الفرع. طرق الدفع العامة (بلا فرع) تبقى لكل فرع.
     const belongsTo = (branch: string, o: NamedOption, globalOk = false) =>
-        branch === 'all' || o.branchId?.toString() === branch || (globalOk && o.branchId === null);
+        branch === 'all' ||
+        (o.branchIds ? o.branchIds.length === 0 || o.branchIds.includes(Number(branch)) : o.branchId?.toString() === branch || (globalOk && o.branchId === null));
     const branchEmployees = filterOptions.employees.filter((e) => belongsTo(f.draft.branch_id, e));
     const branchPaymentMethods = filterOptions.paymentMethods.filter((m) => belongsTo(f.draft.branch_id, m, true));
     const branchServices = filterOptions.services.filter((s) => belongsTo(f.draft.branch_id, s));

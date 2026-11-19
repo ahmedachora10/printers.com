@@ -40,7 +40,7 @@ describe('Payment method: optional for the employee, required of whoever settles
         $this->employee = User::factory()->create(['branch_id' => $this->branch->id]);
         $this->employee->addRole(Roles::EMPLOYEE->value);
 
-        $this->cash = PaymentMethod::factory()->create(['name' => 'نقد', 'branch_id' => null]);
+        $this->cash = PaymentMethod::factory()->create(['name' => 'نقد']);
 
         $this->product = Product::factory()->create([
             'branch_id' => $this->branch->id,
@@ -90,10 +90,7 @@ describe('Payment method: optional for the employee, required of whoever settles
     });
 
     it('rejects a payment method that belongs to another branch', function () {
-        $foreign = PaymentMethod::factory()->create([
-            'name' => 'طريقة فرع آخر',
-            'branch_id' => Branch::factory()->create()->id,
-        ]);
+        $foreign = PaymentMethod::factory()->forBranches(Branch::factory()->create()->id)->create(['name' => 'طريقة فرع آخر']);
 
         $this->actingAs($this->accountant)
             ->post(route('pos.product.store'), [
@@ -125,10 +122,7 @@ describe('Payment method: optional for the employee, required of whoever settles
     it('still binds the employee to a method his own branch can see', function () {
         // الإعفاء من الإلزام لا يعني قبول أي معرِّف: طريقة فرعٍ آخر مرفوضة عليه
         // كما ترفض على المحاسب.
-        $foreign = PaymentMethod::factory()->create([
-            'name' => 'طريقة فرع آخر',
-            'branch_id' => Branch::factory()->create()->id,
-        ]);
+        $foreign = PaymentMethod::factory()->forBranches(Branch::factory()->create()->id)->create(['name' => 'طريقة فرع آخر']);
 
         $this->actingAs($this->employee)
             ->post(route('pos.service.store'), [
@@ -187,7 +181,7 @@ describe('Payment method: optional for the employee, required of whoever settles
     });
 
     it('still accepts a method that was disabled after the invoice was raised', function () {
-        $card = PaymentMethod::factory()->create(['name' => 'بطاقة', 'branch_id' => null]);
+        $card = PaymentMethod::factory()->create(['name' => 'بطاقة']);
         $invoice = employeeDueInvoice(['payment_method_id' => $card->id]);
 
         $card->update(['is_active' => false]);

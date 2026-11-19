@@ -25,6 +25,7 @@ class ProductResource extends JsonResource
             'isSqm' => (bool) $this->is_sqm,
             'costPrice' => (float) $this->cost_price,
             'sellingPrice' => (float) $this->selling_price,
+            'priceTiers' => $this->price_tiers ?? [],
             'minStockLevel' => (float) $this->min_stock_level,
             'currentStock' => (float) $this->current_stock,
             'barcode' => $this->barcode,

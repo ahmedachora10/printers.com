@@ -22,6 +22,7 @@ use App\Models\LoyaltyConfig;
 use App\Models\Product;
 use App\Models\ProductInvoice;
 use App\Models\Quotation;
+use App\Support\PriceTiers;
 use App\Support\Quantity;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -179,6 +180,11 @@ class CreateProductInvoiceAction
             // وعدد القطع — لا تُؤخذ مما أرسلته الواجهة، فالسعر والمخزون معاً
             // يقومان عليها. أما منتج القطعة فكميته هي المُرسَلة كما كانت.
             [$qty, $widthCm, $heightCm, $pieces] = $this->resolveLineQuantity($line, $product);
+
+            // تاسك 241: سعرٌ لم يُرسَل يأخذ شريحة الكمية — اقتراحٌ لا قيد (المحاسب حرّ).
+            if ($unitPrice <= 0 && ($tier = PriceTiers::tierFor($product->price_tiers, $qty)) !== null) {
+                $unitPrice = (float) $tier['price'];
+            }
 
             $lineSubtotal = round($qty * $unitPrice * (1 - $discountPct / 100), 2);
             $subtotal += $lineSubtotal;

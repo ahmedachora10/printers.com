@@ -51,11 +51,56 @@ describe('Network devices and card types', function () {
             ->and($foreign->fresh()->is_default)->toBeTrue();
     });
 
-    it('keeps another branch\'s device and the card types away from a branch admin', function () {
+    it('keeps another branch\'s device and the general card types away from a branch admin', function () {
         $foreign = ($this->makeDevice)($this->otherBranch, '222');
 
         $this->actingAs($this->branchAdmin)->delete(route('network-devices.destroy', $foreign))->assertForbidden();
-        $this->actingAs($this->branchAdmin)->post(route('card-types.store'), ['name' => 'أمريكان إكسبريس'])->assertForbidden();
+        $this->actingAs($this->branchAdmin)->put(route('card-types.update', CardType::first()), ['name' => 'x'])->assertForbidden();
+        $this->actingAs($this->branchAdmin)->delete(route('card-types.destroy', CardType::first()))->assertForbidden();
+    });
+
+    // تاسك 243: «يكون لكل فرع بطاقات خاصة به».
+    it('lets a branch admin add a card type that only their branch sees', function () {
+        $this->actingAs($this->branchAdmin)
+            ->post(route('card-types.store'), ['name' => 'أمريكان إكسبريس', 'branch_ids' => [$this->otherBranch->id]])
+            ->assertSessionHasNoErrors();
+
+        $amex = CardType::firstWhere('name', 'أمريكان إكسبريس');
+        expect($amex->branchIds())->toBe([$this->branch->id]);
+
+        $this->put(route('card-types.update', $amex), ['name' => 'أمكس'])->assertSessionHasNoErrors();
+        expect($amex->fresh()->name)->toBe('أمكس');
+
+        // فرعٌ آخر لا يراه في الإعدادات ولا تقبله مطابقته.
+        $otherAdmin = User::factory()->create();
+        $otherAdmin->addRole(Roles::BRANCH_ADMIN->value);
+        $this->otherBranch->update(['owner_id' => $otherAdmin->id]);
+        $otherAdmin->update(['branch_id' => $this->otherBranch->id]);
+
+        $this->actingAs($otherAdmin)->get(route('app-settings.index'))
+            ->assertInertia(fn ($page) => $page->where('cardTypes', fn ($rows) => ! collect($rows)->pluck('id')->contains($amex->id)));
+        $this->actingAs($this->branchAdmin)->get(route('app-settings.index'))
+            ->assertInertia(fn ($page) => $page->where('cardTypes', fn ($rows) => collect($rows)->pluck('id')->contains($amex->id)));
+    });
+
+    it('lets the super admin scope a card type and refuses narrowing past its reconciliations', function () {
+        $super = User::factory()->create();
+        $super->addRole(Roles::SUPER_ADMIN->value);
+        $mada = CardType::firstWhere('name', 'مدى');
+        $device = ($this->makeDevice)($this->otherBranch, '333');
+        $reconciliation = AccountReconciliation::create([
+            'branch_id' => $this->otherBranch->id, 'date' => today()->toDateString(), 'created_by' => $super->id,
+        ]);
+        $reconciliation->devices()->create([
+            'payment_method_id' => $this->mada->id, 'network_device_id' => $device->id, 'card_type_id' => $mada->id,
+            'device_label' => 'x', 'amount' => 100,
+        ]);
+
+        $this->actingAs($super)
+            ->put(route('card-types.update', $mada), ['name' => 'مدى', 'branch_ids' => [$this->branch->id]])
+            ->assertSessionHasErrors('branch_ids');
+        $this->put(route('card-types.update', $mada), ['name' => 'مدى', 'branch_ids' => [$this->branch->id, $this->otherBranch->id]])
+            ->assertSessionHasNoErrors();
     });
 
     it('lets the super admin add a card type', function () {

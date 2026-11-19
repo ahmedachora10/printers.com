@@ -96,13 +96,22 @@ describe('City Management', function () {
 
     // ── AUTHORIZATION ──────────────────────────────────────────────
 
-    it('prevents branch-admin from creating cities', function () {
+    // تاسك 244: «يمكن لكل فرع إضافة المدن الذي يرغب به» — والقائمة مشتركة.
+    it('lets a branch-admin add a city but not edit or delete one', function () {
+        City::factory()->create(['name' => 'الرياض']);
         $branchAdmin = User::factory()->create();
         $branchAdmin->addRole('branch-admin');
         $this->actingAs($branchAdmin);
 
-        $this->post(route('cities.store'), ['name' => 'تبوك'])
-            ->assertForbidden();
+        $this->post(route('cities.store'), ['name' => 'تبوك'])->assertSessionHasNoErrors()->assertRedirect();
+        $this->assertDatabaseHas('cities', ['name' => 'تبوك']);
+
+        $this->post(route('cities.store'), ['name' => 'الرياض'])->assertSessionHasErrors('name');
+
+        $city = City::firstWhere('name', 'تبوك');
+        $this->put(route('cities.update', $city), ['name' => 'حائل'])->assertForbidden();
+        $this->delete(route('cities.destroy', $city))->assertForbidden();
+        $this->get(route('cities.index'))->assertForbidden();
     });
 
     it('prevents accountant from updating cities', function () {

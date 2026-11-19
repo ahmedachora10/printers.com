@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\NetworkDevice;
 
+use App\Models\PaymentMethod;
+use App\Rules\VisibleToBranch;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -25,10 +27,8 @@ class SaveNetworkDeviceRequest extends FormRequest
         return [
             'branch_id' => ['required', 'integer', 'exists:branches,id'],
             // طريقة «شبكة» يراها فرع الجهاز (عامة أو ملكه).
-            'payment_method_id' => ['required', 'integer', Rule::exists('payment_methods', 'id')
-                ->where('is_network', true)
-                ->whereNull('deleted_at')
-                ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $branchId))],
+            'payment_method_id' => ['required', 'integer', Rule::exists('payment_methods', 'id')->where('is_network', true),
+                new VisibleToBranch(PaymentMethod::class, $branchId)],
             'name' => ['required', 'string', 'max:100'],
             'number' => ['required', 'string', 'max:50', Rule::unique('network_devices', 'number')
                 ->where('branch_id', $branchId)

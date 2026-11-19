@@ -9,9 +9,9 @@ use App\Exports\ImportTemplateExport;
 use App\Exports\ProductCategoriesExport;
 use App\Http\Controllers\Concerns\RunsExcelImports;
 use App\Http\Requests\ProductCategory\StoreProductCategoryRequest;
-use App\Http\Requests\ProductCategory\UpdateProductCategoryRequest;
 use App\Http\Resources\ProductCategory\ProductCategoryResource;
 use App\Imports\ProductCategoriesImport;
+use App\Models\Branch;
 use App\Models\ProductCategory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -30,16 +30,26 @@ class ProductCategoryController extends Controller
     {
         Gate::authorize('viewAny', ProductCategory::class);
 
+        $isSuper = $request->user()->roleName->isSuperAdmin();
+
+        // تاسك 237: كل فرع يرى العامة النشطة + ما يشمله (ومعطّلات فرعه — تاسك 240).
+        // السوبر أدمن يرى الكل ويضيّق بالفرع («global» = العامة وحدها).
         $items = ProductCategory::query()
+            ->with('branches:id,name')
+            ->when(! $isSuper, fn ($q) => $q->managedListFor((int) $request->user()->branchId))
+            ->when($isSuper, fn ($q) => $q->inBranchFilter($request->input('branch_id')))
             ->filteredBy($request->only(['search', 'status']))
             ->orderBy('name')
-            ->paginate(15);
+            ->paginate(15)
+            ->withQueryString();
 
         return Inertia::render('product-categories/index', [
             'items' => ProductCategoryResource::collection($items),
+            'branches' => $isSuper ? Branch::query()->active()->orderBy('name')->get(['id', 'name']) : null,
             'filters' => [
                 'search' => $request->input('search'),
                 'status' => $request->input('status'),
+                'branch_id' => $isSuper ? $request->input('branch_id') : null,
             ],
         ]);
     }
@@ -53,7 +63,7 @@ class ProductCategoryController extends Controller
         return back(fallback: route('product-categories.index'))->with('success', 'تم إنشاء فئة المنتج بنجاح');
     }
 
-    public function update(UpdateProductCategoryRequest $request, ProductCategory $productCategory, UpdateProductCategoryAction $action): RedirectResponse
+    public function update(StoreProductCategoryRequest $request, ProductCategory $productCategory, UpdateProductCategoryAction $action): RedirectResponse
     {
         Gate::authorize('update', $productCategory);
 
@@ -81,15 +91,15 @@ class ProductCategoryController extends Controller
     }
 
     /**
-     * تاسك 72: فئات المنتجات كورقة Excel. بلا نطاق فرع — الجدول عامّ لكل الفروع،
-     * بخلاف فئات دليل الخدمات التي مُلّكت للفروع في التاسك 47.
+     * تاسك 72: فئات المنتجات كورقة Excel — ما يراه المستخدم: كل الفئات للسوبر أدمن،
+     * والعامة + فئات فرعه لمدير الفرع (تاسك 237).
      */
     public function export(Request $request): BinaryFileResponse
     {
         Gate::authorize('viewAny', ProductCategory::class);
 
         return Excel::download(
-            new ProductCategoriesExport($request->only(['search', 'status'])),
+            new ProductCategoriesExport($request->only(['search', 'status']), $this->branchScope($request)),
             'product-categories-'.now()->format('Y-m-d').'.xlsx',
         );
     }
@@ -99,7 +109,7 @@ class ProductCategoryController extends Controller
     {
         Gate::authorize('create', ProductCategory::class);
 
-        return $this->previewImport($request, fn (bool $dryRun) => new ProductCategoriesImport($dryRun));
+        return $this->previewImport($request, fn (bool $dryRun) => new ProductCategoriesImport($dryRun, $this->branchScope($request)));
     }
 
     /** استيراد ورقة الفئات: إضافة وتحديث بمطابقة الاسم، بلا حذف. */
@@ -107,7 +117,7 @@ class ProductCategoryController extends Controller
     {
         Gate::authorize('create', ProductCategory::class);
 
-        return $this->commitImport($request, fn (bool $dryRun) => new ProductCategoriesImport($dryRun));
+        return $this->commitImport($request, fn (bool $dryRun) => new ProductCategoriesImport($dryRun, $this->branchScope($request)));
     }
 
     /** ورقة فارغة بعناوين هذا الاستيراد وصفٌّ مثال. */
@@ -121,5 +131,11 @@ class ProductCategoryController extends Controller
             ]),
             'product-categories-template.xlsx',
         );
+    }
+
+    /** فرع مدير الفرع، أو null للسوبر أدمن (كل الفئات، والجديدة عامة). */
+    private function branchScope(Request $request): ?int
+    {
+        return $request->user()->roleName->isSuperAdmin() ? null : $request->user()->branchId;
     }
 }

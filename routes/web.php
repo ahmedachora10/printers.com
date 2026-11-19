@@ -123,7 +123,8 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware('role:super-admin')->group(function () {
-        Route::resource('cities', CityController::class);
+        // تاسك 244: الإضافة لمدير الفرع أيضاً — في مجموعة branch-admin|super-admin أدناه.
+        Route::resource('cities', CityController::class)->except('store');
         Route::patch('cities/{city}/toggle-status', [CityController::class, 'toggleStatus'])
             ->name('cities.toggle-status');
 
@@ -156,6 +157,9 @@ Route::middleware(['auth'])->group(function () {
     // branch.
     Route::middleware('role:branch-admin|super-admin')->group(function () {
 
+        // تاسك 244: مدير الفرع يضيف مدينةً ناقصة من «بيانات الفرع» (CityPolicy::create).
+        Route::post('cities', [CityController::class, 'store'])->name('cities.store');
+
         Route::resource('payment-methods', PaymentMethodController::class)
             ->parameters(['payment-methods' => 'paymentMethod'])
             ->only(['store', 'update', 'destroy']);
@@ -167,14 +171,14 @@ Route::middleware(['auth'])->group(function () {
             ->parameters(['bank-accounts' => 'bankAccount'])
             ->only(['store', 'update', 'destroy']);
 
-        // تاسك 146 — أجهزة الشبكة (مدير الفرع لفرعه) وأنواع البطاقات (المدير العام وحده).
+        // تاسك 146 — أجهزة الشبكة (مدير الفرع لفرعه)؛ وأنواع البطاقات — تاسك 243: مدير الفرع لفرعه
+        // (CardTypePolicy)، والعامة والمشتركة للمدير العام.
         Route::resource('network-devices', NetworkDeviceController::class)
             ->parameters(['network-devices' => 'networkDevice'])
             ->only(['store', 'update', 'destroy']);
         Route::resource('card-types', CardTypeController::class)
             ->parameters(['card-types' => 'cardType'])
-            ->only(['store', 'update', 'destroy'])
-            ->middleware('role:super-admin');
+            ->only(['store', 'update', 'destroy']);
 
         Route::prefix('admin/catalogue')->name('admin.catalogue.')->group(function () {
             // Full-catalogue Excel export / import (categories + subcategories + prices)

@@ -24,6 +24,7 @@ use App\Models\LoyaltyConfig;
 use App\Models\ServiceInvoice;
 use App\Models\User;
 use App\Models\UserService;
+use App\Support\PriceTiers;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
@@ -136,9 +137,6 @@ class CalculateServiceInvoiceAction
                     ]);
                 }
 
-                $submitted = round((float) ($line['unit_price'] ?? 0), 2);
-
-                $unitPrice = $submitted > 0 ? $submitted : round((float) $branchService->price_per_sqm, 2);
                 // المساحة بلا تقريب — يُقرّب الإجمالي وحده، وتفعل الواجهة مثله.
                 $units = $qty * (($widthCm / 100) * ($heightCm / 100));
             } elseif ($branchService->pricing_type === ServicePricingTypeEnum::Linear) {
@@ -152,21 +150,28 @@ class CalculateServiceInvoiceAction
                 }
 
                 $heightCm = null;
-
-                $submitted = round((float) ($line['unit_price'] ?? 0), 2);
-
-                // `price_per_sqm` يُقرأ «سعر وحدة القياس»: سعر المتر الطولي هنا.
-                $unitPrice = $submitted > 0 ? $submitted : round((float) $branchService->price_per_sqm, 2);
                 $units = $qty * ($widthCm / 100);
             } else {
                 $widthCm = null;
                 $heightCm = null;
-                $unitPrice = (float) $line['unit_price'];
                 $units = (float) $qty;
             }
 
+            // تاسك 241: شريحة الكمية — على وحدات السطر وحده (القطع، أو مجموع الأمتار).
+            // السعر المرسَل الموجب يبقى (تاسك 44)؛ وإلا سعر الشريحة، ثم سعر وحدة القياس
+            // للمقيس (`price_per_sqm` يُقرأ «سعر وحدة القياس»). والخدمة بالوحدة بلا
+            // شريحة تبقى بالسعر المرسَل كما كانت.
+            $tier = PriceTiers::tierFor($branchService->price_tiers, $units);
+            $submitted = round((float) ($line['unit_price'] ?? 0), 2);
+            $unitPrice = match (true) {
+                $submitted > 0 => $submitted,
+                $tier !== null => (float) $tier['price'],
+                $branchService->pricing_type?->isMeasured() === true => round((float) $branchService->price_per_sqm, 2),
+                default => $submitted,
+            };
+
             if ($priceCapApplies) {
-                $this->assertPriceWithinCap($branchService, $unitPrice);
+                $this->assertPriceWithinCap($branchService, $unitPrice, $tier);
             }
 
             $lineSubtotal = round($units * $unitPrice * (1 - $discountPct / 100), 2);
@@ -184,7 +189,7 @@ class CalculateServiceInvoiceAction
             // الأرضية تُفحص هنا لا مع السقف أعلاه: أحد حدَّيها تكلفةُ خامات
             // السطر، ولا تُعرف إلا بعد lineMaterials().
             if ($priceCapApplies) {
-                $this->assertPriceAboveFloor($branchService, $unitPrice, $discountPct, $materialsCost, $vatPct);
+                $this->assertPriceAboveFloor($branchService, $unitPrice, $discountPct, $materialsCost, $vatPct, $tier);
             }
 
             [$lineAgentId, $agentCommissionType, $agentCommissionValue, $agentCommissionAmount] =
@@ -773,9 +778,10 @@ class CalculateServiceInvoiceAction
      * السقف على المتر لا على المجموع. المقارنة على منزلتين — نفس دقّة العمود
      * المخزَّن — كي لا يُرفض سعرٌ يطابق السقف لفارقٍ في الفاصلة العائمة.
      */
-    private function assertPriceWithinCap(BranchService $branchService, float $unitPrice): void
+    private function assertPriceWithinCap(BranchService $branchService, float $unitPrice, ?array $tier = null): void
     {
-        $cap = $branchService->max_selling_price !== null ? (float) $branchService->max_selling_price : null;
+        // تاسك 241: «أعلى سعر» للشريحة إن كُتب، وإلا سقف الخدمة.
+        $cap = $tier['max_price'] ?? ($branchService->max_selling_price !== null ? (float) $branchService->max_selling_price : null);
 
         if ($cap === null || $cap <= 0) {
             return;
@@ -830,8 +836,10 @@ class CalculateServiceInvoiceAction
         float $discountPct,
         float $materialsCost,
         float $vatPct,
+        ?array $tier = null,
     ): void {
-        $configured = $branchService->min_selling_price !== null ? (float) $branchService->min_selling_price : 0.0;
+        // تاسك 241: «أقل سعر» للشريحة إن كُتب، وإلا أرضية الخدمة.
+        $configured = (float) ($tier['min_price'] ?? $branchService->min_selling_price ?? 0);
         // التكلفة الصافية تُرفع بالضريبة لتُقاس بلغة السعر المكتوب.
         $materialsGross = round($materialsCost * (1 + $vatPct / 100), 2);
 

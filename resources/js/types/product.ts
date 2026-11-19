@@ -1,3 +1,5 @@
+import { type PriceTier } from '@/lib/invoice';
+
 export interface Product {
     id: number;
     sku: string;
@@ -10,6 +12,8 @@ export interface Product {
     isSqm: boolean;
     costPrice: number;
     sellingPrice: number;
+    /** تاسك 241: شرائح السعر حسب الكمية */
+    priceTiers: PriceTier[];
     minStockLevel: number;
     currentStock: number;
     barcode: string | null;

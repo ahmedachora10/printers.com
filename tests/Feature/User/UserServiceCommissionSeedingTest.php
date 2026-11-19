@@ -144,6 +144,8 @@ describe('seeding user service commissions on attach', function () {
 
     it('seeds rates through the branch-services screen too', function () {
         $employee = ($this->employee)($this->branch, 18);
+        // تاسك 236: مدير الفرع يربط خدمات فرعه وحدها.
+        $this->template->update(['branch_id' => $this->branch->id]);
 
         $this->actingAs($this->branchAdmin)
             ->post(route('branch-services.store'), [

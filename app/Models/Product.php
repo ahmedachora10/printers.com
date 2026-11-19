@@ -24,6 +24,7 @@ class Product extends Model
         'name',
         'cost_price',
         'selling_price',
+        'price_tiers',
         'min_stock_level',
         'barcode',
         'is_active',
@@ -33,6 +34,8 @@ class Product extends Model
         'is_sqm' => 'boolean',
         'cost_price' => 'decimal:2',
         'selling_price' => 'decimal:2',
+        // تاسك 241: شرائح السعر حسب الكمية — App\Support\PriceTiers.
+        'price_tiers' => 'array',
         // كميات المخزون عشرية منذ تاسك 51 — المنتج المسعّر بالمتر المربع يُخصم
         // بكسور المتر. تُقرأ float لا decimal:2 لأنها أرقام حساب لا مبالغ تُعرض.
         'min_stock_level' => 'float',

@@ -6,7 +6,6 @@ use App\Actions\PaymentMethod\CreatePaymentMethodAction;
 use App\Actions\PaymentMethod\DeletePaymentMethodAction;
 use App\Actions\PaymentMethod\UpdatePaymentMethodAction;
 use App\Http\Requests\PaymentMethod\StorePaymentMethodRequest;
-use App\Http\Requests\PaymentMethod\UpdatePaymentMethodRequest;
 use App\Models\PaymentMethod;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Gate;
@@ -22,7 +21,7 @@ class PaymentMethodController extends Controller
         return back()->with('success', 'تم إضافة طريقة الدفع بنجاح');
     }
 
-    public function update(UpdatePaymentMethodRequest $request, PaymentMethod $paymentMethod, UpdatePaymentMethodAction $action): RedirectResponse
+    public function update(StorePaymentMethodRequest $request, PaymentMethod $paymentMethod, UpdatePaymentMethodAction $action): RedirectResponse
     {
         Gate::authorize('update', $paymentMethod);
 

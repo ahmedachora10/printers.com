@@ -53,7 +53,9 @@ class ProductController extends Controller
             ->where('is_active', true)
             ->count();
 
+        // تاسك 237: فئات فرع المستخدم (العامة + ما يشمله)؛ السوبر أدمن يرى الكل.
         $categories = ProductCategory::query()
+            ->visibleToBranch($request->user()->roleName->isSuperAdmin() ? null : $request->user()->branchId)
             ->where('is_active', true)
             ->orderBy('name')
             ->get(['id', 'name']);

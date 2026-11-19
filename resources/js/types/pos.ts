@@ -4,6 +4,8 @@ export interface PosProduct {
     sku: string;
     /** سعر القطعة، أو سعر المتر المربع للمنتج المسعّر بالمساحة */
     sellingPrice: number;
+    /** تاسك 241: شرائح السعر حسب الكمية */
+    priceTiers: PriceTier[];
     currentStock: number;
     unitName: string | null;
     /** منتج يُباع ويُخصم من المخزون بالمتر المربع (تاسك 51) */
@@ -13,7 +15,7 @@ export interface PosProduct {
 // نوع التسعير مصدره ملفّ خدمات الفرع — تعريفٌ واحد لا نسختان تفترقان (تاسك 80).
 export type { ServicePricingType } from './branch-service';
 import { type ServicePricingType } from './branch-service';
-import { type LineUnitPriceBasis } from '@/lib/invoice';
+import { type LineUnitPriceBasis, type PriceTier } from '@/lib/invoice';
 
 /** How a line's commission-owner (agent) share is computed. */
 export type LineAgentCommissionType = 'percentage' | 'fixed' | 'per_sqm';
@@ -29,6 +31,8 @@ export interface PosService {
     minSellingPrice: number | null;
     pricingType: ServicePricingType;
     pricePerSqm: number;
+    /** تاسك 241: شرائح السعر حسب الكمية */
+    priceTiers: PriceTier[];
     agentCommissionPerSqm: number;
     /** تاسك 153: عمولة المندوب المحدَّدة لهذه الخدمة، بمعرّف المندوب — مقفلة على الموظف */
     agentTerms: Record<number, { type: LineAgentCommissionType; value: number }>;
@@ -85,6 +89,10 @@ export interface ServiceCartLine {
     isManual: boolean;
     pricingType: ServicePricingType;
     pricePerSqm: number;
+    /** تاسك 241: شرائح الخدمة — تملأ السعر وحدّيه حسب وحدات السطر */
+    priceTiers: PriceTier[];
+    /** السعر من الشريحة (يُعاد مع الكمية والمقاس)؛ false بعد أن يكتبه الكاشير */
+    tierPriced: boolean;
     agentCommissionPerSqm: number;
     widthCm: number | null;
     heightCm: number | null;
@@ -197,6 +205,7 @@ export interface EditServiceInvoiceLine {
     materialsCostIsOpen: boolean;
     pricingType: ServicePricingType;
     pricePerSqm: number;
+    priceTiers?: PriceTier[];
     agentCommissionPerSqm: number;
     widthCm: number | null;
     heightCm: number | null;
@@ -299,6 +308,8 @@ export interface CartLine {
     heightCm: number | null;
     /** عدد القطع بهذا المقاس — لسطر المتر المربع وحده */
     pieces: number;
+    /** تاسك 241: السعر من شريحة الكمية (يُعاد مع الكمية)؛ غائب/false بعد أن يكتبه الكاشير */
+    tierPriced?: boolean;
 }
 
 export interface PosInvoiceLine {

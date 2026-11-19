@@ -230,8 +230,9 @@ class InvoiceController extends Controller
             ->where('is_active', true)
             ->visibleToBranch($isSuperAdmin ? null : $branchId)
             ->orderBy('name')
-            ->get(['id', 'name', 'branch_id'])
-            ->map(fn ($m) => ['id' => $m->id, 'name' => $m->name, 'branchId' => $m->branch_id]);
+            ->with('branches:id')
+            ->get(['id', 'name'])
+            ->map(fn (PaymentMethod $m) => ['id' => $m->id, 'name' => $m->name, 'branchIds' => $m->branchIds()]);
 
         // الخدمة تُصفّى بمعرّف branch_service لا باسمها النصّي: الاسم لقطةٌ على
         // السطر وقد يتكرّر بين الفروع والقوالب.

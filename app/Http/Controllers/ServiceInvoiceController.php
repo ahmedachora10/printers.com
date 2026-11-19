@@ -269,6 +269,7 @@ class ServiceInvoiceController extends Controller
                     'baseCommissionPct' => (float) ($service['baseCommissionPct'] ?? $line->commission_pct),
                     'pricingType' => $service['pricingType'] ?? 'unit',
                     'pricePerSqm' => (float) ($service['pricePerSqm'] ?? 0),
+                    'priceTiers' => $service['priceTiers'] ?? [],
                     'agentCommissionPerSqm' => (float) ($service['agentCommissionPerSqm'] ?? 0),
                     'noteExamples' => $service['noteExamples'] ?? [],
                     // الخامات تأتي من السطر المحفوظ لا من الخدمة: اللقطة هي
@@ -802,6 +803,8 @@ class ServiceInvoiceController extends Controller
                 'minSellingPrice' => $service->min_selling_price !== null ? (float) $service->min_selling_price : null,
                 'pricingType' => $service->pricing_type?->value ?? 'unit',
                 'pricePerSqm' => (float) $service->price_per_sqm,
+                // تاسك 241: شرائح السعر حسب الكمية.
+                'priceTiers' => $service->price_tiers ?? [],
                 'agentCommissionPerSqm' => (float) $service->agent_commission_per_sqm,
                 // تاسك 153: عمولة كل مندوب المحدَّدة لهذه الخدمة — تُعبَّأ وتُقفل على الموظف.
                 'agentTerms' => $service->agentCommissions->mapWithKeys(fn (AgentService $t) => [

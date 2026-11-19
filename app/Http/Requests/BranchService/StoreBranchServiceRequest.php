@@ -5,12 +5,15 @@ namespace App\Http\Requests\BranchService;
 use App\Enums\ServicePricingTypeEnum;
 use App\Http\Requests\BranchService\Concerns\HandlesNoteExamples;
 use App\Http\Requests\BranchService\Concerns\ValidatesSellingPriceBounds;
+use App\Http\Requests\Concerns\ValidatesPriceTiers;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class StoreBranchServiceRequest extends FormRequest
 {
     use HandlesNoteExamples;
+    use ValidatesPriceTiers;
     use ValidatesSellingPriceBounds;
 
     public function authorize(): bool
@@ -21,6 +24,7 @@ class StoreBranchServiceRequest extends FormRequest
     protected function prepareForValidation(): void
     {
         $this->normalizeNoteExamples();
+        $this->normalizePriceTiers();
     }
 
     /** @return array<string, mixed> */
@@ -28,12 +32,16 @@ class StoreBranchServiceRequest extends FormRequest
     {
         return [
             ...$this->noteExampleRules(),
-            // خدمة عامة أو مملوكة لهذا الفرع بعينه — لا تُربط خدمةُ فرعٍ آخر
-            // بفرعنا مهما كان دور الرابط (تاسك 45).
+            // تاسك 241: شرائح السعر حسب الكمية.
+            ...$this->priceTierRules(),
+            // خدمة مملوكة لهذا الفرع بعينه — لا تُربط خدمةُ فرعٍ آخر بفرعنا (تاسك 45).
+            // تاسك 236: والعامة يربطها السوبر أدمن وحده؛ مدير الفرع يحصل عليها بالاستيراد.
             'service_template_id' => [
                 'required',
                 Rule::exists('service_templates', 'id')
-                    ->where(fn ($q) => $q->whereNull('branch_id')->orWhere('branch_id', $this->input('branch_id'))),
+                    ->where(fn ($q) => $this->user()?->roleName->isSuperAdmin()
+                        ? $q->where(fn ($w) => $w->whereNull('branch_id')->orWhere('branch_id', $this->input('branch_id')))
+                        : $q->where('branch_id', $this->input('branch_id'))),
             ],
             'branch_id' => [
                 'required',
@@ -59,6 +67,12 @@ class StoreBranchServiceRequest extends FormRequest
             'materials_cost' => ['nullable', 'numeric', 'min:0'],
             'is_active' => ['boolean'],
         ];
+    }
+
+    /** @return array<int, callable> */
+    public function after(): array
+    {
+        return [fn (Validator $v) => $this->priceTierCheck($v, $this->float('min_selling_price'), $this->float('max_selling_price'))];
     }
 
     public function messages(): array

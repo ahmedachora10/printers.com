@@ -27,8 +27,6 @@ const breadcrumbs: BreadcrumbItem[] = [{ title: 'خدمات الفرع', href: '
 interface ServiceTemplateOption {
     id: number;
     name: string;
-    /** خدمة أنشأها هذا الفرع لنفسه، لا خدمة عامة (تاسك 45) */
-    isOwn?: boolean;
 }
 
 interface BranchOption {

@@ -1,13 +1,8 @@
 import { store, update } from '@/actions/App/Http/Controllers/PaymentMethodController';
+import { BranchScopeField, scopeIds, scopeValue } from '@/components/branch-scope-field';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-    Dialog,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { type PaymentMethod } from '@/types/payment-method';
@@ -19,22 +14,28 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     paymentMethod?: PaymentMethod;
+    /** للسوبر أدمن وحده: فرعٌ أو عدّة فروع، أو لا شيء فتكون عامة (تاسك 242). */
+    branches?: { id: number; name: string }[] | null;
 }
 
-export default function PaymentMethodFormModal({ open, onOpenChange, paymentMethod }: Props) {
+export default function PaymentMethodFormModal({ open, onOpenChange, paymentMethod, branches }: Props) {
     const isEdit = !!paymentMethod;
 
-    const { data, setData, post, put, processing, errors, reset } = useForm({
-        name:                paymentMethod?.name ?? '',
-        is_active:           paymentMethod?.isActive ?? true,
+    const { data, setData, post, put, processing, errors, reset, transform } = useForm({
+        branch_ids: scopeValue(paymentMethod),
+        name: paymentMethod?.name ?? '',
+        is_active: paymentMethod?.isActive ?? true,
         requires_attachment: paymentMethod?.requiresAttachment ?? false,
-        is_cash:             paymentMethod?.isCash ?? false,
-        is_network:          paymentMethod?.isNetwork ?? false,
+        is_cash: paymentMethod?.isCash ?? false,
+        is_network: paymentMethod?.isNetwork ?? false,
     });
+
+    transform((d) => ({ ...d, branch_ids: scopeIds(d.branch_ids, branches) }));
 
     useEffect(() => {
         if (paymentMethod) {
             setData({
+                branch_ids: scopeValue(paymentMethod),
                 name: paymentMethod.name ?? '',
                 is_active: paymentMethod.isActive ?? true,
                 requires_attachment: paymentMethod.requiresAttachment ?? false,
@@ -52,12 +53,18 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
         if (isEdit) {
             put(update.url(paymentMethod), {
                 preserveScroll: true,
-                onSuccess: () => { onOpenChange(false); reset(); },
+                onSuccess: () => {
+                    onOpenChange(false);
+                    reset();
+                },
             });
         } else {
             post(store.url(), {
                 preserveScroll: true,
-                onSuccess: () => { onOpenChange(false); reset(); },
+                onSuccess: () => {
+                    onOpenChange(false);
+                    reset();
+                },
             });
         }
     }
@@ -70,6 +77,15 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
                 </DialogHeader>
 
                 <form id="payment-method-form" onSubmit={handleSubmit} className="space-y-4 py-2">
+                    {branches && (
+                        <BranchScopeField
+                            value={data.branch_ids}
+                            onChange={(val) => setData('branch_ids', val)}
+                            branches={branches}
+                            error={errors.branch_ids}
+                        />
+                    )}
+
                     <div className="space-y-1">
                         <Label htmlFor="pm-name">اسم طريقة الدفع</Label>
                         <Input
@@ -83,11 +99,7 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
                     </div>
 
                     <div className="flex items-center gap-2">
-                        <Checkbox
-                            id="pm-is-active"
-                            checked={data.is_active}
-                            onCheckedChange={(checked) => setData('is_active', checked === true)}
-                        />
+                        <Checkbox id="pm-is-active" checked={data.is_active} onCheckedChange={(checked) => setData('is_active', checked === true)} />
                         <Label htmlFor="pm-is-active" className="cursor-pointer">
                             نشطة
                         </Label>
@@ -110,18 +122,12 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
                     </div>
 
                     <div className="flex items-start gap-2">
-                        <Checkbox
-                            id="pm-is-cash"
-                            checked={data.is_cash}
-                            onCheckedChange={(checked) => setData('is_cash', checked === true)}
-                        />
+                        <Checkbox id="pm-is-cash" checked={data.is_cash} onCheckedChange={(checked) => setData('is_cash', checked === true)} />
                         <div className="grid gap-0.5">
                             <Label htmlFor="pm-is-cash" className="cursor-pointer">
                                 طريقة نقدية (كاش)
                             </Label>
-                            <p className="text-muted-foreground text-xs">
-                                تقرير المبيعات يطرح المصروفات من المحصَّل بهذه الطريقة وحدها.
-                            </p>
+                            <p className="text-muted-foreground text-xs">تقرير المبيعات يطرح المصروفات من المحصَّل بهذه الطريقة وحدها.</p>
                         </div>
                     </div>
 
@@ -135,20 +141,13 @@ export default function PaymentMethodFormModal({ open, onOpenChange, paymentMeth
                             <Label htmlFor="pm-is-network" className="cursor-pointer">
                                 شبكة (أجهزة دفع)
                             </Label>
-                            <p className="text-muted-foreground text-xs">
-                                في مطابقة الحسابات يُدخل المحاسب موازنة كل جهاز لهذه الطريقة يدوياً.
-                            </p>
+                            <p className="text-muted-foreground text-xs">في مطابقة الحسابات يُدخل المحاسب موازنة كل جهاز لهذه الطريقة يدوياً.</p>
                         </div>
                     </div>
                 </form>
 
                 <DialogFooter>
-                    <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={processing}
-                    >
+                    <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={processing}>
                         إلغاء
                     </Button>
                     <Button type="submit" form="payment-method-form" disabled={processing}>

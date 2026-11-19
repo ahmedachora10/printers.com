@@ -42,6 +42,7 @@ class DuplicateServiceTemplateAction
                     'min_selling_price' => $source->min_selling_price,
                     'pricing_type' => $source->pricing_type?->value,
                     'price_per_sqm' => $source->price_per_sqm,
+                    'price_tiers' => $source->price_tiers,
                     'agent_commission_per_sqm' => $source->agent_commission_per_sqm,
                     'note_examples' => $source->note_examples ?? [],
                     'has_materials' => $source->has_materials,

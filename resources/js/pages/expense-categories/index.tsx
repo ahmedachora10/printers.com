@@ -1,6 +1,7 @@
 import { destroy, index, toggleStatus } from '@/actions/App/Http/Controllers/ExpenseCategoryController';
 import ExpenseCategoryFormModal from '@/components/expense-categories/expense-category-form-modal';
 import { DataTable, TablePagination, type ColumnDef } from '@/components/data-table';
+import { scopeLabel } from '@/components/branch-scope-field';
 import { FilterBar } from '@/components/filter-bar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -69,10 +70,10 @@ export default function ExpenseCategoriesIndex({ items, branches, filters }: Pro
                 cell: (item) => (
                     <span className="flex items-center gap-2 font-medium">
                         {item.name}
-                        {/* مدير الفرع يرى الفئة العامة ولا يملكها. */}
-                        {!branches && item.branchId === null && (
+                        {/* مدير الفرع يرى الفئة العامة أو المشتركة ولا يملكها. */}
+                        {!branches && !item.canEdit && (
                             <Badge variant="outline" className="text-muted-foreground font-normal">
-                                عامة
+                                {item.branches?.length ? 'مشتركة' : 'عامة'}
                             </Badge>
                         )}
                     </span>
@@ -81,9 +82,9 @@ export default function ExpenseCategoriesIndex({ items, branches, filters }: Pro
             ...(branches
                 ? [
                       {
-                          key: 'branchName',
+                          key: 'branches',
                           header: 'النطاق',
-                          cell: (item: ExpenseCategory) => item.branchName ?? 'عامة',
+                          cell: (item: ExpenseCategory) => scopeLabel(item),
                       },
                   ]
                 : []),

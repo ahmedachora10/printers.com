@@ -1,5 +1,6 @@
 import CardTypeController from '@/actions/App/Http/Controllers/CardTypeController';
 import NetworkDeviceController from '@/actions/App/Http/Controllers/NetworkDeviceController';
+import { BranchScopeField, scopeIds, scopeLabel, scopeValue, type BranchScoped } from '@/components/branch-scope-field';
 import InputError from '@/components/input-error';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,9 +25,11 @@ export interface NetworkDevice {
     isDefault: boolean;
 }
 
-export interface CardType {
+/** تاسك 243: branches فارغة = نوع عام لكل الفروع. */
+export interface CardType extends BranchScoped {
     id: number;
     name: string;
+    canEdit: boolean;
 }
 
 interface Props {
@@ -36,10 +39,20 @@ interface Props {
     branches: { id: number; name: string }[];
     isSuperAdmin: boolean;
     canManageDevices: boolean;
+    /** تاسك 243: مدير الفرع يضيف أنواع فرعه أيضاً. */
+    canCreateCardTypes: boolean;
 }
 
-/** تاسك 146 — أجهزة الشبكة (لكل فرع، واحدٌ افتراضي) وأنواع البطاقات (قائمة عامة). */
-export default function NetworkDevicesTab({ devices, cardTypes, paymentMethods, branches, isSuperAdmin, canManageDevices }: Props) {
+/** تاسك 146 — أجهزة الشبكة (لكل فرع، واحدٌ افتراضي) وأنواع البطاقات (عامة أو لفروع — تاسك 243). */
+export default function NetworkDevicesTab({
+    devices,
+    cardTypes,
+    paymentMethods,
+    branches,
+    isSuperAdmin,
+    canManageDevices,
+    canCreateCardTypes,
+}: Props) {
     const [device, setDevice] = useState<NetworkDevice | 'new' | null>(null);
     const [cardType, setCardType] = useState<CardType | 'new' | null>(null);
 
@@ -53,7 +66,9 @@ export default function NetworkDevicesTab({ devices, cardTypes, paymentMethods, 
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
                     <div>
                         <h2 className="text-lg font-semibold">أجهزة الشبكة</h2>
-                        <p className="text-muted-foreground text-sm">تُختار في مطابقة الحسابات؛ الجهاز الافتراضي يظهر تلقائياً عند فتح مطابقة جديدة.</p>
+                        <p className="text-muted-foreground text-sm">
+                            تُختار في مطابقة الحسابات؛ الجهاز الافتراضي يظهر تلقائياً عند فتح مطابقة جديدة.
+                        </p>
                     </div>
                     {canManageDevices && (
                         <Button size="sm" onClick={() => setDevice('new')}>
@@ -111,9 +126,11 @@ export default function NetworkDevicesTab({ devices, cardTypes, paymentMethods, 
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
                     <div>
                         <h2 className="text-lg font-semibold">أنواع البطاقات</h2>
-                        <p className="text-muted-foreground text-sm">تظهر لكل جهاز في المطابقة بحقل مبلغٍ لكل نوع. {!isSuperAdmin && 'يديرها المدير العام.'}</p>
+                        <p className="text-muted-foreground text-sm">
+                            تظهر لكل جهاز في المطابقة بحقل مبلغٍ لكل نوع. {!isSuperAdmin && 'العامة يديرها المدير العام، وما تضيفه هنا يخصّ فرعك.'}
+                        </p>
                     </div>
-                    {isSuperAdmin && (
+                    {canCreateCardTypes && (
                         <Button size="sm" onClick={() => setCardType('new')}>
                             <Plus className="size-4" /> إضافة نوع
                         </Button>
@@ -122,8 +139,13 @@ export default function NetworkDevicesTab({ devices, cardTypes, paymentMethods, 
                 <ul className="divide-y">
                     {cardTypes.map((c) => (
                         <li key={c.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                            <span className="font-medium">{c.name}</span>
-                            {isSuperAdmin && (
+                            <span className="flex items-center gap-2 font-medium">
+                                {c.name}
+                                <Badge variant="outline" className="text-muted-foreground font-normal">
+                                    {scopeLabel(c)}
+                                </Badge>
+                            </span>
+                            {c.canEdit && (
                                 <div className="flex items-center gap-2">
                                     <Button variant="outline" size="sm" aria-label="تعديل" onClick={() => setCardType(c)}>
                                         <Pencil className="h-3.5 w-3.5" />
@@ -153,7 +175,13 @@ export default function NetworkDevicesTab({ devices, cardTypes, paymentMethods, 
                     onClose={() => setDevice(null)}
                 />
             )}
-            {cardType && <CardTypeDialog cardType={cardType === 'new' ? null : cardType} onClose={() => setCardType(null)} />}
+            {cardType && (
+                <CardTypeDialog
+                    cardType={cardType === 'new' ? null : cardType}
+                    branches={isSuperAdmin ? branches : null}
+                    onClose={() => setCardType(null)}
+                />
+            )}
         </div>
     );
 }
@@ -180,7 +208,9 @@ function DeviceDialog({
     });
 
     // طرق «شبكة» يراها فرع الجهاز: العامة + ما يخصّه.
-    const methods = paymentMethods.filter((m) => m.isNetwork && (m.branchId === null || !isSuperAdmin || m.branchId === form.data.branch_id));
+    const methods = paymentMethods.filter(
+        (m) => m.isNetwork && (!m.branches?.length || !isSuperAdmin || m.branches.some((b) => b.id === form.data.branch_id)),
+    );
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -219,17 +249,32 @@ function DeviceDialog({
                     )}
                     <div className="space-y-1">
                         <Label htmlFor="nd-name">اسم الجهاز</Label>
-                        <Input id="nd-name" value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} placeholder="مثال: جهاز الشبكة 1" autoFocus />
+                        <Input
+                            id="nd-name"
+                            value={form.data.name}
+                            onChange={(e) => form.setData('name', e.target.value)}
+                            placeholder="مثال: جهاز الشبكة 1"
+                            autoFocus
+                        />
                         <InputError message={form.errors.name} />
                     </div>
                     <div className="space-y-1">
                         <Label htmlFor="nd-number">رقم الجهاز</Label>
-                        <Input id="nd-number" dir="ltr" value={form.data.number} onChange={(e) => form.setData('number', e.target.value)} placeholder="123456" />
+                        <Input
+                            id="nd-number"
+                            dir="ltr"
+                            value={form.data.number}
+                            onChange={(e) => form.setData('number', e.target.value)}
+                            placeholder="123456"
+                        />
                         <InputError message={form.errors.number} />
                     </div>
                     <div className="space-y-1">
                         <Label>طريقة الدفع (شبكة)</Label>
-                        <Select value={form.data.payment_method_id ? String(form.data.payment_method_id) : ''} onValueChange={(v) => form.setData('payment_method_id', Number(v))}>
+                        <Select
+                            value={form.data.payment_method_id ? String(form.data.payment_method_id) : ''}
+                            onValueChange={(v) => form.setData('payment_method_id', Number(v))}
+                        >
                             <SelectTrigger>
                                 <SelectValue placeholder="اختر الطريقة" />
                             </SelectTrigger>
@@ -241,7 +286,9 @@ function DeviceDialog({
                                 ))}
                             </SelectContent>
                         </Select>
-                        {methods.length === 0 && <p className="text-muted-foreground text-xs">لا توجد طرق دفع معلَّمة «شبكة» — فعّلها من تبويب طرق الدفع.</p>}
+                        {methods.length === 0 && (
+                            <p className="text-muted-foreground text-xs">لا توجد طرق دفع معلَّمة «شبكة» — فعّلها من تبويب طرق الدفع.</p>
+                        )}
                         <InputError message={form.errors.payment_method_id} />
                     </div>
                     <div className="flex items-center gap-2">
@@ -264,8 +311,18 @@ function DeviceDialog({
     );
 }
 
-function CardTypeDialog({ cardType, onClose }: { cardType: CardType | null; onClose: () => void }) {
-    const form = useForm({ name: cardType?.name ?? '' });
+function CardTypeDialog({
+    cardType,
+    branches,
+    onClose,
+}: {
+    cardType: CardType | null;
+    /** للسوبر أدمن وحده — مدير الفرع يُثبَّت على فرعه في الخادم. */
+    branches: { id: number; name: string }[] | null;
+    onClose: () => void;
+}) {
+    const form = useForm({ name: cardType?.name ?? '', branch_ids: scopeValue(cardType) });
+    form.transform((d) => ({ ...d, branch_ids: scopeIds(d.branch_ids, branches) }));
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -281,9 +338,23 @@ function CardTypeDialog({ cardType, onClose }: { cardType: CardType | null; onCl
                     <DialogTitle>{cardType ? 'تعديل نوع البطاقة' : 'إضافة نوع بطاقة'}</DialogTitle>
                 </DialogHeader>
                 <form id="card-type-form" onSubmit={submit} className="space-y-4 py-2">
+                    {branches && (
+                        <BranchScopeField
+                            value={form.data.branch_ids}
+                            onChange={(val) => form.setData('branch_ids', val)}
+                            branches={branches}
+                            error={form.errors.branch_ids}
+                        />
+                    )}
                     <div className="space-y-1">
                         <Label htmlFor="ct-name">الاسم</Label>
-                        <Input id="ct-name" value={form.data.name} onChange={(e) => form.setData('name', e.target.value)} placeholder="مثال: أمريكان إكسبريس" autoFocus />
+                        <Input
+                            id="ct-name"
+                            value={form.data.name}
+                            onChange={(e) => form.setData('name', e.target.value)}
+                            placeholder="مثال: أمريكان إكسبريس"
+                            autoFocus
+                        />
                         <InputError message={form.errors.name} />
                     </div>
                 </form>

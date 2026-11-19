@@ -20,9 +20,10 @@ class CityPolicy
         return $user->roleName->isSuperAdmin();
     }
 
+    /** تاسك 244: مدير الفرع يضيف مدينةً ناقصة من «بيانات الفرع»؛ التعديل والحذف للسوبر أدمن. */
     public function create(User $user): bool
     {
-        return $user->roleName->isSuperAdmin();
+        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
     }
 
     public function update(User $user, City $city): bool

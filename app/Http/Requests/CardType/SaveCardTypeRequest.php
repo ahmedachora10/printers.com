@@ -2,25 +2,32 @@
 
 namespace App\Http\Requests\CardType;
 
+use App\Http\Requests\Concerns\ValidatesBranchScope;
+use App\Models\CardType;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
-/** تاسك 146 — إضافة/تعديل نوع بطاقة. */
+/**
+ * تاسك 146/243 — إضافة/تعديل نوع بطاقة. مدير الفرع لفرعه وحده؛ السوبر أدمن يختار فرعاً أو
+ * عدّة فروع أو لا شيء (عام). الحصر يُرفض إن سجّلت مطابقةُ فرعٍ خارج النطاق مبالغ للنوع.
+ */
 class SaveCardTypeRequest extends FormRequest
 {
+    use ValidatesBranchScope;
+
+    protected string $scopedModel = CardType::class;
+
     /** @return array<string, mixed> */
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:100', Rule::unique('card_types', 'name')
-                ->whereNull('deleted_at')
-                ->ignore($this->route('cardType'))],
+            ...$this->branchScopeRules(),
+            'name' => ['required', 'string', 'max:100', $this->uniqueNameInScope('يوجد نوع بطاقة بهذا الاسم.')],
         ];
     }
 
-    /** @return array<string, string> */
-    public function messages(): array
+    /** @return array<int, callable> */
+    public function after(): array
     {
-        return ['name.unique' => 'يوجد نوع بطاقة بهذا الاسم.'];
+        return $this->narrowingCheck('مطابقات');
     }
 }

@@ -6,6 +6,10 @@ use App\Models\ProductCategory;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
+/**
+ * تاسك 237 — قاعدة فئات المصروفات: مدير الفرع يضيف لفرعه ويعدّل ما نطاقه فرعه وحده؛
+ * العامة والمشتركة بين فروع للسوبر أدمن.
+ */
 class ProductCategoryPolicy
 {
     use HandlesAuthorization;
@@ -22,17 +26,19 @@ class ProductCategoryPolicy
 
     public function create(User $user): bool
     {
-        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
+        // مدير بلا فرع كان سيكتب فئةً عامة؛ الفروع تُثبَّت في الـForm Request.
+        return $user->roleName->isSuperAdmin()
+            || ($user->roleName->isBranchAdmin() && $user->branchId !== null);
     }
 
     public function update(User $user, ProductCategory $productCategory): bool
     {
-        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
+        return $this->owns($user, $productCategory);
     }
 
     public function delete(User $user, ProductCategory $productCategory): bool
     {
-        return $user->roleName->isSuperAdmin() || $user->roleName->isBranchAdmin();
+        return $this->owns($user, $productCategory);
     }
 
     public function restore(User $user, ProductCategory $productCategory): bool
@@ -43,5 +49,11 @@ class ProductCategoryPolicy
     public function forceDelete(User $user, ProductCategory $productCategory): bool
     {
         return $user->roleName->isSuperAdmin();
+    }
+
+    private function owns(User $user, ProductCategory $productCategory): bool
+    {
+        return $user->roleName->isSuperAdmin()
+            || ($user->roleName->isBranchAdmin() && $productCategory->isOwnedBy($user->branchId));
     }
 }

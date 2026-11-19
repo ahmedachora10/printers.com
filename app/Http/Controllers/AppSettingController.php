@@ -40,10 +40,11 @@ class AppSettingController extends Controller
         $branchId = $user->branchId;
         $branch = $branchId ? Branch::find($branchId) : null;
 
-        // تاسك 59: الفرع يرى الطرق العامة + ما أضافه هو؛ والسوبر أدمن يرى الكل.
+        // تاسك 59/242: الفرع يرى الطرق العامة النشطة + ما يشمله (ومعطّلات فرعه — تاسك 240)؛
+        // والسوبر أدمن يرى الكل.
         $paymentMethods = PaymentMethod::query()
-            ->with('branch:id,name')
-            ->visibleToBranch($user->roleName->isSuperAdmin() ? null : $branchId)
+            ->with('branches:id,name')
+            ->when(! $user->roleName->isSuperAdmin(), fn ($q) => $q->managedListFor((int) $branchId))
             ->orderBy('name')
             ->get();
 
@@ -103,7 +104,19 @@ class AppSettingController extends Controller
                     'number' => $d->number,
                     'isDefault' => $d->is_default,
                 ]),
-            'cardTypes' => CardType::query()->orderBy('id')->get(['id', 'name']),
+            // تاسك 243: ما يراه الفرع (العامة + ما يشمله)؛ السوبر أدمن الكل.
+            'cardTypes' => CardType::query()
+                ->with('branches:id,name')
+                ->visibleToBranch($isSuperAdmin ? null : $branchId)
+                ->orderBy('id')
+                ->get()
+                ->map(fn (CardType $c) => [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'branches' => $c->branches->map(fn ($b) => ['id' => $b->id, 'name' => $b->name])->values(),
+                    'canEdit' => $user->can('update', $c),
+                ]),
+            'canCreateCardTypes' => $user->can('create', CardType::class),
             'canManageNetworkDevices' => Gate::allows('create', NetworkDevice::class),
             // تاسك 187 — حسابات الشركة البنكية (فرعه، أو الكل للمدير العام).
             'bankAccounts' => BankAccount::query()

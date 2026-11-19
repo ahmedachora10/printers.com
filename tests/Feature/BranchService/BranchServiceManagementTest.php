@@ -63,6 +63,8 @@ describe('BranchService Management', function () {
     });
 
     it('branch-admin can attach their own branch to a service template', function () {
+        $this->template->update(['branch_id' => $this->branch->id]);
+
         $this->post(route('branch-services.store'), [
             'service_template_id' => $this->template->id,
             'branch_id'           => $this->branch->id,
@@ -77,7 +79,25 @@ describe('BranchService Management', function () {
         ]);
     });
 
+    // تاسك 236: العامة تصل الفرع بالاستيراد أو بربط السوبر أدمن، لا من نافذة مدير الفرع.
+    it('refuses a general template from a branch admin but not from the super-admin', function () {
+        $payload = [
+            'service_template_id' => $this->template->id,
+            'branch_id' => $this->branch->id,
+            'base_commission_pct' => 8.00,
+            'max_discount_pct' => 3.00,
+            'is_active' => true,
+        ];
+
+        $this->post(route('branch-services.store'), $payload)->assertSessionHasErrors('service_template_id');
+
+        $this->actingAs($this->superAdmin)->post(route('branch-services.store'), $payload)->assertSessionHasNoErrors();
+        $this->assertDatabaseHas('branch_services', ['service_template_id' => $this->template->id, 'branch_id' => $this->branch->id]);
+    });
+
     it('stores square-meter pricing settings on a branch service', function () {
+        $this->template->update(['branch_id' => $this->branch->id]);
+
         $this->post(route('branch-services.store'), [
             'service_template_id' => $this->template->id,
             'branch_id'           => $this->branch->id,
