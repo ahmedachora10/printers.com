@@ -20,7 +20,7 @@ import { type BreadcrumbItem } from '@/types';
 import { type PaginatedProduct, type Product } from '@/types/product';
 import { type ProductUnit } from '@/types/product-unit';
 import { Link, router, useForm } from '@inertiajs/react';
-import { AlertTriangle, ArrowLeftRight, Download, History, Pencil, Plus, Store, Trash2, Upload } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, Download, History, Pencil, Plus, Store, Trash2, Undo2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 import productRoutes from '@/actions/App/Http/Controllers/ProductController';
 import inventory from '@/routes/inventory';
@@ -66,6 +66,7 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
     const [importOpen, setImportOpen] = useState(false);
     const [sellingAsService, setSellingAsService] = useState<Product | null>(null);
     const sellForm = useForm({ commission_pct: '' });
+    const [stoppingService, setStoppingService] = useState<Product | null>(null);
 
     function handleSellAsService() {
         if (!sellingAsService) return;
@@ -75,6 +76,20 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                 setSellingAsService(null);
                 sellForm.reset();
             },
+        });
+    }
+
+    // إعادة تحويلٍ بعد إيقاف: النسبة السابقة جاهزة في الخانة.
+    function openSellAsService(item: Product) {
+        sellForm.setData('commission_pct', item.serviceCommissionPct != null ? String(item.serviceCommissionPct) : '');
+        setSellingAsService(item);
+    }
+
+    function handleStopService() {
+        if (!stoppingService) return;
+        router.delete(productRoutes.stopSellingAsService.url(stoppingService.id), {
+            preserveScroll: true,
+            onFinish: () => setStoppingService(null),
         });
     }
 
@@ -201,8 +216,12 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                 headerClassName: 'w-24',
                 cell: (item) => (
                     <div className="flex items-center gap-2">
-                        {!item.soldAsService && (
-                            <Button variant="outline" size="sm" title="بيع كخدمة" onClick={() => setSellingAsService(item)}>
+                        {item.soldAsService ? (
+                            <Button variant="outline" size="sm" title="إيقاف البيع كخدمة" onClick={() => setStoppingService(item)}>
+                                <Undo2 className="h-3.5 w-3.5" />
+                            </Button>
+                        ) : (
+                            <Button variant="outline" size="sm" title="بيع كخدمة" onClick={() => openSellAsService(item)}>
                                 <Store className="h-3.5 w-3.5" />
                             </Button>
                         )}
@@ -420,6 +439,25 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                         </Button>
                         <Button onClick={handleSellAsService} disabled={sellForm.processing}>
                             تفعيل
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={!!stoppingService} onOpenChange={(open) => !open && setStoppingService(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>إيقاف بيع "{stoppingService?.name}" كخدمة</DialogTitle>
+                        <DialogDescription>
+                            يعود منتجاً فقط ويختفي من شاشة بيع الخدمات. الفواتير المفتوحة عليه تكمل طبيعياً، ويمكنك تحويله إلى خدمة مرة أخرى في أي وقت.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setStoppingService(null)}>
+                            إلغاء
+                        </Button>
+                        <Button variant="destructive" onClick={handleStopService}>
+                            إيقاف
                         </Button>
                     </DialogFooter>
                 </DialogContent>

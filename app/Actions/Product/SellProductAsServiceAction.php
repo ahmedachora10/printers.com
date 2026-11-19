@@ -4,10 +4,12 @@ namespace App\Actions\Product;
 
 use App\Actions\BranchService\AttachBranchServiceAction;
 use App\Actions\BranchService\SyncBranchServiceMaterialsAction;
+use App\Actions\UserService\SeedUserServiceCommissionsAction;
 use App\Enums\ServicePricingTypeEnum;
 use App\Models\BranchService;
 use App\Models\Product;
 use App\Models\ServiceTemplate;
+use App\Models\UserService;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -26,13 +28,30 @@ class SellProductAsServiceAction
     public function __construct(
         private readonly AttachBranchServiceAction $attach,
         private readonly SyncBranchServiceMaterialsAction $syncMaterials,
+        private readonly SeedUserServiceCommissionsAction $seedCommissions,
     ) {}
 
     public function handle(Product $product, float $commissionPct): BranchService
     {
         return DB::transaction(function () use ($product, $commissionPct): BranchService {
-            if ($product->branchService !== null) {
-                return $product->branchService;
+            $existing = $product->branchService;
+
+            if ($existing !== null && $existing->product_sale_stopped_at === null) {
+                return $existing;
+            }
+
+            // إعادة تحويلٍ بعد إيقاف: الخدمة نفسها تعود — لا قالبٌ مكرّر — والنسبة
+            // المُدخلة تسري على الموظفين جميعاً كما في التحويل الأول.
+            if ($existing !== null) {
+                $existing->update([
+                    'product_sale_stopped_at' => null,
+                    'base_commission_pct' => $commissionPct,
+                    ...$this->mirrored($product),
+                ]);
+                UserService::where('branch_service_id', $existing->id)->update(['commission_override_pct' => $commissionPct]);
+                $this->seedCommissions->handle($existing, $commissionPct);
+
+                return $existing;
             }
 
             $template = ServiceTemplate::create([
@@ -60,12 +79,22 @@ class SellProductAsServiceAction
         });
     }
 
+    /**
+     * «إيقاف البيع كخدمة»: يعود المنتج منتجاً فقط. الخدمة تُعطَّل ولا تُحذف —
+     * الفواتير المفتوحة عليها تكمل طبيعياً ويُسحب مخزونها عند الدفع.
+     */
+    public function stop(Product $product): void
+    {
+        $product->branchService?->update(['product_sale_stopped_at' => now(), 'is_active' => false]);
+    }
+
     /** يُستدعى من حفظ المنتج وحذفه (Product::booted). */
     public function sync(Product $product): void
     {
         $branchService = $product->branchService()->with('serviceTemplate')->first();
 
-        if ($branchService === null) {
+        // الموقوفة لا تتبع حالة المنتج، وإلا أعادها تفعيلُه إلى شاشة الموظف.
+        if ($branchService === null || $branchService->product_sale_stopped_at !== null) {
             return;
         }
 

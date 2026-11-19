@@ -741,6 +741,8 @@ Route::middleware(['auth'])->group(function () {
                 ->name('products.toggle-status');
             Route::post('products/{product}/sell-as-service', [ProductController::class, 'sellAsService'])
                 ->name('products.sell-as-service');
+            Route::delete('products/{product}/sell-as-service', [ProductController::class, 'stopSellingAsService'])
+                ->name('products.stop-selling-as-service');
             Route::resource('products', ProductController::class)
                 ->only(['index', 'store', 'update', 'destroy']);
 

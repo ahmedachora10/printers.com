@@ -31,7 +31,9 @@ class ProductResource extends JsonResource
             'barcode' => $this->barcode,
             'isActive' => $this->is_active,
             // يُباع أيضاً من شاشة الموظف كخدمة (SellProductAsServiceAction).
-            'soldAsService' => $this->whenLoaded('branchService', fn () => $this->branchService !== null, false),
+            'soldAsService' => $this->whenLoaded('branchService', fn () => $this->branchService !== null && $this->branchService->product_sale_stopped_at === null, false),
+            // نسبة العمولة السابقة تملأ نافذة إعادة التحويل بعد إيقافه.
+            'serviceCommissionPct' => $this->whenLoaded('branchService', fn () => $this->branchService ? (float) $this->branchService->base_commission_pct : null),
             'valuation' => round((float) $this->current_stock * (float) $this->cost_price, 2),
         ];
     }

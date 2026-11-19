@@ -125,6 +125,16 @@ class ProductController extends Controller
         return back(fallback: route('inventory.products.index'))->with('success', 'أصبح المنتج متاحاً في شاشة بيع الخدمات');
     }
 
+    /** العكس: يعود منتجاً فقط ويختفي من شاشة الموظف — الفواتير المفتوحة تكمل. */
+    public function stopSellingAsService(Product $product, SellProductAsServiceAction $action): RedirectResponse
+    {
+        Gate::authorize('update', $product);
+
+        $action->stop($product);
+
+        return back(fallback: route('inventory.products.index'))->with('success', 'لم يعد المنتج يُباع كخدمة');
+    }
+
     public function toggleStatus(Product $product, UpdateProductAction $action): RedirectResponse
     {
         Gate::authorize('update', $product);

@@ -16,6 +16,7 @@ class BranchService extends Pivot
         'branch_id',
         'service_template_id',
         'product_id',
+        'product_sale_stopped_at',
         'base_commission_pct',
         'max_discount_pct',
         'max_selling_price',
@@ -32,6 +33,7 @@ class BranchService extends Pivot
     ];
 
     protected $casts = [
+        'product_sale_stopped_at' => 'datetime',
         'base_commission_pct' => 'decimal:2',
         'max_discount_pct' => 'decimal:2',
         'max_selling_price' => 'decimal:2',

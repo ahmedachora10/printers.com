@@ -174,6 +174,39 @@ it('puts the product back when a correction brings collected to zero, and draws 
     expect($this->product->refresh()->current_stock)->toEqual(8.0);
 });
 
+it('stops selling as a service and converts back to the same service with the new rate', function () {
+    $service = sellAsService(10);
+    $invoice = productInvoice($service);
+
+    $this->actingAs($this->branchAdmin)
+        ->delete(route('inventory.products.stop-selling-as-service', $this->product))
+        ->assertSessionHasNoErrors();
+
+    expect($service->refresh()->is_active)->toBeFalse();
+
+    // حفظ المنتج أو تفعيله لا يعيدها إلى شاشة الموظف.
+    $this->product->refresh()->update(['selling_price' => 25, 'is_active' => true]);
+    expect($service->refresh()->is_active)->toBeFalse();
+
+    // الفاتورة المفتوحة تكمل، ويُسحب المخزون عند الدفع.
+    payProductInvoice($invoice, 40);
+    expect($this->product->refresh()->current_stock)->toEqual(8.0);
+
+    $this->actingAs($this->branchAdmin)->get(route('inventory.products.index'))
+        ->assertInertia(fn ($page) => $page->where('items.data.0.soldAsService', false)->where('items.data.0.serviceCommissionPct', 10));
+
+    $templates = ServiceTemplate::count();
+    expect(sellAsService(12)->id)->toBe($service->id);
+
+    $service->refresh();
+    expect($service->is_active)->toBeTrue()
+        ->and($service->product_sale_stopped_at)->toBeNull()
+        ->and((float) $service->price_per_sqm)->toBe(25.0)
+        ->and((float) $service->base_commission_pct)->toBe(12.0)
+        ->and(ServiceTemplate::count())->toBe($templates)
+        ->and((float) UserService::where('branch_service_id', $service->id)->where('user_id', $this->employee->id)->value('commission_override_pct'))->toBe(12.0);
+});
+
 it('returns the product to stock when an invoice with a deposit is returned', function () {
     $invoice = productInvoice(sellAsService());
 

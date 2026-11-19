@@ -20,6 +20,7 @@ export interface Product {
     isActive: boolean;
     /** يُباع أيضاً من شاشة الموظف كخدمة */
     soldAsService: boolean;
+    serviceCommissionPct?: number | null;
     valuation: number;
 }
 
