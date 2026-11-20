@@ -15,9 +15,11 @@ use Illuminate\Support\Collection;
  */
 class ListBranchAgentsAction
 {
-    /** @return Collection<int, array<string, mixed>> */
-    /** @param  int|null  $exceptUserId  the invoice owner — never their own agent. */
-    public function handle(?int $branchId, ?int $exceptUserId = null): Collection
+    /**
+     * @param  int  $exceptUserId  the invoice owner — never their own agent.
+     * @return Collection<int, array<string, mixed>>
+     */
+    public function handle(?int $branchId, int $exceptUserId): Collection
     {
         if (! $branchId) {
             return collect();
@@ -26,7 +28,7 @@ class ListBranchAgentsAction
         return Agent::query()
             ->forBranch($branchId)
             ->withBranchTerms($branchId)
-            ->when($exceptUserId, fn ($q) => $q->whereKeyNot($exceptUserId))
+            ->whereKeyNot($exceptUserId)
             ->where('is_active', true)
             ->orderBy('name')
             ->get()

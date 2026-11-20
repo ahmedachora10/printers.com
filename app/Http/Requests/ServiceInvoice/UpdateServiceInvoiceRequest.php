@@ -31,7 +31,6 @@ class UpdateServiceInvoiceRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
-        // صاحب الفاتورة لا يكون مندوبها: لا يجمع عمولة الموظف وعمولة المندوب على البيعة نفسها.
         $notSelf = Rule::notIn([$this->route('invoice')?->user_id ?? $this->user()?->id]);
 
         // القاعدة تتبع من يعدّل الآن لا صاحب الفاتورة: الموظف يصحّح فاتورته

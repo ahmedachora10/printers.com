@@ -309,7 +309,7 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
                     {isEdit && user && <UserAttachmentsSection userId={user.id} canManage />}
 
                     {/* دورٌ ثانٍ فوق الدور الأساسي: يظهر في قوائم المناديب، وتُضبط شروطه من صفحة المناديب. */}
-                    {data.role && data.role !== 'agent' && roles.some((r) => r.value === 'agent') && (
+                    {data.role && data.role !== 'agent' && (
                         <div className="flex items-center gap-2">
                             <Checkbox
                                 id="user-is-agent"
