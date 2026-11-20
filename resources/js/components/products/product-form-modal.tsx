@@ -1,5 +1,6 @@
 import { store, update } from '@/actions/App/Http/Controllers/ProductController';
 import PriceTiersField from '@/components/price-tiers-field';
+import { FilterMultiSelect } from '@/components/reports/filter-fields';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -29,12 +30,16 @@ interface Props {
     product?: Product;
     categories: Category[];
     units: ProductUnit[];
+    /** السوبر أدمن وحده: يُنشأ المنتج في كل فرعٍ مختار. null لمدير الفرع. */
+    branches?: { id: number; name: string }[] | null;
 }
 
-export default function ProductFormModal({ open, onOpenChange, product, categories, units }: Props) {
+export default function ProductFormModal({ open, onOpenChange, product, categories, units, branches }: Props) {
     const isEdit = !!product;
+    const pickBranches = !isEdit && !!branches;
 
-    const { data, setData, post, put, processing, errors, reset } = useForm({
+    const { data, setData, post, put, processing, errors, reset, transform } = useForm({
+        branch_ids:      '',
         sku:             product?.sku ?? '',
         name:            product?.name ?? '',
         category_id:     product?.categoryId?.toString() ?? '',
@@ -51,6 +56,7 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
     useEffect(() => {
         if (product) {
             setData({
+                branch_ids:      '',
                 sku:             product.sku ?? '',
                 name:            product.name ?? '',
                 category_id:     product.categoryId?.toString() ?? '',
@@ -67,6 +73,8 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
             reset();
         }
     }, [product, open]);
+
+    transform(({ branch_ids, ...rest }) => (pickBranches ? { ...rest, branch_ids: branch_ids ? branch_ids.split(',') : [] } : rest));
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
@@ -92,6 +100,21 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
                 </DialogHeader>
 
                 <form id="product-form" onSubmit={handleSubmit} className="space-y-4 py-2">
+                    {pickBranches && branches && (
+                        <div className="space-y-1">
+                            <FilterMultiSelect
+                                label="الفروع"
+                                value={data.branch_ids}
+                                onChange={(val) => setData('branch_ids', val)}
+                                options={branches.map((b) => ({ value: b.id.toString(), label: b.name }))}
+                                allLabel="اختر فرعاً أو أكثر"
+                                searchPlaceholder="ابحث عن فرع..."
+                            />
+                            <p className="text-muted-foreground text-xs">يُنشأ المنتج في كل فرعٍ مختار بمخزونٍ مستقل.</p>
+                            <InputError message={errors.branch_ids} />
+                        </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-1">
                             <Label htmlFor="prod-sku">رمز SKU</Label>

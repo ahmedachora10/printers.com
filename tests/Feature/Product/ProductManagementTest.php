@@ -94,6 +94,26 @@ describe('Product Management', function () {
         expect($product->sku)->toStartWith('SKU-');
     });
 
+    it('lets super-admin create the product in several branches at once', function () {
+        $superAdmin = User::factory()->create();
+        $superAdmin->addRole(Roles::SUPER_ADMIN->value);
+        $other = Branch::factory()->create();
+
+        $payload = [
+            'name' => 'ورق A4', 'category_id' => $this->category->id, 'unit_id' => $this->unit->id,
+            'cost_price' => 20, 'selling_price' => 50,
+        ];
+
+        $this->actingAs($superAdmin)->post(route('inventory.products.store'), $payload)
+            ->assertSessionHasErrors('branch_ids');
+
+        $this->post(route('inventory.products.store'), [...$payload, 'branch_ids' => [$this->branch->id, $other->id]])
+            ->assertSessionHasNoErrors();
+
+        expect(Product::where('name', 'ورق A4')->pluck('branch_id')->sort()->values()->all())
+            ->toBe(collect([$this->branch->id, $other->id])->sort()->values()->all());
+    });
+
     it('fails to create a product without required fields', function () {
         $this->post(route('inventory.products.store'), [])
             ->assertSessionHasErrors(['name', 'category_id', 'unit_id', 'cost_price', 'selling_price']);

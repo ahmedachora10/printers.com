@@ -92,7 +92,7 @@ class ProductController extends Controller
     {
         Gate::authorize('create', Product::class);
 
-        $action->handle($request->validated());
+        $action->handle($request->validated(), $request->branchIds());
 
         return back(fallback: route('inventory.products.index'))->with('success', 'تم إضافة المنتج بنجاح');
     }

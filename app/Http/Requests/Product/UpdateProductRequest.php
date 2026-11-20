@@ -27,7 +27,8 @@ class UpdateProductRequest extends FormRequest
                 'string',
                 'max:100',
                 Rule::unique('products', 'sku')
-                    ->where('branch_id', auth()->user()->branchId)
+                    // فرع المنتج لا فرع المستخدم — السوبر أدمن بلا فرع.
+                    ->where('branch_id', $this->route('product')?->branch_id)
                     ->ignore($this->route('product')),
             ],
             'name' => ['required', 'string', 'max:255'],

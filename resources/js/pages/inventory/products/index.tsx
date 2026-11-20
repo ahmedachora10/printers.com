@@ -465,6 +465,7 @@ export default function ProductsIndex({ items, lowStockCount, categories, units,
                 product={editing ?? undefined}
                 categories={categories}
                 units={units}
+                branches={branches}
             />
 
             <StockAdjustmentModal

@@ -3,25 +3,28 @@
 namespace App\Actions\Product;
 
 use App\Models\Product;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class CreateProductAction
 {
-    /** @param array<string, mixed> $data */
-    public function handle(array $data): Product
+    /**
+     * صفٌّ مستقلٌّ لكل فرع — المخزون والسعر ملك الفرع (UNIQUE sku, branch_id).
+     *
+     * @param  array<string, mixed>  $data
+     * @param  array<int, int>  $branchIds
+     * @return Collection<int, Product>
+     */
+    public function handle(array $data, array $branchIds): Collection
     {
-        $user = auth()->user();
-        $data['branch_id'] = $user->branchId;
+        unset($data['branch_ids']);
         $data['min_stock_level'] = $data['min_stock_level'] ?? 0;
 
-        return DB::transaction(function () use ($data) {
-
-            if (empty($data['sku'])) {
-                $data['sku'] = $this->generateUniqueSku($data['branch_id']);
-            }
-
-            return Product::create($data);
-        });
+        return DB::transaction(fn () => collect($branchIds)->map(fn (int $branchId) => Product::create([
+            ...$data,
+            'branch_id' => $branchId,
+            'sku' => ($data['sku'] ?? null) ?: $this->generateUniqueSku($branchId),
+        ])));
     }
 
     private function generateUniqueSku(int $branchId): string
