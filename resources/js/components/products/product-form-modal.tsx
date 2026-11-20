@@ -1,4 +1,5 @@
 import { store, update } from '@/actions/App/Http/Controllers/ProductController';
+import { scopeIds } from '@/components/branch-scope-field';
 import PriceTiersField from '@/components/price-tiers-field';
 import { FilterMultiSelect } from '@/components/reports/filter-fields';
 import { Button } from '@/components/ui/button';
@@ -74,7 +75,7 @@ export default function ProductFormModal({ open, onOpenChange, product, categori
         }
     }, [product, open]);
 
-    transform(({ branch_ids, ...rest }) => (pickBranches ? { ...rest, branch_ids: branch_ids ? branch_ids.split(',') : [] } : rest));
+    transform((d) => ({ ...d, branch_ids: scopeIds(d.branch_ids, pickBranches ? branches : null) }));
 
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();

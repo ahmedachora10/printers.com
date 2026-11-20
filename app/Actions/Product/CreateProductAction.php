@@ -17,7 +17,6 @@ class CreateProductAction
      */
     public function handle(array $data, array $branchIds): Collection
     {
-        unset($data['branch_ids']);
         $data['min_stock_level'] = $data['min_stock_level'] ?? 0;
 
         return DB::transaction(fn () => collect($branchIds)->map(fn (int $branchId) => Product::create([
