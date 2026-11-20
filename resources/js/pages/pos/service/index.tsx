@@ -491,7 +491,6 @@ export default function ServicePos({
         productServices.forEach((s) => s.productCategory && counts.set(s.productCategory, (counts.get(s.productCategory) ?? 0) + 1));
         return counts;
     }, [productServices]);
-    const isGroupedProduct = (s: PosService) => !!s.productCategory && (productCategoryCounts.get(s.productCategory) ?? 0) > 1;
     const [openCategory, setOpenCategory] = useState<string | null>(null);
     const renderTiles = (list: typeof services, leading?: React.ReactNode) => (
         <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
@@ -1887,7 +1886,7 @@ export default function ServicePos({
                                                 </div>
                                             ) : (
                                                 renderTiles(
-                                                    productServices.filter((s) => !isGroupedProduct(s)),
+                                                    productServices.filter((s) => (productCategoryCounts.get(s.productCategory ?? '') ?? 0) < 2),
                                                     [...productCategoryCounts]
                                                         .filter(([, count]) => count > 1)
                                                         .map(([name, count]) => (
