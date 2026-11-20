@@ -598,10 +598,12 @@ class HandleInertiaRequests extends Middleware
             ];
         }
 
-        // Keep only items visible to this role, stripped of the internal keys.
+        // Keep only items visible to this role, stripped of the internal keys. A
+        // staff member who is also an agent gets the agent items on top.
+        $isAgent = $request->user()->isAgent();
         $visible = array_map(
             fn ($item) => array_diff_key($item, ['role' => null, 'group' => null]) + ['group' => $item['group']],
-            array_filter($items, fn ($item) => in_array($userRole, $item['role']))
+            array_filter($items, fn ($item) => in_array($userRole, $item['role']) || ($isAgent && in_array(Roles::AGENT, $item['role'])))
         );
 
         // Bucket into the defined group order, dropping empty groups.

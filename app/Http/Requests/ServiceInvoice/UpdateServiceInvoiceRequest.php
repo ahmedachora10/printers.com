@@ -31,6 +31,9 @@ class UpdateServiceInvoiceRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        // صاحب الفاتورة لا يكون مندوبها: لا يجمع عمولة الموظف وعمولة المندوب على البيعة نفسها.
+        $notSelf = Rule::notIn([$this->route('invoice')?->user_id ?? $this->user()?->id]);
+
         // القاعدة تتبع من يعدّل الآن لا صاحب الفاتورة: الموظف يصحّح فاتورته
         // المعلّقة بلا طريقة دفع، أما المراجع — المحاسب أو مدير الفرع — فلا
         // يُحفظ تعديله إلا بطريقة، فهو من سيعتمدها بعد قليل.
@@ -39,7 +42,7 @@ class UpdateServiceInvoiceRequest extends FormRequest
         return [
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
             'agent_ids' => ['nullable', 'array'],
-            'agent_ids.*' => ['integer', 'distinct', 'exists:users,id'],
+            'agent_ids.*' => ['integer', 'distinct', 'exists:users,id', $notSelf],
             'walkin_name' => ['nullable', 'string', 'max:255'],
             'walkin_phone' => ['nullable', new PhoneNumber],
             'walkin_tax_number' => ['nullable', 'string', 'digits:15'],
@@ -72,7 +75,7 @@ class UpdateServiceInvoiceRequest extends FormRequest
             // تكلفة الخامات للوحدة الواحدة — داخلية، تُخصم من أساس عمولة الموظف.
             'lines.*.has_materials' => ['nullable', 'boolean'],
             'lines.*.materials_cost' => ['nullable', 'numeric', 'min:0'],
-            'lines.*.agent_id' => ['nullable', 'integer', 'exists:users,id'],
+            'lines.*.agent_id' => ['nullable', 'integer', 'exists:users,id', $notSelf],
             'lines.*.agent_commission_type' => ['nullable', 'required_with:lines.*.agent_id', Rule::enum(LineAgentCommissionTypeEnum::class)],
             'lines.*.agent_commission_value' => ['nullable', 'required_with:lines.*.agent_id', 'numeric', 'min:0'],
         ];
@@ -115,6 +118,8 @@ class UpdateServiceInvoiceRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'agent_ids.*.not_in' => 'لا يمكن اختيار صاحب الفاتورة مندوباً عليها.',
+            'lines.*.agent_id.not_in' => 'لا يمكن اختيار صاحب الفاتورة صاحبَ عمولة على سطرها.',
             'walkin_tax_number.digits' => 'الرقم الضريبي يجب أن يكون 15 رقماً.',
             'payment_method_id.required' => 'طريقة الدفع مطلوبة — اخترها قبل حفظ الفاتورة.',
             'payment_method_id.in' => 'طريقة الدفع غير متاحة لهذا الفرع.',

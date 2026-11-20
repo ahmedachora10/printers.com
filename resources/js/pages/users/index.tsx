@@ -130,7 +130,10 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                 key: 'roleLabel',
                 header: 'الدور',
                 cell: (item) => (
-                    <Badge variant="secondary">{item.roleLabel ?? '—'}</Badge>
+                    <div className="flex flex-wrap gap-1">
+                        <Badge variant="secondary">{item.roleLabel ?? '—'}</Badge>
+                        {item.isAgent && item.role !== 'agent' && <Badge variant="outline">مندوب</Badge>}
+                    </div>
                 ),
             },
             {
@@ -199,13 +202,13 @@ export default function UsersIndex({ users: items, roles, branches, isSuperAdmin
                         <Button variant="outline" size="sm" onClick={() => openEdit(item)}>
                             <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        {(hasServiceCommissions(item) || item.role === 'agent') && (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => (item.role === 'agent' ? setAgentCommissionUser(item) : setCommissionUser(item))}
-                                title="عمولات الخدمات"
-                            >
+                        {hasServiceCommissions(item) && item.role !== 'agent' && (
+                            <Button variant="outline" size="sm" onClick={() => setCommissionUser(item)} title="عمولات الخدمات">
+                                <Percent className="h-3.5 w-3.5" />
+                            </Button>
+                        )}
+                        {item.isAgent && (
+                            <Button variant="outline" size="sm" onClick={() => setAgentCommissionUser(item)} title="عمولات المندوب">
                                 <Percent className="h-3.5 w-3.5" />
                             </Button>
                         )}

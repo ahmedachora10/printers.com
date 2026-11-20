@@ -26,9 +26,12 @@ class StoreProductInvoiceRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        // صاحب الفاتورة لا يكون مندوبها: لا يجمع عمولة الموظف وعمولة المندوب على البيعة نفسها.
+        $notSelf = Rule::notIn([$this->route('invoice')?->user_id ?? $this->user()?->id]);
+
         return [
             'customer_id' => ['nullable', 'integer', 'exists:customers,id'],
-            'agent_id' => ['nullable', 'integer', 'exists:users,id'],
+            'agent_id' => ['nullable', 'integer', 'exists:users,id', $notSelf],
             'walkin_name' => ['nullable', 'string', 'max:255'],
             'walkin_phone' => ['nullable', new PhoneNumber],
             'coupon_code' => ['nullable', 'string', 'max:100'],
@@ -87,6 +90,7 @@ class StoreProductInvoiceRequest extends FormRequest
     public function messages(): array
     {
         return [
+            'agent_id.not_in' => 'لا يمكن اختيار صاحب الفاتورة مندوباً عليها.',
             'payment_method_id.required' => 'طريقة الدفع مطلوبة — اخترها قبل حفظ الفاتورة.',
             'payment_method_id.in' => 'طريقة الدفع غير متاحة لهذا الفرع.',
             'notes.max' => 'ملاحظات الفاتورة يجب ألا تتجاوز 1000 حرف.',

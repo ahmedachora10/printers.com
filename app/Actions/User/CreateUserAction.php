@@ -28,18 +28,18 @@ class CreateUserAction
 
         return DB::transaction(function () use ($data) {
             $role = Arr::pull($data, 'role');
+            $isAgent = (bool) Arr::pull($data, 'is_agent', false);
 
             // Password is hashed via the model's 'hashed' cast.
             $user = User::create($data);
 
             if ($role) {
-                $user->addRole($role);
+                $user->addRoles(array_unique([$role, ...($isAgent ? [Roles::AGENT->value] : [])]));
             }
 
             if ($role === Roles::BRANCH_ADMIN->value && ! empty($data['branch_id'])) {
                 $this->updateBranchAction->handle(Branch::find($data['branch_id']), ['owner_id' => $user->id]);
             }
-
 
             return $user;
         });

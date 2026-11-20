@@ -8,6 +8,8 @@ export interface ManagedUser {
     branchName: string | null;
     role: string | null;
     roleLabel: string | null;
+    /** Holds the agent role — alone (role === 'agent') or on top of a staff role. */
+    isAgent: boolean;
     salary: number;
     baseCommissionPct: number;
     referralCommissionPct: number;

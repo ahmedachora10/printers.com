@@ -122,6 +122,7 @@ export default function UserShow({
                             <div className="flex items-center gap-2">
                                 <h1 className="text-2xl font-bold">{user.name}</h1>
                                 {user.roleLabel && <Badge variant="secondary">{user.roleLabel}</Badge>}
+                                {user.isAgent && user.role !== 'agent' && <Badge variant="outline">مندوب</Badge>}
                                 {user.isActive ? (
                                     <Badge variant="outline" className="gap-1.5 border-green-200 bg-green-50 text-green-700">
                                         <span className="inline-block size-1.5 rounded-full bg-green-500" />

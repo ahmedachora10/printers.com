@@ -31,6 +31,8 @@ class StoreUserRequest extends FormRequest
             'phone' => ['nullable', 'string', 'max:20'],
             'password' => ['required', 'confirmed', Password::defaults()],
             'role' => ['required', Rule::in($this->assignableRoles())],
+            // مندوبٌ فوق دوره: يظهر في قوائم المناديب وتُضبط شروطه من صفحة المناديب.
+            'is_agent' => ['sometimes', 'boolean'],
             'branch_id' => [Rule::requiredIf(fn () => $this->input('role') === Roles::AUDITOR->value && $this->user()->roleName->isSuperAdmin()), 'nullable', 'integer', 'exists:branches,id', new SingleBranchManager($this->input('role'))],
             'salary' => ['nullable', 'numeric', 'min:0'],
             'base_commission_pct' => ['nullable', 'numeric', 'between:0,100'],

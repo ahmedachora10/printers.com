@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Arr;
 use Laratrust\Contracts\LaratrustUser;
 use Laratrust\Traits\HasRolesAndPermissions;
 use Spatie\MediaLibrary\HasMedia;
@@ -184,8 +185,20 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
             // لاراتراست يقرأ الأدوار مرّةً واحدةً ويحفظها على نسخة المستخدم، فقراءة
             // الدور من عنده تُلغي استعلاماً ثانياً لنفس الصفّ — وتغييرُ الدور يُفرغ
             // كاشه فلا يبقى دورٌ قديم.
-            get: fn () => Roles::tryFrom($this->getRoles()[0] ?? ''),
+            // «مندوب» دورٌ إضافيٌّ يُضاف فوق دور الموظف، فالدور الأساسي هو غيرُه
+            // متى وُجد؛ والمندوب الصِّرف وحده يرجع AGENT. صفةُ المندوب تُقرأ بـ isAgent().
+            get: function () {
+                $roles = $this->getRoles();
+
+                return Roles::tryFrom(Arr::first($roles, fn ($r) => $r !== Roles::AGENT->value) ?? $roles[0] ?? '');
+            },
         );
+    }
+
+    /** Holds the agent role — alone, or on top of a staff role. */
+    public function isAgent(): bool
+    {
+        return $this->hasRole(Roles::AGENT->value);
     }
 
     /**
@@ -258,7 +271,8 @@ class User extends Authenticatable implements HasMedia, LaratrustUser
         return static::query()
             ->where('is_active', true)
             ->when($branchId, fn ($q) => $q->whereIn('branch_id', (array) $branchId))
-            ->whereDoesntHave('roles', fn ($q) => $q->where('name', Roles::AGENT->value))
+            // Pure agents only: a staff member who is also an agent still raises invoices.
+            ->whereHas('roles', fn ($q) => $q->where('name', '!=', Roles::AGENT->value))
             ->orderBy('name')
             ->get(['id', 'name'])
             ->map(fn (self $u) => ['id' => (int) $u->id, 'name' => (string) $u->name]);

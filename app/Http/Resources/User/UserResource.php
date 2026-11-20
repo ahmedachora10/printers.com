@@ -17,7 +17,9 @@ class UserResource extends JsonResource
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
-        $role = $this->roles->first()?->name;
+        // The main role; «مندوب» on top of a staff role surfaces as isAgent.
+        $names = $this->roles->pluck('name');
+        $role = $names->first(fn ($n) => $n !== Roles::AGENT->value) ?? $names->first();
 
         return [
             'id' => $this->id,
@@ -29,6 +31,7 @@ class UserResource extends JsonResource
             'branchName' => $this->whenLoaded('branch', fn () => $this->branch?->name),
             'role' => $role,
             'roleLabel' => $role ? Roles::tryFrom($role)?->label() : null,
+            'isAgent' => $names->contains(Roles::AGENT->value),
             'salary' => (float) $this->salary,
             'baseCommissionPct' => (float) $this->base_commission_pct,
             'referralCommissionPct' => (float) $this->referral_commission_pct,

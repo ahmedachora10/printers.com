@@ -51,7 +51,7 @@ class ProductInvoiceController extends Controller
             ->map(fn ($lines) => round((float) $lines->sum('qty'), 2))
             ->all();
 
-        $form = $this->posFormData($branchId, $listBranchAgents, $heldQty);
+        $form = $this->posFormData($branchId, $listBranchAgents, $heldQty, (int) $invoice->user_id);
 
         return Inertia::render('pos/product/index', [
             ...$form,
@@ -270,7 +270,7 @@ class ProductInvoiceController extends Controller
      * @param  array<int, float>  $heldQty
      * @return array<string, mixed>
      */
-    private function posFormData(?int $branchId, ListBranchAgentsAction $listBranchAgents, array $heldQty = []): array
+    private function posFormData(?int $branchId, ListBranchAgentsAction $listBranchAgents, array $heldQty = [], ?int $ownerId = null): array
     {
         $branch = Branch::find($branchId);
 
@@ -304,7 +304,7 @@ class ProductInvoiceController extends Controller
 
         return [
             'products' => $products,
-            'agents' => $listBranchAgents->handle($branchId),
+            'agents' => $listBranchAgents->handle($branchId, $ownerId ?? Auth::id()),
             'paymentMethods' => $paymentMethods,
             'vatPct' => (float) ($branch->vat_rate_override ?? 15),
             'loyalty' => [

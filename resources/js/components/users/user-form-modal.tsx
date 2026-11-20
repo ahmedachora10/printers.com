@@ -46,6 +46,7 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
         joined_date:              user?.joinedDate ?? '',
         notes:                    user?.notes ?? '',
         is_active:                user?.isActive ?? true,
+        is_agent:                 user?.isAgent ?? false,
     });
 
     useEffect(() => {
@@ -65,6 +66,7 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
                 joined_date: user.joinedDate ?? '',
                 notes: user.notes ?? '',
                 is_active: user.isActive ?? true,
+                is_agent: user.isAgent ?? false,
             });
         } else {
             reset();
@@ -305,6 +307,22 @@ export default function UserFormModal({ open, onOpenChange, user, roles, branche
                     {/* المرفقات تُرفع بمسارها المستقلّ فور اختيارها، فلا تُعرض
                         إلا لمستخدمٍ محفوظ — ولا معرّف قبل الحفظ أصلاً. */}
                     {isEdit && user && <UserAttachmentsSection userId={user.id} canManage />}
+
+                    {/* دورٌ ثانٍ فوق الدور الأساسي: يظهر في قوائم المناديب، وتُضبط شروطه من صفحة المناديب. */}
+                    {data.role && data.role !== 'agent' && roles.some((r) => r.value === 'agent') && (
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id="user-is-agent"
+                                checked={data.is_agent}
+                                onCheckedChange={(checked) => setData('is_agent', checked === true)}
+                            />
+                            <Label htmlFor="user-is-agent" className="cursor-pointer">
+                                مندوب أيضاً
+                            </Label>
+                            <span className="text-xs text-muted-foreground">— تُضبط شروط الخصم والفروع من صفحة المناديب</span>
+                            <InputError message={errors.is_agent} />
+                        </div>
+                    )}
 
                     <div className="flex items-center gap-2">
                         <Checkbox

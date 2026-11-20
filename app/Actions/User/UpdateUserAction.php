@@ -22,6 +22,8 @@ class UpdateUserAction
         $actor = Auth::user();
 
         $role = Arr::pull($data, 'role');
+        // Absent (e.g. the status toggle) = keep whatever agent role they hold.
+        $isAgent = (bool) Arr::pull($data, 'is_agent', $user->isAgent());
 
         // Branch-scoped actors keep managed users inside their own branch.
         if (! $actor->roleName->isSuperAdmin() && array_key_exists('branch_id', $data)) {
@@ -33,11 +35,11 @@ class UpdateUserAction
             unset($data['password']);
         }
 
-        return DB::transaction(function () use ($user, $data, $role) {
+        return DB::transaction(function () use ($user, $data, $role, $isAgent) {
             $user->update($data);
 
-            if ($role && ! $user->hasRole($role)) {
-                $user->syncRoles([$role]);
+            if ($role) {
+                $user->syncRoles(array_unique([$role, ...($isAgent ? [Roles::AGENT->value] : [])]));
             }
 
             if ($role === Roles::BRANCH_ADMIN->value && ! empty($data['branch_id'])) {
@@ -50,7 +52,6 @@ class UpdateUserAction
 
                 $this->updateBranchAction->handle(Branch::find($data['branch_id']), ['owner_id' => $user->id]);
             }
-
 
             return $user->refresh();
         });

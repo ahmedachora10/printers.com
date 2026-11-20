@@ -729,7 +729,7 @@ class ServiceInvoiceController extends Controller
             // العمولات بموظف الفاتورة، والمفضّلة بمن يفتح الشاشة: تفضيلٌ شخصيّ
             // لمن يبيع الآن لا لصاحب الفاتورة (تاسك 76).
             'services' => $this->branchServiceOptions($branchId, $commissionUserId, $user->id),
-            'agents' => $listBranchAgents->handle($branchId),
+            'agents' => $listBranchAgents->handle($branchId, $commissionUserId),
             'paymentMethods' => $paymentMethods,
             'vatPct' => (float) ($branch->vat_rate_override ?? 15),
             'loyalty' => [

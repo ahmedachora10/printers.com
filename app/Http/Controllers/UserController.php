@@ -160,7 +160,7 @@ class UserController extends Controller
     public function showAgentCommissions(User $user): JsonResponse
     {
         Gate::authorize('update', $user);
-        abort_unless($user->roleName?->isAgent(), 404);
+        abort_unless($user->isAgent(), 404);
 
         $terms = AgentService::query()->where('agent_id', $user->id)->get()->keyBy('branch_service_id');
 
@@ -190,7 +190,7 @@ class UserController extends Controller
         SyncAgentServiceCommissionsAction $action,
     ): RedirectResponse {
         Gate::authorize('update', $user);
-        abort_unless($user->roleName?->isAgent(), 404);
+        abort_unless($user->isAgent(), 404);
 
         $action->handle(array_map(
             fn (array $row) => [...$row, 'agent_id' => $user->id],
