@@ -9,20 +9,25 @@ use Illuminate\Support\Facades\DB;
 
 class CreateCatalogCategoryAction
 {
-    /** @param array<string, mixed> $data */
-    public function handle(array $data): CatalogCategory
+    /**
+     * One independent category per branch in `branch_ids` — or one general
+     * category when it is empty. Editing one copy never touches the others.
+     *
+     * @param  array<string, mixed>  $data
+     */
+    public function handle(array $data): void
     {
-        return DB::transaction(function () use ($data) {
+        DB::transaction(function () use ($data) {
             /** @var UploadedFile|null $image */
             $image = Arr::pull($data, 'image');
+            $branchIds = Arr::pull($data, 'branch_ids') ?: [null];
 
-            $category = CatalogCategory::create($data);
+            $categories = collect($branchIds)->map(fn (?int $id) => CatalogCategory::create([...$data, 'branch_id' => $id]));
 
             if ($image) {
-                $category->addMedia($image)->toMediaCollection('image');
+                $media = $categories->first()->addMedia($image)->toMediaCollection('image');
+                $categories->skip(1)->each(fn (CatalogCategory $copy) => $media->copy($copy, 'image'));
             }
-
-            return $category;
         });
     }
 }

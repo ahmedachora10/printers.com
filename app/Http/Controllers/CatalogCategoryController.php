@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Actions\CatalogCategory\CopyCatalogueAction;
 use App\Actions\CatalogCategory\CreateCatalogCategoryAction;
 use App\Actions\CatalogCategory\DeleteCatalogCategoryAction;
 use App\Actions\CatalogCategory\UpdateCatalogCategoryAction;
@@ -131,6 +132,23 @@ class CatalogCategoryController extends Controller
         Gate::authorize('create', CatalogCategory::class);
 
         return $this->commitImport($request, fn (bool $dryRun) => new CatalogueImport($this->catalogueWriteScope($request), $dryRun));
+    }
+
+    /**
+     * «نسخ من فرع» — super admin only: branch admins never see another branch's
+     * prices. `dry_run` previews the very same copy and rolls it back.
+     */
+    public function copy(Request $request, CopyCatalogueAction $action): JsonResponse
+    {
+        abort_unless($this->isCatalogueSuperAdmin($request), 403);
+
+        $data = $request->validate([
+            'from' => ['required', 'integer', 'exists:branches,id'],
+            'to' => ['required', 'integer', 'different:from', 'exists:branches,id'],
+            'dry_run' => ['boolean'],
+        ], ['to.different' => 'اختر فرعًا مختلفًا عن فرع المصدر.']);
+
+        return response()->json($action->handle((int) $data['from'], (int) $data['to'], $request->boolean('dry_run'))->toArray());
     }
 
     /** An empty sheet with the headings this import expects, and one example row. */

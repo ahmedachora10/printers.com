@@ -6,7 +6,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '
 import { ImageUpload } from '@/components/ui/image-upload';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { BranchScopeField } from '@/components/catalogue/scope';
+import { BranchScopeField, scopeIds } from '@/components/branch-scope-field';
 import { type CatalogCategory, type CatalogueBranchOption } from '@/types/catalogue';
 import { router, useForm } from '@inertiajs/react';
 import { useEffect } from 'react';
@@ -15,7 +15,7 @@ interface Props {
     open: boolean;
     onOpenChange: (open: boolean) => void;
     category?: CatalogCategory;
-    /** Super admin only: pick the owning branch, or null for a general category (تاسك 47). */
+    /** Super admin only: pick branches (one independent copy each), or none for a general category. */
     branches?: CatalogueBranchOption[] | null;
     defaultBranchId?: number | null;
 }
@@ -29,15 +29,15 @@ export default function CategoryFormModal({
 }: Props) {
     const isEdit = !!category;
 
-    const { data, setData, post, processing, errors, reset, setError, clearErrors } = useForm<{
+    const { data, setData, post, transform, processing, errors, reset, setError, clearErrors } = useForm<{
         name_ar: string;
-        branch_id: number | null;
+        branch_scope: string;
         sort_order: number;
         is_active: boolean;
         image: File | null;
     }>({
         name_ar: category?.nameAr ?? '',
-        branch_id: category?.branchId ?? defaultBranchId,
+        branch_scope: defaultBranchId ? String(defaultBranchId) : '',
         sort_order: category?.sortOrder ?? 0,
         is_active: category?.isActive ?? true,
         image: null,
@@ -46,7 +46,7 @@ export default function CategoryFormModal({
     useEffect(() => {
         setData({
             name_ar: category?.nameAr ?? '',
-            branch_id: category?.branchId ?? defaultBranchId,
+            branch_scope: defaultBranchId ? String(defaultBranchId) : '',
             sort_order: category?.sortOrder ?? 0,
             is_active: category?.isActive ?? true,
             image: null,
@@ -73,6 +73,7 @@ export default function CategoryFormModal({
         if (isEdit) {
             router.post(categoryRoutes.update.url(category), { ...data }, options);
         } else {
+            transform(({ branch_scope, ...rest }) => ({ ...rest, branch_ids: scopeIds(branch_scope, branches) }));
             post(categoryRoutes.store.url(), options);
         }
     }
@@ -86,15 +87,18 @@ export default function CategoryFormModal({
 
                 <form id="category-form" onSubmit={handleSubmit} className="space-y-4 py-2">
                     {/* A row never changes owner, so the picker only shows while creating. */}
-                    {!isEdit && (
-                        <BranchScopeField
-                            id="cat-branch"
-                            branches={branches}
-                            value={data.branch_id}
-                            onChange={(branchId) => setData('branch_id', branchId)}
-                            error={errors.branch_id}
-                            hint="الفئة العامة يراها كل الفروع؛ وفئة الفرع لا تظهر إلا فيه."
-                        />
+                    {!isEdit && branches && (
+                        <div className="space-y-1">
+                            <BranchScopeField
+                                value={data.branch_scope}
+                                onChange={(value) => setData('branch_scope', value)}
+                                branches={branches}
+                                error={(errors as Record<string, string | undefined>).branch_ids}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                الفئة العامة يراها كل الفروع؛ ولكل فرعٍ تختاره نسخةٌ مستقلة يحرّرها وحده.
+                            </p>
+                        </div>
                     )}
 
                     <div className="space-y-1">
