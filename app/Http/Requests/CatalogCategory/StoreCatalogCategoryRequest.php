@@ -27,7 +27,7 @@ class StoreCatalogCategoryRequest extends FormRequest
             ? [$this->input('branch_id')]
             : (array) $this->input('branch_ids');
 
-        $this->merge(['branch_ids' => array_values(array_unique(array_map('intval', array_filter($ids))))]);
+        $this->merge(['branch_ids' => array_filter($ids)]);
     }
 
     /** @return array<string, mixed> */
@@ -37,7 +37,7 @@ class StoreCatalogCategoryRequest extends FormRequest
 
         return [
             'branch_ids' => ['array'],
-            'branch_ids.*' => ['integer', 'exists:branches,id'],
+            'branch_ids.*' => ['integer', 'distinct', 'exists:branches,id'],
             'name_ar' => [
                 'required',
                 'string',
