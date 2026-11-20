@@ -112,6 +112,15 @@ it('creates one linked service mirroring the product, with the product as its x1
     expect(BranchService::where('product_id', $this->product->id)->count())->toBe(1);
 });
 
+it('sends the product category to the POS so the products tab can group by it', function () {
+    $service = sellAsService();
+
+    $this->actingAs($this->employee)
+        ->get(route('pos.service.create'))
+        ->assertInertia(fn ($page) => $page->where('services', fn ($services) => collect($services)
+            ->firstWhere('id', $service->id)['productCategory'] === $this->product->category->name));
+});
+
 it('follows the product on every save and deactivates on delete', function () {
     $service = sellAsService();
 

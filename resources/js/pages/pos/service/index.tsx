@@ -56,7 +56,7 @@ import {
     type ServiceCartLine,
 } from '@/types/pos';
 import { Head, router, usePage } from '@inertiajs/react';
-import { AlertTriangle, Award, BadgePercent, CalendarClock, Info, Lock, Package, Plus, Printer, Ruler, Save, Search, Star, StickyNote, Tag, X } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Award, BadgePercent, CalendarClock, Folder, Info, Lock, Package, Plus, Printer, Ruler, Save, Search, Star, StickyNote, Tag, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 
@@ -484,8 +484,18 @@ export default function ServicePos({
     const otherServices = useMemo(() => services.filter((s) => !favoriteIds.includes(s.id) && !s.productId), [services, favoriteIds]);
     // المنتجات المبيعة كخدمة في قسمها الخاص؛ المُميَّز منها يبقى في المفضّلة وحدها.
     const productServices = useMemo(() => services.filter((s) => !favoriteIds.includes(s.id) && !!s.productId), [services, favoriteIds]);
-    const renderTiles = (list: typeof services) => (
+    // تصنيفٌ فيه منتجان فأكثر يظهر بطاقةً تفتح منتجاته؛ المنتج الوحيد في تصنيفه (أو بلا تصنيف) يظهر مباشرة.
+    // عدٌّ يدوي لا Object.groupBy: أجهزة iPad الأقدم من iOS 17.4 لا تعرفها.
+    const productCategoryCounts = useMemo(() => {
+        const counts = new Map<string, number>();
+        productServices.forEach((s) => s.productCategory && counts.set(s.productCategory, (counts.get(s.productCategory) ?? 0) + 1));
+        return counts;
+    }, [productServices]);
+    const isGroupedProduct = (s: PosService) => !!s.productCategory && (productCategoryCounts.get(s.productCategory) ?? 0) > 1;
+    const [openCategory, setOpenCategory] = useState<string | null>(null);
+    const renderTiles = (list: typeof services, leading?: React.ReactNode) => (
         <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+            {leading}
             {list.map((s) => (
                 <ServiceTile key={s.id} service={s} isFavorite={false} onPick={() => addService(s)} onToggleFavorite={() => toggleFavorite(s.id)} />
             ))}
@@ -1863,7 +1873,40 @@ export default function ServicePos({
                                             <TabsTrigger value="products">المنتجات كخدمة</TabsTrigger>
                                         </TabsList>
                                         <TabsContent value="services">{renderTiles(otherServices)}</TabsContent>
-                                        <TabsContent value="products">{renderTiles(productServices)}</TabsContent>
+                                        <TabsContent value="products">
+                                            {openCategory ? (
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center gap-2">
+                                                        <Button type="button" variant="ghost" size="sm" onClick={() => setOpenCategory(null)}>
+                                                            <ArrowRight className="size-4" />
+                                                            رجوع
+                                                        </Button>
+                                                        <span className="text-sm font-medium">{openCategory}</span>
+                                                    </div>
+                                                    {renderTiles(productServices.filter((s) => s.productCategory === openCategory))}
+                                                </div>
+                                            ) : (
+                                                renderTiles(
+                                                    productServices.filter((s) => !isGroupedProduct(s)),
+                                                    [...productCategoryCounts]
+                                                        .filter(([, count]) => count > 1)
+                                                        .map(([name, count]) => (
+                                                            <button
+                                                                key={`category-${name}`}
+                                                                type="button"
+                                                                onClick={() => setOpenCategory(name)}
+                                                                className="hover:bg-accent flex w-full flex-col items-start gap-1 rounded-lg border border-dashed p-3 text-right text-sm transition"
+                                                            >
+                                                                <span className="flex items-center gap-1.5 font-medium">
+                                                                    <Folder className="text-muted-foreground size-4 shrink-0" />
+                                                                    <span className="line-clamp-2">{name}</span>
+                                                                </span>
+                                                                <span className="text-muted-foreground text-xs">{count} منتجات</span>
+                                                            </button>
+                                                        )),
+                                                )
+                                            )}
+                                        </TabsContent>
                                     </Tabs>
                                 ) : (
                                     otherServices.length > 0 && (

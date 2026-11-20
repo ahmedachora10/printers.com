@@ -35,6 +35,8 @@ export interface PosService {
     priceTiers: PriceTier[];
     /** منتجٌ يُباع كخدمة — سطره يبدأ بسعر بيع المنتج (pricePerSqm) لا بصفر */
     productId: number | null;
+    /** اسم تصنيف المنتج في المخزون — تُجمَع به بطاقات «المنتجات كخدمة» */
+    productCategory: string | null;
     agentCommissionPerSqm: number;
     /** تاسك 153: عمولة المندوب المحدَّدة لهذه الخدمة، بمعرّف المندوب — مقفلة على الموظف */
     agentTerms: Record<number, { type: LineAgentCommissionType; value: number }>;

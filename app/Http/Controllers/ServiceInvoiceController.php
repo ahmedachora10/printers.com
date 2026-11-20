@@ -785,6 +785,9 @@ class ServiceInvoiceController extends Controller
                 'materials.product:id,name,unit_id,is_sqm,current_stock',
                 'materials.product.unit:id,name',
                 'agentCommissions',
+                // تصنيف المنتج المبيع كخدمة — يجمع بطاقاته في تبويب «المنتجات كخدمة».
+                'product:id,category_id',
+                'product.category:id,name',
             ])
             // تاسك 82: ترتيب البائع هو ترتيب القالب — ضمٌّ صريح لأن الترتيب
             // على جدول القوالب لا على خدمات الفرع. ترتيبٌ لا يراه البائع لا قيمة له.
@@ -806,6 +809,7 @@ class ServiceInvoiceController extends Controller
                 // تاسك 241: شرائح السعر حسب الكمية.
                 'priceTiers' => $service->price_tiers ?? [],
                 'productId' => $service->product_id,
+                'productCategory' => $service->product?->category?->name,
                 'agentCommissionPerSqm' => (float) $service->agent_commission_per_sqm,
                 // تاسك 153: عمولة كل مندوب المحدَّدة لهذه الخدمة — تُعبَّأ وتُقفل على الموظف.
                 'agentTerms' => $service->agentCommissions->mapWithKeys(fn (AgentService $t) => [
