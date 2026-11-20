@@ -189,6 +189,7 @@ Route::middleware(['auth'])->group(function () {
                     Route::get('import/template', 'importTemplate')->name('import.template');
                     Route::post('import/preview', 'importPreview')->name('import.preview');
                     Route::post('import', 'import')->name('import');
+                    Route::post('copy', 'copy')->name('copy');
 
                     // Categories
                     Route::get('/', 'index')->name('categories.index');

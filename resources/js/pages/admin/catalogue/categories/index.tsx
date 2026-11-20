@@ -1,6 +1,7 @@
 import categoryRoutes from '@/actions/App/Http/Controllers/CatalogCategoryController';
 import subcategoryRoutes from '@/actions/App/Http/Controllers/CatalogSubcategoryController';
 import CategoryFormModal from '@/components/catalogue/category-form-modal';
+import CopyBranchDialog from '@/components/catalogue/copy-branch-dialog';
 import ImportDialog from '@/components/import/import-dialog';
 import {
     branchFilterOptions,
@@ -28,7 +29,7 @@ import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
 import { type CatalogCategory, type Paginated } from '@/types/catalogue';
 import { Link, router } from '@inertiajs/react';
-import { Download, ImageIcon, Layers, Pencil, Plus, Trash2, Upload } from 'lucide-react';
+import { Copy, Download, ImageIcon, Layers, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useMemo, useRef, useState } from 'react';
 
 const breadcrumbs: BreadcrumbItem[] = [{ title: 'دليل الخدمات', href: '/admin/catalogue' }];
@@ -45,6 +46,7 @@ export default function CatalogCategoriesIndex({ categories, filters, branches, 
     const [editing, setEditing] = useState<CatalogCategory | null>(null);
     const [deleting, setDeleting] = useState<CatalogCategory | null>(null);
     const [importOpen, setImportOpen] = useState(false);
+    const [copyOpen, setCopyOpen] = useState(false);
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
@@ -221,6 +223,11 @@ export default function CatalogCategoriesIndex({ categories, filters, branches, 
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
+                        {branches && (
+                            <Button variant="outline" size="sm" onClick={() => setCopyOpen(true)}>
+                                <Copy className="size-4" /> نسخ من فرع
+                            </Button>
+                        )}
                         <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
                             <Upload className="size-4" /> استيراد الكل
                         </Button>
@@ -301,6 +308,8 @@ export default function CatalogCategoriesIndex({ categories, filters, branches, 
                 scope={catalogueImportScope(scope, importBranch, setImportBranch)}
                 onImported={() => router.reload()}
             />
+
+            {branches && <CopyBranchDialog open={copyOpen} onOpenChange={setCopyOpen} branches={branches} />}
 
             <CategoryFormModal
                 key={editing?.id ?? 'create'}

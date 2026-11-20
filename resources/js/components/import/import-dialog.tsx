@@ -349,7 +349,7 @@ function ProgressBar({ percent, label }: { percent: number; label: string }) {
     );
 }
 
-function ReportView({ report, done }: { report: ImportReport; done: boolean }) {
+export function ReportView({ report, done }: { report: ImportReport; done: boolean }) {
     const nothingToDo = report.totalRows === report.skipped.length;
 
     return (
@@ -510,7 +510,7 @@ function formatSize(bytes: number): string {
         : `${(bytes / (1024 * 1024)).toFixed(1)} ميغابايت`;
 }
 
-function errorMessage(e: unknown): string {
+export function errorMessage(e: unknown): string {
     if (e instanceof UploadError) {
         const first = Object.values(e.errors)[0]?.[0];
 
